@@ -1,17 +1,19 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, Users, User, Crown, UserCog, Car, ArrowRightCircle } from 'lucide-react';
-import { ChatMessage, UserRole } from '../types';
+import { ChatMessage, UserRole, Staff } from '../types';
 
 interface GroupChatProps {
   messages: ChatMessage[];
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
   currentUser: string | null;
   role: UserRole | null;
-  onNavigate: (view: string) => void; // Function to switch tabs
+  onNavigate: (view: string) => void; 
+  onUpdatePoints: (staffId: string, points: number, reason: string) => void;
+  staffList: Staff[];
 }
 
-const GroupChatView: React.FC<GroupChatProps> = ({ messages, setMessages, currentUser, role, onNavigate }) => {
+const GroupChatView: React.FC<GroupChatProps> = ({ messages, setMessages, currentUser, role, onNavigate, onUpdatePoints, staffList }) => {
   const [inputText, setInputText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -38,6 +40,14 @@ const GroupChatView: React.FC<GroupChatProps> = ({ messages, setMessages, curren
 
     setMessages(prev => [...prev, newMessage]);
     setInputText('');
+
+    // Reward 1 Point (For real human staff only)
+    if (role === UserRole.STAFF) {
+       const staff = staffList.find(s => s.name === currentUser);
+       if (staff) {
+          onUpdatePoints(staff.id, 1, 'CHAT_ACTIVITY');
+       }
+    }
   };
 
   // Sort messages by time

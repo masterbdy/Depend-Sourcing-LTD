@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   LayoutDashboard, Users, Car, Receipt, BarChart3, Settings, Trash2, 
-  LogOut, Wallet, User, Cloud, WifiOff, AlertTriangle, Menu, X, RefreshCw, Lock, ArrowRightLeft, XCircle, Landmark, Bell, Phone, Briefcase, Crown, UserCog, ShieldCheck, Camera, Save, KeyRound, IdCard, MessageSquareWarning, MessagesSquare, MapPin, MonitorSmartphone, Satellite
+  LogOut, Wallet, User, Cloud, WifiOff, AlertTriangle, Menu, X, RefreshCw, Lock, ArrowRightLeft, XCircle, Landmark, Bell, Phone, Briefcase, Crown, UserCog, ShieldCheck, Camera, Save, KeyRound, IdCard, MessageSquareWarning, MessagesSquare, MapPin, MonitorSmartphone, Satellite, Trophy, Gift, Gamepad2, Shield, CheckCircle
 } from 'lucide-react';
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { getDatabase, ref, onValue, set } from "firebase/database";
@@ -23,6 +23,7 @@ import ComplaintBoxView from './views/ComplaintBox';
 import GroupChatView from './views/GroupChat';
 import AttendanceView from './views/Attendance';
 import LiveLocationView from './views/LiveLocation';
+import LuckyDrawView from './views/LuckyDraw';
 
 const App: React.FC = () => {
   const [role, setRole] = useState<UserRole | null>(null);
@@ -31,6 +32,10 @@ const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   
+  // Permission State
+  const [permissionsGranted, setPermissionsGranted] = useState(false);
+  const [permissionStatus, setPermissionStatus] = useState<'IDLE' | 'REQUESTING' | 'DENIED'>('IDLE');
+
   // Profile Form State
   const [profileForm, setProfileForm] = useState({
     designation: '',
@@ -181,6 +186,202 @@ const App: React.FC = () => {
     }
   }, [firebaseConfig]);
 
+  // Check if permissions are already granted to skip the gate
+  useEffect(() => {
+    const checkPermissions = async () => {
+      try {
+        const geoResult = await navigator.permissions.query({ name: 'geolocation' });
+        
+        const updatePermissionState = () => {
+          if (geoResult.state === 'granted') {
+            setPermissionsGranted(true);
+          } else if (geoResult.state === 'denied') {
+            setPermissionStatus('DENIED');
+          }
+        };
+
+        // Initial Check
+        updatePermissionState();
+
+        // Listen for changes (e.g. if user clicks 'Allow' on the browser prompt)
+        geoResult.onchange = updatePermissionState;
+
+        // Try to check camera as well if supported
+        try {
+          const camResult = await navigator.permissions.query({ name: 'camera' as PermissionName });
+          // If camera is granted, and geo is pending, we might still want to wait for geo
+          // But if geo is denied, we can't do location tracking.
+        } catch(e) {}
+
+      } catch (e) {
+        console.log("Permissions query not supported", e);
+        // Fallback: If we can't query permissions, we might try a silent request
+        // or just stay in IDLE and let the user click the button.
+      }
+    };
+    checkPermissions();
+  }, []);
+
+  // Sync Data function
+  const syncData = async (node: string, data: any) => {
+    const cleaned = cleanArray(data);
+    const jsonString = JSON.stringify(cleaned);
+    localStorage.setItem(node, jsonString);
+
+    if (firebaseConfig && firebaseConfig.databaseURL) {
+      try {
+        const app = getApp();
+        const db = getDatabase(app, firebaseConfig.databaseURL);
+        const safeData = JSON.parse(jsonString); 
+        
+        const dataToSave = safeData.reduce((acc: any, curr: any) => ({ 
+          ...acc, 
+          [curr.id || Math.random().toString(36).substr(2, 9)]: curr 
+        }), {});
+          
+        await set(ref(db, node), dataToSave);
+        setIsCloudEnabled(true);
+        setCloudError(null);
+      } catch (err: any) { 
+        console.error(`Sync failed for ${node}:`, err);
+        setCloudError("Sync Failed");
+      }
+    }
+  };
+
+  const updateStaffList = (val: any) => { const next = typeof val === 'function' ? val(staffList) : val; setStaffList(next); syncData('staffList', next); };
+  const updateExpenses = (val: any) => { const next = typeof val === 'function' ? val(expenses) : val; setExpenses(next); syncData('expenses', next); };
+  const updateMovements = (val: any) => { const next = typeof val === 'function' ? val(movements) : val; setMovements(next); syncData('movements', next); };
+  const updateBillingRules = (val: any) => { const next = typeof val === 'function' ? val(billingRules) : val; setBillingRules(next); syncData('billingRules', next); };
+  const updateFunds = (val: any) => { const next = typeof val === 'function' ? val(funds) : val; setFunds(next); syncData('funds', next); };
+  const updateNotices = (val: any) => { const next = typeof val === 'function' ? val(notices) : val; setNotices(next); syncData('notices', next); };
+  const updateAdvances = (val: any) => { const next = typeof val === 'function' ? val(advances) : val; setAdvances(next); syncData('advances', next); };
+  const updateComplaints = (val: any) => { const next = typeof val === 'function' ? val(complaints) : val; setComplaints(next); syncData('complaints', next); };
+  const updateMessages = (val: any) => { const next = typeof val === 'function' ? val(messages) : val; setMessages(next); syncData('messages', next); };
+  const updateAttendance = (val: any) => { const next = typeof val === 'function' ? val(attendanceList) : val; setAttendanceList(next); syncData('attendanceList', next); };
+
+  // --- PERMISSION GATE HANDLING ---
+  const handleRequestPermissions = async () => {
+    setPermissionStatus('REQUESTING');
+    try {
+      // Request Camera
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      // Stop stream immediately to turn off camera light
+      stream.getTracks().forEach(track => track.stop());
+      
+      // Request Geolocation
+      await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject);
+      });
+
+      setPermissionsGranted(true);
+      setPermissionStatus('IDLE');
+    } catch (error) {
+      console.error("Permissions denied:", error);
+      setPermissionStatus('DENIED');
+    }
+  };
+
+  // --- GAMIFICATION LOGIC: VISIT POINTS (UPDATED) ---
+  const handlePointUpdate = (staffId: string, pointsToAdd: number, reason: string) => {
+    setStaffList(prevList => {
+       const newList = prevList.map(s => {
+         if (s.id === staffId) {
+           // EXCLUSION LOGIC: MD and Office accounts do not participate in points
+           if (s.role === UserRole.MD || s.name.toLowerCase().includes('office')) {
+             return s;
+           }
+
+           return {
+             ...s,
+             points: (s.points || 0) + pointsToAdd,
+             updatedAt: new Date().toISOString()
+           };
+         }
+         return s;
+       });
+       syncData('staffList', newList);
+       return newList;
+    });
+  };
+
+  const updateLuckyDrawTime = (staffId: string) => {
+    setStaffList(prevList => {
+      const newList = prevList.map(s => {
+        if (s.id === staffId) {
+          return {
+             ...s,
+             lastLuckyDrawTime: new Date().toISOString(),
+             luckyDrawCount: (s.luckyDrawCount || 0) + 1,
+             updatedAt: new Date().toISOString()
+           };
+         }
+        return s;
+      });
+      syncData('staffList', newList);
+      return newList;
+    });
+  };
+
+  // CHECK POINTS ON ACTIVE VISIT (Focus/Visibility Change)
+  useEffect(() => {
+    // Exclude MD and Kiosk and "Office" accounts from visit points
+    if (!currentUser || !role || role === UserRole.KIOSK || role === UserRole.MD) return;
+    if (currentUser.toLowerCase().includes('office')) return;
+
+    const checkAndAwardVisitPoint = () => {
+       if (document.visibilityState !== 'visible') return;
+
+       const staff = staffList.find(s => s.name === currentUser && s.status === 'ACTIVE' && !s.deletedAt);
+       if (!staff) return;
+
+       // Double check exclusion logic
+       if (staff.role === UserRole.MD || staff.name.toLowerCase().includes('office')) return;
+
+       const now = new Date().getTime();
+       const lastVisit = staff.lastVisitTime ? new Date(staff.lastVisitTime).getTime() : 0;
+       
+       // 10 minutes = 600,000 ms
+       if (now - lastVisit > 600000) {
+          // Give 1 point for visiting after cooldown
+          setStaffList(prevList => {
+             const newList = prevList.map(s => {
+                if (s.id === staff.id) {
+                   return {
+                      ...s,
+                      points: (s.points || 0) + 1,
+                      lastVisitTime: new Date().toISOString(), // Update last visit time
+                      updatedAt: new Date().toISOString()
+                   };
+                }
+                return s;
+             });
+             syncData('staffList', newList);
+             return newList;
+          });
+       }
+    };
+
+    // Trigger on mount (Initial Load)
+    checkAndAwardVisitPoint();
+
+    // Trigger when user returns to the tab
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkAndAwardVisitPoint();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", checkAndAwardVisitPoint);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", checkAndAwardVisitPoint);
+    };
+
+  }, [currentUser, role, staffList.length]); 
+
   // --- LIVE TRACKING LOGIC (SENDER) ---
   useEffect(() => {
     if (!currentUser || !role || !firebaseConfig || !isCloudEnabled) return;
@@ -237,7 +438,6 @@ const App: React.FC = () => {
 
   const sendNotification = (title: string, body: string) => {
     if ('Notification' in window && Notification.permission === 'granted') {
-      // Play a small sound
       try {
         const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
         audio.volume = 0.5;
@@ -246,7 +446,7 @@ const App: React.FC = () => {
 
       new Notification(title, {
         body: body,
-        icon: 'https://cdn-icons-png.flaticon.com/512/1041/1041916.png', // Chat icon
+        icon: 'https://cdn-icons-png.flaticon.com/512/1041/1041916.png',
         tag: 'depend-sourcing-msg'
       });
     }
@@ -256,14 +456,11 @@ const App: React.FC = () => {
   const prevMessagesLength = useRef(0);
   useEffect(() => {
     if (messages.length > 0 && prevMessagesLength.current > 0 && messages.length > prevMessagesLength.current) {
-      // New message arrived
       const lastMsg = messages[messages.length - 1];
-      // Notify if I am not the sender AND the message is recent (within last 30 seconds to avoid spam on load)
       if (lastMsg.sender !== currentUser) {
         const msgTime = new Date(lastMsg.timestamp).getTime();
         if (Date.now() - msgTime < 30000) {
            if (lastMsg.type === 'SYSTEM_MOVEMENT') {
-             // Optional: Separate sound or title for movement
              sendNotification('স্টাফ মুভমেন্ট আপডেট', lastMsg.text);
            } else {
              sendNotification(`মেসেজ: ${lastMsg.sender}`, lastMsg.text);
@@ -274,13 +471,11 @@ const App: React.FC = () => {
     prevMessagesLength.current = messages.length;
   }, [messages, currentUser]);
 
-  // Request permission on Login
   useEffect(() => {
     if (role) {
       requestNotificationPermission();
     }
   }, [role]);
-
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -293,17 +488,15 @@ const App: React.FC = () => {
     if (staffMember) {
       const validPassword = staffMember.password || `${staffMember.name}@`;
       if (loginPassword === validPassword) {
-        // Use the role defined in the profile if available, otherwise default to STAFF
         setRole(staffMember.role || UserRole.STAFF);
         setCurrentUser(staffMember.name);
         if (staffMember.role === UserRole.KIOSK) {
-          setActiveTab('attendance'); // Redirect Kiosk directly to attendance
+          setActiveTab('attendance'); 
         }
         return;
       }
     }
 
-    // Fallback: Hardcoded logins (If no profile exists yet)
     if (username.toLowerCase() === 'ispa' && loginPassword === 'ayaan') {
       setRole(UserRole.MD);
       setCurrentUser('ISPA');
@@ -328,58 +521,10 @@ const App: React.FC = () => {
     setActiveTab('dashboard');
   };
 
-  // Improved Sync Function with Undefined Sanitization
-  const syncData = async (node: string, data: any) => {
-    const cleaned = cleanArray(data);
-    // Use JSON stringify/parse to safely remove undefined values before saving
-    const jsonString = JSON.stringify(cleaned);
-    localStorage.setItem(node, jsonString);
-
-    if (firebaseConfig && firebaseConfig.databaseURL) {
-      try {
-        const app = getApp();
-        const db = getDatabase(app, firebaseConfig.databaseURL);
-        const safeData = JSON.parse(jsonString); // Parse back to ensure no undefined values
-        
-        const dataToSave = safeData.reduce((acc: any, curr: any) => ({ 
-          ...acc, 
-          [curr.id || Math.random().toString(36).substr(2, 9)]: curr 
-        }), {});
-          
-        await set(ref(db, node), dataToSave);
-        setIsCloudEnabled(true);
-        setCloudError(null);
-      } catch (err: any) { 
-        console.error(`Sync failed for ${node}:`, err);
-        setCloudError("Sync Failed");
-      }
-    }
-  };
-
-  const updateStaffList = (val: any) => { const next = typeof val === 'function' ? val(staffList) : val; setStaffList(next); syncData('staffList', next); };
-  const updateExpenses = (val: any) => { const next = typeof val === 'function' ? val(expenses) : val; setExpenses(next); syncData('expenses', next); };
-  const updateMovements = (val: any) => { const next = typeof val === 'function' ? val(movements) : val; setMovements(next); syncData('movements', next); };
-  const updateBillingRules = (val: any) => { const next = typeof val === 'function' ? val(billingRules) : val; setBillingRules(next); syncData('billingRules', next); };
-  const updateFunds = (val: any) => { const next = typeof val === 'function' ? val(funds) : val; setFunds(next); syncData('funds', next); };
-  const updateNotices = (val: any) => { const next = typeof val === 'function' ? val(notices) : val; setNotices(next); syncData('notices', next); };
-  const updateAdvances = (val: any) => { const next = typeof val === 'function' ? val(advances) : val; setAdvances(next); syncData('advances', next); };
-  const updateComplaints = (val: any) => { const next = typeof val === 'function' ? val(complaints) : val; setComplaints(next); syncData('complaints', next); };
-  const updateMessages = (val: any) => { const next = typeof val === 'function' ? val(messages) : val; setMessages(next); syncData('messages', next); };
-  const updateAttendance = (val: any) => { const next = typeof val === 'function' ? val(attendanceList) : val; setAttendanceList(next); syncData('attendanceList', next); };
-
   // --- DATA EXPORT & IMPORT HANDLERS ---
   const handleExport = () => {
     const data = {
-      staffList,
-      expenses,
-      movements,
-      billingRules,
-      funds,
-      notices,
-      advances,
-      complaints,
-      messages,
-      attendanceList,
+      staffList, expenses, movements, billingRules, funds, notices, advances, complaints, messages, attendanceList,
       exportDate: new Date().toISOString(),
       version: '1.0'
     };
@@ -414,13 +559,11 @@ const App: React.FC = () => {
     }
   };
 
-  // Fixed calculations with number casting
+  // Calculations
   const totalExpense = useMemo(() => expenses.filter(e => e && !e.isDeleted && e.status === 'APPROVED').reduce((sum, e) => sum + Number(e.amount || 0), 0), [expenses]);
   const totalFund = useMemo(() => funds.filter(f => f && !f.isDeleted).reduce((sum, f) => sum + Number(f.amount || 0), 0), [funds]);
   const totalAdvances = useMemo(() => advances.filter(a => !a.isDeleted).reduce((sum, a) => sum + Number(a.amount || 0), 0), [advances]);
-  
   const cashOnHand = totalFund - totalAdvances; 
-
   const pendingApprovals = expenses.filter(e => e && !e.isDeleted && (e.status === 'PENDING' || e.status === 'VERIFIED')).length;
 
   // Profile Management Logic
@@ -479,7 +622,6 @@ const App: React.FC = () => {
     const existingProfileIndex = staffList.findIndex(s => s && !s.deletedAt && s.name === currentUser);
     
     if (existingProfileIndex >= 0) {
-      // Update existing
       const updatedList = [...staffList];
       updatedList[existingProfileIndex] = {
         ...updatedList[existingProfileIndex],
@@ -488,7 +630,6 @@ const App: React.FC = () => {
       };
       updateStaffList(updatedList);
     } else {
-      // Create new profile for hardcoded user (e.g., ISPA/Admin who logged in via bypass)
       const newProfile: Staff = {
         id: Math.random().toString(36).substr(2, 9),
         name: currentUser,
@@ -496,6 +637,7 @@ const App: React.FC = () => {
         status: 'ACTIVE',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        points: 0,
         ...profileForm
       };
       updateStaffList([...staffList, newProfile]);
@@ -507,6 +649,68 @@ const App: React.FC = () => {
     return staffList.find(s => s && !s.deletedAt && s.name === currentUser);
   }, [staffList, currentUser]);
 
+  // --- RENDER CONDITION: PERMISSION CHECK FIRST ---
+  if (!permissionsGranted) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4 relative overflow-hidden">
+         {/* Background Effects */}
+         <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5"></div>
+         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-indigo-500 rounded-full blur-[100px] opacity-20"></div>
+
+         <div className="bg-white/10 backdrop-blur-xl border border-white/20 p-8 rounded-3xl w-full max-w-md text-center shadow-2xl relative z-10">
+            <div className="w-20 h-20 bg-indigo-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-indigo-500/50">
+               <ShieldCheck className="w-10 h-10 text-white" />
+            </div>
+            
+            <h1 className="text-2xl font-black text-white mb-2">সিস্টেম অ্যাক্সেস</h1>
+            <p className="text-indigo-200 text-sm mb-8 leading-relaxed">
+               অ্যাপটি ব্যবহার করার জন্য এবং পয়েন্ট আর্ন করার জন্য আপনার ডিভাইসের <strong>লোকেশন</strong> এবং <strong>ক্যামেরা</strong> পারমিশন বাধ্যতামূলক।
+            </p>
+
+            {permissionStatus === 'DENIED' && (
+               <div className="bg-red-500/20 border border-red-500/50 p-4 rounded-xl mb-6 text-left flex gap-3">
+                  <AlertTriangle className="w-6 h-6 text-red-400 shrink-0" />
+                  <div>
+                     <p className="text-white font-bold text-sm">পারমিশন ব্লক করা হয়েছে!</p>
+                     <p className="text-red-200 text-xs mt-1">দয়া করে ব্রাউজার সেটিংস থেকে পারমিশন Allow করে পেজটি রিফ্রেশ দিন।</p>
+                  </div>
+               </div>
+            )}
+
+            <button 
+               onClick={handleRequestPermissions}
+               disabled={permissionStatus === 'REQUESTING'}
+               className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-2xl transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-xl"
+            >
+               {permissionStatus === 'REQUESTING' ? (
+                  <>
+                     <RefreshCw className="w-5 h-5 animate-spin" />
+                     যাচাই করা হচ্ছে...
+                  </>
+               ) : (
+                  <>
+                     পারমিশন দিন এবং প্রবেশ করুন
+                     <ArrowRightLeft className="w-5 h-5" />
+                  </>
+               )}
+            </button>
+            
+            <div className="mt-6 flex justify-center gap-4 text-gray-400">
+               <div className="flex flex-col items-center gap-1">
+                  <MapPin className="w-5 h-5" />
+                  <span className="text-[10px]">Location</span>
+               </div>
+               <div className="flex flex-col items-center gap-1">
+                  <Camera className="w-5 h-5" />
+                  <span className="text-[10px]">Camera</span>
+               </div>
+            </div>
+         </div>
+      </div>
+    );
+  }
+
+  // --- LOGIN SCREEN ---
   if (!role) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-700 via-blue-800 to-indigo-900 flex items-center justify-center p-4">
@@ -564,7 +768,7 @@ const App: React.FC = () => {
             </button>
           </form>
 
-          {/* Connection Status Indicator for Login Screen */}
+          {/* Connection Status Indicator */}
           <div className="mt-6 flex flex-col items-center gap-3">
             {isCloudEnabled ? (
                <span className="flex items-center gap-1.5 text-[10px] text-green-600 bg-green-50 px-3 py-1 rounded-full font-bold">
@@ -578,40 +782,6 @@ const App: React.FC = () => {
                </div>
             )}
           </div>
-
-          {showDbHelp && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in duration-200">
-              <div className="bg-white w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl">
-                <div className="p-6 bg-red-600 text-white flex justify-between items-center">
-                  <h3 className="font-bold text-lg flex items-center gap-2"><AlertTriangle className="w-5 h-5" /> ডাটাবেস সেটআপ প্রয়োজন</h3>
-                  <button onClick={() => setShowDbHelp(false)}><X className="w-6 h-6 opacity-80 hover:opacity-100" /></button>
-                </div>
-                <div className="p-6 space-y-4">
-                  <p className="text-sm text-gray-600">আপনার অ্যাপ ডাটাবেসে কানেক্ট করতে পারছে না। সম্ভবত <strong>Firebase Rules</strong> সেট করা হয়নি।</p>
-                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 text-sm space-y-2">
-                    <p className="font-bold text-gray-800">1. <a href="https://console.firebase.google.com/" target="_blank" className="text-indigo-600 underline">Firebase Console</a> এ যান।</p>
-                    <p className="font-bold text-gray-800">2. Realtime Database {'>'} Rules ট্যাবে যান।</p>
-                    <p className="font-bold text-gray-800">3. নিচের কোডটি পেস্ট করে Publish করুন:</p>
-                    <div className="bg-gray-900 text-green-400 p-3 rounded-lg font-mono text-xs mt-2 select-all">
-<pre>{`{
-  "rules": {
-    ".read": true,
-    ".write": true
-  }
-}`}</pre>
-                    </div>
-                  </div>
-                  <button onClick={() => window.location.reload()} className="w-full bg-red-600 text-white py-3 rounded-xl font-bold hover:bg-red-700 transition-all flex items-center justify-center gap-2">
-                    <RefreshCw className="w-4 h-4" /> পেজ রিলোড দিন
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="mt-4 pt-6 border-t border-gray-100 text-center">
-            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">© 2024 Depend Sourcing Ltd.</p>
-          </div>
         </div>
       </div>
     );
@@ -620,14 +790,15 @@ const App: React.FC = () => {
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard': return <DashboardView totalExpense={totalExpense} pendingApprovals={pendingApprovals} expenses={expenses} cloudError={cloudError} totalFund={totalFund} cashOnHand={cashOnHand} role={role} />;
-      case 'chat': return <GroupChatView messages={messages} setMessages={updateMessages} currentUser={currentUser} role={role} onNavigate={(view) => setActiveTab(view)} />;
+      case 'chat': return <GroupChatView messages={messages} setMessages={updateMessages} currentUser={currentUser} role={role} onNavigate={(view) => setActiveTab(view)} onUpdatePoints={handlePointUpdate} staffList={staffList} />;
       case 'attendance': return <AttendanceView staffList={staffList} attendanceList={attendanceList} setAttendanceList={updateAttendance} currentUser={currentUser} role={role} />;
       case 'live-location': return <LiveLocationView staffList={staffList} liveLocations={liveLocations} />;
+      case 'luckydraw': return <LuckyDrawView staffList={staffList} currentUser={currentUser} onUpdatePoints={handlePointUpdate} onUpdateDrawTime={updateLuckyDrawTime} role={role} />;
       case 'notices': return <NoticeBoardView notices={notices} setNotices={updateNotices} role={role} currentUser={currentUser || ''} />;
       case 'complaints': return <ComplaintBoxView complaints={complaints} setComplaints={updateComplaints} staffList={staffList} role={role} currentUser={currentUser} />;
       case 'funds': return <FundLedgerView funds={funds} setFunds={updateFunds} totalFund={totalFund} cashOnHand={cashOnHand} role={role} />;
       case 'staff': return <StaffManagementView staffList={staffList} setStaffList={updateStaffList} role={role} expenses={expenses} advances={advances} setAdvances={updateAdvances} currentUser={currentUser} />;
-      case 'movements': return <MovementLogView movements={movements} setMovements={updateMovements} staffList={staffList} billingRules={billingRules} role={role} setMessages={updateMessages} currentUser={currentUser} />;
+      case 'movements': return <MovementLogView movements={movements} setMovements={updateMovements} staffList={staffList} billingRules={billingRules} role={role} setMessages={updateMessages} currentUser={currentUser} onUpdatePoints={handlePointUpdate} />;
       case 'expenses': return <ExpenseManagementView expenses={expenses} setExpenses={updateExpenses} staffList={staffList} role={role} currentUser={currentUser} />;
       case 'reports': return <ReportsView expenses={expenses} staffList={staffList} advances={advances} />;
       case 'settings': return <SettingsView billingRules={billingRules} setBillingRules={updateBillingRules} role={role} exportData={handleExport} importData={handleImport} cloudConfig={firebaseConfig} saveCloudConfig={(config) => { localStorage.setItem('fb_config', JSON.stringify(config)); alert('Settings saved! Reloading...'); window.location.reload(); }} />;
@@ -651,6 +822,7 @@ const App: React.FC = () => {
             {[
               { id: 'dashboard', label: 'ড্যাশবোর্ড', icon: LayoutDashboard, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF, UserRole.KIOSK] },
               { id: 'chat', label: 'টিম চ্যাট', icon: MessagesSquare, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF] },
+              { id: 'luckydraw', label: 'লাকি ড্র & লিডারবোর্ড', icon: Gamepad2, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF] },
               { id: 'attendance', label: 'স্মার্ট হাজিরা', icon: MapPin, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF, UserRole.KIOSK] },
               { id: 'live-location', label: 'লাইভ ট্র্যাকিং', icon: Satellite, roles: [UserRole.ADMIN, UserRole.MD] },
               { id: 'notices', label: 'নোটিশ বোর্ড', icon: Bell, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF, UserRole.KIOSK] },
@@ -689,6 +861,14 @@ const App: React.FC = () => {
                 <AlertTriangle className="w-3 h-3" /> {cloudError} (Help)
               </div>
             )}
+            
+            {/* Points Badge in Header - Exclude MD and Office */}
+            {role !== UserRole.KIOSK && role !== UserRole.MD && myProfile && !myProfile.name.toLowerCase().includes('office') && (
+               <div className="hidden sm:flex items-center gap-2 bg-yellow-50 px-3 py-1.5 rounded-full border border-yellow-100">
+                  <Trophy className="w-4 h-4 text-yellow-500" />
+                  <span className="text-xs font-black text-yellow-700">{myProfile.points || 0} pts</span>
+               </div>
+            )}
           </div>
           
           <div className="flex items-center gap-3">
@@ -716,12 +896,10 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      {/* Editable Profile Modal */}
+      {/* Profile Modal */}
       {isProfileModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in duration-200">
           <div className="bg-white/90 w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl border border-white/40 backdrop-blur-md relative">
-            
-            {/* Background Pattern */}
             <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-br from-indigo-600 to-purple-700 z-0"></div>
             <button onClick={() => setIsProfileModalOpen(false)} className="absolute top-4 right-4 text-white/80 hover:text-white z-10 p-1 bg-black/20 rounded-full transition-colors"><X className="w-5 h-5" /></button>
 
@@ -817,36 +995,6 @@ const App: React.FC = () => {
                  <p className="text-[10px] text-gray-400">Joined: {myProfile?.createdAt ? new Date(myProfile.createdAt).toLocaleDateString() : 'Just Now'}</p>
                </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {showDbHelp && role && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in duration-200">
-          <div className="bg-white w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl">
-            <div className="p-6 bg-red-600 text-white flex justify-between items-center">
-              <h3 className="font-bold text-lg flex items-center gap-2"><AlertTriangle className="w-5 h-5" /> ডাটাবেস সেটআপ প্রয়োজন</h3>
-              <button onClick={() => setShowDbHelp(false)}><X className="w-6 h-6 opacity-80 hover:opacity-100" /></button>
-            </div>
-            <div className="p-6 space-y-4">
-              <p className="text-sm text-gray-600">আপনার অ্যাপ ডাটাবেসে কানেক্ট করতে পারছে না। সম্ভবত <strong>Firebase Rules</strong> সেট করা হয়নি।</p>
-              <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 text-sm space-y-2">
-                <p className="font-bold text-gray-800">1. <a href="https://console.firebase.google.com/" target="_blank" className="text-indigo-600 underline">Firebase Console</a> এ যান।</p>
-                <p className="font-bold text-gray-800">2. Realtime Database {'>'} Rules ট্যাবে যান।</p>
-                <p className="font-bold text-gray-800">3. নিচের কোডটি পেস্ট করে Publish করুন:</p>
-                <div className="bg-gray-900 text-green-400 p-3 rounded-lg font-mono text-xs mt-2 select-all">
-<pre>{`{
-  "rules": {
-    ".read": true,
-    ".write": true
-  }
-}`}</pre>
-                </div>
-              </div>
-              <button onClick={() => window.location.reload()} className="w-full bg-red-600 text-white py-3 rounded-xl font-bold hover:bg-red-700 transition-all flex items-center justify-center gap-2">
-                <RefreshCw className="w-4 h-4" /> পেজ রিলোড দিন
-              </button>
-            </div>
           </div>
         </div>
       )}

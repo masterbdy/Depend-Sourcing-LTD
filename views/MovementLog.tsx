@@ -11,9 +11,10 @@ interface MovementProps {
   role: UserRole;
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>; 
   currentUser: string | null; 
+  onUpdatePoints: (staffId: string, points: number, reason: string) => void;
 }
 
-const MovementLogView: React.FC<MovementProps> = ({ movements, setMovements, staffList, billingRules, role, setMessages, currentUser }) => {
+const MovementLogView: React.FC<MovementProps> = ({ movements, setMovements, staffList, billingRules, role, setMessages, currentUser, onUpdatePoints }) => {
   const [selectedStaff, setSelectedStaff] = useState('');
   const [location, setLocation] = useState('');
 
@@ -55,6 +56,9 @@ const MovementLogView: React.FC<MovementProps> = ({ movements, setMovements, sta
       location: location
     };
     setMovements(prev => [newMovement, ...prev]);
+    
+    // Give 1 Point
+    onUpdatePoints(selectedStaff, 1, 'MOVEMENT_UPDATE');
 
     // --- AUTO CHAT MESSAGE LOGIC ---
     if (staff) {

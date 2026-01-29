@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef } from 'react';
-import { Plus, Search, Edit2, Trash2, UserPlus, X, Calendar, FilterX, Phone, Banknote, Users, UserCheck, UserX, ArrowUpDown, ShieldCheck, ShieldAlert, Eye, EyeOff, Lock, Camera, Image as ImageIcon, Briefcase, Wallet, ArrowRight, Coins, Crown, UserCog, History, CalendarClock, MapPin, LocateFixed, Globe, ToggleLeft, ToggleRight, Map, MonitorSmartphone } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, UserPlus, X, Calendar, FilterX, Phone, Banknote, Users, UserCheck, UserX, ArrowUpDown, ShieldCheck, ShieldAlert, Eye, EyeOff, Lock, Camera, Image as ImageIcon, Briefcase, Wallet, ArrowRight, Coins, Crown, UserCog, History, CalendarClock, MapPin, LocateFixed, Globe, ToggleLeft, ToggleRight, Map, MonitorSmartphone, Gift, Star } from 'lucide-react';
 import { Staff, UserRole, Expense, AdvanceLog } from '../types';
 import { ROLE_LABELS } from '../constants';
 
@@ -65,6 +65,10 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
     date: new Date().toISOString().split('T')[0],
     type: 'REGULAR'
   });
+
+  // Gift Points Modal State (NEW)
+  const [isGiftPointModalOpen, setIsGiftPointModalOpen] = useState(false);
+  const [giftPointData, setGiftPointData] = useState<{staffId: string, points: number}>({ staffId: '', points: 5 });
 
   // History Modal State
   const [historyStaff, setHistoryStaff] = useState<Staff | null>(null);
@@ -132,7 +136,9 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
         secondaryCustomLocation: secondaryLocationData,
         status: 'ACTIVE',
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
+        points: 0, // Init points
+        luckyDrawCount: 0
       };
       setStaffList(prev => [...prev, newStaff]);
     }
@@ -236,9 +242,9 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
           let width = img.width;
           let height = img.height;
           
-          if (width > MAX_WIDTH) {
-            height *= MAX_WIDTH / width;
-            width = MAX_WIDTH;
+          if (width > MAX_SIZE) {
+            height *= MAX_SIZE / width;
+            width = MAX_SIZE;
           }
           canvas.width = width;
           canvas.height = height;
@@ -251,11 +257,39 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
       reader.readAsDataURL(file);
     }
   };
-  const MAX_WIDTH = 300; 
 
   const removePhoto = () => {
     setFormData(prev => ({ ...prev, photo: '' }));
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // --- GIFT POINTS HANDLER ---
+  const handleGivePoints = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canManageMoney) return;
+    if (giftPointData.points < 1 || giftPointData.points > 20) {
+      alert("পয়েন্ট ১ থেকে ২০ এর মধ্যে হতে হবে।");
+      return;
+    }
+    
+    setStaffList(prev => prev.map(s => {
+      if (s.id === giftPointData.staffId) {
+        return {
+          ...s,
+          points: (s.points || 0) + Number(giftPointData.points),
+          updatedAt: new Date().toISOString()
+        };
+      }
+      return s;
+    }));
+
+    setIsGiftPointModalOpen(false);
+    alert('পয়েন্ট প্রদান সফল হয়েছে! 🎉');
+  };
+
+  const openGiftModal = (staffId: string) => {
+    setGiftPointData({ staffId, points: 5 });
+    setIsGiftPointModalOpen(true);
   };
 
   // --- ADVANCE MONEY HANDLERS ---
@@ -383,12 +417,6 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
     return { submitted, approved, totalAdvanceIncludingSalary, balance, salaryAdvance, regularAdvance };
   };
 
-  const editingStats = editingStaff ? getStaffFinancials(editingStaff.id) : { submitted: 0, approved: 0, totalAdvanceIncludingSalary: 0, balance: 0, salaryAdvance: 0, regularAdvance: 0 };
-
-  // Calculate Last ID for hint
-  const lastStaff = [...staffList].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
-  const lastIdHint = lastStaff ? lastStaff.staffId : 'None';
-
   return (
     <div className="space-y-6">
       {/* Header and Stats section */}
@@ -490,7 +518,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
               <tr>
                 <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">স্টাফের নাম ও আইডি</th>
                 <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">পদবী ও রোল</th>
-                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">আর্থিক বিবরণী</th>
+                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">পয়েন্ট ও ব্যালেন্স</th>
                 <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">যোগাযোগ</th>
                 <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">অ্যাকশন</th>
               </tr>
@@ -543,6 +571,12 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1.5 min-w-[180px]">
                         
+                        {/* Gamification Points Badge */}
+                        <div className="flex items-center justify-between bg-yellow-50 px-2 py-1 rounded border border-yellow-100 mb-1">
+                          <span className="text-[10px] font-black text-yellow-600 uppercase flex items-center gap-1"><Star className="w-3 h-3 fill-yellow-500" /> Points</span>
+                          <span className="text-sm font-black text-yellow-700">{staff.points || 0}</span>
+                        </div>
+
                         {/* Regular Advance Info */}
                         <div className="flex justify-between items-center text-xs gap-4 bg-blue-50 px-2 py-1 rounded group relative">
                           <span className="text-blue-600 font-bold">Regular Adv:</span>
@@ -569,14 +603,6 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
                           <span className="text-gray-500 font-bold">Hand Cash:</span>
                           <span className={`font-black ${balance >= 0 ? 'text-gray-800' : 'text-red-500'}`}>৳ {balance.toLocaleString()}</span>
                         </div>
-
-                        {/* Salary Advance (Separate) */}
-                        {salaryAdvance > 0 && (
-                          <div className="flex justify-between items-center mt-1 bg-purple-50 px-2 py-1 rounded border border-purple-100">
-                             <span className="text-[10px] font-bold text-purple-600 uppercase">Salary Adv:</span>
-                             <span className="text-[10px] font-black text-purple-700">৳ {salaryAdvance.toLocaleString()}</span>
-                          </div>
-                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -589,15 +615,24 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        {/* Only Admin/MD can give advance */}
+                        {/* Only Admin/MD can give advance and points */}
                         {canManageMoney && (
-                          <button 
-                            onClick={() => openAdvanceModal(staff.id)}
-                            className="p-2 text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-lg shadow-blue-100 active:scale-95"
-                            title="অগ্রীম টাকা দিন"
-                          >
-                            <Banknote className="w-4 h-4" />
-                          </button>
+                          <>
+                            <button 
+                              onClick={() => openGiftModal(staff.id)}
+                              className="p-2 text-white bg-yellow-500 hover:bg-yellow-600 rounded-xl transition-colors shadow-lg shadow-yellow-100 active:scale-95"
+                              title="গিফট পয়েন্ট দিন"
+                            >
+                              <Gift className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={() => openAdvanceModal(staff.id)}
+                              className="p-2 text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-lg shadow-blue-100 active:scale-95"
+                              title="অগ্রীম টাকা দিন"
+                            >
+                              <Banknote className="w-4 h-4" />
+                            </button>
+                          </>
                         )}
                         {!isStaff && (
                           <button 
@@ -631,6 +666,49 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
           </table>
         </div>
       </div>
+
+      {/* Gift Points Modal */}
+      {isGiftPointModalOpen && (
+         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in duration-200">
+           <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden">
+             <div className="bg-yellow-500 p-6 text-white text-center">
+                <div className="bg-white/20 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <Gift className="w-6 h-6" />
+                </div>
+                <h3 className="text-xl font-bold">স্পেশাল বোনাস পয়েন্ট</h3>
+                <p className="text-yellow-100 text-xs mt-1">কাজের প্রশংসাস্বরূপ স্টাফকে পয়েন্ট দিন</p>
+             </div>
+             
+             <form onSubmit={handleGivePoints} className="p-6 space-y-5">
+               <div>
+                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">পয়েন্ট পরিমাণ (১-২০)</label>
+                  <div className="relative">
+                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold"><Star className="w-4 h-4 fill-yellow-500 text-yellow-500"/></span>
+                     <input 
+                       autoFocus
+                       required 
+                       type="number" 
+                       min="1"
+                       max="20"
+                       className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-yellow-500 outline-none transition-all font-bold text-lg text-gray-800"
+                       placeholder="5"
+                       value={giftPointData.points}
+                       onChange={(e) => setGiftPointData({...giftPointData, points: Number(e.target.value)})}
+                     />
+                  </div>
+               </div>
+
+               <div className="pt-2 flex gap-3">
+                  <button type="button" onClick={() => setIsGiftPointModalOpen(false)} className="flex-1 py-3 text-gray-500 font-bold hover:bg-gray-50 rounded-xl transition-colors">বাতিল</button>
+                  <button type="submit" className="flex-[2] bg-yellow-500 text-white py-3 rounded-xl font-bold hover:bg-yellow-600 shadow-xl shadow-yellow-100 flex items-center justify-center gap-2 active:scale-95 transition-all">
+                     <Gift className="w-5 h-5" />
+                     পয়েন্ট দিন
+                  </button>
+               </div>
+             </form>
+           </div>
+         </div>
+      )}
 
       {/* Advance History Modal */}
       {historyStaff && (
@@ -774,7 +852,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
         </div>
       )}
 
-      {/* Profile/Edit Modal with KIOSK Role Checkbox */}
+      {/* Profile Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
@@ -782,7 +860,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
               <h3 className="font-bold text-xl">{editingStaff ? 'প্রোফাইল আপডেট' : 'নতুন ইউজার যুক্ত করুন'}</h3>
               <button onClick={closeModal} className="p-1 text-indigo-200 hover:text-white transition-colors"><X className="w-6 h-6" /></button>
             </div>
-            
+            {/* ... Existing Profile Form Logic ... */}
             <div className="p-6 space-y-6">
               {/* Photo Upload */}
               <div className="flex flex-col items-center">
@@ -829,7 +907,6 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
                     </div>
                   </div>
 
-                  {/* ... (Rest of location logic remains same, hidden for Kiosk usually or forced) ... */}
                   {formData.role !== UserRole.KIOSK && (
                     <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 mb-2 space-y-3">
                        <div>
@@ -846,8 +923,6 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
                          </select>
                        </div>
                        
-                       {/* ... (Existing Custom Location UI) ... */}
-                       {/* (Keeping existing UI logic here, just ensuring it wraps correctly) */}
                        {formData.workLocation === 'CUSTOM' && (
                           <div className="bg-white p-3 rounded-lg border border-gray-200 space-y-3">
                              <p className="text-xs font-bold text-orange-600 flex items-center gap-1 border-b border-gray-100 pb-2">

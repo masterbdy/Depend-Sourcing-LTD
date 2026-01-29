@@ -18,12 +18,17 @@ export interface Staff {
   role?: UserRole; 
   workLocation?: 'HEAD_OFFICE' | 'FACTORY' | 'FIELD' | 'CUSTOM'; 
   customLocation?: { lat: number; lng: number; radius: number; name?: string }; 
-  secondaryCustomLocation?: { lat: number; lng: number; radius: number; name?: string }; // New Field for 2nd Location
-  requiresCheckOutLocation?: boolean; // New field: Mandatory location check during check-out
+  secondaryCustomLocation?: { lat: number; lng: number; radius: number; name?: string }; 
+  requiresCheckOutLocation?: boolean; 
   status: 'ACTIVE' | 'DEACTIVATED';
   createdAt: string;
   updatedAt?: string;
   deletedAt?: string;
+  // Gamification Fields
+  points?: number;
+  lastVisitTime?: string;
+  lastLuckyDrawTime?: string;
+  luckyDrawCount?: number;
 }
 
 export interface MovementLog {
@@ -99,7 +104,7 @@ export interface AdvanceLog {
   date: string;
   givenBy: string;
   isDeleted?: boolean;
-  type?: 'REGULAR' | 'SALARY'; // New field for Salary Advance tracking
+  type?: 'REGULAR' | 'SALARY'; 
 }
 
 export interface Complaint {
@@ -121,8 +126,8 @@ export interface ChatMessage {
   sender: string;
   role: UserRole;
   timestamp: string;
-  type?: 'TEXT' | 'SYSTEM_MOVEMENT'; // New field to identify message type
-  targetView?: string; // Where to go when clicked
+  type?: 'TEXT' | 'SYSTEM_MOVEMENT'; 
+  targetView?: string; 
 }
 
 export interface StaffLocation {
@@ -132,5 +137,5 @@ export interface StaffLocation {
   lng: number;
   timestamp: string;
   batteryLevel?: number;
-  speed?: number; // m/s
+  speed?: number; 
 }

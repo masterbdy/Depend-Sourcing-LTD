@@ -68,54 +68,54 @@ const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices, setNotices, role
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {activeNotices.map((notice) => (
-          <div 
-            key={notice.id} 
-            className={`relative rounded-2xl shadow-sm border p-6 flex flex-col transition-transform hover:-translate-y-1 duration-300 ${
-              notice.type === 'URGENT' 
-                ? 'bg-red-50 border-red-200' 
-                : 'bg-white border-gray-100'
-            }`}
-          >
-             <div className="flex justify-between items-start mb-4">
-               <div className={`p-2 rounded-xl ${notice.type === 'URGENT' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
-                 {notice.type === 'URGENT' ? <AlertCircle className="w-6 h-6 animate-pulse" /> : <Pin className="w-6 h-6" />}
+            <div 
+              key={notice.id} 
+              className={`relative rounded-2xl shadow-sm border p-6 flex flex-col transition-transform hover:-translate-y-1 duration-300 ${
+                notice.type === 'URGENT' 
+                  ? 'bg-red-50 border-red-200' 
+                  : 'bg-white border-gray-100'
+              }`}
+            >
+               <div className="flex justify-between items-start mb-4">
+                 <div className={`p-2 rounded-xl ${notice.type === 'URGENT' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+                   {notice.type === 'URGENT' ? <AlertCircle className="w-6 h-6 animate-pulse" /> : <Pin className="w-6 h-6" />}
+                 </div>
+                 {canPost && (
+                   <button 
+                      onClick={(e) => deleteNotice(e, notice.id)}
+                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-white rounded-lg transition-colors z-10"
+                      title="মুছে ফেলুন"
+                   >
+                      <Trash2 className="w-4 h-4" />
+                   </button>
+                 )}
                </div>
-               {canPost && (
-                 <button 
-                    onClick={(e) => deleteNotice(e, notice.id)}
-                    className="p-2 text-gray-400 hover:text-red-500 hover:bg-white rounded-lg transition-colors z-10"
-                    title="মুছে ফেলুন"
-                 >
-                    <Trash2 className="w-4 h-4" />
-                 </button>
-               )}
-             </div>
 
-             <div className="flex-1">
-                <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded mb-2 inline-block ${
-                  notice.type === 'URGENT' ? 'bg-red-200 text-red-800' : 'bg-gray-100 text-gray-500'
-                }`}>
-                  {notice.type === 'URGENT' ? 'জরুরী ঘোষণা' : 'সাধারণ নোটিশ'}
-                </span>
-                <h3 className={`text-lg font-bold mb-2 ${notice.type === 'URGENT' ? 'text-red-900' : 'text-gray-800'}`}>
-                  {notice.title}
-                </h3>
-                <p className={`text-sm leading-relaxed whitespace-pre-line ${notice.type === 'URGENT' ? 'text-red-800' : 'text-gray-600'}`}>
-                  {notice.content}
-                </p>
-             </div>
+               <div className="flex-1">
+                  <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded mb-2 inline-block ${
+                    notice.type === 'URGENT' ? 'bg-red-200 text-red-800' : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    {notice.type === 'URGENT' ? 'জরুরী ঘোষণা' : 'সাধারণ নোটিশ'}
+                  </span>
+                  <h3 className={`text-lg font-bold mb-2 ${notice.type === 'URGENT' ? 'text-red-900' : 'text-gray-800'}`}>
+                    {notice.title}
+                  </h3>
+                  <p className={`text-sm leading-relaxed whitespace-pre-line ${notice.type === 'URGENT' ? 'text-red-800' : 'text-gray-600'}`}>
+                    {notice.content}
+                  </p>
+               </div>
 
-             <div className="mt-6 pt-4 border-t border-gray-200/50 flex justify-between items-end">
-                <div>
-                   <p className="text-[10px] uppercase font-bold text-gray-400">Posted By</p>
-                   <p className="text-xs font-bold text-gray-700">{notice.postedBy}</p>
-                </div>
-                <div className="text-right">
-                   <p className="text-[10px] uppercase font-bold text-gray-400">Date</p>
-                   <p className="text-xs font-bold text-gray-700">{new Date(notice.date).toLocaleDateString('bn-BD', { day: 'numeric', month: 'short', year: '2-digit' })}</p>
-                </div>
-             </div>
-          </div>
+               <div className="mt-4 pt-4 border-t border-gray-200/50 flex justify-between items-end">
+                  <div>
+                     <p className="text-[10px] uppercase font-bold text-gray-400">Posted By</p>
+                     <p className="text-xs font-bold text-gray-700">{notice.postedBy}</p>
+                  </div>
+                  <div className="text-right">
+                     <p className="text-[10px] uppercase font-bold text-gray-400">Date</p>
+                     <p className="text-xs font-bold text-gray-700">{new Date(notice.date).toLocaleDateString('bn-BD', { day: 'numeric', month: 'short', year: '2-digit' })}</p>
+                  </div>
+               </div>
+            </div>
         ))}
 
         {activeNotices.length === 0 && (
