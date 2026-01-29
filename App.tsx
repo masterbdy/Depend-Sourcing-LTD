@@ -191,32 +191,25 @@ const App: React.FC = () => {
     const checkPermissions = async () => {
       try {
         const geoResult = await navigator.permissions.query({ name: 'geolocation' });
+        let cameraGranted = false;
         
-        const updatePermissionState = () => {
-          if (geoResult.state === 'granted') {
-            setPermissionsGranted(true);
-          } else if (geoResult.state === 'denied') {
-            setPermissionStatus('DENIED');
-          }
-        };
-
-        // Initial Check
-        updatePermissionState();
-
-        // Listen for changes (e.g. if user clicks 'Allow' on the browser prompt)
-        geoResult.onchange = updatePermissionState;
-
-        // Try to check camera as well if supported
         try {
+          // 'camera' permission query isn't supported in all browsers yet (e.g. Firefox)
           const camResult = await navigator.permissions.query({ name: 'camera' as PermissionName });
-          // If camera is granted, and geo is pending, we might still want to wait for geo
-          // But if geo is denied, we can't do location tracking.
-        } catch(e) {}
+          cameraGranted = camResult.state === 'granted';
+        } catch (e) {
+          // If query fails, we assume it's not granted or can't be checked
+          // But if geo is granted, it's likely user is a returning user.
+          // For safety, we rely on geo. If geo is granted, we might still show prompt for camera 
+          // if strictly needed, but to avoid double prompt annoyance, let's see.
+          // Ideally, we want both.
+        }
 
+        if (geoResult.state === 'granted' && (cameraGranted || !navigator.permissions.query)) {
+           setPermissionsGranted(true);
+        }
       } catch (e) {
         console.log("Permissions query not supported", e);
-        // Fallback: If we can't query permissions, we might try a silent request
-        // or just stay in IDLE and let the user click the button.
       }
     };
     checkPermissions();
