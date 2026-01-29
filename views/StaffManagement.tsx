@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef } from 'react';
-import { Plus, Search, Edit2, Trash2, UserPlus, X, Calendar, FilterX, Phone, Banknote, Users, UserCheck, UserX, ArrowUpDown, ShieldCheck, ShieldAlert, Eye, EyeOff, Lock, Camera, Image as ImageIcon, Briefcase, Wallet, ArrowRight, Coins, Crown, UserCog, History, CalendarClock, MapPin, LocateFixed, Globe, ToggleLeft, ToggleRight, Map, MonitorSmartphone, Gift, Star } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, UserPlus, X, Calendar, FilterX, Phone, Banknote, Users, UserCheck, UserX, ArrowUpDown, ShieldCheck, ShieldAlert, Eye, EyeOff, Lock, Camera, Image as ImageIcon, Briefcase, Wallet, ArrowRight, Coins, Crown, UserCog, History, CalendarClock, MapPin, LocateFixed, Globe, ToggleLeft, ToggleRight, Map, MonitorSmartphone, Gift, Star, MoreVertical } from 'lucide-react';
 import { Staff, UserRole, Expense, AdvanceLog } from '../types';
 import { ROLE_LABELS } from '../constants';
 
@@ -66,7 +66,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
     type: 'REGULAR'
   });
 
-  // Gift Points Modal State (NEW)
+  // Gift Points Modal State
   const [isGiftPointModalOpen, setIsGiftPointModalOpen] = useState(false);
   const [giftPointData, setGiftPointData] = useState<{staffId: string, points: number}>({ staffId: '', points: 5 });
 
@@ -129,7 +129,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
         basicSalary: formData.basicSalary,
         password: formData.password || `${formData.name}@`,
         photo: formData.photo,
-        role: formData.role, // Save the selected role
+        role: formData.role, 
         workLocation: formData.workLocation,
         requiresCheckOutLocation: formData.requiresCheckOutLocation,
         customLocation: customLocationData,
@@ -137,7 +137,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
         status: 'ACTIVE',
         createdAt: now,
         updatedAt: now,
-        points: 0, // Init points
+        points: 0,
         luckyDrawCount: 0
       };
       setStaffList(prev => [...prev, newStaff]);
@@ -367,11 +367,12 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
       if (isStaff && s.name !== currentUser) return false;
 
       const searchLower = searchTerm.toLowerCase();
+      // Safety checks for undefined properties
       const matchesSearch = 
-        s.name.toLowerCase().includes(searchLower) || 
-        s.staffId.toLowerCase().includes(searchLower) || 
+        (s.name || '').toLowerCase().includes(searchLower) || 
+        (s.staffId || '').toLowerCase().includes(searchLower) || 
         (s.mobile && s.mobile.includes(searchLower)) ||
-        s.designation.toLowerCase().includes(searchLower);
+        (s.designation || '').toLowerCase().includes(searchLower);
 
       const createdAt = new Date(s.createdAt).setHours(0, 0, 0, 0);
       const start = startDate ? new Date(startDate).setHours(0, 0, 0, 0) : null;
@@ -383,7 +384,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
 
     if (sortBy === 'newest') result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     else if (sortBy === 'oldest') result.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-    else if (sortBy === 'name') result.sort((a, b) => a.name.localeCompare(b.name));
+    else if (sortBy === 'name') result.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     else if (sortBy === 'salary') result.sort((a, b) => (b.basicSalary || 0) - (a.basicSalary || 0));
 
     return result;
@@ -395,26 +396,21 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
     inactive: staffList.filter(s => s && !s.deletedAt && s.status === 'DEACTIVATED').length
   };
 
-  // FIXED FINANCIAL CALCULATION
+  // FINANCIAL CALCULATION
   const getStaffFinancials = (staffId: string) => {
-    const staffExpenses = expenses.filter(e => e.staffId === staffId && !e.isDeleted);
-    const submitted = staffExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+    // Safety check for empty data
+    const safeExpenses = expenses || [];
+    const safeAdvances = advances || [];
+
+    const staffExpenses = safeExpenses.filter(e => e && e.staffId === staffId && !e.isDeleted);
     const approved = staffExpenses.filter(e => e.status === 'APPROVED').reduce((sum, e) => sum + Number(e.amount || 0), 0);
     
-    const staffAdvances = advances.filter(a => a.staffId === staffId && !a.isDeleted);
-    
-    // Total including salary advance (for raw data)
-    const totalAdvanceIncludingSalary = staffAdvances.reduce((sum, a) => sum + Number(a.amount || 0), 0);
-    
-    // Separate Salary vs Regular
-    const salaryAdvance = staffAdvances.filter(a => a.type === 'SALARY').reduce((sum, a) => sum + Number(a.amount || 0), 0);
+    const staffAdvances = safeAdvances.filter(a => a && a.staffId === staffId && !a.isDeleted);
     const regularAdvance = staffAdvances.filter(a => a.type !== 'SALARY').reduce((sum, a) => sum + Number(a.amount || 0), 0);
     
-    // Balance calculation: Only Regular Advance vs Expenses
-    // Salary Advance is a separate debt bucket
     const balance = regularAdvance - approved;
     
-    return { submitted, approved, totalAdvanceIncludingSalary, balance, salaryAdvance, regularAdvance };
+    return { balance };
   };
 
   return (
@@ -473,7 +469,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
         </div>
         {!isStaff && (
           <div className="w-full sm:w-auto">
-            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">সর্টিং (Srot By)</label>
+            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">সর্টিং (Sort By)</label>
             <div className="relative">
               <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <select 
@@ -489,18 +485,6 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
             </div>
           </div>
         )}
-        <div className="w-full sm:w-auto">
-          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">তারিখ (শুরু)</label>
-          <div className="relative">
-            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input 
-              type="date" 
-              className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-semibold"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-            />
-          </div>
-        </div>
         <button 
           onClick={clearFilters}
           className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-100"
@@ -510,142 +494,108 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
         </button>
       </div>
 
-      {/* Staff List Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      {/* TABLE VIEW */}
+      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-gray-50 border-b border-gray-100">
-              <tr>
-                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">স্টাফের নাম ও আইডি</th>
-                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">পদবী ও রোল</th>
-                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">পয়েন্ট ও ব্যালেন্স</th>
-                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">যোগাযোগ</th>
-                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">অ্যাকশন</th>
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-100 text-[10px] uppercase font-black text-gray-400 tracking-widest">
+                <th className="px-6 py-4">স্টাফ মেম্বার</th>
+                <th className="px-6 py-4">পদবী ও রোল</th>
+                <th className="px-6 py-4">যোগাযোগ</th>
+                <th className="px-6 py-4 text-center">ব্যালেন্স/ক্যাশ</th>
+                <th className="px-6 py-4 text-center">পয়েন্ট</th>
+                <th className="px-6 py-4 text-center">স্ট্যাটাস</th>
+                <th className="px-6 py-4 text-right">অ্যাকশন</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-gray-50 text-sm">
               {filteredStaff.map((staff) => {
-                const { submitted, approved, balance, salaryAdvance, regularAdvance } = getStaffFinancials(staff.id);
+                if (!staff) return null;
+                const { balance } = getStaffFinancials(staff.id);
+                const safeName = staff.name || 'Unknown';
+                const safeId = staff.staffId || 'N/A';
+                
                 return (
-                  <tr key={staff.id} className={`hover:bg-gray-50 transition-colors ${staff.status === 'DEACTIVATED' ? 'bg-gray-50/50' : ''}`}>
+                  <tr key={staff.id} className={`hover:bg-gray-50 transition-colors ${staff.status === 'DEACTIVATED' ? 'opacity-60 bg-gray-50' : ''}`}>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                         {staff.photo ? (
-                           <img src={staff.photo} alt={staff.name} className="w-10 h-10 rounded-full object-cover border border-gray-200" />
-                         ) : (
-                           <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${staff.status === 'ACTIVE' ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-200 text-gray-500'}`}>
-                             {staff.name.charAt(0)}
-                           </div>
-                         )}
-                         <div>
-                          <p className={`font-bold ${staff.status === 'ACTIVE' ? 'text-gray-800' : 'text-gray-500'}`}>{staff.name}</p>
-                          <p className="text-xs text-gray-400 font-mono">ID: {staff.staffId}</p>
-                          {staff.workLocation && (
-                             <span className={`inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded mt-1 ${staff.workLocation === 'CUSTOM' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500'}`}>
-                                <MapPin className="w-2.5 h-2.5" />
-                                {staff.workLocation === 'HEAD_OFFICE' ? 'Head Office' : staff.workLocation === 'FACTORY' ? 'Factory' : staff.workLocation === 'CUSTOM' ? (
-                                  staff.secondaryCustomLocation ? 'Multi-Location' : (staff.customLocation?.name || 'Custom')
-                                ) : 'Field/Driver'}
-                             </span>
+                        <div className="relative shrink-0">
+                          {staff.photo ? (
+                            <img src={staff.photo} alt={safeName} className="w-10 h-10 rounded-full object-cover border border-gray-200" />
+                          ) : (
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-black text-white ${staff.status === 'ACTIVE' ? 'bg-indigo-500' : 'bg-gray-400'}`}>
+                              {safeName.charAt(0)}
+                            </div>
                           )}
-                         </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="text-sm font-medium text-gray-700 mb-1">{staff.designation}</p>
-                      <div className="flex gap-2">
-                        {staff.role === UserRole.MD && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-black bg-purple-100 text-purple-700 uppercase"><Crown className="w-3 h-3"/> MD</span>}
-                        {staff.role === UserRole.ADMIN && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-black bg-blue-100 text-blue-700 uppercase"><UserCog className="w-3 h-3"/> Admin</span>}
-                        {staff.role === UserRole.KIOSK && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-black bg-orange-100 text-orange-700 uppercase"><MonitorSmartphone className="w-3 h-3"/> Kiosk</span>}
-                        {staff.status === 'ACTIVE' ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-black bg-green-100 text-green-700 uppercase tracking-wide">
-                            <ShieldCheck className="w-3 h-3" /> Active
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-black bg-gray-100 text-gray-500 uppercase tracking-wide">
-                            <ShieldAlert className="w-3 h-3" /> Inactive
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col gap-1.5 min-w-[180px]">
-                        
-                        {/* Gamification Points Badge */}
-                        <div className="flex items-center justify-between bg-yellow-50 px-2 py-1 rounded border border-yellow-100 mb-1">
-                          <span className="text-[10px] font-black text-yellow-600 uppercase flex items-center gap-1"><Star className="w-3 h-3 fill-yellow-500" /> Points</span>
-                          <span className="text-sm font-black text-yellow-700">{staff.points || 0}</span>
+                          {staff.role === UserRole.MD && <div className="absolute -top-1 -right-1 bg-yellow-400 text-white p-0.5 rounded-full border border-white"><Crown className="w-2.5 h-2.5" /></div>}
                         </div>
-
-                        {/* Regular Advance Info */}
-                        <div className="flex justify-between items-center text-xs gap-4 bg-blue-50 px-2 py-1 rounded group relative">
-                          <span className="text-blue-600 font-bold">Regular Adv:</span>
-                          <div className="flex items-center gap-2">
-                             <span className="font-black text-blue-700">৳ {regularAdvance.toLocaleString()}</span>
-                             <button 
-                               onClick={() => setHistoryStaff(staff)}
-                               className="bg-blue-200 text-blue-700 p-0.5 rounded hover:bg-blue-300 transition-colors"
-                               title="অগ্রীম বিবরণ দেখুন"
-                             >
-                               <History className="w-3 h-3" />
-                             </button>
-                          </div>
-                        </div>
-
-                        {/* Approved Bill Info */}
-                        <div className="flex justify-between items-center text-xs gap-4 px-2">
-                          <span className="text-gray-500 font-medium">Approved Bill:</span>
-                          <span className="font-bold text-gray-700">৳ {approved.toLocaleString()}</span>
-                        </div>
-
-                        {/* Hand Cash (Balance) */}
-                        <div className={`flex justify-between items-center text-xs gap-4 border-t border-gray-100 pt-1 px-2`}>
-                          <span className="text-gray-500 font-bold">Hand Cash:</span>
-                          <span className={`font-black ${balance >= 0 ? 'text-gray-800' : 'text-red-500'}`}>৳ {balance.toLocaleString()}</span>
+                        <div>
+                          <p className="font-bold text-gray-800">{safeName}</p>
+                          <p className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 rounded inline-block">{safeId}</p>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                       {staff.mobile ? (
-                          <a href={`tel:${staff.mobile}`} className="text-xs font-bold text-gray-600 hover:text-indigo-600 flex items-center gap-1">
-                            <Phone className="w-3 h-3" /> {staff.mobile}
-                          </a>
-                       ) : <span className="text-gray-300 text-xs">N/A</span>}
-                       <p className="text-[10px] text-gray-400 mt-1">Joined: {new Date(staff.createdAt).toLocaleDateString('bn-BD', {month: 'short', year: '2-digit'})}</p>
+                      <p className="font-bold text-gray-700">{staff.designation || 'N/A'}</p>
+                      <p className="text-[10px] text-gray-400 uppercase tracking-wide">{ROLE_LABELS[staff.role || UserRole.STAFF]}</p>
                     </td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-6 py-4">
+                      <p className="font-medium text-gray-600">{staff.mobile || 'N/A'}</p>
+                      <p className="text-[10px] text-gray-400">{staff.workLocation}</p>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className={`font-bold ${balance >= 0 ? 'text-gray-800' : 'text-red-500'}`}>
+                        ৳ {balance.toLocaleString()}
+                      </span>
+                      {canManageMoney && (
+                        <div className="flex justify-center gap-1 mt-1">
+                           <button onClick={() => setHistoryStaff(staff)} className="text-[9px] text-blue-600 font-bold hover:underline bg-blue-50 px-1.5 rounded flex items-center gap-0.5">
+                             <History className="w-2.5 h-2.5"/> Log
+                           </button>
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className="font-black text-yellow-600 flex items-center justify-center gap-1">
+                        <Star className="w-3 h-3 fill-yellow-500 text-yellow-500"/> {staff.points || 0}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      {staff.status === 'ACTIVE' ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black bg-green-100 text-green-700 uppercase tracking-wide">
+                          <ShieldCheck className="w-3 h-3" /> Active
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black bg-gray-100 text-gray-500 uppercase tracking-wide">
+                          <ShieldAlert className="w-3 h-3" /> Inactive
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-2">
-                        {/* Only Admin/MD can give advance and points */}
                         {canManageMoney && (
                           <>
-                            <button 
-                              onClick={() => openGiftModal(staff.id)}
-                              className="p-2 text-white bg-yellow-500 hover:bg-yellow-600 rounded-xl transition-colors shadow-lg shadow-yellow-100 active:scale-95"
-                              title="গিফট পয়েন্ট দিন"
-                            >
+                            <button onClick={() => openGiftModal(staff.id)} className="w-8 h-8 rounded-lg bg-yellow-50 text-yellow-600 flex items-center justify-center hover:bg-yellow-500 hover:text-white transition-colors" title="গিফট পয়েন্ট">
                               <Gift className="w-4 h-4" />
                             </button>
-                            <button 
-                              onClick={() => openAdvanceModal(staff.id)}
-                              className="p-2 text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-lg shadow-blue-100 active:scale-95"
-                              title="অগ্রীম টাকা দিন"
-                            >
+                            <button onClick={() => openAdvanceModal(staff.id)} className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-600 hover:text-white transition-colors" title="টাকা দিন">
                               <Banknote className="w-4 h-4" />
                             </button>
                           </>
                         )}
                         {!isStaff && (
-                          <button 
-                            onClick={() => toggleStatus(staff.id, staff.status)} 
-                            className={`p-2 rounded-xl transition-colors ${staff.status === 'ACTIVE' ? 'text-orange-400 hover:bg-orange-50' : 'text-green-500 hover:bg-green-50'}`} 
-                            title={staff.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
-                          >
-                            {staff.status === 'ACTIVE' ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
-                          </button>
+                           <button onClick={() => toggleStatus(staff.id, staff.status)} className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${staff.status === 'ACTIVE' ? 'bg-orange-50 text-orange-500 hover:bg-orange-500 hover:text-white' : 'bg-green-50 text-green-600 hover:bg-green-600 hover:text-white'}`}>
+                             {staff.status === 'ACTIVE' ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
+                           </button>
                         )}
-                        <button onClick={() => openEdit(staff)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors" title="প্রোফাইল/এডিট"><Edit2 className="w-4 h-4" /></button>
+                        <button onClick={() => openEdit(staff)} className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-colors">
+                          <Edit2 className="w-4 h-4" />
+                        </button>
                         {!isStaff && (
-                          <button onClick={() => softDelete(staff.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-xl transition-colors" title="ডিলিট"><Trash2 className="w-4 h-4" /></button>
+                          <button onClick={() => softDelete(staff.id)} className="w-8 h-8 rounded-lg bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         )}
                       </div>
                     </td>
@@ -654,11 +604,11 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
               })}
               {filteredStaff.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-6 py-16 text-center text-gray-400">
-                    <div className="flex flex-col items-center gap-2">
-                      <Search className="w-8 h-8 opacity-20" />
-                      <p className="text-sm font-medium">কোনো স্টাফ পাওয়া যায়নি</p>
-                    </div>
+                  <td colSpan={7} className="px-6 py-12 text-center text-gray-400">
+                     <div className="flex flex-col items-center gap-2 opacity-50">
+                        <Search className="w-8 h-8" />
+                        <p className="text-sm font-bold">কোনো স্টাফ পাওয়া যায়নি</p>
+                     </div>
                   </td>
                 </tr>
               )}

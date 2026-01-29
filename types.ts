@@ -26,6 +26,9 @@ export interface Staff {
   deletedAt?: string;
   // Gamification Fields
   points?: number;
+  pointsMonth?: string; // Format 'YYYY-MM' to track monthly resets
+  prevMonthPoints?: number; // Stores last month's final score
+  prevMonthName?: string;   // Stores which month the prevPoints belong to
   lastVisitTime?: string;
   lastLuckyDrawTime?: string;
   luckyDrawCount?: number;

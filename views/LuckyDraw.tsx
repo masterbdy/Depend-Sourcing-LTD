@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Trophy, Gift, Sparkles, Timer, Crown, Star, Award, History, ShieldCheck } from 'lucide-react';
+import { Trophy, Gift, Sparkles, Timer, Crown, Star, Award, History, ShieldCheck, CalendarClock } from 'lucide-react';
 import { Staff, UserRole } from '../types';
 
 interface LuckyDrawProps {
@@ -16,6 +16,10 @@ const LuckyDrawView: React.FC<LuckyDrawProps> = ({ staffList, currentUser, onUpd
   const [spinResult, setSpinResult] = useState<number | null>(null);
   const [timeLeft, setTimeLeft] = useState<string>('');
 
+  const now = new Date();
+  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const currentMonthName = now.toLocaleDateString('bn-BD', { month: 'long', year: 'numeric' });
+
   // Filter out MD and Office from the list used for Leaderboard and Gameplay
   const activeStaff = staffList.filter(s => 
     s.status === 'ACTIVE' && 
@@ -26,9 +30,17 @@ const LuckyDrawView: React.FC<LuckyDrawProps> = ({ staffList, currentUser, onUpd
   );
   
   const myProfile = activeStaff.find(s => s.name === currentUser);
+  
+  // Calculate Effective Points for Current Month
+  const myEffectivePoints = (myProfile && myProfile.pointsMonth === currentMonthStr) ? (myProfile.points || 0) : 0;
 
-  // Leaderboard logic
-  const sortedStaff = [...activeStaff].sort((a, b) => (b.points || 0) - (a.points || 0));
+  // Leaderboard logic: Sort by current month's points
+  const sortedStaff = [...activeStaff].map(s => ({
+    ...s,
+    effectivePoints: (s.pointsMonth === currentMonthStr) ? (s.points || 0) : 0
+  }))
+  .filter(s => s.effectivePoints > 0) // Only show staff who have activity this month
+  .sort((a, b) => b.effectivePoints - a.effectivePoints);
 
   // Timer Logic for Next Draw
   useEffect(() => {
@@ -75,7 +87,7 @@ const LuckyDrawView: React.FC<LuckyDrawProps> = ({ staffList, currentUser, onUpd
       
       // Update Parent
       onUpdateDrawTime(myProfile.id); // Updates time and count
-      onUpdatePoints(myProfile.id, pointsWon, 'LUCKY_DRAW'); // Updates points
+      onUpdatePoints(myProfile.id, pointsWon, 'LUCKY_DRAW'); // Updates points (checks month logic inside App.tsx)
       
       // Play sound if possible
       try {
@@ -94,8 +106,12 @@ const LuckyDrawView: React.FC<LuckyDrawProps> = ({ staffList, currentUser, onUpd
         <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
         <Crown className="w-16 h-16 mx-auto mb-4 text-yellow-300 drop-shadow-lg" />
         <h2 className="text-3xl font-black tracking-tight mb-2">লাকি ড্র & লিডারবোর্ড</h2>
+        <div className="inline-block bg-white/20 px-4 py-1 rounded-full backdrop-blur-sm text-sm font-bold border border-white/30 mb-2">
+           <CalendarClock className="w-4 h-4 inline mr-2" />
+           {currentMonthName}
+        </div>
         <p className="text-indigo-100 text-sm max-w-lg mx-auto">
-          প্রতি ঘন্টায় একবার লাকি ড্র করে জিতুন নিশ্চিত পয়েন্ট! মাস শেষে সেরা ৩ জনের জন্য থাকছে আকর্ষণীয় গিফট।
+          প্রতি ঘন্টায় একবার লাকি ড্র করে জিতুন নিশ্চিত পয়েন্ট! মাসের সেরা ৩ জনের জন্য থাকছে আকর্ষণীয় গিফট।
         </p>
       </div>
 
@@ -127,8 +143,8 @@ const LuckyDrawView: React.FC<LuckyDrawProps> = ({ staffList, currentUser, onUpd
                 {/* Point Display */}
                 <div className="mb-8">
                    <div className="inline-block bg-purple-50 rounded-full px-6 py-2 border border-purple-100">
-                      <span className="text-xs text-purple-600 font-bold uppercase tracking-widest">আপনার মোট পয়েন্ট</span>
-                      <p className="text-4xl font-black text-purple-700">{myProfile.points || 0}</p>
+                      <span className="text-xs text-purple-600 font-bold uppercase tracking-widest">আপনার মাসিক পয়েন্ট ({currentMonthName})</span>
+                      <p className="text-4xl font-black text-purple-700">{myEffectivePoints}</p>
                    </div>
                 </div>
 
@@ -171,14 +187,14 @@ const LuckyDrawView: React.FC<LuckyDrawProps> = ({ staffList, currentUser, onUpd
 
            {/* Rules */}
            <div className="bg-blue-50 rounded-2xl p-6 border border-blue-100">
-              <h4 className="font-bold text-blue-800 mb-2 flex items-center gap-2"><Award className="w-4 h-4"/> পয়েন্ট জেতার উপায়:</h4>
+              <h4 className="font-bold text-blue-800 mb-2 flex items-center gap-2"><Award className="w-4 h-4"/> পয়েন্ট জেতার উপায় (মাসিক প্রতিযোগিতা):</h4>
               <ul className="text-xs text-blue-700 space-y-1.5 list-disc list-inside font-medium">
                  <li>অ্যাপ ভিজিট করলে ১ পয়েন্ট (প্রতি ১০ মিনিটে একবার)।</li>
                  <li>মুভমেন্ট আপডেট দিলে ১ পয়েন্ট।</li>
                  <li>চ্যাটে মেসেজ দিলে ১ পয়েন্ট।</li>
                  <li>লাকি ড্র তে ১ থেকে ১০ পয়েন্ট (প্রতি ঘন্টায়)।</li>
                  <li>লাকি ড্র তে প্রতি ২০ তম বারে নিশ্চিত ২০ পয়েন্ট জ্যাকপট!</li>
-                 <li>MD/Admin খুশি হয়ে স্পেশাল বোনাস পয়েন্ট দিতে পারেন।</li>
+                 <li><strong>বি.দ্র: প্রতি মাসের ১ তারিখে পয়েন্ট রিসেট হবে।</strong></li>
               </ul>
            </div>
         </div>
@@ -187,7 +203,7 @@ const LuckyDrawView: React.FC<LuckyDrawProps> = ({ staffList, currentUser, onUpd
         <div className="bg-white rounded-3xl shadow-lg border border-gray-100 overflow-hidden flex flex-col h-full max-h-[600px]">
            <div className="p-5 bg-gray-50 border-b border-gray-100">
               <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                 <Trophy className="w-5 h-5 text-yellow-500" /> সেরা পারফর্মার (Top List)
+                 <Trophy className="w-5 h-5 text-yellow-500" /> সেরা পারফর্মার ({currentMonthName})
               </h3>
            </div>
            
@@ -214,14 +230,16 @@ const LuckyDrawView: React.FC<LuckyDrawProps> = ({ staffList, currentUser, onUpd
                           <p className="text-[10px] text-gray-400">{staff.designation}</p>
                        </div>
                        <div className="text-right">
-                          <p className="text-sm font-black text-gray-800">{staff.points || 0}</p>
+                          <p className="text-sm font-black text-gray-800">{staff.effectivePoints}</p>
                           <p className="text-[9px] text-gray-400">pts</p>
                        </div>
                     </div>
                  );
               }) : (
                 <div className="text-center py-10 text-gray-400 text-xs">
-                  কোনো একটিভ স্টাফ পাওয়া যায়নি
+                  এই মাসে এখনো কারো পয়েন্ট জমা হয়নি।
+                  <br/>
+                  খেলা শুরু করুন!
                 </div>
               )}
            </div>

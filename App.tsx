@@ -190,23 +190,11 @@ const App: React.FC = () => {
   useEffect(() => {
     const checkPermissions = async () => {
       try {
-        const geoResult = await navigator.permissions.query({ name: 'geolocation' });
-        let cameraGranted = false;
-        
-        try {
-          // 'camera' permission query isn't supported in all browsers yet (e.g. Firefox)
-          const camResult = await navigator.permissions.query({ name: 'camera' as PermissionName });
-          cameraGranted = camResult.state === 'granted';
-        } catch (e) {
-          // If query fails, we assume it's not granted or can't be checked
-          // But if geo is granted, it's likely user is a returning user.
-          // For safety, we rely on geo. If geo is granted, we might still show prompt for camera 
-          // if strictly needed, but to avoid double prompt annoyance, let's see.
-          // Ideally, we want both.
-        }
-
-        if (geoResult.state === 'granted' && (cameraGranted || !navigator.permissions.query)) {
-           setPermissionsGranted(true);
+        if (navigator.permissions && navigator.permissions.query) {
+          const geoResult = await navigator.permissions.query({ name: 'geolocation' });
+          if (geoResult.state === 'granted') {
+             setPermissionsGranted(true);
+          }
         }
       } catch (e) {
         console.log("Permissions query not supported", e);
@@ -253,43 +241,37 @@ const App: React.FC = () => {
   const updateMessages = (val: any) => { const next = typeof val === 'function' ? val(messages) : val; setMessages(next); syncData('messages', next); };
   const updateAttendance = (val: any) => { const next = typeof val === 'function' ? val(attendanceList) : val; setAttendanceList(next); syncData('attendanceList', next); };
 
-  // --- PERMISSION GATE HANDLING ---
-  const handleRequestPermissions = async () => {
-    setPermissionStatus('REQUESTING');
-    try {
-      // Request Camera
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      // Stop stream immediately to turn off camera light
-      stream.getTracks().forEach(track => track.stop());
-      
-      // Request Geolocation
-      await new Promise((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject);
-      });
-
-      setPermissionsGranted(true);
-      setPermissionStatus('IDLE');
-    } catch (error) {
-      console.error("Permissions denied:", error);
-      setPermissionStatus('DENIED');
-    }
-  };
-
-  // --- GAMIFICATION LOGIC: VISIT POINTS (UPDATED) ---
+  // --- GAMIFICATION LOGIC ---
   const handlePointUpdate = (staffId: string, pointsToAdd: number, reason: string) => {
+    const now = new Date();
+    const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
     setStaffList(prevList => {
        const newList = prevList.map(s => {
          if (s.id === staffId) {
-           // EXCLUSION LOGIC: MD and Office accounts do not participate in points
-           if (s.role === UserRole.MD || s.name.toLowerCase().includes('office')) {
-             return s;
-           }
+           if (s.role === UserRole.MD || s.name.toLowerCase().includes('office')) return s;
 
-           return {
-             ...s,
-             points: (s.points || 0) + pointsToAdd,
-             updatedAt: new Date().toISOString()
-           };
+           const staffMonth = s.pointsMonth || '';
+           let newPoints = (s.points || 0);
+
+           if (staffMonth !== currentMonthStr) {
+              return {
+                 ...s,
+                 prevMonthPoints: s.points || 0,
+                 prevMonthName: staffMonth,
+                 points: pointsToAdd,
+                 pointsMonth: currentMonthStr,
+                 updatedAt: new Date().toISOString()
+              };
+           } else {
+              newPoints += pointsToAdd;
+              return {
+                ...s,
+                points: newPoints,
+                pointsMonth: currentMonthStr,
+                updatedAt: new Date().toISOString()
+              };
+           }
          }
          return s;
        });
@@ -316,9 +298,8 @@ const App: React.FC = () => {
     });
   };
 
-  // CHECK POINTS ON ACTIVE VISIT (Focus/Visibility Change)
+  // CHECK POINTS ON ACTIVE VISIT
   useEffect(() => {
-    // Exclude MD and Kiosk and "Office" accounts from visit points
     if (!currentUser || !role || role === UserRole.KIOSK || role === UserRole.MD) return;
     if (currentUser.toLowerCase().includes('office')) return;
 
@@ -327,25 +308,38 @@ const App: React.FC = () => {
 
        const staff = staffList.find(s => s.name === currentUser && s.status === 'ACTIVE' && !s.deletedAt);
        if (!staff) return;
-
-       // Double check exclusion logic
        if (staff.role === UserRole.MD || staff.name.toLowerCase().includes('office')) return;
 
-       const now = new Date().getTime();
+       const now = new Date();
+       const nowTs = now.getTime();
        const lastVisit = staff.lastVisitTime ? new Date(staff.lastVisitTime).getTime() : 0;
        
-       // 10 minutes = 600,000 ms
-       if (now - lastVisit > 600000) {
-          // Give 1 point for visiting after cooldown
+       if (nowTs - lastVisit > 600000) {
+          const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+          
           setStaffList(prevList => {
              const newList = prevList.map(s => {
                 if (s.id === staff.id) {
-                   return {
-                      ...s,
-                      points: (s.points || 0) + 1,
-                      lastVisitTime: new Date().toISOString(), // Update last visit time
-                      updatedAt: new Date().toISOString()
-                   };
+                   const staffMonth = s.pointsMonth || '';
+                   
+                   if (staffMonth !== currentMonthStr) {
+                      return {
+                        ...s,
+                        prevMonthPoints: s.points || 0,
+                        prevMonthName: staffMonth,
+                        points: 1,
+                        pointsMonth: currentMonthStr,
+                        lastVisitTime: now.toISOString(),
+                        updatedAt: now.toISOString()
+                      };
+                   } else {
+                      return {
+                        ...s,
+                        points: (s.points || 0) + 1,
+                        lastVisitTime: now.toISOString(),
+                        updatedAt: now.toISOString()
+                      };
+                   }
                 }
                 return s;
              });
@@ -355,10 +349,7 @@ const App: React.FC = () => {
        }
     };
 
-    // Trigger on mount (Initial Load)
     checkAndAwardVisitPoint();
-
-    // Trigger when user returns to the tab
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         checkAndAwardVisitPoint();
@@ -375,10 +366,22 @@ const App: React.FC = () => {
 
   }, [currentUser, role, staffList.length]); 
 
-  // --- LIVE TRACKING LOGIC (SENDER) ---
+  // --- LIVE TRACKING LOGIC ---
+  const wakeLockRef = useRef<any>(null);
+
+  const requestWakeLock = async () => {
+    if ('wakeLock' in navigator) {
+      try {
+        wakeLockRef.current = await navigator.wakeLock.request('screen');
+      } catch (err: any) {
+        console.error(`Wake Lock failed: ${err.name}, ${err.message}`);
+      }
+    }
+  };
+
   useEffect(() => {
     if (!currentUser || !role || !firebaseConfig || !isCloudEnabled) return;
-    if (role === UserRole.ADMIN || role === UserRole.MD) return; // Admins don't send location usually
+    if (role === UserRole.ADMIN || role === UserRole.MD) return;
 
     const myStaffProfile = staffList.find(s => s.name === currentUser);
     if (!myStaffProfile) return;
@@ -386,6 +389,10 @@ const App: React.FC = () => {
     let watchId: number;
 
     const startTracking = () => {
+      if (role === UserRole.STAFF || role === UserRole.KIOSK) {
+        requestWakeLock();
+      }
+
       if ('geolocation' in navigator) {
         watchId = navigator.geolocation.watchPosition(
           async (position) => {
@@ -402,8 +409,6 @@ const App: React.FC = () => {
                 // @ts-ignore
                 batteryLevel: (await navigator.getBattery?.())?.level || undefined
               };
-              
-              // Update specific node for this user
               await set(ref(db, `staff_locations/${myStaffProfile.id}`), locationData);
             } catch (err) {
               console.error("Location update failed", err);
@@ -415,10 +420,22 @@ const App: React.FC = () => {
       }
     };
 
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && (role === UserRole.STAFF || role === UserRole.KIOSK)) {
+        requestWakeLock();
+      }
+    };
+
     startTracking();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       if (watchId) navigator.geolocation.clearWatch(watchId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release().catch(() => {});
+        wakeLockRef.current = null;
+      }
     };
   }, [currentUser, role, isCloudEnabled, staffList]);
 
@@ -445,7 +462,6 @@ const App: React.FC = () => {
     }
   };
 
-  // Watch for new messages
   const prevMessagesLength = useRef(0);
   useEffect(() => {
     if (messages.length > 0 && prevMessagesLength.current > 0 && messages.length > prevMessagesLength.current) {
@@ -476,7 +492,6 @@ const App: React.FC = () => {
 
     const username = loginUsername.trim();
     
-    // Check if user exists in Staff Database first (Preferred for Profile)
     const staffMember = staffList.find(s => s && !s.deletedAt && s.name.toLowerCase() === username.toLowerCase());
     if (staffMember) {
       const validPassword = staffMember.password || `${staffMember.name}@`;
@@ -552,14 +567,12 @@ const App: React.FC = () => {
     }
   };
 
-  // Calculations
   const totalExpense = useMemo(() => expenses.filter(e => e && !e.isDeleted && e.status === 'APPROVED').reduce((sum, e) => sum + Number(e.amount || 0), 0), [expenses]);
   const totalFund = useMemo(() => funds.filter(f => f && !f.isDeleted).reduce((sum, f) => sum + Number(f.amount || 0), 0), [funds]);
   const totalAdvances = useMemo(() => advances.filter(a => !a.isDeleted).reduce((sum, a) => sum + Number(a.amount || 0), 0), [advances]);
   const cashOnHand = totalFund - totalAdvances; 
   const pendingApprovals = expenses.filter(e => e && !e.isDeleted && (e.status === 'PENDING' || e.status === 'VERIFIED')).length;
 
-  // Profile Management Logic
   const openProfile = () => {
     const profile = staffList.find(s => s && !s.deletedAt && s.name === currentUser);
     setProfileForm({
@@ -602,7 +615,9 @@ const App: React.FC = () => {
           ctx?.drawImage(img, 0, 0, width, height);
           setProfileForm(prev => ({ ...prev, photo: canvas.toDataURL('image/jpeg', 0.8) }));
         };
-        img.src = event.target?.result as string;
+        if (reader.result) {
+          img.src = reader.result as string;
+        }
       };
       reader.readAsDataURL(file);
     }
@@ -642,72 +657,12 @@ const App: React.FC = () => {
     return staffList.find(s => s && !s.deletedAt && s.name === currentUser);
   }, [staffList, currentUser]);
 
-  // --- RENDER CONDITION: PERMISSION CHECK FIRST ---
-  if (!permissionsGranted) {
-    return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4 relative overflow-hidden">
-         {/* Background Effects */}
-         <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5"></div>
-         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-indigo-500 rounded-full blur-[100px] opacity-20"></div>
-
-         <div className="bg-white/10 backdrop-blur-xl border border-white/20 p-8 rounded-3xl w-full max-w-md text-center shadow-2xl relative z-10">
-            <div className="w-20 h-20 bg-indigo-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-indigo-500/50">
-               <ShieldCheck className="w-10 h-10 text-white" />
-            </div>
-            
-            <h1 className="text-2xl font-black text-white mb-2">সিস্টেম অ্যাক্সেস</h1>
-            <p className="text-indigo-200 text-sm mb-8 leading-relaxed">
-               অ্যাপটি ব্যবহার করার জন্য এবং পয়েন্ট আর্ন করার জন্য আপনার ডিভাইসের <strong>লোকেশন</strong> এবং <strong>ক্যামেরা</strong> পারমিশন বাধ্যতামূলক।
-            </p>
-
-            {permissionStatus === 'DENIED' && (
-               <div className="bg-red-500/20 border border-red-500/50 p-4 rounded-xl mb-6 text-left flex gap-3">
-                  <AlertTriangle className="w-6 h-6 text-red-400 shrink-0" />
-                  <div>
-                     <p className="text-white font-bold text-sm">পারমিশন ব্লক করা হয়েছে!</p>
-                     <p className="text-red-200 text-xs mt-1">দয়া করে ব্রাউজার সেটিংস থেকে পারমিশন Allow করে পেজটি রিফ্রেশ দিন।</p>
-                  </div>
-               </div>
-            )}
-
-            <button 
-               onClick={handleRequestPermissions}
-               disabled={permissionStatus === 'REQUESTING'}
-               className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-2xl transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-xl"
-            >
-               {permissionStatus === 'REQUESTING' ? (
-                  <>
-                     <RefreshCw className="w-5 h-5 animate-spin" />
-                     যাচাই করা হচ্ছে...
-                  </>
-               ) : (
-                  <>
-                     পারমিশন দিন এবং প্রবেশ করুন
-                     <ArrowRightLeft className="w-5 h-5" />
-                  </>
-               )}
-            </button>
-            
-            <div className="mt-6 flex justify-center gap-4 text-gray-400">
-               <div className="flex flex-col items-center gap-1">
-                  <MapPin className="w-5 h-5" />
-                  <span className="text-[10px]">Location</span>
-               </div>
-               <div className="flex flex-col items-center gap-1">
-                  <Camera className="w-5 h-5" />
-                  <span className="text-[10px]">Camera</span>
-               </div>
-            </div>
-         </div>
-      </div>
-    );
-  }
-
   // --- LOGIN SCREEN ---
   if (!role) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-700 via-blue-800 to-indigo-900 flex items-center justify-center p-4">
-        <div className="bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl p-8 w-full max-w-md border border-white/20">
+      <div className="min-h-screen bg-gradient-to-br from-indigo-700 via-blue-800 to-indigo-900 flex items-center justify-center p-4 relative overflow-hidden">
+        
+        <div className="bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl p-8 w-full max-w-md border border-white/20 relative z-10">
           <div className="text-center mb-10">
             <div className="bg-indigo-600 w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-xl shadow-indigo-200">
               <Wallet className="w-10 h-10 text-white" />
@@ -782,7 +737,7 @@ const App: React.FC = () => {
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'dashboard': return <DashboardView totalExpense={totalExpense} pendingApprovals={pendingApprovals} expenses={expenses} cloudError={cloudError} totalFund={totalFund} cashOnHand={cashOnHand} role={role} />;
+      case 'dashboard': return <DashboardView totalExpense={totalExpense} pendingApprovals={pendingApprovals} expenses={expenses} cloudError={cloudError} totalFund={totalFund} cashOnHand={cashOnHand} role={role} staffList={staffList} />;
       case 'chat': return <GroupChatView messages={messages} setMessages={updateMessages} currentUser={currentUser} role={role} onNavigate={(view) => setActiveTab(view)} onUpdatePoints={handlePointUpdate} staffList={staffList} />;
       case 'attendance': return <AttendanceView staffList={staffList} attendanceList={attendanceList} setAttendanceList={updateAttendance} currentUser={currentUser} role={role} />;
       case 'live-location': return <LiveLocationView staffList={staffList} liveLocations={liveLocations} />;
@@ -793,10 +748,10 @@ const App: React.FC = () => {
       case 'staff': return <StaffManagementView staffList={staffList} setStaffList={updateStaffList} role={role} expenses={expenses} advances={advances} setAdvances={updateAdvances} currentUser={currentUser} />;
       case 'movements': return <MovementLogView movements={movements} setMovements={updateMovements} staffList={staffList} billingRules={billingRules} role={role} setMessages={updateMessages} currentUser={currentUser} onUpdatePoints={handlePointUpdate} />;
       case 'expenses': return <ExpenseManagementView expenses={expenses} setExpenses={updateExpenses} staffList={staffList} role={role} currentUser={currentUser} />;
-      case 'reports': return <ReportsView expenses={expenses} staffList={staffList} advances={advances} />;
+      case 'reports': return <ReportsView expenses={expenses} staffList={staffList} advances={advances} attendanceList={attendanceList} />;
       case 'settings': return <SettingsView billingRules={billingRules} setBillingRules={updateBillingRules} role={role} exportData={handleExport} importData={handleImport} cloudConfig={firebaseConfig} saveCloudConfig={(config) => { localStorage.setItem('fb_config', JSON.stringify(config)); alert('Settings saved! Reloading...'); window.location.reload(); }} />;
       case 'trash': return <TrashView staffList={staffList} setStaffList={updateStaffList} movements={movements} setMovements={updateMovements} expenses={expenses} setExpenses={updateExpenses} funds={funds} setFunds={updateFunds} notices={notices} setNotices={updateNotices} role={role} />;
-      default: return <DashboardView totalExpense={totalExpense} pendingApprovals={pendingApprovals} expenses={expenses} cloudError={cloudError} totalFund={totalFund} cashOnHand={cashOnHand} role={role} />;
+      default: return <DashboardView totalExpense={totalExpense} pendingApprovals={pendingApprovals} expenses={expenses} cloudError={cloudError} totalFund={totalFund} cashOnHand={cashOnHand} role={role} staffList={staffList} />;
     }
   };
 
@@ -859,7 +814,12 @@ const App: React.FC = () => {
             {role !== UserRole.KIOSK && role !== UserRole.MD && myProfile && !myProfile.name.toLowerCase().includes('office') && (
                <div className="hidden sm:flex items-center gap-2 bg-yellow-50 px-3 py-1.5 rounded-full border border-yellow-100">
                   <Trophy className="w-4 h-4 text-yellow-500" />
-                  <span className="text-xs font-black text-yellow-700">{myProfile.points || 0} pts</span>
+                  <span className="text-xs font-black text-yellow-700">
+                    {/* Display logic: If point month doesn't match current month, effectively 0 */}
+                    {(myProfile.pointsMonth === `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`) 
+                      ? (myProfile.points || 0) 
+                      : 0} pts
+                  </span>
                </div>
             )}
           </div>
