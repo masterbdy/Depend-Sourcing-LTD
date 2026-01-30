@@ -1,6 +1,5 @@
-
 import React, { useState, useMemo } from 'react';
-import { LogIn, LogOut, Clock, Info, Search, Calendar, FilterX } from 'lucide-react';
+import { LogIn, LogOut, Clock, Info, Search, Calendar, FilterX, CalendarDays } from 'lucide-react';
 import { MovementLog, Staff, BillingRule, UserRole, ChatMessage } from '../types';
 
 interface MovementProps {
@@ -89,31 +88,41 @@ const MovementLogView: React.FC<MovementProps> = ({ movements, setMovements, sta
         let allowanceType: MovementLog['allowanceType'] = 'NONE';
         let amount = 0;
 
-        const lunchRule = billingRules.find(r => r.type === 'LUNCH');
-        if (lunchRule) {
-           const [lH, lM] = lunchRule.startTime.split(':').map(Number);
-           const lunchTrigger = new Date(checkOutDate); lunchTrigger.setHours(lH, lM, 0);
-           const lunchEnd = new Date(checkOutDate); lunchEnd.setHours(lH + 1, lM, 0);
-           if (checkOutDate <= lunchTrigger && checkInDate >= lunchEnd) {
-             allowanceType = 'LUNCH';
-             amount = lunchRule.amount;
+        // 1. HOLIDAY CHECK (Friday = 5)
+        const dayOfWeek = checkInDate.getDay();
+        if (dayOfWeek === 5) { // Friday
+           allowanceType = 'HOLIDAY';
+           amount = billingRules.find(r => r.type === 'HOLIDAY')?.amount || 0;
+        } else {
+           // 2. Normal Rules (Lunch/Dinner/Night) only if NOT a holiday
+           const lunchRule = billingRules.find(r => r.type === 'LUNCH');
+           if (lunchRule) {
+              const [lH, lM] = lunchRule.startTime.split(':').map(Number);
+              const lunchTrigger = new Date(checkOutDate); lunchTrigger.setHours(lH, lM, 0);
+              const lunchEnd = new Date(checkOutDate); lunchEnd.setHours(lH + 1, lM, 0);
+              if (checkOutDate <= lunchTrigger && checkInDate >= lunchEnd) {
+                allowanceType = 'LUNCH';
+                amount = lunchRule.amount;
+              }
            }
-        }
 
-        const hour = checkInDate.getHours();
-        const min = checkInDate.getMinutes();
-        if (hour >= 22) {
-          allowanceType = 'DINNER';
-          amount = billingRules.find(r => r.type === 'DINNER')?.amount || 0;
-        } else if (hour > 21 || (hour === 21 && min >= 15)) {
-          allowanceType = 'NIGHT';
-          amount = billingRules.find(r => r.type === 'NIGHT')?.amount || 0;
+           const hour = checkInDate.getHours();
+           const min = checkInDate.getMinutes();
+           // Priority: Dinner > Night
+           if (hour >= 22) {
+             allowanceType = 'DINNER';
+             amount = billingRules.find(r => r.type === 'DINNER')?.amount || 0;
+           } else if (hour > 21 || (hour === 21 && min >= 15)) {
+             // Only apply Night if not Dinner
+             allowanceType = 'NIGHT';
+             amount = billingRules.find(r => r.type === 'NIGHT')?.amount || 0;
+           }
         }
 
         // --- AUTO CHAT MESSAGE (RETURN) ---
         const returnMsg: ChatMessage = {
           id: Math.random().toString(36).substr(2, 9),
-          text: `✅ ${m.staffName} অফিসে ফিরে এসেছেন।`,
+          text: `✅ ${m.staffName} অফিসে ফিরে এসেছেন।${allowanceType === 'HOLIDAY' ? ' (Holiday Duty)' : ''}`,
           sender: 'System Bot',
           role: UserRole.ADMIN,
           timestamp: new Date().toISOString(),
@@ -185,7 +194,10 @@ const MovementLogView: React.FC<MovementProps> = ({ movements, setMovements, sta
           </div>
           <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-lg flex items-start gap-3">
              <Info className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
-             <p className="text-xs text-blue-700">অটোমেটেড বিলিং লজিক অনুযায়ী সময়মতো ফিরলে সিস্টেমে আপনার অ্যালাউন্স অটো যোগ হয়ে যাবে।</p>
+             <div className="text-xs text-blue-700">
+               <p>অটোমেটেড বিলিং লজিক অনুযায়ী সময়মতো ফিরলে সিস্টেমে আপনার অ্যালাউন্স অটো যোগ হয়ে যাবে।</p>
+               <p className="mt-1 font-bold text-purple-600 flex items-center gap-1"><CalendarDays className="w-3 h-3"/> শুক্রবার বা ছুটির দিনে ডিউটি করলে অটোমেটিক ওভারটাইম/হলিডে বিল যুক্ত হবে।</p>
+             </div>
           </div>
         </div>
       )}
@@ -280,7 +292,9 @@ const MovementLogView: React.FC<MovementProps> = ({ movements, setMovements, sta
                     </td>
                     <td className="px-6 py-4">
                       {move.allowanceType && move.allowanceType !== 'NONE' ? (
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold bg-green-100 text-green-700 uppercase tracking-tight">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-tight ${
+                          move.allowanceType === 'HOLIDAY' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'
+                        }`}>
                           {move.allowanceType}: ৳{move.amount}
                         </span>
                       ) : (

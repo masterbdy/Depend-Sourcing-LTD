@@ -182,16 +182,19 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
 
         <div className="space-y-6">
           {billingRules.map((rule) => (
-            <div key={rule.type} className="bg-gray-50 p-6 rounded-2xl border border-gray-100">
-              <h4 className="font-bold text-gray-700 mb-4 flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
+            <div key={rule.type} className={`p-6 rounded-2xl border ${rule.type === 'HOLIDAY' ? 'bg-purple-50 border-purple-100' : 'bg-gray-50 border-gray-100'}`}>
+              <h4 className={`font-bold mb-4 flex items-center gap-2 ${rule.type === 'HOLIDAY' ? 'text-purple-700' : 'text-gray-700'}`}>
+                <div className={`w-2 h-2 rounded-full ${rule.type === 'HOLIDAY' ? 'bg-purple-600' : 'bg-indigo-500'}`}></div>
                 {rule.type} বিল সেটআপ
+                {rule.type === 'HOLIDAY' && <span className="text-[10px] bg-purple-200 text-purple-800 px-2 py-0.5 rounded">Friday / Offday</span>}
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div>
-                  <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2">শুরুর সময়</label>
-                  <input type="time" className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" value={rule.startTime} onChange={(e) => updateRule(rule.type, 'startTime', e.target.value)} />
-                </div>
+                {rule.type !== 'HOLIDAY' && (
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2">শুরুর সময়</label>
+                    <input type="time" className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" value={rule.startTime} onChange={(e) => updateRule(rule.type, 'startTime', e.target.value)} />
+                  </div>
+                )}
                 <div>
                   <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2">টাকার পরিমাণ (৳)</label>
                   <input type="number" className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" value={rule.amount} onChange={(e) => updateRule(rule.type, 'amount', Number(e.target.value))} />
@@ -200,6 +203,12 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
                   <div>
                     <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2">মিনিমাম মেম্বার</label>
                     <input type="number" className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" value={rule.minPeople || 0} onChange={(e) => updateRule(rule.type, 'minPeople', Number(e.target.value))} />
+                  </div>
+                )}
+                {rule.type === 'HOLIDAY' && (
+                  <div className="col-span-2 flex items-center text-xs text-purple-600">
+                     <AlertTriangle className="w-4 h-4 mr-2" /> 
+                     শুক্রবার বা ছুটির দিনে ডিউটি করলে এই রেট প্রযোজ্য হবে।
                   </div>
                 )}
               </div>

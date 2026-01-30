@@ -2,12 +2,13 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   LayoutDashboard, Users, Car, Receipt, BarChart3, Settings, Trash2, 
-  LogOut, Wallet, User, Cloud, WifiOff, AlertTriangle, Menu, X, RefreshCw, Lock, ArrowRightLeft, XCircle, Landmark, Bell, Phone, Briefcase, Crown, UserCog, ShieldCheck, Camera, Save, KeyRound, IdCard, MessageSquareWarning, MessagesSquare, MapPin, MonitorSmartphone, Satellite, Trophy, Gift, Gamepad2, Shield, CheckCircle
+  LogOut, Wallet, User, Cloud, WifiOff, AlertTriangle, Menu, X, RefreshCw, Lock, ArrowRightLeft, XCircle, Landmark, Bell, Phone, Briefcase, Crown, UserCog, ShieldCheck, Camera, Save, KeyRound, CreditCard, MessageSquareWarning, MessagesSquare, MapPin, MonitorSmartphone, Satellite, Trophy, Gift, Gamepad2, Shield, CheckCircle, LogIn, Sparkles, ClipboardList, Check, Eye, EyeOff, Moon, Sun
 } from 'lucide-react';
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { getDatabase, ref, onValue, set } from "firebase/database";
-import { UserRole, Staff, MovementLog, Expense, BillingRule, FundEntry, Notice, AdvanceLog, Complaint, ChatMessage, Attendance, StaffLocation } from './types';
+import { UserRole, Staff, MovementLog, Expense, BillingRule, FundEntry, Notice, AdvanceLog, Complaint, ChatMessage, Attendance, StaffLocation, AppNotification } from './types';
 import { INITIAL_STAFF, INITIAL_BILLING_RULES, ROLE_LABELS, DEFAULT_FIREBASE_CONFIG } from './constants';
+import GlowingCursor from './GlowingCursor';
 
 // --- Views ---
 import DashboardView from './views/Dashboard';
@@ -32,6 +33,15 @@ const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   
+  // Theme State
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    return localStorage.getItem('app_theme') === 'dark';
+  });
+
+  // Notification System State
+  const [appNotifications, setAppNotifications] = useState<AppNotification[]>([]);
+  const [isNotifDropdownOpen, setIsNotifDropdownOpen] = useState(false);
+  
   // Permission State
   const [permissionsGranted, setPermissionsGranted] = useState(false);
   const [permissionStatus, setPermissionStatus] = useState<'IDLE' | 'REQUESTING' | 'DENIED'>('IDLE');
@@ -55,7 +65,10 @@ const App: React.FC = () => {
   // Login Form State
   const [loginUsername, setLoginUsername] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+  const [showLoginPassword, setShowLoginPassword] = useState(false); // New State for Password Toggle
   const [loginError, setLoginError] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
+  const [savedAccounts, setSavedAccounts] = useState<any[]>([]);
 
   // Global States
   const [staffList, setStaffList] = useState<Staff[]>([]);
@@ -114,6 +127,14 @@ const App: React.FC = () => {
     setComplaints(getLocal('complaints', '[]') as Complaint[]);
     setMessages(getLocal('messages', '[]') as ChatMessage[]);
     setAttendanceList(getLocal('attendanceList', '[]') as Attendance[]);
+    
+    // Load Saved Accounts
+    try {
+      const savedAcc = localStorage.getItem('saved_accounts');
+      if (savedAcc) setSavedAccounts(JSON.parse(savedAcc));
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   useEffect(() => {
@@ -202,6 +223,13 @@ const App: React.FC = () => {
     };
     checkPermissions();
   }, []);
+
+  // Theme Toggle Handler
+  const toggleTheme = () => {
+    const newTheme = !isDarkMode;
+    setIsDarkMode(newTheme);
+    localStorage.setItem('app_theme', newTheme ? 'dark' : 'light');
+  };
 
   // Sync Data function
   const syncData = async (node: string, data: any) => {
@@ -370,21 +398,28 @@ const App: React.FC = () => {
   const wakeLockRef = useRef<any>(null);
 
   const requestWakeLock = async () => {
-    if ('wakeLock' in navigator) {
+    if ('wakeLock' in navigator && document.visibilityState === 'visible') {
       try {
         wakeLockRef.current = await navigator.wakeLock.request('screen');
       } catch (err: any) {
-        console.error(`Wake Lock failed: ${err.name}, ${err.message}`);
+        if (err.name !== 'NotAllowedError') {
+           console.error(`Wake Lock failed: ${err.name}, ${err.message}`);
+        }
       }
     }
   };
 
+  // Optimization: Memoize the staff ID so we don't depend on the whole staffList in useEffect
+  const myStaffId = useMemo(() => {
+    if (!currentUser || !staffList) return null;
+    const profile = staffList.find(s => s.name === currentUser);
+    return profile ? profile.id : null;
+  }, [currentUser, staffList]);
+
   useEffect(() => {
     if (!currentUser || !role || !firebaseConfig || !isCloudEnabled) return;
     if (role === UserRole.ADMIN || role === UserRole.MD) return;
-
-    const myStaffProfile = staffList.find(s => s.name === currentUser);
-    if (!myStaffProfile) return;
+    if (!myStaffId) return;
 
     let watchId: number;
 
@@ -400,8 +435,8 @@ const App: React.FC = () => {
               const app = getApp();
               const db = getDatabase(app, firebaseConfig.databaseURL);
               const locationData: StaffLocation = {
-                staffId: myStaffProfile.id,
-                staffName: myStaffProfile.name,
+                staffId: myStaffId,
+                staffName: currentUser,
                 lat: position.coords.latitude,
                 lng: position.coords.longitude,
                 timestamp: new Date().toISOString(),
@@ -409,7 +444,7 @@ const App: React.FC = () => {
                 // @ts-ignore
                 batteryLevel: (await navigator.getBattery?.())?.level || undefined
               };
-              await set(ref(db, `staff_locations/${myStaffProfile.id}`), locationData);
+              await set(ref(db, `staff_locations/${myStaffId}`), locationData);
             } catch (err) {
               console.error("Location update failed", err);
             }
@@ -437,16 +472,29 @@ const App: React.FC = () => {
         wakeLockRef.current = null;
       }
     };
-  }, [currentUser, role, isCloudEnabled, staffList]);
+  }, [currentUser, role, isCloudEnabled, myStaffId]);
 
   // --- NOTIFICATION LOGIC ---
   const requestNotificationPermission = () => {
-    if ('Notification' in window) {
+    if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
     }
   };
 
-  const sendNotification = (title: string, body: string) => {
+  const handleAddNotification = (title: string, message: string, type: AppNotification['type'] = 'INFO', link?: string) => {
+    const newNotif: AppNotification = {
+      id: Math.random().toString(36).substr(2, 9),
+      title,
+      message,
+      type,
+      timestamp: new Date().toISOString(),
+      isRead: false,
+      link
+    };
+    
+    setAppNotifications(prev => [newNotif, ...prev]);
+
+    // Send Browser Notification
     if ('Notification' in window && Notification.permission === 'granted') {
       try {
         const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
@@ -455,12 +503,22 @@ const App: React.FC = () => {
       } catch (e) {}
 
       new Notification(title, {
-        body: body,
+        body: message,
         icon: 'https://cdn-icons-png.flaticon.com/512/1041/1041916.png',
         tag: 'depend-sourcing-msg'
       });
     }
   };
+
+  const markAllAsRead = () => {
+    setAppNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+  };
+
+  const clearNotifications = () => {
+    setAppNotifications([]);
+  };
+
+  const unreadCount = appNotifications.filter(n => !n.isRead).length;
 
   const prevMessagesLength = useRef(0);
   useEffect(() => {
@@ -470,9 +528,9 @@ const App: React.FC = () => {
         const msgTime = new Date(lastMsg.timestamp).getTime();
         if (Date.now() - msgTime < 30000) {
            if (lastMsg.type === 'SYSTEM_MOVEMENT') {
-             sendNotification('স্টাফ মুভমেন্ট আপডেট', lastMsg.text);
+             handleAddNotification('স্টাফ মুভমেন্ট আপডেট', lastMsg.text, 'INFO', 'movements');
            } else {
-             sendNotification(`মেসেজ: ${lastMsg.sender}`, lastMsg.text);
+             handleAddNotification(`মেসেজ: ${lastMsg.sender}`, lastMsg.text, 'INFO', 'chat');
            }
         }
       }
@@ -486,38 +544,71 @@ const App: React.FC = () => {
     }
   }, [role]);
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleLogin = (e: React.FormEvent | null, quickAuthData?: any) => {
+    if (e) e.preventDefault();
     setLoginError('');
 
-    const username = loginUsername.trim();
+    const username = quickAuthData ? quickAuthData.username : loginUsername.trim();
+    const password = quickAuthData ? quickAuthData.password : loginPassword;
     
+    let authenticatedUser: { role: UserRole, name: string } | null = null;
+
+    // 1. Check Staff List
     const staffMember = staffList.find(s => s && !s.deletedAt && s.name.toLowerCase() === username.toLowerCase());
     if (staffMember) {
       const validPassword = staffMember.password || `${staffMember.name}@`;
-      if (loginPassword === validPassword) {
-        setRole(staffMember.role || UserRole.STAFF);
-        setCurrentUser(staffMember.name);
-        if (staffMember.role === UserRole.KIOSK) {
-          setActiveTab('attendance'); 
-        }
-        return;
+      if (password === validPassword) {
+        authenticatedUser = { role: staffMember.role || UserRole.STAFF, name: staffMember.name };
       }
     }
-
-    if (username.toLowerCase() === 'ispa' && loginPassword === 'ayaan') {
-      setRole(UserRole.MD);
-      setCurrentUser('ISPA');
-      return;
+    // 2. Check MD
+    else if (username.toLowerCase() === 'ispa' && password === 'ayaan') {
+      authenticatedUser = { role: UserRole.MD, name: 'ISPA' };
+    }
+    // 3. Check Admin
+    else if (username.toLowerCase() === 'mehedi@' && password === 'mehedi@60') {
+      authenticatedUser = { role: UserRole.ADMIN, name: 'Mehedi' };
     }
 
-    if (username.toLowerCase() === 'mehedi@' && loginPassword === 'mehedi@60') {
-      setRole(UserRole.ADMIN);
-      setCurrentUser('Mehedi');
+    if (authenticatedUser) {
+      setRole(authenticatedUser.role);
+      setCurrentUser(authenticatedUser.name);
+      if (authenticatedUser.role === UserRole.KIOSK) {
+        setActiveTab('attendance'); 
+      }
+
+      // Check for pending bills if admin
+      if (authenticatedUser.role === UserRole.ADMIN) {
+         const pending = expenses.filter(e => !e.isDeleted && e.status === 'PENDING').length;
+         if (pending > 0) {
+            handleAddNotification('পেন্ডিং বিল', `${pending} টি বিল অনুমোদনের অপেক্ষায় আছে।`, 'WARNING', 'expenses');
+         }
+      }
+
+      // Save Account Logic (If manually logging in with checkbox, and not using quick auth)
+      if (rememberMe && !quickAuthData) {
+         const photo = staffList.find(s => s.name === authenticatedUser!.name)?.photo || '';
+         const newAccount = { 
+           username: authenticatedUser.name, 
+           password: password, 
+           role: authenticatedUser.role,
+           photo 
+         };
+         
+         const updatedAccounts = [newAccount, ...savedAccounts.filter(a => a.username !== authenticatedUser!.name)];
+         setSavedAccounts(updatedAccounts);
+         localStorage.setItem('saved_accounts', JSON.stringify(updatedAccounts));
+      }
       return;
     }
 
     setLoginError('ভুল ইউজারনেম অথবা পাসওয়ার্ড!');
+  };
+
+  const removeSavedAccount = (username: string) => {
+    const updated = savedAccounts.filter(a => a.username !== username);
+    setSavedAccounts(updated);
+    localStorage.setItem('saved_accounts', JSON.stringify(updated));
   };
 
   const handleLogout = () => {
@@ -527,6 +618,7 @@ const App: React.FC = () => {
     setLoginPassword('');
     setLoginError('');
     setActiveTab('dashboard');
+    setAppNotifications([]); // Clear notifications on logout
   };
 
   // --- DATA EXPORT & IMPORT HANDLERS ---
@@ -660,26 +752,60 @@ const App: React.FC = () => {
   // --- LOGIN SCREEN ---
   if (!role) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-700 via-blue-800 to-indigo-900 flex items-center justify-center p-4 relative overflow-hidden">
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4 relative overflow-hidden">
         
-        <div className="bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl p-8 w-full max-w-md border border-white/20 relative z-10">
-          <div className="text-center mb-10">
-            <div className="bg-indigo-600 w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-xl shadow-indigo-200">
-              <Wallet className="w-10 h-10 text-white" />
+        {/* Animated Background */}
+        <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-black to-blue-900 opacity-80 z-0"></div>
+        <div className="absolute inset-0 z-0"><GlowingCursor /></div>
+        
+        {/* Updated Login Card: Dark Glassmorphism for better visuals with GlowingCursor */}
+        <div className="bg-gray-900/40 backdrop-blur-xl rounded-3xl shadow-2xl p-8 w-full max-w-md border border-white/10 relative z-10 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-500">
+          <div className="text-center mb-8">
+            <div className="bg-indigo-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-xl shadow-indigo-500/30 ring-4 ring-indigo-500/20">
+              <Wallet className="w-8 h-8 text-white" />
             </div>
-            <h1 className="text-2xl font-black text-gray-800 tracking-tight">অ্যাকাউন্ট লগইন</h1>
-            <p className="text-gray-500 text-sm mt-1">Depend Sourcing Ltd. Billing Center</p>
+            <h1 className="text-xl font-black text-white tracking-tight">অ্যাকাউন্ট লগইন</h1>
+            <p className="text-indigo-200 text-xs mt-1">Depend Sourcing Ltd.</p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-5">
+          {/* SAVED ACCOUNTS */}
+          {savedAccounts.length > 0 && (
+            <div className="mb-6">
+               <p className="text-[10px] font-bold text-indigo-300 uppercase tracking-widest mb-3 ml-1">Saved Accounts</p>
+               <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                  {savedAccounts.map((account, idx) => (
+                     <div key={idx} className="relative group shrink-0">
+                        <div 
+                          onClick={() => handleLogin(null, account)}
+                          className="flex flex-col items-center bg-white/5 border border-white/10 p-3 rounded-2xl shadow-sm hover:shadow-lg cursor-pointer transition-all hover:bg-white/10 hover:border-indigo-500/50 w-24 hover:scale-105 active:scale-95"
+                        >
+                           <div className="w-10 h-10 rounded-full bg-indigo-500/20 flex items-center justify-center overflow-hidden mb-2 border border-white/20">
+                              {account.photo ? <img src={account.photo} className="w-full h-full object-cover" /> : <User className="w-5 h-5 text-indigo-300" />}
+                           </div>
+                           <p className="text-[10px] font-bold text-gray-200 truncate w-full text-center">{account.username}</p>
+                           <p className="text-[9px] text-indigo-400 font-medium">Click to Login</p>
+                        </div>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); removeSavedAccount(account.username); }}
+                          className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110"
+                        >
+                           <X className="w-3 h-3" />
+                        </button>
+                     </div>
+                  ))}
+               </div>
+            </div>
+          )}
+
+          <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">ইউজারনেম / নাম</label>
-              <div className="relative">
-                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">ইউজারনেম / নাম</label>
+              <div className="relative group">
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-indigo-400 transition-colors duration-300" />
                 <input 
                   required 
                   type="text" 
-                  className="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-semibold text-gray-700"
+                  className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/10 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all font-bold text-gray-100 text-sm placeholder:text-gray-500 hover:bg-white/20 focus:bg-white/20 backdrop-blur-md"
                   placeholder="Username..."
                   value={loginUsername}
                   onChange={(e) => setLoginUsername(e.target.value)}
@@ -688,43 +814,64 @@ const App: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">পাসওয়ার্ড</label>
-              <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">পাসওয়ার্ড</label>
+              <div className="relative group">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-indigo-400 transition-colors duration-300" />
                 <input 
                   required 
-                  type="password" 
-                  className="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-semibold text-gray-700"
+                  type={showLoginPassword ? "text" : "password"} 
+                  className="w-full pl-10 pr-12 py-3 bg-white/10 border border-white/10 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all font-bold text-gray-100 text-sm placeholder:text-gray-500 hover:bg-white/20 focus:bg-white/20 backdrop-blur-md"
                   placeholder="Password..."
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
                 />
+                <button 
+                  type="button"
+                  onClick={() => setShowLoginPassword(!showLoginPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-all"
+                >
+                  {showLoginPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
             </div>
 
+            <div className="flex items-center gap-2 py-1">
+               <input 
+                 type="checkbox" 
+                 id="rememberMe" 
+                 className="w-4 h-4 rounded border-gray-600 bg-white/10 text-indigo-500 focus:ring-indigo-500"
+                 checked={rememberMe}
+                 onChange={(e) => setRememberMe(e.target.checked)}
+               />
+               <label htmlFor="rememberMe" className="text-xs font-bold text-gray-400 cursor-pointer select-none hover:text-gray-200 transition-colors">
+                 একাউন্ট সেভ করুন (Remember Me)
+               </label>
+            </div>
+
             {loginError && (
-              <div className="bg-red-50 text-red-600 p-3 rounded-xl text-xs font-bold flex items-center gap-2 border border-red-100 animate-pulse">
+              <div className="bg-red-500/10 text-red-400 p-3 rounded-xl text-xs font-bold flex items-center gap-2 border border-red-500/20 animate-pulse">
                 <XCircle className="w-4 h-4" /> {loginError}
               </div>
             )}
 
             <button 
               type="submit" 
-              className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2"
+              className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-black shadow-lg shadow-indigo-500/40 hover:bg-indigo-500 transition-all active:scale-95 flex items-center justify-center gap-2 text-sm relative overflow-hidden group border border-indigo-400/20 hover:border-indigo-400/50"
             >
-              প্রবেশ করুন <ArrowRightLeft className="w-5 h-5 rotate-90" />
+              <span className="relative z-10 flex items-center gap-2">প্রবেশ করুন <ArrowRightLeft className="w-4 h-4 rotate-90 group-hover:translate-x-1 transition-transform" /></span>
+              <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
             </button>
           </form>
 
           {/* Connection Status Indicator */}
           <div className="mt-6 flex flex-col items-center gap-3">
             {isCloudEnabled ? (
-               <span className="flex items-center gap-1.5 text-[10px] text-green-600 bg-green-50 px-3 py-1 rounded-full font-bold">
+               <span className="flex items-center gap-1.5 text-[10px] text-green-400 bg-green-900/30 px-3 py-1 rounded-full font-bold border border-green-500/30 shadow-lg shadow-green-900/20">
                  <Cloud className="w-3 h-3" /> Online Connected
                </span>
             ) : (
                <div className="flex flex-col items-center gap-2">
-                 <span className="flex items-center gap-1.5 text-[10px] text-red-500 bg-red-50 px-3 py-1 rounded-full font-bold cursor-pointer hover:bg-red-100 transition-colors" onClick={() => setShowDbHelp(!showDbHelp)}>
+                 <span className="flex items-center gap-1.5 text-[10px] text-red-400 bg-red-900/30 px-3 py-1 rounded-full font-bold cursor-pointer hover:bg-red-900/50 transition-colors border border-red-500/30" onClick={() => setShowDbHelp(!showDbHelp)}>
                    <WifiOff className="w-3 h-3" /> {cloudError || 'Offline'} (Click for Help)
                  </span>
                </div>
@@ -747,7 +894,7 @@ const App: React.FC = () => {
       case 'funds': return <FundLedgerView funds={funds} setFunds={updateFunds} totalFund={totalFund} cashOnHand={cashOnHand} role={role} />;
       case 'staff': return <StaffManagementView staffList={staffList} setStaffList={updateStaffList} role={role} expenses={expenses} advances={advances} setAdvances={updateAdvances} currentUser={currentUser} />;
       case 'movements': return <MovementLogView movements={movements} setMovements={updateMovements} staffList={staffList} billingRules={billingRules} role={role} setMessages={updateMessages} currentUser={currentUser} onUpdatePoints={handlePointUpdate} />;
-      case 'expenses': return <ExpenseManagementView expenses={expenses} setExpenses={updateExpenses} staffList={staffList} role={role} currentUser={currentUser} />;
+      case 'expenses': return <ExpenseManagementView expenses={expenses} setExpenses={updateExpenses} staffList={staffList} role={role} currentUser={currentUser} onNotify={handleAddNotification} />;
       case 'reports': return <ReportsView expenses={expenses} staffList={staffList} advances={advances} attendanceList={attendanceList} />;
       case 'settings': return <SettingsView billingRules={billingRules} setBillingRules={updateBillingRules} role={role} exportData={handleExport} importData={handleImport} cloudConfig={firebaseConfig} saveCloudConfig={(config) => { localStorage.setItem('fb_config', JSON.stringify(config)); alert('Settings saved! Reloading...'); window.location.reload(); }} />;
       case 'trash': return <TrashView staffList={staffList} setStaffList={updateStaffList} movements={movements} setMovements={updateMovements} expenses={expenses} setExpenses={updateExpenses} funds={funds} setFunds={updateFunds} notices={notices} setNotices={updateNotices} role={role} />;
@@ -756,13 +903,22 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50 font-['Hind_Siliguri']">
+    <div className={`flex h-screen overflow-hidden font-['Hind_Siliguri'] relative ${isDarkMode ? 'dark' : ''} ${isDarkMode ? 'text-gray-100' : 'bg-gray-50 text-gray-900'}`}>
+      
+      {/* Background for Dark Mode */}
+      {isDarkMode && (
+        <>
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-black to-gray-800 -z-20"></div>
+          <div className="absolute inset-0 z-0"><GlowingCursor /></div>
+        </>
+      )}
+
       {isSidebarOpen && <div className="fixed inset-0 z-40 bg-black/50 md:hidden" onClick={() => setIsSidebarOpen(false)} />}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-indigo-900 text-white transform transition-transform duration-300 md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 transform transition-transform duration-300 md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} ${isDarkMode ? 'bg-gray-900/80 backdrop-blur-md border-r border-white/10 text-white' : 'bg-indigo-900 text-white'}`}>
         <div className="flex flex-col h-full">
-          <div className="p-6 text-center border-b border-indigo-800">
-            <div className="bg-indigo-400/20 w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3">
-              <Wallet className="w-7 h-7 text-indigo-400" />
+          <div className={`p-6 text-center ${isDarkMode ? 'border-b border-white/10' : 'border-b border-indigo-800'}`}>
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3 ${isDarkMode ? 'bg-white/10 ring-1 ring-white/20' : 'bg-indigo-400/20'}`}>
+              <Wallet className={`w-7 h-7 ${isDarkMode ? 'text-indigo-400' : 'text-indigo-400'}`} />
             </div>
             <h2 className="text-xl font-bold tracking-tight">বিলিং সেন্টার</h2>
           </div>
@@ -773,7 +929,7 @@ const App: React.FC = () => {
               { id: 'luckydraw', label: 'লাকি ড্র & লিডারবোর্ড', icon: Gamepad2, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF] },
               { id: 'attendance', label: 'স্মার্ট হাজিরা', icon: MapPin, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF, UserRole.KIOSK] },
               { id: 'live-location', label: 'লাইভ ট্র্যাকিং', icon: Satellite, roles: [UserRole.ADMIN, UserRole.MD] },
-              { id: 'notices', label: 'নোটিশ বোর্ড', icon: Bell, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF, UserRole.KIOSK] },
+              { id: 'notices', label: 'নোটিশ বোর্ড', icon: ClipboardList, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF, UserRole.KIOSK] },
               { id: 'complaints', label: 'অভিযোগ বাক্স', icon: MessageSquareWarning, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF] },
               { id: 'funds', label: 'ফান্ড লেজার', icon: Landmark, roles: [UserRole.ADMIN, UserRole.MD] },
               { id: 'staff', label: 'স্টাফ প্রোফাইল', icon: Users, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF] },
@@ -788,7 +944,7 @@ const App: React.FC = () => {
               </button>
             ))}
           </nav>
-          <div className="p-4 border-t border-indigo-800">
+          <div className={`p-4 border-t ${isDarkMode ? 'border-white/10' : 'border-indigo-800'}`}>
              <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-red-300 hover:bg-red-900/30 transition-colors">
               <LogOut className="w-5 h-5" /> লগআউট
             </button>
@@ -796,10 +952,10 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col h-full overflow-hidden">
-        <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 shrink-0">
+      <main className="flex-1 flex flex-col h-full overflow-hidden relative z-10">
+        <header className={`h-16 flex items-center justify-between px-6 shrink-0 relative z-20 ${isDarkMode ? 'bg-gray-900/80 backdrop-blur-md border-b border-white/10' : 'bg-white border-b border-gray-200'}`}>
           <div className="flex items-center gap-4">
-            <button onClick={() => setIsSidebarOpen(true)} className="md:hidden p-2 hover:bg-gray-100 rounded-lg"><Menu className="w-6 h-6 text-gray-600" /></button>
+            <button onClick={() => setIsSidebarOpen(true)} className={`md:hidden p-2 rounded-lg ${isDarkMode ? 'hover:bg-white/10 text-white' : 'hover:bg-gray-100 text-gray-600'}`}><Menu className="w-6 h-6" /></button>
             <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest cursor-pointer ${isCloudEnabled ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-500'}`} title={cloudError || "System Normal"} onClick={() => !isCloudEnabled && setShowDbHelp(true)}>
               {isCloudEnabled ? <Cloud className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
               <span>{isCloudEnabled ? (isSyncing ? 'Syncing...' : 'Online') : 'Offline'}</span>
@@ -824,9 +980,74 @@ const App: React.FC = () => {
             )}
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
+             {/* THEME TOGGLE */}
+             <button 
+               onClick={toggleTheme}
+               className={`p-2 rounded-full transition-all active:scale-95 ${isDarkMode ? 'bg-white/10 text-yellow-400 hover:bg-white/20' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+               title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+             >
+               {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+             </button>
+
+             {/* NOTIFICATION BELL */}
+             <div className="relative">
+                <button 
+                  onClick={() => setIsNotifDropdownOpen(!isNotifDropdownOpen)}
+                  className={`p-2 rounded-full transition-colors relative ${isNotifDropdownOpen ? 'bg-indigo-50 text-indigo-600' : isDarkMode ? 'text-gray-300 hover:bg-white/10' : 'hover:bg-gray-100 text-gray-500'}`}
+                >
+                   <Bell className="w-5 h-5" />
+                   {unreadCount > 0 && (
+                     <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
+                   )}
+                </button>
+
+                {/* Dropdown Panel */}
+                {isNotifDropdownOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200 text-gray-900 dark:text-gray-100">
+                     <div className="p-3 border-b border-gray-50 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800">
+                        <h4 className="text-xs font-black uppercase tracking-widest text-gray-600 dark:text-gray-400">Notifications</h4>
+                        <button onClick={markAllAsRead} className="text-[10px] font-bold text-indigo-600 hover:underline">Mark all read</button>
+                     </div>
+                     <div className="max-h-64 overflow-y-auto">
+                        {appNotifications.length > 0 ? (
+                           appNotifications.map((notif) => (
+                              <div 
+                                key={notif.id} 
+                                className={`p-3 border-b border-gray-50 dark:border-gray-700 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer ${notif.isRead ? 'opacity-60' : 'bg-indigo-50/30 dark:bg-indigo-900/20'}`}
+                                onClick={() => {
+                                   if (notif.link) {
+                                      setActiveTab(notif.link);
+                                      setIsNotifDropdownOpen(false);
+                                   }
+                                }}
+                              >
+                                 <div className="flex justify-between items-start mb-1">
+                                    <p className={`text-xs font-bold ${notif.isRead ? 'text-gray-600 dark:text-gray-400' : 'text-gray-800 dark:text-gray-200'}`}>{notif.title}</p>
+                                    <span className="text-[9px] text-gray-400 whitespace-nowrap">{new Date(notif.timestamp).toLocaleTimeString('bn-BD', {hour:'2-digit', minute:'2-digit'})}</span>
+                                 </div>
+                                 <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-snug">{notif.message}</p>
+                              </div>
+                           ))
+                        ) : (
+                           <div className="py-8 text-center text-gray-400">
+                              <Bell className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                              <p className="text-xs">No new notifications</p>
+                           </div>
+                        )}
+                     </div>
+                     {appNotifications.length > 0 && (
+                        <div className="p-2 border-t border-gray-100 dark:border-gray-700 text-center bg-white dark:bg-gray-800">
+                           <button onClick={clearNotifications} className="text-[10px] text-red-400 hover:text-red-600 font-bold">Clear All</button>
+                        </div>
+                     )}
+                  </div>
+                )}
+             </div>
+
+             {/* Profile Info */}
              <div className="text-right hidden md:block">
-               <p className="text-sm font-bold text-gray-800">{currentUser || 'Guest'}</p>
+               <p className={`text-sm font-bold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>{currentUser || 'Guest'}</p>
                <p className="text-xs text-gray-500">{role ? ROLE_LABELS[role] : ''}</p>
              </div>
              <div 
@@ -842,7 +1063,7 @@ const App: React.FC = () => {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto bg-gray-50 p-6 md:p-8">
+        <div className={`flex-1 overflow-y-auto p-6 md:p-8 ${isDarkMode ? 'bg-transparent' : 'bg-gray-50'}`}>
           <div className="max-w-7xl mx-auto">
             {renderContent()}
           </div>
@@ -851,8 +1072,8 @@ const App: React.FC = () => {
 
       {/* Profile Modal */}
       {isProfileModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in duration-200">
-          <div className="bg-white/90 w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl border border-white/40 backdrop-blur-md relative">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in duration-200 text-gray-900">
+          <div className="bg-white w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl border border-white/40 backdrop-blur-md relative dark:bg-gray-800 dark:border-gray-700">
             <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-br from-indigo-600 to-purple-700 z-0"></div>
             <button onClick={() => setIsProfileModalOpen(false)} className="absolute top-4 right-4 text-white/80 hover:text-white z-10 p-1 bg-black/20 rounded-full transition-colors"><X className="w-5 h-5" /></button>
 
@@ -873,7 +1094,7 @@ const App: React.FC = () => {
                  <input type="file" ref={profileFileRef} hidden accept="image/*" onChange={handleProfilePhotoUpload} />
                </div>
 
-               <h2 className="text-2xl font-black text-gray-800 text-center">{currentUser || 'Guest User'}</h2>
+               <h2 className="text-2xl font-black text-gray-800 dark:text-gray-100 text-center">{currentUser || 'Guest User'}</h2>
                <div className="flex items-center gap-2 mt-1 mb-6">
                  {role === UserRole.MD && <span className="px-2 py-0.5 rounded text-[10px] font-black bg-purple-100 text-purple-700 uppercase flex items-center gap-1"><Crown className="w-3 h-3"/> Managing Director</span>}
                  {role === UserRole.ADMIN && <span className="px-2 py-0.5 rounded text-[10px] font-black bg-blue-100 text-blue-700 uppercase flex items-center gap-1"><UserCog className="w-3 h-3"/> Manager</span>}
@@ -882,13 +1103,13 @@ const App: React.FC = () => {
                </div>
 
                <div className="w-full space-y-3">
-                 <div className="bg-white/80 p-3 rounded-xl flex items-center gap-3 border border-gray-100 focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-transparent transition-all">
-                    <div className="bg-indigo-50 p-2 rounded-lg text-indigo-600"><Briefcase className="w-4 h-4" /></div>
+                 <div className="bg-white/80 dark:bg-gray-700/80 p-3 rounded-xl flex items-center gap-3 border border-gray-100 dark:border-gray-600 focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-transparent transition-all">
+                    <div className="bg-indigo-50 dark:bg-gray-600 p-2 rounded-lg text-indigo-600 dark:text-indigo-400"><Briefcase className="w-4 h-4" /></div>
                     <div className="flex-1">
-                      <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">পদবী (Designation)</p>
+                      <p className="text-[9px] font-bold text-gray-400 dark:text-gray-400 uppercase tracking-wider">পদবী (Designation)</p>
                       <input 
                         type="text" 
-                        className="w-full bg-transparent border-none p-0 text-sm font-bold text-gray-800 outline-none placeholder:text-gray-300"
+                        className="w-full bg-transparent border-none p-0 text-sm font-bold text-gray-800 dark:text-gray-200 outline-none placeholder:text-gray-300"
                         placeholder="Set Designation"
                         value={profileForm.designation}
                         onChange={(e) => setProfileForm({...profileForm, designation: e.target.value})}
@@ -896,13 +1117,13 @@ const App: React.FC = () => {
                     </div>
                  </div>
                  
-                 <div className="bg-white/80 p-3 rounded-xl flex items-center gap-3 border border-gray-100 focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-transparent transition-all">
-                    <div className="bg-indigo-50 p-2 rounded-lg text-indigo-600"><Phone className="w-4 h-4" /></div>
+                 <div className="bg-white/80 dark:bg-gray-700/80 p-3 rounded-xl flex items-center gap-3 border border-gray-100 dark:border-gray-600 focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-transparent transition-all">
+                    <div className="bg-indigo-50 dark:bg-gray-600 p-2 rounded-lg text-indigo-600 dark:text-indigo-400"><Phone className="w-4 h-4" /></div>
                     <div className="flex-1">
-                      <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">মোবাইল নাম্বার</p>
+                      <p className="text-[9px] font-bold text-gray-400 dark:text-gray-400 uppercase tracking-wider">মোবাইল নাম্বার</p>
                       <input 
                         type="text" 
-                        className="w-full bg-transparent border-none p-0 text-sm font-bold text-gray-800 outline-none placeholder:text-gray-300"
+                        className="w-full bg-transparent border-none p-0 text-sm font-bold text-gray-800 dark:text-gray-200 outline-none placeholder:text-gray-300"
                         placeholder="Set Mobile No"
                         value={profileForm.mobile}
                         onChange={(e) => setProfileForm({...profileForm, mobile: e.target.value})}
@@ -910,13 +1131,13 @@ const App: React.FC = () => {
                     </div>
                  </div>
                  
-                 <div className="bg-white/80 p-3 rounded-xl flex items-center gap-3 border border-gray-100 focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-transparent transition-all">
-                    <div className="bg-indigo-50 p-2 rounded-lg text-indigo-600"><IdCard className="w-4 h-4" /></div>
+                 <div className="bg-white/80 dark:bg-gray-700/80 p-3 rounded-xl flex items-center gap-3 border border-gray-100 dark:border-gray-600 focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-transparent transition-all">
+                    <div className="bg-indigo-50 dark:bg-gray-600 p-2 rounded-lg text-indigo-600 dark:text-indigo-400"><CreditCard className="w-4 h-4" /></div>
                     <div className="flex-1">
-                      <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">অফিস আইডি</p>
+                      <p className="text-[9px] font-bold text-gray-400 dark:text-gray-400 uppercase tracking-wider">অফিস আইডি</p>
                       <input 
                         type="text" 
-                        className="w-full bg-transparent border-none p-0 text-sm font-bold text-gray-800 outline-none placeholder:text-gray-300"
+                        className="w-full bg-transparent border-none p-0 text-sm font-bold text-gray-800 dark:text-gray-200 outline-none placeholder:text-gray-300"
                         placeholder="Set ID (e.g. ST-01)"
                         value={profileForm.staffId}
                         onChange={(e) => setProfileForm({...profileForm, staffId: e.target.value})}
@@ -924,13 +1145,13 @@ const App: React.FC = () => {
                     </div>
                  </div>
 
-                 <div className="bg-white/80 p-3 rounded-xl flex items-center gap-3 border border-gray-100 focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-transparent transition-all">
-                    <div className="bg-indigo-50 p-2 rounded-lg text-indigo-600"><KeyRound className="w-4 h-4" /></div>
+                 <div className="bg-white/80 dark:bg-gray-700/80 p-3 rounded-xl flex items-center gap-3 border border-gray-100 dark:border-gray-600 focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-transparent transition-all">
+                    <div className="bg-indigo-50 dark:bg-gray-600 p-2 rounded-lg text-indigo-600 dark:text-indigo-400"><KeyRound className="w-4 h-4" /></div>
                     <div className="flex-1">
-                      <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">পাসওয়ার্ড</p>
+                      <p className="text-[9px] font-bold text-gray-400 dark:text-gray-400 uppercase tracking-wider">পাসওয়ার্ড</p>
                       <input 
                         type="text" 
-                        className="w-full bg-transparent border-none p-0 text-sm font-bold text-gray-800 outline-none placeholder:text-gray-300"
+                        className="w-full bg-transparent border-none p-0 text-sm font-bold text-gray-800 dark:text-gray-200 outline-none placeholder:text-gray-300"
                         placeholder="Set Password (Optional)"
                         value={profileForm.password}
                         onChange={(e) => setProfileForm({...profileForm, password: e.target.value})}

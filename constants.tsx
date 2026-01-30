@@ -11,6 +11,7 @@ export const INITIAL_BILLING_RULES: BillingRule[] = [
   { type: 'LUNCH', startTime: '13:00', endTime: '14:00', amount: 150, minPeople: 4 },
   { type: 'NIGHT', startTime: '21:15', amount: 200 },
   { type: 'DINNER', startTime: '22:00', amount: 250 },
+  { type: 'HOLIDAY', startTime: '00:00', amount: 500 }, // Added Holiday Rule (Friday)
 ];
 
 // OFFICE START TIME CHANGED TO 9:00 AM

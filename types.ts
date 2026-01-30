@@ -41,7 +41,7 @@ export interface MovementLog {
   checkIn?: string;
   checkOut?: string;
   location?: string;
-  allowanceType?: 'LUNCH' | 'DINNER' | 'NIGHT' | 'NONE';
+  allowanceType?: 'LUNCH' | 'DINNER' | 'NIGHT' | 'HOLIDAY' | 'NONE'; // Added HOLIDAY
   amount?: number;
   isDeleted?: boolean;
 }
@@ -72,8 +72,8 @@ export interface Expense {
 }
 
 export interface BillingRule {
-  type: 'LUNCH' | 'DINNER' | 'NIGHT';
-  startTime: string; // HH:mm
+  type: 'LUNCH' | 'DINNER' | 'NIGHT' | 'HOLIDAY'; // Added HOLIDAY
+  startTime: string; // HH:mm (Irrelevant for HOLIDAY but kept for type consistency)
   endTime?: string;  // HH:mm
   amount: number;
   minPeople?: number;
@@ -141,4 +141,14 @@ export interface StaffLocation {
   timestamp: string;
   batteryLevel?: number;
   speed?: number; 
+}
+
+export interface AppNotification {
+  id: string;
+  title: string;
+  message: string;
+  type: 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR';
+  timestamp: string;
+  isRead: boolean;
+  link?: string; // Tab ID to navigate to
 }

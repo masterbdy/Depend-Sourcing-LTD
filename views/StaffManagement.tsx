@@ -417,9 +417,9 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
     <div className="space-y-6">
       {/* Header and Stats section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <h2 className="text-2xl font-black text-gray-800 tracking-tight">স্টাফ প্রোফাইল ও কন্ট্রোল</h2>
+        <h2 className="text-2xl font-black text-gray-800 dark:text-white tracking-tight">স্টাফ প্রোফাইল ও কন্ট্রোল</h2>
         {!isStaff && (
-          <button onClick={() => setIsModalOpen(true)} className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 active:scale-95">
+          <button onClick={() => setIsModalOpen(true)} className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 dark:shadow-none active:scale-95">
             <UserPlus className="w-5 h-5" /> নতুন স্টাফ যোগ করুন
           </button>
         )}
@@ -428,32 +428,32 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
       {/* Stats Cards - Only show for Admin/MD */}
       {!isStaff && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+          <div className="bg-white dark:bg-gray-800/60 dark:backdrop-blur-md p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 flex items-center gap-4">
             <div className="bg-blue-100 p-3 rounded-xl text-blue-600"><Users className="w-6 h-6" /></div>
             <div>
               <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">মোট স্টাফ</p>
-              <p className="text-2xl font-black text-gray-800">{stats.total}</p>
+              <p className="text-2xl font-black text-gray-800 dark:text-white">{stats.total}</p>
             </div>
           </div>
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+          <div className="bg-white dark:bg-gray-800/60 dark:backdrop-blur-md p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 flex items-center gap-4">
             <div className="bg-green-100 p-3 rounded-xl text-green-600"><UserCheck className="w-6 h-6" /></div>
             <div>
               <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">সক্রিয় (Active)</p>
-              <p className="text-2xl font-black text-gray-800">{stats.active}</p>
+              <p className="text-2xl font-black text-gray-800 dark:text-white">{stats.active}</p>
             </div>
           </div>
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+          <div className="bg-white dark:bg-gray-800/60 dark:backdrop-blur-md p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 flex items-center gap-4">
             <div className="bg-gray-100 p-3 rounded-xl text-gray-500"><UserX className="w-6 h-6" /></div>
             <div>
               <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">নিষ্ক্রিয় (Inactive)</p>
-              <p className="text-2xl font-black text-gray-800">{stats.inactive}</p>
+              <p className="text-2xl font-black text-gray-800 dark:text-white">{stats.inactive}</p>
             </div>
           </div>
         </div>
       )}
 
       {/* Filter Bar */}
-      <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-wrap items-end gap-4">
+      <div className="bg-white dark:bg-gray-800/60 dark:backdrop-blur-md p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 flex flex-wrap items-end gap-4">
         <div className="flex-1 min-w-[200px]">
           <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">খুঁজুন (নাম/আইডি/পদবী)</label>
           <div className="relative">
@@ -461,7 +461,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
             <input 
               type="text" 
               placeholder="Search..." 
-              className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-semibold"
+              className="w-full pl-9 pr-4 py-2.5 bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-600 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-semibold text-gray-800 dark:text-white"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -473,7 +473,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
             <div className="relative">
               <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <select 
-                className="w-full pl-9 pr-8 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold appearance-none cursor-pointer text-gray-700"
+                className="w-full pl-9 pr-8 py-2.5 bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-600 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold appearance-none cursor-pointer text-gray-700 dark:text-white"
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
               >
@@ -487,135 +487,140 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
         )}
         <button 
           onClick={clearFilters}
-          className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-100"
+          className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all border border-transparent hover:border-red-100 dark:hover:border-red-800"
           title="Reset Filters"
         >
           <FilterX className="w-5 h-5" />
         </button>
       </div>
 
-      {/* TABLE VIEW */}
-      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-100 text-[10px] uppercase font-black text-gray-400 tracking-widest">
-                <th className="px-6 py-4">স্টাফ মেম্বার</th>
-                <th className="px-6 py-4">পদবী ও রোল</th>
-                <th className="px-6 py-4">যোগাযোগ</th>
-                <th className="px-6 py-4 text-center">ব্যালেন্স/ক্যাশ</th>
-                <th className="px-6 py-4 text-center">পয়েন্ট</th>
-                <th className="px-6 py-4 text-center">স্ট্যাটাস</th>
-                <th className="px-6 py-4 text-right">অ্যাকশন</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50 text-sm">
-              {filteredStaff.map((staff) => {
-                if (!staff) return null;
-                const { balance } = getStaffFinancials(staff.id);
-                const safeName = staff.name || 'Unknown';
-                const safeId = staff.staffId || 'N/A';
-                
-                return (
-                  <tr key={staff.id} className={`hover:bg-gray-50 transition-colors ${staff.status === 'DEACTIVATED' ? 'opacity-60 bg-gray-50' : ''}`}>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="relative shrink-0">
+      {/* BOX/CARD GRID VIEW - REDESIGNED */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {filteredStaff.map((staff) => {
+          if (!staff) return null;
+          const { balance } = getStaffFinancials(staff.id);
+          const safeName = staff.name || 'Unknown';
+          const safeId = staff.staffId || 'N/A';
+          const isActive = staff.status === 'ACTIVE';
+
+          return (
+            <div key={staff.id} className="group relative bg-white dark:bg-gray-800/60 dark:backdrop-blur-md rounded-2xl shadow-sm hover:shadow-xl border border-gray-200 dark:border-white/10 overflow-hidden transition-all duration-300 hover:-translate-y-1">
+              
+              {/* Decorative Background for Header */}
+              <div className={`h-24 w-full absolute top-0 left-0 ${isActive ? 'bg-gradient-to-r from-indigo-500 to-purple-600' : 'bg-gradient-to-r from-gray-400 to-gray-500'}`}></div>
+
+              {/* Content Wrapper */}
+              <div className="relative pt-12 px-5 pb-5 flex flex-col h-full">
+                  
+                  {/* Avatar Section */}
+                  <div className="flex flex-col items-center">
+                      <div className="relative">
                           {staff.photo ? (
-                            <img src={staff.photo} alt={safeName} className="w-10 h-10 rounded-full object-cover border border-gray-200" />
+                              <img src={staff.photo} alt={safeName} className="w-24 h-24 rounded-full object-cover border-4 border-white dark:border-gray-800 shadow-md bg-white" />
                           ) : (
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-black text-white ${staff.status === 'ACTIVE' ? 'bg-indigo-500' : 'bg-gray-400'}`}>
-                              {safeName.charAt(0)}
-                            </div>
+                              <div className={`w-24 h-24 rounded-full flex items-center justify-center text-3xl font-black text-white border-4 border-white dark:border-gray-800 shadow-md ${isActive ? 'bg-indigo-400' : 'bg-gray-400'}`}>
+                                  {safeName.charAt(0)}
+                              </div>
                           )}
-                          {staff.role === UserRole.MD && <div className="absolute -top-1 -right-1 bg-yellow-400 text-white p-0.5 rounded-full border border-white"><Crown className="w-2.5 h-2.5" /></div>}
-                        </div>
-                        <div>
-                          <p className="font-bold text-gray-800">{safeName}</p>
-                          <p className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 rounded inline-block">{safeId}</p>
-                        </div>
+                          {/* Status Dot */}
+                          <div className={`absolute bottom-1 right-1 w-5 h-5 rounded-full border-2 border-white dark:border-gray-800 ${isActive ? 'bg-green-500' : 'bg-red-500'}`} title={isActive ? 'Active' : 'Inactive'}></div>
                       </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="font-bold text-gray-700">{staff.designation || 'N/A'}</p>
-                      <p className="text-[10px] text-gray-400 uppercase tracking-wide">{ROLE_LABELS[staff.role || UserRole.STAFF]}</p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="font-medium text-gray-600">{staff.mobile || 'N/A'}</p>
-                      <p className="text-[10px] text-gray-400">{staff.workLocation}</p>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <span className={`font-bold ${balance >= 0 ? 'text-gray-800' : 'text-red-500'}`}>
-                        ৳ {balance.toLocaleString()}
-                      </span>
-                      {canManageMoney && (
-                        <div className="flex justify-center gap-1 mt-1">
-                           <button onClick={() => setHistoryStaff(staff)} className="text-[9px] text-blue-600 font-bold hover:underline bg-blue-50 px-1.5 rounded flex items-center gap-0.5">
-                             <History className="w-2.5 h-2.5"/> Log
-                           </button>
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <span className="font-black text-yellow-600 flex items-center justify-center gap-1">
-                        <Star className="w-3 h-3 fill-yellow-500 text-yellow-500"/> {staff.points || 0}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      {staff.status === 'ACTIVE' ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black bg-green-100 text-green-700 uppercase tracking-wide">
-                          <ShieldCheck className="w-3 h-3" /> Active
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black bg-gray-100 text-gray-500 uppercase tracking-wide">
-                          <ShieldAlert className="w-3 h-3" /> Inactive
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-end gap-2">
-                        {canManageMoney && (
+
+                      <div className="mt-3 text-center">
+                          <h3 className="text-lg font-bold text-gray-800 dark:text-white leading-tight">{safeName}</h3>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mt-1">{staff.designation}</p>
+                          <div className="flex items-center justify-center gap-2 mt-2">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600">{safeId}</span>
+                              {staff.role !== UserRole.STAFF && (
+                                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                      staff.role === UserRole.MD ? 'bg-purple-100 text-purple-700' : 
+                                      staff.role === UserRole.ADMIN ? 'bg-blue-100 text-blue-700' : 
+                                      'bg-orange-100 text-orange-700'
+                                  }`}>
+                                      {staff.role === UserRole.KIOSK ? 'KIOSK' : staff.role}
+                                  </span>
+                              )}
+                          </div>
+                      </div>
+                  </div>
+
+                  {/* Details Grid */}
+                  <div className="mt-6 space-y-3 flex-1">
+                      <div className="flex items-center gap-3 p-2.5 rounded-xl bg-gray-50/80 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-600">
+                          <Phone className="w-4 h-4 text-gray-400" />
+                          <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">{staff.mobile || 'N/A'}</span>
+                      </div>
+                      <div className="flex items-center gap-3 p-2.5 rounded-xl bg-gray-50/80 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-600">
+                          <MapPin className="w-4 h-4 text-gray-400" />
+                          <span className="text-xs font-semibold text-gray-700 dark:text-gray-200 truncate" title={staff.workLocation}>
+                              {staff.workLocation === 'CUSTOM' ? staff.customLocation?.name || 'Custom Loc' : staff.workLocation}
+                          </span>
+                      </div>
+                  </div>
+
+                  {/* Stats Row */}
+                  <div className="grid grid-cols-2 gap-3 mt-4">
+                      <div className="bg-indigo-50 dark:bg-indigo-900/30 rounded-xl p-3 text-center border border-indigo-100 dark:border-indigo-800">
+                          <p className="text-[9px] uppercase font-bold text-indigo-400">ব্যালেন্স</p>
+                          <p className={`text-sm font-black ${balance < 0 ? 'text-red-500' : 'text-indigo-700 dark:text-indigo-400'}`}>৳ {balance.toLocaleString()}</p>
+                      </div>
+                      <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-xl p-3 text-center border border-yellow-100 dark:border-yellow-800">
+                          <p className="text-[9px] uppercase font-bold text-yellow-500">পয়েন্ট</p>
+                          <p className="text-sm font-black text-yellow-700 dark:text-yellow-400 flex items-center justify-center gap-1">
+                              <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" /> {staff.points || 0}
+                          </p>
+                      </div>
+                  </div>
+
+                  {/* Action Bar */}
+                  <div className="flex items-center justify-center gap-2 mt-5 pt-4 border-t border-gray-100 dark:border-white/10">
+                       {/* Edit Button */}
+                       <button onClick={() => openEdit(staff)} className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300 hover:bg-indigo-600 hover:text-white transition-colors" title="এডিট করুন">
+                          <Edit2 className="w-3.5 h-3.5" />
+                       </button>
+                       
+                       {/* Admin Actions */}
+                       {canManageMoney && (
                           <>
-                            <button onClick={() => openGiftModal(staff.id)} className="w-8 h-8 rounded-lg bg-yellow-50 text-yellow-600 flex items-center justify-center hover:bg-yellow-500 hover:text-white transition-colors" title="গিফট পয়েন্ট">
-                              <Gift className="w-4 h-4" />
+                              <button onClick={() => openGiftModal(staff.id)} className="w-8 h-8 flex items-center justify-center rounded-full bg-yellow-50 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 hover:bg-yellow-500 hover:text-white transition-colors" title="গিফট দিন">
+                                  <Gift className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => openAdvanceModal(staff.id)} className="w-8 h-8 flex items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white transition-colors" title="টাকা দিন">
+                                  <Banknote className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => setHistoryStaff(staff)} className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-800 hover:text-white transition-colors" title="হিস্ট্রি">
+                                  <History className="w-3.5 h-3.5" />
+                              </button>
+                          </>
+                       )}
+
+                       {/* Delete/Status Toggle */}
+                       {!isStaff && (
+                          <>
+                            <button onClick={() => toggleStatus(staff.id, staff.status)} className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${isActive ? 'bg-orange-50 dark:bg-orange-900/30 text-orange-500 hover:bg-orange-500 hover:text-white' : 'bg-green-50 dark:bg-green-900/30 text-green-500 hover:bg-green-500 hover:text-white'}`} title={isActive ? 'Deactivate' : 'Activate'}>
+                                {isActive ? <UserX className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
                             </button>
-                            <button onClick={() => openAdvanceModal(staff.id)} className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-600 hover:text-white transition-colors" title="টাকা দিন">
-                              <Banknote className="w-4 h-4" />
+                            <button onClick={() => softDelete(staff.id)} className="w-8 h-8 flex items-center justify-center rounded-full bg-red-50 dark:bg-red-900/30 text-red-500 hover:bg-red-500 hover:text-white transition-colors" title="মুছে ফেলুন">
+                                <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </>
-                        )}
-                        {!isStaff && (
-                           <button onClick={() => toggleStatus(staff.id, staff.status)} className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${staff.status === 'ACTIVE' ? 'bg-orange-50 text-orange-500 hover:bg-orange-500 hover:text-white' : 'bg-green-50 text-green-600 hover:bg-green-600 hover:text-white'}`}>
-                             {staff.status === 'ACTIVE' ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
-                           </button>
-                        )}
-                        <button onClick={() => openEdit(staff)} className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-colors">
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        {!isStaff && (
-                          <button onClick={() => softDelete(staff.id)} className="w-8 h-8 rounded-lg bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-              {filteredStaff.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-gray-400">
-                     <div className="flex flex-col items-center gap-2 opacity-50">
-                        <Search className="w-8 h-8" />
-                        <p className="text-sm font-bold">কোনো স্টাফ পাওয়া যায়নি</p>
-                     </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                       )}
+                  </div>
+
+              </div>
+            </div>
+          );
+        })}
       </div>
+      
+      {filteredStaff.length === 0 && (
+         <div className="py-20 text-center text-gray-400 bg-white dark:bg-gray-800/60 dark:backdrop-blur-md rounded-3xl border border-dashed border-gray-200 dark:border-gray-700">
+            <div className="flex flex-col items-center gap-2 opacity-50">
+               <Search className="w-12 h-12" />
+               <p className="text-lg font-bold">কোনো স্টাফ পাওয়া যায়নি</p>
+            </div>
+         </div>
+      )}
 
       {/* Gift Points Modal */}
       {isGiftPointModalOpen && (

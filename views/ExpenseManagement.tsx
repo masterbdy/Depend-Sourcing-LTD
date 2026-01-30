@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef } from 'react';
 import { Receipt, Camera, CheckCircle, XCircle, Clock, Eye, Trash2, Search, Calendar, FilterX, RotateCcw, CheckCheck, Sparkles, Image as ImageIcon, X, Edit3, Eraser } from 'lucide-react';
-import { Expense, Staff, UserRole } from '../types';
+import { Expense, Staff, UserRole, AppNotification } from '../types';
 
 interface ExpenseProps {
   expenses: Expense[];
@@ -9,9 +9,10 @@ interface ExpenseProps {
   staffList: Staff[];
   role: UserRole;
   currentUser: string | null;
+  onNotify?: (title: string, message: string, type: AppNotification['type']) => void;
 }
 
-const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, staffList, role, currentUser }) => {
+const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, staffList, role, currentUser, onNotify }) => {
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [formData, setFormData] = useState({ 
     staffId: '', 
@@ -155,6 +156,12 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
     };
     setExpenses(prev => [newExpense, ...prev]);
     setIsSubmitModalOpen(false);
+    
+    // NOTIFY
+    if (onNotify) {
+       onNotify('বিল সাবমিট হয়েছে', `${staff.name} ৳${newExpense.amount} টাকার বিল সাবমিট করেছেন।`, 'INFO');
+    }
+
     // Reset form
     setFormData({ 
       staffId: '', 
@@ -167,6 +174,17 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
 
   const updateStatus = (id: string, status: Expense['status']) => {
     setExpenses(prev => prev.map(e => e.id === id ? { ...e, status } : e));
+    
+    const expense = expenses.find(e => e.id === id);
+    if (onNotify && expense) {
+       let msg = '';
+       let type: AppNotification['type'] = 'INFO';
+       if (status === 'VERIFIED') { msg = `বিল ভেরিফাইড (৳${expense.amount}) - MD এর অনুমোদনের অপেক্ষায়।`; type = 'INFO'; }
+       else if (status === 'APPROVED') { msg = `বিল অনুমোদিত হয়েছে (৳${expense.amount}) - ${expense.staffName}`; type = 'SUCCESS'; }
+       else if (status === 'REJECTED') { msg = `বিল বাতিল করা হয়েছে (৳${expense.amount}) - ${expense.staffName}`; type = 'ERROR'; }
+       
+       onNotify('বিল স্ট্যাটাস আপডেট', msg, type);
+    }
   };
 
   const softDelete = (id: string) => {
@@ -206,6 +224,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
           ? { ...e, status: 'APPROVED' } 
           : e
       ));
+      if (onNotify) onNotify('বাল্ক অ্যাপ্রুভাল', `${pendingCount} টি বিল একসাথে অনুমোদিত হয়েছে।`, 'SUCCESS');
     }
   };
 
@@ -246,6 +265,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
     
     setIsCorrectionModalOpen(false);
     setCorrectionData(null);
+    if(onNotify) onNotify('বিল সংশোধন', 'একটি বিলের তথ্য সংশোধন করা হয়েছে।', 'WARNING');
   };
 
   const clearFilters = () => {
