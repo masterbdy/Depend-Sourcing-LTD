@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Users, User, Crown, UserCog, Car, ArrowRightCircle, MessageCircle, SmilePlus } from 'lucide-react';
+import { Send, Users, User, Crown, UserCog, Car, ArrowRightCircle, MessageCircle, SmilePlus, X } from 'lucide-react';
 import { ChatMessage, UserRole, Staff, Reaction } from '../types';
 
 interface GroupChatProps {
@@ -18,6 +18,8 @@ const AVAILABLE_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 const GroupChatView: React.FC<GroupChatProps> = ({ messages, setMessages, currentUser, role, onNavigate, onUpdatePoints, staffList }) => {
   const [inputText, setInputText] = useState('');
   const [activeReactionId, setActiveReactionId] = useState<string | null>(null);
+  const [viewingReactionMsgId, setViewingReactionMsgId] = useState<string | null>(null);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // REPLACE THIS WITH YOUR ACTUAL WHATSAPP GROUP INVITE LINK
@@ -63,26 +65,41 @@ const GroupChatView: React.FC<GroupChatProps> = ({ messages, setMessages, curren
     setMessages(prev => prev.map(msg => {
       if (msg.id === msgId) {
         const reactions = msg.reactions || [];
-        const existingIndex = reactions.findIndex(r => r.userId === currentUser && r.emoji === emoji); // Simple logic: one reaction per user per message or just toggle specific emoji
         
-        // Better logic: If user already reacted with THIS emoji, remove it. If different, add/swap?
-        // Let's implement: User can have multiple reactions, but toggling same one removes it.
-        
-        let newReactions = [...reactions];
-        if (existingIndex > -1) {
-           newReactions.splice(existingIndex, 1); // Remove
-        } else {
-           // Remove any other reaction by this user first (optional, standard is usually one reaction per user)
-           const userPrevReaction = newReactions.findIndex(r => r.userId === currentUser);
-           if (userPrevReaction > -1) newReactions.splice(userPrevReaction, 1);
+        // --- ADMIN ADVANTAGE: UNLIMITED REACTS ---
+        if (role === UserRole.ADMIN) {
+           // Just add the reaction, never remove. Allows stacking.
+           const newReactions = [...reactions, { userId: currentUser, userName: currentUser, emoji }];
+           return { ...msg, reactions: newReactions };
+        }
 
+        // --- NORMAL STAFF LOGIC: TOGGLE (MAX 1) ---
+        const existingIndex = reactions.findIndex(r => r.userId === currentUser);
+        let newReactions = [...reactions];
+
+        if (existingIndex > -1) {
+           const existing = newReactions[existingIndex];
+           if (existing.emoji === emoji) {
+              // Same emoji clicked: Remove (Toggle Off)
+              newReactions.splice(existingIndex, 1);
+           } else {
+              // Different emoji clicked: Replace old with new
+              newReactions[existingIndex] = { userId: currentUser, userName: currentUser, emoji };
+           }
+        } else {
+           // No reaction yet: Add new
            newReactions.push({ userId: currentUser, userName: currentUser, emoji });
         }
         return { ...msg, reactions: newReactions };
       }
       return msg;
     }));
-    setActiveReactionId(null);
+
+    // If Admin, keep picker open to allow spamming/multiple reacts
+    // For others, close it after selection
+    if (role !== UserRole.ADMIN) {
+        setActiveReactionId(null);
+    }
   };
 
   // Sort messages by time
@@ -106,6 +123,12 @@ const GroupChatView: React.FC<GroupChatProps> = ({ messages, setMessages, curren
 
   const openWhatsApp = () => {
     window.open(WHATSAPP_GROUP_LINK, '_blank');
+  };
+
+  const getReactionsForModal = () => {
+     if (!viewingReactionMsgId) return [];
+     const msg = messages.find(m => m.id === viewingReactionMsgId);
+     return msg?.reactions || [];
   };
 
   return (
@@ -134,7 +157,7 @@ const GroupChatView: React.FC<GroupChatProps> = ({ messages, setMessages, curren
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
+      <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-gray-50 relative">
         {sortedMessages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-gray-400 opacity-50">
             <Users className="w-16 h-16 mb-2" />
@@ -165,7 +188,7 @@ const GroupChatView: React.FC<GroupChatProps> = ({ messages, setMessages, curren
 
           return (
             <div key={msg.id} className={`flex w-full group ${isMe ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[80%] md:max-w-[60%] flex flex-col ${isMe ? 'items-end' : 'items-start'} relative`}>
+              <div className={`max-w-[85%] md:max-w-[65%] flex flex-col ${isMe ? 'items-end' : 'items-start'} relative`}>
                 
                 {/* Sender Name & Role */}
                 {!isMe && (
@@ -185,19 +208,22 @@ const GroupChatView: React.FC<GroupChatProps> = ({ messages, setMessages, curren
                    {/* Reaction Trigger Button */}
                    <button 
                       onClick={(e) => { e.stopPropagation(); setActiveReactionId(activeReactionId === msg.id ? null : msg.id); }}
-                      className={`absolute top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-gray-100 text-gray-400 hover:text-indigo-600 hover:bg-white shadow-sm opacity-0 group-hover:opacity-100 transition-all z-10 ${isMe ? '-left-8' : '-right-8'}`}
+                      className={`absolute top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-gray-200 text-gray-500 hover:text-indigo-600 hover:bg-white shadow-sm opacity-0 group-hover:opacity-100 transition-all z-10 ${isMe ? '-left-8' : '-right-8'}`}
                    >
                       <SmilePlus className="w-4 h-4" />
                    </button>
 
                    {/* Reaction Picker Popup */}
                    {activeReactionId === msg.id && (
-                      <div className={`absolute bottom-full mb-2 bg-white rounded-full shadow-xl border border-gray-100 p-1.5 flex gap-1 z-20 animate-in zoom-in duration-200 ${isMe ? 'right-0' : 'left-0'}`}>
+                      <div 
+                        onClick={(e) => e.stopPropagation()} 
+                        className={`absolute bottom-full mb-2 bg-white rounded-full shadow-2xl border border-gray-100 p-2 flex gap-1 z-30 animate-in zoom-in duration-200 ${isMe ? 'right-0 origin-bottom-right' : 'left-0 origin-bottom-left'}`}
+                      >
                          {AVAILABLE_REACTIONS.map(emoji => (
                             <button 
                               key={emoji}
                               onClick={(e) => { e.stopPropagation(); toggleReaction(msg.id, emoji); }}
-                              className="w-8 h-8 flex items-center justify-center text-xl hover:bg-gray-100 rounded-full transition-colors hover:scale-125"
+                              className="w-9 h-9 flex items-center justify-center text-xl hover:bg-indigo-50 rounded-full transition-transform hover:scale-125 active:scale-95"
                             >
                                {emoji}
                             </button>
@@ -207,7 +233,7 @@ const GroupChatView: React.FC<GroupChatProps> = ({ messages, setMessages, curren
 
                    {/* Message Bubble */}
                    <div 
-                     className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm ${
+                     className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm relative z-0 ${
                        isMe 
                          ? 'bg-indigo-600 text-white rounded-tr-none' 
                          : 'bg-white text-gray-800 border border-gray-200 rounded-tl-none'
@@ -218,19 +244,21 @@ const GroupChatView: React.FC<GroupChatProps> = ({ messages, setMessages, curren
 
                    {/* Display Reactions - Clickable to see who reacted */}
                    {reactions.length > 0 && (
-                      <div className={`absolute -bottom-3 ${isMe ? 'right-0' : 'left-0'} flex -space-x-1`}>
+                      <div className={`absolute -bottom-3 ${isMe ? 'right-0' : 'left-0'} flex -space-x-1 z-10`}>
                          <div 
                            onClick={(e) => {
                               e.stopPropagation();
-                              alert(`Reacted by:\n${reactions.map(r => `${r.emoji} ${r.userName}`).join('\n')}`);
+                              setViewingReactionMsgId(msg.id);
                            }}
-                           className="bg-white border border-gray-200 rounded-full px-1.5 py-0.5 shadow-sm flex items-center gap-1 cursor-pointer hover:bg-gray-50 transition-all active:scale-95" 
-                           title="Click to see who reacted"
+                           className="bg-white border border-gray-200 rounded-full px-2 py-0.5 shadow-sm flex items-center gap-1 cursor-pointer hover:bg-gray-50 transition-all active:scale-95" 
+                           title="Click to see list"
                          >
-                            {Array.from(new Set(reactions.map(r => r.emoji))).map(emoji => (
-                               <span key={emoji} className="text-xs leading-none">{emoji}</span>
-                            ))}
-                            <span className="text-[10px] font-bold text-gray-500 ml-0.5">{reactions.length}</span>
+                            <div className="flex -space-x-1">
+                               {Array.from(new Set(reactions.map(r => r.emoji))).slice(0, 3).map(emoji => (
+                                  <span key={emoji} className="text-xs leading-none">{emoji}</span>
+                               ))}
+                            </div>
+                            <span className="text-[10px] font-bold text-gray-600 ml-1">{reactions.length}</span>
                          </div>
                       </div>
                    )}
@@ -266,6 +294,36 @@ const GroupChatView: React.FC<GroupChatProps> = ({ messages, setMessages, curren
           </button>
         </form>
       </div>
+
+      {/* REACTION LIST MODAL */}
+      {viewingReactionMsgId && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setViewingReactionMsgId(null)}>
+           <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[60vh]" onClick={e => e.stopPropagation()}>
+              <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                 <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                    <SmilePlus className="w-5 h-5 text-indigo-600" /> Reactions
+                 </h3>
+                 <button onClick={() => setViewingReactionMsgId(null)} className="p-1 hover:bg-gray-200 rounded-full transition-colors"><X className="w-5 h-5 text-gray-500"/></button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                 {getReactionsForModal().map((r, idx) => (
+                    <div key={idx} className="flex items-center gap-3 p-2.5 hover:bg-gray-50 rounded-xl transition-colors border-b border-gray-50 last:border-0">
+                       <div className="text-2xl">{r.emoji}</div>
+                       <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xs uppercase">
+                             {r.userName.charAt(0)}
+                          </div>
+                          <p className="text-sm font-bold text-gray-700">{r.userName}</p>
+                       </div>
+                    </div>
+                 ))}
+                 {getReactionsForModal().length === 0 && (
+                    <div className="py-8 text-center text-gray-400 text-sm">No reactions yet.</div>
+                 )}
+              </div>
+           </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -95,14 +95,25 @@ const AttendanceView: React.FC<AttendanceProps> = ({ staffList, attendanceList, 
     return R * c; // in metres
   };
 
-  const getLocation = () => {
+  const getLocation = (silent: boolean = false) => {
     setIsLoadingLocation(true);
     setLocationError(null);
 
     if (!navigator.geolocation) {
-      setLocationError("আপনার ব্রাউজারে জিওলোকেশন সাপোর্ট নেই।");
+      if (!silent) setLocationError("আপনার ব্রাউজারে জিওলোকেশন সাপোর্ট নেই।");
       setIsLoadingLocation(false);
       return;
+    }
+
+    // Check permission state first to avoid unnecessary prompts if possible
+    if (navigator.permissions && navigator.permissions.query) {
+       navigator.permissions.query({ name: 'geolocation' }).then((result) => {
+          if (result.state === 'denied') {
+             if (!silent) setLocationError("লোকেশন এক্সেস দেওয়া হয়নি। সেটিংস থেকে অনুমতি দিন।");
+             setIsLoadingLocation(false);
+             return;
+          }
+       });
     }
 
     navigator.geolocation.getCurrentPosition(
@@ -135,17 +146,17 @@ const AttendanceView: React.FC<AttendanceProps> = ({ staffList, attendanceList, 
       },
       (error) => {
         console.error(error);
-        setLocationError("লোকেশন পাওয়া যাচ্ছে না। দয়া করে জিপিএস অন করুন এবং পারমিশন দিন।");
+        if (!silent) setLocationError("লোকেশন পাওয়া যাচ্ছে না। দয়া করে জিপিএস অন করুন এবং পারমিশন দিন।");
         setIsLoadingLocation(false);
       },
       { enableHighAccuracy: true }
     );
   };
 
-  // Auto get location on load for staff AND Kiosk
+  // Auto get location silently on load for staff AND Kiosk
   useEffect(() => {
     if (role === UserRole.STAFF || role === UserRole.KIOSK) {
-      getLocation();
+      getLocation(true); // Silent mode on auto-load
     }
   }, [role, targetLocations]);
 
@@ -159,7 +170,7 @@ const AttendanceView: React.FC<AttendanceProps> = ({ staffList, attendanceList, 
     if (!isManual) {
       if (!currentLocation || !distanceInfo) {
         alert("আগে ডিভাইসের লোকেশন যাচাই করুন।");
-        getLocation();
+        getLocation(false); // Force explicit check on button click
         return;
       }
       
@@ -214,7 +225,7 @@ const AttendanceView: React.FC<AttendanceProps> = ({ staffList, attendanceList, 
     if (currentUserStaff && currentUserStaff.requiresCheckOutLocation) {
       if (!currentLocation || !distanceInfo) {
         alert("লোকেশন যাচাই করা যাচ্ছে না। দয়া করে লোকেশন বাটন রিফ্রেশ করুন।");
-        getLocation();
+        getLocation(false); // Force check
         return;
       }
 
@@ -301,7 +312,7 @@ const AttendanceView: React.FC<AttendanceProps> = ({ staffList, attendanceList, 
                     </p>
                  </div>
               </div>
-              <button onClick={getLocation} className="bg-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm hover:bg-gray-50 flex items-center gap-1">
+              <button onClick={() => getLocation(false)} className="bg-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm hover:bg-gray-50 flex items-center gap-1">
                  <Navigation className={`w-3 h-3 ${isLoadingLocation ? 'animate-spin' : ''}`} /> রিফ্রেশ
               </button>
            </div>
@@ -463,7 +474,7 @@ const AttendanceView: React.FC<AttendanceProps> = ({ staffList, attendanceList, 
                        <div className="text-red-500 text-sm font-bold flex flex-col items-center">
                           <XCircle className="w-6 h-6 mb-1" />
                           {locationError}
-                          <button onClick={getLocation} className="mt-2 text-indigo-600 underline">পুনরায় চেষ্টা করুন</button>
+                          <button onClick={() => getLocation(false)} className="mt-2 text-indigo-600 underline">পুনরায় চেষ্টা করুন</button>
                        </div>
                     ) : (
                        <div>

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   LayoutDashboard, Users, Car, Receipt, BarChart3, Settings, Trash2, 
-  LogOut, Wallet, User, Cloud, WifiOff, AlertTriangle, Menu, X, RefreshCw, Lock, ArrowRightLeft, XCircle, Landmark, Bell, Phone, Briefcase, Crown, UserCog, ShieldCheck, Camera, Save, KeyRound, CreditCard, MessageSquareWarning, MessagesSquare, MapPin, MonitorSmartphone, Satellite, Trophy, Gift, Gamepad2, Shield, CheckCircle, LogIn, Sparkles, ClipboardList, Check, Eye, EyeOff, Moon, Sun
+  LogOut, Wallet, User, Cloud, WifiOff, AlertTriangle, Menu, X, RefreshCw, Lock, ArrowRightLeft, XCircle, Landmark, Bell, Phone, Briefcase, Crown, UserCog, ShieldCheck, Camera, Save, KeyRound, CreditCard, MessageSquareWarning, MessagesSquare, MapPin, MonitorSmartphone, Satellite, Trophy, Gift, Gamepad2, Shield, CheckCircle, LogIn, Sparkles, ClipboardList, Check, Eye, EyeOff, Moon, Sun, Loader2
 } from 'lucide-react';
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { getDatabase, ref, onValue, set } from "firebase/database";
@@ -43,8 +43,9 @@ const App: React.FC = () => {
   const [isNotifDropdownOpen, setIsNotifDropdownOpen] = useState(false);
   
   // Permission State
-  const [permissionsGranted, setPermissionsGranted] = useState(false);
-  const [permissionStatus, setPermissionStatus] = useState<'IDLE' | 'REQUESTING' | 'DENIED'>('IDLE');
+  const [permissionsGranted, setPermissionsGranted] = useState(() => {
+     return localStorage.getItem('app_permissions_granted') === 'true';
+  });
 
   // Profile Form State
   const [profileForm, setProfileForm] = useState({
@@ -65,8 +66,9 @@ const App: React.FC = () => {
   // Login Form State
   const [loginUsername, setLoginUsername] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
-  const [showLoginPassword, setShowLoginPassword] = useState(false); // New State for Password Toggle
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false); 
   const [rememberMe, setRememberMe] = useState(false);
   const [savedAccounts, setSavedAccounts] = useState<any[]>([]);
 
@@ -215,6 +217,7 @@ const App: React.FC = () => {
           const geoResult = await navigator.permissions.query({ name: 'geolocation' });
           if (geoResult.state === 'granted') {
              setPermissionsGranted(true);
+             localStorage.setItem('app_permissions_granted', 'true');
           }
         }
       } catch (e) {
@@ -269,7 +272,31 @@ const App: React.FC = () => {
   const updateMessages = (val: any) => { const next = typeof val === 'function' ? val(messages) : val; setMessages(next); syncData('messages', next); };
   const updateAttendance = (val: any) => { const next = typeof val === 'function' ? val(attendanceList) : val; setAttendanceList(next); syncData('attendanceList', next); };
 
-  // --- GAMIFICATION LOGIC ---
+  // Sync Saved Accounts when Staff List Updates (Fix for Profile Update Issue)
+  useEffect(() => {
+    if (currentUser && staffList.length > 0) {
+      const myData = staffList.find(s => s.name === currentUser);
+      if (myData) {
+        // Update saved accounts if this user exists there
+        const saved = localStorage.getItem('saved_accounts');
+        if (saved) {
+          const accounts = JSON.parse(saved);
+          const updatedAccounts = accounts.map((acc: any) => {
+            if (acc.username === currentUser) {
+              return { ...acc, photo: myData.photo }; // Sync photo
+            }
+            return acc;
+          });
+          // Only update local storage if there's a change to avoid loops, but photo comparison is heavy.
+          // Simple approach: just update.
+          localStorage.setItem('saved_accounts', JSON.stringify(updatedAccounts));
+          setSavedAccounts(updatedAccounts);
+        }
+      }
+    }
+  }, [staffList, currentUser]);
+
+  // ... (Gamification logic remains same)
   const handlePointUpdate = (staffId: string, pointsToAdd: number, reason: string) => {
     const now = new Date();
     const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -326,7 +353,6 @@ const App: React.FC = () => {
     });
   };
 
-  // CHECK POINTS ON ACTIVE VISIT
   useEffect(() => {
     if (!currentUser || !role || role === UserRole.KIOSK || role === UserRole.MD) return;
     if (currentUser.toLowerCase().includes('office')) return;
@@ -429,8 +455,16 @@ const App: React.FC = () => {
       }
 
       if ('geolocation' in navigator) {
+        // Only ask if we haven't already granted permissions (to avoid popup spam)
+        // Though watchPosition will trigger the icon regardless
         watchId = navigator.geolocation.watchPosition(
           async (position) => {
+            // Once we get a position, we know we have permission
+            if (!permissionsGranted) {
+               setPermissionsGranted(true);
+               localStorage.setItem('app_permissions_granted', 'true');
+            }
+            
             try {
               const app = getApp();
               const db = getDatabase(app, firebaseConfig.databaseURL);
@@ -476,6 +510,7 @@ const App: React.FC = () => {
 
   // --- NOTIFICATION LOGIC ---
   const requestNotificationPermission = () => {
+    // Only ask if default, never ask again if denied or granted
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
     }
@@ -575,12 +610,6 @@ const App: React.FC = () => {
             
             handleAddNotification('বিল আপডেট', msg, type, 'expenses');
         }
-
-        // Condition 2: If I am Admin/MD, notify me of status changes (for tracking)
-        if (role === UserRole.ADMIN || role === UserRole.MD) {
-             // Don't notify if I triggered it myself (optimization optional, keeping it simple for now to ensure feedback)
-             // handleAddNotification('বিল স্ট্যাটাস', `${e.staffName}-এর বিল এখন ${e.status}`, 'INFO', 'expenses');
-        }
     });
 
     prevExpensesRef.current = expenses;
@@ -596,6 +625,7 @@ const App: React.FC = () => {
   const handleLogin = (e: React.FormEvent | null, quickAuthData?: any) => {
     if (e) e.preventDefault();
     setLoginError('');
+    setIsLoggingIn(true);
 
     const username = quickAuthData ? quickAuthData.username : loginUsername.trim();
     const password = quickAuthData ? quickAuthData.password : loginPassword;
@@ -620,38 +650,75 @@ const App: React.FC = () => {
     }
 
     if (authenticatedUser) {
-      setRole(authenticatedUser.role);
-      setCurrentUser(authenticatedUser.name);
-      if (authenticatedUser.role === UserRole.KIOSK) {
-        setActiveTab('attendance'); 
-      }
+      const proceedLogin = () => {
+          setRole(authenticatedUser!.role);
+          setCurrentUser(authenticatedUser!.name);
+          setIsLoggingIn(false); // Stop loading
+          
+          if (authenticatedUser!.role === UserRole.KIOSK) {
+            setActiveTab('attendance'); 
+          }
 
-      // Check for pending bills if admin
-      if (authenticatedUser.role === UserRole.ADMIN) {
-         const pending = expenses.filter(e => !e.isDeleted && e.status === 'PENDING').length;
-         if (pending > 0) {
-            handleAddNotification('পেন্ডিং বিল', `${pending} টি বিল অনুমোদনের অপেক্ষায় আছে।`, 'WARNING', 'expenses');
-         }
-      }
+          // Check for pending bills if admin
+          if (authenticatedUser!.role === UserRole.ADMIN) {
+             const pending = expenses.filter(e => !e.isDeleted && e.status === 'PENDING').length;
+             if (pending > 0) {
+                handleAddNotification('পেন্ডিং বিল', `${pending} টি বিল অনুমোদনের অপেক্ষায় আছে।`, 'WARNING', 'expenses');
+             }
+          }
 
-      // Save Account Logic (If manually logging in with checkbox, and not using quick auth)
-      if (rememberMe && !quickAuthData) {
-         const photo = staffList.find(s => s.name === authenticatedUser!.name)?.photo || '';
-         const newAccount = { 
-           username: authenticatedUser.name, 
-           password: password, 
-           role: authenticatedUser.role,
-           photo 
-         };
-         
-         const updatedAccounts = [newAccount, ...savedAccounts.filter(a => a.username !== authenticatedUser!.name)];
-         setSavedAccounts(updatedAccounts);
-         localStorage.setItem('saved_accounts', JSON.stringify(updatedAccounts));
+          // Save Account Logic
+          if (rememberMe && !quickAuthData) {
+             const photo = staffList.find(s => s.name === authenticatedUser!.name)?.photo || '';
+             const newAccount = { 
+               username: authenticatedUser!.name, 
+               password: password, 
+               role: authenticatedUser!.role,
+               photo 
+             };
+             
+             const updatedAccounts = [newAccount, ...savedAccounts.filter(a => a.username !== authenticatedUser!.name)];
+             setSavedAccounts(updatedAccounts);
+             localStorage.setItem('saved_accounts', JSON.stringify(updatedAccounts));
+          }
+      };
+
+      // Strict Location Check for Staff/Kiosk
+      if (authenticatedUser.role === UserRole.STAFF || authenticatedUser.role === UserRole.KIOSK) {
+          if (!navigator.geolocation) {
+             setLoginError("ডিভাইসে লোকেশন সাপোর্ট নেই।");
+             setIsLoggingIn(false);
+             return;
+          }
+          
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+               // Location found, proceed
+               proceedLogin();
+            },
+            (err) => {
+               // Location failed
+               console.error("Login Location Check Failed:", err);
+               setIsLoggingIn(false);
+               
+               let errorMsg = "লগইন ব্যর্থ! ❌";
+               if (err.code === 1) errorMsg += " লোকেশন পারমিশন দেওয়া হয়নি।";
+               else if (err.code === 2) errorMsg += " জিপিএস (GPS) বন্ধ আছে বা সিগনাল পাওয়া যাচ্ছে না।";
+               else errorMsg += " লোকেশন পাওয়া যাচ্ছে না।";
+               
+               setLoginError(`${errorMsg} দয়া করে মোবাইলের লোকেশন অন করুন এবং ব্রাউজারে অনুমতি দিন।`);
+            },
+            { enableHighAccuracy: true, timeout: 8000 }
+          );
+      } else {
+          // Admin/MD login without location check
+          proceedLogin();
       }
       return;
     }
 
     setLoginError('ভুল ইউজারনেম অথবা পাসওয়ার্ড!');
+    setIsLoggingIn(false);
   };
 
   const removeSavedAccount = (username: string) => {
@@ -670,7 +737,7 @@ const App: React.FC = () => {
     setAppNotifications([]); // Clear notifications on logout
   };
 
-  // --- DATA EXPORT & IMPORT HANDLERS ---
+  // ... (Rest of the handlers: export, import, profile photo, save profile remain same) ...
   const handleExport = () => {
     const data = {
       staffList, expenses, movements, billingRules, funds, notices, advances, complaints, messages, attendanceList,
@@ -739,11 +806,9 @@ const App: React.FC = () => {
           let width = img.width;
           let height = img.height;
           
-          if (width > height) {
-            if (width > MAX_SIZE) {
-              height *= MAX_SIZE / width;
-              width = MAX_SIZE;
-            }
+          if (width > MAX_SIZE) {
+            height *= MAX_SIZE / width;
+            width = MAX_SIZE;
           } else {
             if (height > MAX_SIZE) {
               width *= MAX_SIZE / height;
@@ -772,11 +837,12 @@ const App: React.FC = () => {
     
     if (existingProfileIndex >= 0) {
       const updatedList = [...staffList];
-      updatedList[existingProfileIndex] = {
+      const updatedProfile = {
         ...updatedList[existingProfileIndex],
         ...profileForm,
         updatedAt: new Date().toISOString()
       };
+      updatedList[existingProfileIndex] = updatedProfile;
       updateStaffList(updatedList);
     } else {
       const newProfile: Staff = {
@@ -800,6 +866,7 @@ const App: React.FC = () => {
 
   // --- LOGIN SCREEN ---
   if (!role) {
+    // ... (Login Screen Render - No Changes needed here) ...
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4 relative overflow-hidden">
         
@@ -825,8 +892,8 @@ const App: React.FC = () => {
                   {savedAccounts.map((account, idx) => (
                      <div key={idx} className="relative group shrink-0">
                         <div 
-                          onClick={() => handleLogin(null, account)}
-                          className="flex flex-col items-center bg-white/5 border border-white/10 p-3 rounded-2xl shadow-sm hover:shadow-lg cursor-pointer transition-all hover:bg-white/10 hover:border-indigo-500/50 w-24 hover:scale-105 active:scale-95"
+                          onClick={() => !isLoggingIn && handleLogin(null, account)}
+                          className={`flex flex-col items-center bg-white/5 border border-white/10 p-3 rounded-2xl shadow-sm hover:shadow-lg cursor-pointer transition-all hover:bg-white/10 hover:border-indigo-500/50 w-24 hover:scale-105 active:scale-95 ${isLoggingIn ? 'opacity-50 pointer-events-none' : ''}`}
                         >
                            <div className="w-10 h-10 rounded-full bg-indigo-500/20 flex items-center justify-center overflow-hidden mb-2 border border-white/20">
                               {account.photo ? <img src={account.photo} className="w-full h-full object-cover" /> : <User className="w-5 h-5 text-indigo-300" />}
@@ -854,7 +921,8 @@ const App: React.FC = () => {
                 <input 
                   required 
                   type="text" 
-                  className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/10 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all font-bold text-gray-100 text-sm placeholder:text-gray-500 hover:bg-white/20 focus:bg-white/20 backdrop-blur-md"
+                  disabled={isLoggingIn}
+                  className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/10 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all font-bold text-gray-100 text-sm placeholder:text-gray-500 hover:bg-white/20 focus:bg-white/20 backdrop-blur-md disabled:opacity-50"
                   placeholder="Username..."
                   value={loginUsername}
                   onChange={(e) => setLoginUsername(e.target.value)}
@@ -869,13 +937,15 @@ const App: React.FC = () => {
                 <input 
                   required 
                   type={showLoginPassword ? "text" : "password"} 
-                  className="w-full pl-10 pr-12 py-3 bg-white/10 border border-white/10 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all font-bold text-gray-100 text-sm placeholder:text-gray-500 hover:bg-white/20 focus:bg-white/20 backdrop-blur-md"
+                  disabled={isLoggingIn}
+                  className="w-full pl-10 pr-12 py-3 bg-white/10 border border-white/10 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all font-bold text-gray-100 text-sm placeholder:text-gray-500 hover:bg-white/20 focus:bg-white/20 backdrop-blur-md disabled:opacity-50"
                   placeholder="Password..."
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
                 />
                 <button 
                   type="button"
+                  disabled={isLoggingIn}
                   onClick={() => setShowLoginPassword(!showLoginPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-all"
                 >
@@ -888,6 +958,7 @@ const App: React.FC = () => {
                <input 
                  type="checkbox" 
                  id="rememberMe" 
+                 disabled={isLoggingIn}
                  className="w-4 h-4 rounded border-gray-600 bg-white/10 text-indigo-500 focus:ring-indigo-500"
                  checked={rememberMe}
                  onChange={(e) => setRememberMe(e.target.checked)}
@@ -899,16 +970,28 @@ const App: React.FC = () => {
 
             {loginError && (
               <div className="bg-red-500/10 text-red-400 p-3 rounded-xl text-xs font-bold flex items-center gap-2 border border-red-500/20 animate-pulse">
-                <XCircle className="w-4 h-4" /> {loginError}
+                <XCircle className="w-4 h-4 shrink-0" /> <span className="flex-1">{loginError}</span>
               </div>
             )}
 
             <button 
               type="submit" 
-              className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-black shadow-lg shadow-indigo-500/40 hover:bg-indigo-500 transition-all active:scale-95 flex items-center justify-center gap-2 text-sm relative overflow-hidden group border border-indigo-400/20 hover:border-indigo-400/50"
+              disabled={isLoggingIn}
+              className={`w-full bg-indigo-600 text-white py-3.5 rounded-xl font-black shadow-lg shadow-indigo-500/40 hover:bg-indigo-500 transition-all active:scale-95 flex items-center justify-center gap-2 text-sm relative overflow-hidden group border border-indigo-400/20 hover:border-indigo-400/50 ${isLoggingIn ? 'opacity-70 cursor-wait' : ''}`}
             >
-              <span className="relative z-10 flex items-center gap-2">প্রবেশ করুন <ArrowRightLeft className="w-4 h-4 rotate-90 group-hover:translate-x-1 transition-transform" /></span>
-              <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+              <span className="relative z-10 flex items-center gap-2">
+                {isLoggingIn ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    যাচাই করা হচ্ছে...
+                  </>
+                ) : (
+                  <>
+                    প্রবেশ করুন <ArrowRightLeft className="w-4 h-4 rotate-90 group-hover:translate-x-1 transition-transform" />
+                  </>
+                )}
+              </span>
+              {!isLoggingIn && <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>}
             </button>
           </form>
 
@@ -954,7 +1037,6 @@ const App: React.FC = () => {
   return (
     <div className={`flex h-screen overflow-hidden font-['Hind_Siliguri'] relative ${isDarkMode ? 'dark' : ''} ${isDarkMode ? 'text-gray-100' : 'bg-gray-50 text-gray-900'}`}>
       
-      {/* Background for Dark Mode */}
       {isDarkMode && (
         <>
           <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-black to-gray-800 -z-20"></div>
@@ -1104,7 +1186,7 @@ const App: React.FC = () => {
                className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold border-2 border-indigo-50 cursor-pointer hover:ring-2 hover:ring-indigo-300 transition-all overflow-hidden"
              >
                {myProfile && myProfile.photo ? (
-                 <img src={myProfile.photo} alt="Profile" className="w-full h-full object-cover" />
+                 <img key={myProfile.updatedAt} src={myProfile.photo} alt="Profile" className="w-full h-full object-cover" />
                ) : (
                  currentUser ? currentUser[0].toUpperCase() : <User className="w-5 h-5" />
                )}

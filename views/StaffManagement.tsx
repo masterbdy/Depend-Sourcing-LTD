@@ -18,7 +18,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
   const [searchTerm, setSearchTerm] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [sortBy, setSortBy] = useState('newest'); // newest, oldest, name, salary
+  const [sortBy, setSortBy] = useState('newest'); 
   
   // Profile/Edit Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -97,9 +97,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
     e.preventDefault();
     const now = new Date().toISOString();
     
-    // Prepare Custom Location Object 1
     let customLocationData = undefined;
-    // Prepare Custom Location Object 2
     let secondaryLocationData = undefined;
 
     if (formData.workLocation === 'CUSTOM') {
@@ -255,7 +253,6 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
           const MAX_SIZE = 300;
           let width = img.width;
           let height = img.height;
-          
           if (width > MAX_SIZE) {
             height *= MAX_SIZE / width;
             width = MAX_SIZE;
@@ -277,7 +274,6 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // --- GIFT POINTS HANDLER ---
   const handleGivePoints = (e: React.FormEvent) => {
     e.preventDefault();
     if (!canManageMoney) return;
@@ -285,7 +281,6 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
       alert("পয়েন্ট ১ থেকে ২০ এর মধ্যে হতে হবে।");
       return;
     }
-    
     setStaffList(prev => prev.map(s => {
       if (s.id === giftPointData.staffId) {
         return {
@@ -296,7 +291,6 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
       }
       return s;
     }));
-
     setIsGiftPointModalOpen(false);
     alert('পয়েন্ট প্রদান সফল হয়েছে! 🎉');
   };
@@ -306,7 +300,6 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
     setIsGiftPointModalOpen(true);
   };
 
-  // --- ADVANCE MONEY HANDLERS ---
   const openAdvanceModal = (staffId: string) => {
     setAdvanceFormData({ 
       staffId, 
@@ -330,31 +323,14 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
 
   const handleGiveAdvance = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canManageMoney) {
-        alert("আপনার এই অ্যাকশন করার অনুমতি নেই।");
-        return;
-    }
-
-    if (Number(advanceFormData.amount) <= 0) {
-        alert("দয়া করে সঠিক টাকার পরিমাণ লিখুন (০ এর বেশি)।");
-        return;
-    }
-
+    if (!canManageMoney) { alert("আপনার এই অ্যাকশন করার অনুমতি নেই।"); return; }
+    if (Number(advanceFormData.amount) <= 0) { alert("দয়া করে সঠিক টাকার পরিমাণ লিখুন (০ এর বেশি)।"); return; }
     const staff = staffList.find(s => s.id === advanceFormData.staffId);
-    if (!staff) {
-        alert("স্টাফ মেম্বার পাওয়া যাচ্ছে না। পেজটি রিফ্রেশ দিয়ে আবার চেষ্টা করুন।");
-        return;
-    }
-
+    if (!staff) { alert("স্টাফ মেম্বার পাওয়া যাচ্ছে না। পেজটি রিফ্রেশ দিয়ে আবার চেষ্টা করুন।"); return; }
     const submitDate = new Date(advanceFormData.date);
-    if (isNaN(submitDate.getTime())) {
-        alert("তারিখ সঠিক নয়।");
-        return;
-    }
-
+    if (isNaN(submitDate.getTime())) { alert("তারিখ সঠিক নয়।"); return; }
     const now = new Date();
     submitDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
-
     const newAdvance: AdvanceLog = {
       id: Math.random().toString(36).substr(2, 9),
       staffId: staff.id,
@@ -366,51 +342,38 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
       isDeleted: false,
       type: advanceFormData.type
     };
-
     setAdvances(prev => [...prev, newAdvance]);
     setIsAdvanceModalOpen(false);
-    
-    // Show success message
     alert(`${staff.name}-কে ৳${newAdvance.amount} অগ্রীম দেওয়া হয়েছে।`);
-
     setAdvanceFormData({ staffId: '', amount: 0, note: '', date: new Date().toISOString().split('T')[0], type: 'REGULAR' });
   };
 
   const handleRepay = (e: React.FormEvent) => {
     e.preventDefault();
     if (!canManageMoney) return;
-
-    if (Number(repayFormData.amount) <= 0) {
-       alert("টাকার পরিমাণ ০ এর বেশি হতে হবে।");
-       return;
-    }
-
+    if (Number(repayFormData.amount) <= 0) { alert("টাকার পরিমাণ ০ এর বেশি হতে হবে।"); return; }
     const staff = staffList.find(s => s.id === repayFormData.staffId);
     if (!staff) return;
-
     const submitDate = new Date(repayFormData.date);
     const now = new Date();
     submitDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
-
-    // Create a NEGATIVE advance entry to represent repayment/adjustment
     const newEntry: AdvanceLog = {
       id: Math.random().toString(36).substr(2, 9),
       staffId: staff.id,
       staffName: staff.name,
-      amount: -Number(repayFormData.amount), // NEGATIVE AMOUNT
+      amount: -Number(repayFormData.amount),
       note: `[REPAYMENT] ${repayFormData.note}`,
       date: submitDate.toISOString(),
       givenBy: currentUser || 'Admin',
       isDeleted: false,
       type: 'REGULAR'
     };
-
     setAdvances(prev => [...prev, newEntry]);
     setIsRepayModalOpen(false);
     alert(`${staff.name}-এর বেতন থেকে ৳${repayFormData.amount} সমন্বয় করা হয়েছে।`);
   };
 
-  // --- FILTER & DATA LOGIC ---
+  // ... (Filter and Stats Logic)
   const clearFilters = () => {
     setSearchTerm('');
     setStartDate('');
@@ -425,7 +388,6 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
       if (isStaff && s.name !== currentUser) return false;
 
       const searchLower = searchTerm.toLowerCase();
-      // Safety checks for undefined properties
       const matchesSearch = 
         (s.name || '').toLowerCase().includes(searchLower) || 
         (s.staffId || '').toLowerCase().includes(searchLower) || 
@@ -454,33 +416,20 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
     inactive: staffList.filter(s => s && !s.deletedAt && s.status === 'DEACTIVATED').length
   };
 
-  // FINANCIAL CALCULATION
   const getStaffFinancials = (staffId: string) => {
-    // Safety check for empty data
     const safeExpenses = expenses || [];
     const safeAdvances = advances || [];
-
     const staffExpenses = safeExpenses.filter(e => e && e.staffId === staffId && !e.isDeleted);
     const approved = staffExpenses.filter(e => e.status === 'APPROVED').reduce((sum, e) => sum + Number(e.amount || 0), 0);
-    
-    // Advances (Sum of Positive and Negative entries)
-    // Regular advance minus repayments handled automatically by sum because repayment is negative
     const staffAdvances = safeAdvances.filter(a => a && a.staffId === staffId && !a.isDeleted);
-    
-    // Total Advance Taken (Including Salary Advance) - Repayments (Negative)
     const totalAdvance = staffAdvances.reduce((sum, a) => sum + Number(a.amount || 0), 0);
-    
-    // Balance logic: Advance Taken - Approved Expenses
-    // Since 'totalAdvance' already accounts for repayments (negative values), 
-    // we simply subtract approved expenses from the net advance.
     const balance = totalAdvance - approved;
-    
     return { balance };
   };
 
   return (
     <div className="space-y-6">
-      {/* Header and Stats section */}
+      {/* ... (Header, Stats, Filters remain same) ... */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <h2 className="text-2xl font-black text-gray-800 dark:text-white tracking-tight">স্টাফ প্রোফাইল ও কন্ট্রোল</h2>
         {!isStaff && (
@@ -490,29 +439,19 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
         )}
       </div>
 
-      {/* Stats Cards - Only show for Admin/MD */}
       {!isStaff && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-white dark:bg-gray-800/60 dark:backdrop-blur-md p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 flex items-center gap-4">
             <div className="bg-blue-100 p-3 rounded-xl text-blue-600"><Users className="w-6 h-6" /></div>
-            <div>
-              <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">মোট স্টাফ</p>
-              <p className="text-2xl font-black text-gray-800 dark:text-white">{stats.total}</p>
-            </div>
+            <div><p className="text-xs text-gray-400 font-bold uppercase tracking-wider">মোট স্টাফ</p><p className="text-2xl font-black text-gray-800 dark:text-white">{stats.total}</p></div>
           </div>
           <div className="bg-white dark:bg-gray-800/60 dark:backdrop-blur-md p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 flex items-center gap-4">
             <div className="bg-green-100 p-3 rounded-xl text-green-600"><UserCheck className="w-6 h-6" /></div>
-            <div>
-              <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">সক্রিয় (Active)</p>
-              <p className="text-2xl font-black text-gray-800 dark:text-white">{stats.active}</p>
-            </div>
+            <div><p className="text-xs text-gray-400 font-bold uppercase tracking-wider">সক্রিয় (Active)</p><p className="text-2xl font-black text-gray-800 dark:text-white">{stats.active}</p></div>
           </div>
           <div className="bg-white dark:bg-gray-800/60 dark:backdrop-blur-md p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 flex items-center gap-4">
             <div className="bg-gray-100 p-3 rounded-xl text-gray-500"><UserX className="w-6 h-6" /></div>
-            <div>
-              <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">নিষ্ক্রিয় (Inactive)</p>
-              <p className="text-2xl font-black text-gray-800 dark:text-white">{stats.inactive}</p>
-            </div>
+            <div><p className="text-xs text-gray-400 font-bold uppercase tracking-wider">নিষ্ক্রিয় (Inactive)</p><p className="text-2xl font-black text-gray-800 dark:text-white">{stats.inactive}</p></div>
           </div>
         </div>
       )}
@@ -559,7 +498,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
         </button>
       </div>
 
-      {/* BOX/CARD GRID VIEW - REDESIGNED */}
+      {/* BOX/CARD GRID VIEW */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {filteredStaff.map((staff) => {
           if (!staff) return null;
@@ -570,14 +509,8 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
 
           return (
             <div key={staff.id} className="group relative bg-white dark:bg-gray-800/60 dark:backdrop-blur-md rounded-2xl shadow-sm hover:shadow-xl border border-gray-200 dark:border-white/10 overflow-hidden transition-all duration-300 hover:-translate-y-1">
-              
-              {/* Decorative Background for Header */}
               <div className={`h-24 w-full absolute top-0 left-0 ${isActive ? 'bg-gradient-to-r from-indigo-500 to-purple-600' : 'bg-gradient-to-r from-gray-400 to-gray-500'}`}></div>
-
-              {/* Content Wrapper */}
               <div className="relative pt-12 px-5 pb-5 flex flex-col h-full">
-                  
-                  {/* Avatar Section */}
                   <div className="flex flex-col items-center">
                       <div className="relative">
                           {staff.photo ? (
@@ -587,10 +520,8 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
                                   {safeName.charAt(0)}
                               </div>
                           )}
-                          {/* Status Dot */}
                           <div className={`absolute bottom-1 right-1 w-5 h-5 rounded-full border-2 border-white dark:border-gray-800 ${isActive ? 'bg-green-500' : 'bg-red-500'}`} title={isActive ? 'Active' : 'Inactive'}></div>
                       </div>
-
                       <div className="mt-3 text-center">
                           <h3 className="text-lg font-bold text-gray-800 dark:text-white leading-tight">{safeName}</h3>
                           <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mt-1">{staff.designation}</p>
@@ -608,8 +539,6 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
                           </div>
                       </div>
                   </div>
-
-                  {/* Details Grid */}
                   <div className="mt-6 space-y-3 flex-1">
                       <div className="flex items-center gap-3 p-2.5 rounded-xl bg-gray-50/80 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-600">
                           <Phone className="w-4 h-4 text-gray-400" />
@@ -622,8 +551,6 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
                           </span>
                       </div>
                   </div>
-
-                  {/* Stats Row */}
                   <div className="grid grid-cols-2 gap-3 mt-4">
                       <div className="bg-indigo-50 dark:bg-indigo-900/30 rounded-xl p-3 text-center border border-indigo-100 dark:border-indigo-800">
                           <p className="text-[9px] uppercase font-bold text-indigo-400">ব্যালেন্স</p>
@@ -636,15 +563,10 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
                           </p>
                       </div>
                   </div>
-
-                  {/* Action Bar */}
                   <div className="flex items-center justify-center gap-2 mt-5 pt-4 border-t border-gray-100 dark:border-white/10">
-                       {/* Edit Button */}
                        <button onClick={() => openEdit(staff)} className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300 hover:bg-indigo-600 hover:text-white transition-colors" title="এডিট করুন">
                           <Edit2 className="w-3.5 h-3.5" />
                        </button>
-                       
-                       {/* Admin Actions */}
                        {canManageMoney && (
                           <>
                               <button onClick={() => openGiftModal(staff.id)} className="w-8 h-8 flex items-center justify-center rounded-full bg-yellow-50 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 hover:bg-yellow-500 hover:text-white transition-colors" title="গিফট দিন">
@@ -661,8 +583,6 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
                               </button>
                           </>
                        )}
-
-                       {/* Delete/Status Toggle */}
                        {!isStaff && (
                           <>
                             <button onClick={() => toggleStatus(staff.id, staff.status)} className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${isActive ? 'bg-orange-50 dark:bg-orange-900/30 text-orange-500 hover:bg-orange-500 hover:text-white' : 'bg-green-50 dark:bg-green-900/30 text-green-500 hover:bg-green-500 hover:text-white'}`} title={isActive ? 'Deactivate' : 'Activate'}>
@@ -674,7 +594,6 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
                           </>
                        )}
                   </div>
-
               </div>
             </div>
           );
@@ -690,259 +609,188 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
          </div>
       )}
 
-      {/* Gift Points Modal */}
+      {/* GIFT POINTS MODAL */}
       {isGiftPointModalOpen && (
-         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in duration-200">
-           <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden">
-             <div className="bg-yellow-500 p-6 text-white text-center">
-                <div className="bg-white/20 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <Gift className="w-6 h-6" />
-                </div>
-                <h3 className="text-xl font-bold">স্পেশাল বোনাস পয়েন্ট</h3>
-                <p className="text-yellow-100 text-xs mt-1">কাজের প্রশংসাস্বরূপ স্টাফকে পয়েন্ট দিন</p>
-             </div>
-             
-             <form onSubmit={handleGivePoints} className="p-6 space-y-5">
-               <div>
-                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">পয়েন্ট পরিমাণ (১-২০)</label>
-                  <div className="relative">
-                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold"><Star className="w-4 h-4 fill-yellow-500 text-yellow-500"/></span>
-                     <input 
-                       autoFocus
-                       required 
-                       type="number" 
-                       min="1"
-                       max="20"
-                       className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-yellow-500 outline-none transition-all font-bold text-lg text-gray-800"
-                       placeholder="5"
-                       value={giftPointData.points}
-                       onChange={(e) => setGiftPointData({...giftPointData, points: Number(e.target.value)})}
-                     />
-                  </div>
-               </div>
-
-               <div className="pt-2 flex gap-3">
-                  <button type="button" onClick={() => setIsGiftPointModalOpen(false)} className="flex-1 py-3 text-gray-500 font-bold hover:bg-gray-50 rounded-xl transition-colors">বাতিল</button>
-                  <button type="submit" className="flex-[2] bg-yellow-500 text-white py-3 rounded-xl font-bold hover:bg-yellow-600 shadow-xl shadow-yellow-100 flex items-center justify-center gap-2 active:scale-95 transition-all">
-                     <Gift className="w-5 h-5" />
-                     পয়েন্ট দিন
-                  </button>
-               </div>
-             </form>
-           </div>
-         </div>
-      )}
-
-      {/* Advance History Modal */}
-      {historyStaff && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-           <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-              <div className="bg-blue-600 p-5 text-white flex justify-between items-center shrink-0">
-                 <div>
-                    <h3 className="font-bold text-lg">অগ্রীম টাকার হিস্ট্রি</h3>
-                    <p className="text-blue-100 text-xs">{historyStaff.name} ({historyStaff.staffId})</p>
-                 </div>
-                 <button onClick={() => setHistoryStaff(null)} className="text-blue-200 hover:text-white p-1 rounded-full hover:bg-blue-500/50"><X className="w-5 h-5"/></button>
-              </div>
-              
-              <div className="overflow-y-auto p-0 flex-1">
-                 {(() => {
-                    const userAdvances = advances.filter(a => a.staffId === historyStaff.id && !a.isDeleted).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-                    if (userAdvances.length === 0) {
-                       return (
-                          <div className="flex flex-col items-center justify-center h-48 text-gray-400">
-                             <CalendarClock className="w-10 h-10 mb-2 opacity-30" />
-                             <p className="text-sm font-bold">কোনো অগ্রীম রেকর্ড নেই</p>
-                          </div>
-                       );
-                    }
-                    return (
-                       <table className="w-full text-left border-collapse">
-                          <thead className="bg-gray-50 text-gray-500 text-[10px] uppercase font-bold sticky top-0 z-10 shadow-sm">
-                             <tr>
-                                <th className="px-5 py-3">তারিখ</th>
-                                <th className="px-5 py-3">টাকার পরিমাণ</th>
-                                <th className="px-5 py-3">নোট / কারণ</th>
-                             </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-100 text-sm">
-                             {userAdvances.map(a => {
-                                const isRepayment = a.amount < 0;
-                                return (
-                                <tr key={a.id} className="hover:bg-gray-50 transition-colors">
-                                   <td className="px-5 py-3 text-gray-600 font-medium whitespace-nowrap">
-                                      {new Date(a.date).toLocaleDateString('bn-BD')}
-                                      <p className="text-[9px] text-gray-400">{new Date(a.date).toLocaleTimeString('bn-BD', {hour: '2-digit', minute:'2-digit'})}</p>
-                                   </td>
-                                   <td className={`px-5 py-3 font-bold ${isRepayment ? 'text-green-600' : 'text-blue-700'}`}>
-                                     {isRepayment ? '(-)' : ''} ৳ {Math.abs(Number(a.amount)).toLocaleString()}
-                                     {a.type === 'SALARY' && (
-                                       <span className="block text-[9px] text-purple-600 font-bold uppercase tracking-tight bg-purple-50 px-1 py-0.5 rounded w-fit mt-1">Salary Adv</span>
-                                     )}
-                                     {isRepayment && (
-                                       <span className="block text-[9px] text-green-600 font-bold uppercase tracking-tight bg-green-50 px-1 py-0.5 rounded w-fit mt-1">Repayment</span>
-                                     )}
-                                   </td>
-                                   <td className="px-5 py-3 text-gray-600">
-                                      {a.note || '-'}
-                                      <p className="text-[9px] text-gray-400 mt-0.5">By: {a.givenBy}</p>
-                                   </td>
-                                </tr>
-                             )})}
-                          </tbody>
-                       </table>
-                    );
-                 })()}
-              </div>
-
-              <div className="p-4 border-t border-gray-100 bg-gray-50 shrink-0 text-center">
-                 <button onClick={() => setHistoryStaff(null)} className="px-6 py-2 bg-white border border-gray-200 text-gray-600 rounded-xl font-bold hover:bg-gray-100 text-xs">বন্ধ করুন</button>
-              </div>
-           </div>
-        </div>
-      )}
-
-      {/* Give Advance Modal */}
-      {isAdvanceModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in duration-200">
-          <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden">
-            <div className="bg-blue-600 p-6 text-white text-center">
-               <div className="bg-white/20 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
-                 <Banknote className="w-6 h-6" />
-               </div>
-               <h3 className="text-xl font-bold">স্টাফকে অগ্রীম দিন</h3>
-               <p className="text-blue-100 text-xs mt-1">অগ্রীম টাকা বা বেতন প্রদানের বিবরণ লিখুন</p>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
+            <div className="p-6 bg-yellow-400 text-yellow-900 flex justify-between items-center">
+              <h3 className="font-black text-xl flex items-center gap-2"><Gift className="w-6 h-6"/> গিফট পয়েন্ট</h3>
+              <button onClick={() => setIsGiftPointModalOpen(false)} className="p-1 hover:bg-yellow-500/20 rounded-full"><X className="w-6 h-6"/></button>
             </div>
-            
-            <form onSubmit={handleGiveAdvance} className="p-6 space-y-5">
-               {/* Advance Type Selector */}
+            <form onSubmit={handleGivePoints} className="p-6 space-y-4">
                <div>
-                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">অগ্রীমের ধরণ</label>
-                  <div className="flex gap-3">
-                     <label className={`flex-1 cursor-pointer border-2 rounded-xl p-2.5 flex flex-col items-center justify-center gap-1 transition-all ${advanceFormData.type === 'REGULAR' ? 'border-blue-600 bg-blue-50' : 'border-gray-100 hover:bg-gray-50'}`}>
-                        <input type="radio" className="hidden" name="advType" checked={advanceFormData.type === 'REGULAR'} onChange={() => setAdvanceFormData({...advanceFormData, type: 'REGULAR'})} />
-                        <span className={`text-xs font-bold ${advanceFormData.type === 'REGULAR' ? 'text-blue-700' : 'text-gray-500'}`}>সাধারণ (Expense)</span>
-                     </label>
-                     <label className={`flex-1 cursor-pointer border-2 rounded-xl p-2.5 flex flex-col items-center justify-center gap-1 transition-all ${advanceFormData.type === 'SALARY' ? 'border-purple-600 bg-purple-50' : 'border-gray-100 hover:bg-gray-50'}`}>
-                        <input type="radio" className="hidden" name="advType" checked={advanceFormData.type === 'SALARY'} onChange={() => setAdvanceFormData({...advanceFormData, type: 'SALARY'})} />
-                        <span className={`text-xs font-bold ${advanceFormData.type === 'SALARY' ? 'text-purple-700' : 'text-gray-500'}`}>বেতন অগ্রীম</span>
-                     </label>
-                  </div>
+                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">পয়েন্ট পরিমাণ (১-২০)</label>
+                 <input 
+                   type="number" 
+                   min="1" 
+                   max="20" 
+                   required
+                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-center text-2xl font-black text-gray-800"
+                   value={giftPointData.points}
+                   onChange={(e) => setGiftPointData({...giftPointData, points: Number(e.target.value)})}
+                 />
                </div>
-
-               <div>
-                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">টাকার পরিমাণ</label>
-                  <div className="relative">
-                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">৳</span>
-                     <input 
-                       autoFocus
-                       required 
-                       type="number" 
-                       className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-bold text-lg text-gray-800"
-                       placeholder="0.00"
-                       value={advanceFormData.amount || ''}
-                       onChange={(e) => setAdvanceFormData({...advanceFormData, amount: Number(e.target.value)})}
-                     />
-                  </div>
-               </div>
-
-               <div>
-                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">তারিখ</label>
-                  <input 
-                    type="date"
-                    required 
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-bold text-gray-800"
-                    value={advanceFormData.date}
-                    onChange={(e) => setAdvanceFormData({...advanceFormData, date: e.target.value})}
-                  />
-               </div>
-
-               <div>
-                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">নোট (অপশনাল)</label>
-                  <input 
-                    type="text" 
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm font-medium"
-                    placeholder="কিসের জন্য টাকা দিচ্ছেন?"
-                    value={advanceFormData.note}
-                    onChange={(e) => setAdvanceFormData({...advanceFormData, note: e.target.value})}
-                  />
-               </div>
-               
-               <div className="pt-2 flex gap-3">
-                  <button type="button" onClick={() => setIsAdvanceModalOpen(false)} className="flex-1 py-3 text-gray-500 font-bold hover:bg-gray-50 rounded-xl transition-colors">বাতিল</button>
-                  <button type="submit" className="flex-[2] bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 shadow-xl shadow-blue-100 flex items-center justify-center gap-2 active:scale-95 transition-all">
-                     <Coins className="w-5 h-5" />
-                     টাকা প্রদান করুন
-                  </button>
-               </div>
+               <p className="text-xs text-center text-gray-400">এই স্টাফকে কাজের স্বীকৃতি হিসেবে পয়েন্ট দিন।</p>
+               <button type="submit" className="w-full bg-yellow-400 text-yellow-900 py-3 rounded-xl font-bold hover:bg-yellow-500 transition-colors shadow-lg shadow-yellow-100">
+                 কনফার্ম করুন
+               </button>
             </form>
           </div>
         </div>
       )}
 
-      {/* Repayment Modal */}
-      {isRepayModalOpen && (
-         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in duration-200">
-           <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden">
-             <div className="bg-green-600 p-6 text-white text-center">
-                <div className="bg-white/20 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <WalletCards className="w-6 h-6" />
-                </div>
-                <h3 className="text-xl font-bold">বেতন সমন্বয় / ফেরত</h3>
-                <p className="text-green-100 text-xs mt-1">অগ্রীম নেওয়া টাকা বেতন থেকে কর্তন করুন বা ফেরত নিন</p>
-             </div>
-             
-             <form onSubmit={handleRepay} className="p-6 space-y-5">
-                <div>
-                   <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">কর্তন/পরিশোধের পরিমাণ</label>
-                   <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">৳</span>
-                      <input 
-                        autoFocus
-                        required 
-                        type="number" 
-                        className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none transition-all font-bold text-lg text-gray-800"
-                        placeholder="0.00"
-                        value={repayFormData.amount || ''}
-                        onChange={(e) => setRepayFormData({...repayFormData, amount: Number(e.target.value)})}
-                      />
-                   </div>
-                </div>
-
-                <div>
-                   <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">তারিখ</label>
-                   <input 
-                     type="date"
-                     required 
-                     className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none transition-all font-bold text-gray-800"
-                     value={repayFormData.date}
-                     onChange={(e) => setRepayFormData({...repayFormData, date: e.target.value})}
-                   />
-                </div>
-
-                <div>
-                   <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">নোট</label>
-                   <input 
-                     type="text" 
-                     className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none transition-all text-sm font-medium"
-                     placeholder="উদা: বেতন থেকে সমন্বয় করা হলো"
-                     value={repayFormData.note}
-                     onChange={(e) => setRepayFormData({...repayFormData, note: e.target.value})}
-                   />
-                </div>
-                
-                <div className="pt-2 flex gap-3">
-                   <button type="button" onClick={() => setIsRepayModalOpen(false)} className="flex-1 py-3 text-gray-500 font-bold hover:bg-gray-50 rounded-xl transition-colors">বাতিল</button>
-                   <button type="submit" className="flex-[2] bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 shadow-xl shadow-green-100 flex items-center justify-center gap-2 active:scale-95 transition-all">
-                      <WalletCards className="w-5 h-5" />
-                      সমন্বয় করুন
-                   </button>
-                </div>
-             </form>
-           </div>
-         </div>
+      {/* ADVANCE MODAL */}
+      {isAdvanceModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
+            <div className="p-6 bg-blue-600 text-white flex justify-between items-center">
+              <h3 className="font-bold text-xl flex items-center gap-2"><Banknote className="w-6 h-6"/> অগ্রীম টাকা (Advance)</h3>
+              <button onClick={() => setIsAdvanceModalOpen(false)} className="p-1 hover:bg-blue-700 rounded-full"><X className="w-6 h-6"/></button>
+            </div>
+            <form onSubmit={handleGiveAdvance} className="p-6 space-y-4">
+               <div>
+                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">টাকার পরিমাণ</label>
+                 <input 
+                   type="number" 
+                   required
+                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-lg font-bold"
+                   placeholder="0.00"
+                   value={advanceFormData.amount || ''}
+                   onChange={(e) => setAdvanceFormData({...advanceFormData, amount: Number(e.target.value)})}
+                 />
+               </div>
+               <div>
+                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">তারিখ</label>
+                 <input 
+                   type="date" 
+                   required
+                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                   value={advanceFormData.date}
+                   onChange={(e) => setAdvanceFormData({...advanceFormData, date: e.target.value})}
+                 />
+               </div>
+               <div>
+                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">নোট / কারণ</label>
+                 <input 
+                   type="text" 
+                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                   placeholder="কি কারণে দেওয়া হচ্ছে?"
+                   value={advanceFormData.note}
+                   onChange={(e) => setAdvanceFormData({...advanceFormData, note: e.target.value})}
+                 />
+               </div>
+               <div>
+                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">ধরন</label>
+                 <div className="flex gap-2">
+                    <button type="button" onClick={() => setAdvanceFormData({...advanceFormData, type: 'REGULAR'})} className={`flex-1 py-2 rounded-lg text-xs font-bold border ${advanceFormData.type === 'REGULAR' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-white text-gray-500'}`}>Regular</button>
+                    <button type="button" onClick={() => setAdvanceFormData({...advanceFormData, type: 'SALARY'})} className={`flex-1 py-2 rounded-lg text-xs font-bold border ${advanceFormData.type === 'SALARY' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-white text-gray-500'}`}>Salary Adv</button>
+                 </div>
+               </div>
+               <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-100">
+                 টাকা প্রদান করুন
+               </button>
+            </form>
+          </div>
+        </div>
       )}
 
+      {/* REPAYMENT MODAL */}
+      {isRepayModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
+            <div className="p-6 bg-green-600 text-white flex justify-between items-center">
+              <h3 className="font-bold text-xl flex items-center gap-2"><WalletCards className="w-6 h-6"/> বেতন সমন্বয় (Repay)</h3>
+              <button onClick={() => setIsRepayModalOpen(false)} className="p-1 hover:bg-green-700 rounded-full"><X className="w-6 h-6"/></button>
+            </div>
+            <form onSubmit={handleRepay} className="p-6 space-y-4">
+               <div>
+                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">কাটার পরিমাণ (Deduct)</label>
+                 <input 
+                   type="number" 
+                   required
+                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none text-lg font-bold"
+                   placeholder="0.00"
+                   value={repayFormData.amount || ''}
+                   onChange={(e) => setRepayFormData({...repayFormData, amount: Number(e.target.value)})}
+                 />
+               </div>
+               <div>
+                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">তারিখ</label>
+                 <input 
+                   type="date" 
+                   required
+                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none"
+                   value={repayFormData.date}
+                   onChange={(e) => setRepayFormData({...repayFormData, date: e.target.value})}
+                 />
+               </div>
+               <div>
+                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">নোট</label>
+                 <input 
+                   type="text" 
+                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none"
+                   value={repayFormData.note}
+                   onChange={(e) => setRepayFormData({...repayFormData, note: e.target.value})}
+                 />
+               </div>
+               <button type="submit" className="w-full bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 transition-colors shadow-lg shadow-green-100">
+                 সমন্বয় করুন
+               </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* HISTORY MODAL */}
+      {historyStaff && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+              <div>
+                 <h3 className="font-bold text-xl text-gray-800">{historyStaff.name}</h3>
+                 <p className="text-xs text-gray-500 font-bold">{historyStaff.designation} • ID: {historyStaff.staffId}</p>
+              </div>
+              <button onClick={() => setHistoryStaff(null)} className="p-2 hover:bg-gray-200 rounded-full transition-colors"><X className="w-5 h-5 text-gray-500"/></button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+               {/* Financial Summary */}
+               <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-indigo-50 p-4 rounded-xl text-center border border-indigo-100">
+                     <p className="text-xs text-indigo-500 font-bold uppercase">মোট বিল (Approved)</p>
+                     <p className="text-xl font-black text-indigo-700">৳ {expenses.filter(e => e.staffId === historyStaff.id && e.status === 'APPROVED' && !e.isDeleted).reduce((s, e) => s + e.amount, 0).toLocaleString()}</p>
+                  </div>
+                  <div className="bg-blue-50 p-4 rounded-xl text-center border border-blue-100">
+                     <p className="text-xs text-blue-500 font-bold uppercase">নেট ব্যালেন্স (Due/Adv)</p>
+                     <p className={`text-xl font-black ${getStaffFinancials(historyStaff.id).balance < 0 ? 'text-red-600' : 'text-blue-700'}`}>৳ {getStaffFinancials(historyStaff.id).balance.toLocaleString()}</p>
+                  </div>
+               </div>
+
+               {/* Advance History */}
+               <div>
+                  <h4 className="font-bold text-gray-800 mb-3 flex items-center gap-2 text-sm uppercase tracking-wider"><Banknote className="w-4 h-4"/> লেনদেন হিস্ট্রি (Advance & Repay)</h4>
+                  <div className="space-y-2">
+                     {advances.filter(a => a.staffId === historyStaff.id && !a.isDeleted).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(adv => (
+                        <div key={adv.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-xl border border-gray-100 text-sm">
+                           <div>
+                              <p className="font-bold text-gray-700">{adv.note || 'No description'}</p>
+                              <p className="text-xs text-gray-400">{new Date(adv.date).toLocaleDateString('bn-BD')}</p>
+                           </div>
+                           <span className={`font-black ${adv.amount > 0 ? 'text-blue-600' : 'text-green-600'}`}>
+                              {adv.amount > 0 ? `+ ৳${adv.amount}` : `- ৳${Math.abs(adv.amount)}`}
+                           </span>
+                        </div>
+                     ))}
+                     {advances.filter(a => a.staffId === historyStaff.id && !a.isDeleted).length === 0 && (
+                        <p className="text-center text-gray-400 text-xs py-4">কোনো লেনদেন পাওয়া যায়নি।</p>
+                     )}
+                  </div>
+               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* Profile Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
@@ -951,7 +799,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
               <h3 className="font-bold text-xl">{editingStaff ? 'প্রোফাইল আপডেট' : 'নতুন ইউজার যুক্ত করুন'}</h3>
               <button onClick={closeModal} className="p-1 text-indigo-200 hover:text-white transition-colors"><X className="w-6 h-6" /></button>
             </div>
-            {/* ... Existing Profile Form Logic ... */}
+            
             <div className="p-6 space-y-6">
               {/* Photo Upload */}
               <div className="flex flex-col items-center">
@@ -976,7 +824,6 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
                   <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 mb-2">
                     <label className="block text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-2 ml-1">অ্যাকাউন্ট রোল (Role)</label>
                     <div className="grid grid-cols-2 gap-3">
-                      {/* Standard Roles */}
                       <label className={`cursor-pointer border-2 rounded-lg p-2 flex flex-col items-center justify-center gap-1 transition-all ${formData.role === UserRole.STAFF ? 'border-indigo-600 bg-white shadow-sm' : 'border-transparent hover:bg-white/50'}`}>
                         <input type="radio" className="hidden" checked={formData.role === UserRole.STAFF} onChange={() => setFormData({...formData, role: UserRole.STAFF})} />
                         <Users className={`w-5 h-5 ${formData.role === UserRole.STAFF ? 'text-indigo-600' : 'text-gray-400'}`} />
@@ -989,7 +836,6 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
                         <span className={`text-[10px] font-bold ${formData.role === UserRole.ADMIN ? 'text-blue-700' : 'text-gray-500'}`}>Admin</span>
                       </label>
 
-                      {/* Kiosk Mode */}
                       <label className={`cursor-pointer border-2 rounded-lg p-2 flex flex-col items-center justify-center gap-1 transition-all col-span-2 ${formData.role === UserRole.KIOSK ? 'border-orange-500 bg-orange-50 shadow-sm' : 'border-transparent hover:bg-white/50'}`}>
                         <input type="radio" className="hidden" checked={formData.role === UserRole.KIOSK} onChange={() => setFormData({...formData, role: UserRole.KIOSK, workLocation: 'FACTORY', name: 'Factory Common Device'})} />
                         <MonitorSmartphone className={`w-5 h-5 ${formData.role === UserRole.KIOSK ? 'text-orange-600' : 'text-gray-400'}`} />
@@ -1013,7 +859,6 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
                            <option value="CUSTOM">📍 কাস্টম লোকেশন (Select from Map)</option>
                          </select>
                        </div>
-                       
                        {formData.workLocation === 'CUSTOM' && (
                           <div className="bg-white p-3 rounded-lg border border-gray-200 space-y-3">
                              <p className="text-xs font-bold text-orange-600 flex items-center gap-1 border-b border-gray-100 pb-2">
@@ -1028,7 +873,6 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
                                 <div className="flex-1"><label className="block text-[9px] font-bold text-gray-400 uppercase mb-1">Radius</label><input type="number" className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm font-mono" value={formData.customRadius} onChange={(e) => setFormData({...formData, customRadius: Number(e.target.value)})} /></div>
                                 <div className="flex-1 flex items-end"><button type="button" onClick={() => getCurrentLocation(1)} className="w-full bg-indigo-50 text-indigo-600 px-2 py-1.5 rounded-lg text-[10px] font-bold hover:bg-indigo-100 flex items-center justify-center gap-1 h-[34px]"><LocateFixed className="w-3 h-3" /> Get Current</button></div>
                              </div>
-                             
                              <div className="pt-2 border-t border-gray-100 mt-2">
                                 <label className="flex items-center gap-2 cursor-pointer">
                                    <input type="checkbox" className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" checked={formData.hasSecondLoc} onChange={(e) => setFormData({...formData, hasSecondLoc: e.target.checked})} />
@@ -1059,7 +903,16 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-1.5 ml-1 uppercase text-[10px] tracking-widest">নাম</label>
-                    <input required type="text" className={`w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm font-semibold ${isStaff ? 'opacity-60 cursor-not-allowed' : ''}`} disabled={isStaff} value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="নাম লিখুন" />
+                    <input 
+                      required 
+                      type="text" 
+                      className={`w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm font-semibold ${(isStaff || editingStaff?.name === currentUser) ? 'opacity-60 cursor-not-allowed' : ''}`} 
+                      disabled={isStaff || editingStaff?.name === currentUser} 
+                      value={formData.name} 
+                      onChange={(e) => setFormData({...formData, name: e.target.value})} 
+                      placeholder="নাম লিখুন" 
+                    />
+                    {editingStaff?.name === currentUser && <p className="text-[9px] text-red-500 mt-1">* বর্তমান সেশন ধরে রাখতে নিজের নাম পরিবর্তন করা যাবে না।</p>}
                   </div>
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-1.5 ml-1 uppercase text-[10px] tracking-widest">আইডি (ID)</label>
