@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef } from 'react';
-import { Plus, Search, Edit2, Trash2, UserPlus, X, Calendar, FilterX, Phone, Banknote, Users, UserCheck, UserX, ArrowUpDown, ShieldCheck, ShieldAlert, Eye, EyeOff, Lock, Camera, Image as ImageIcon, Briefcase, Wallet, ArrowRight, Coins, Crown, UserCog, History, CalendarClock, MapPin, LocateFixed, Globe, ToggleLeft, ToggleRight, Map, MonitorSmartphone, Gift, Star, MoreVertical } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, UserPlus, X, Calendar, FilterX, Phone, Banknote, Users, UserCheck, UserX, ArrowUpDown, ShieldCheck, ShieldAlert, Eye, EyeOff, Lock, Camera, Image as ImageIcon, Briefcase, Wallet, ArrowRight, Coins, Crown, UserCog, History, CalendarClock, MapPin, LocateFixed, Globe, ToggleLeft, ToggleRight, Map, MonitorSmartphone, Gift, Star, MoreVertical, WalletCards } from 'lucide-react';
 import { Staff, UserRole, Expense, AdvanceLog } from '../types';
 import { ROLE_LABELS } from '../constants';
 
@@ -64,6 +64,20 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
     note: '',
     date: new Date().toISOString().split('T')[0],
     type: 'REGULAR'
+  });
+
+  // Repayment/Adjustment Modal State
+  const [isRepayModalOpen, setIsRepayModalOpen] = useState(false);
+  const [repayFormData, setRepayFormData] = useState<{
+    staffId: string;
+    amount: number;
+    note: string;
+    date: string;
+  }>({
+    staffId: '',
+    amount: 0,
+    note: 'Salary Adjustment',
+    date: new Date().toISOString().split('T')[0]
   });
 
   // Gift Points Modal State
@@ -304,6 +318,16 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
     setIsAdvanceModalOpen(true);
   };
 
+  const openRepayModal = (staffId: string) => {
+    setRepayFormData({
+      staffId,
+      amount: 0,
+      note: 'Salary Adjustment',
+      date: new Date().toISOString().split('T')[0]
+    });
+    setIsRepayModalOpen(true);
+  };
+
   const handleGiveAdvance = (e: React.FormEvent) => {
     e.preventDefault();
     if (!canManageMoney) {
@@ -350,6 +374,40 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
     alert(`${staff.name}-কে ৳${newAdvance.amount} অগ্রীম দেওয়া হয়েছে।`);
 
     setAdvanceFormData({ staffId: '', amount: 0, note: '', date: new Date().toISOString().split('T')[0], type: 'REGULAR' });
+  };
+
+  const handleRepay = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canManageMoney) return;
+
+    if (Number(repayFormData.amount) <= 0) {
+       alert("টাকার পরিমাণ ০ এর বেশি হতে হবে।");
+       return;
+    }
+
+    const staff = staffList.find(s => s.id === repayFormData.staffId);
+    if (!staff) return;
+
+    const submitDate = new Date(repayFormData.date);
+    const now = new Date();
+    submitDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
+
+    // Create a NEGATIVE advance entry to represent repayment/adjustment
+    const newEntry: AdvanceLog = {
+      id: Math.random().toString(36).substr(2, 9),
+      staffId: staff.id,
+      staffName: staff.name,
+      amount: -Number(repayFormData.amount), // NEGATIVE AMOUNT
+      note: `[REPAYMENT] ${repayFormData.note}`,
+      date: submitDate.toISOString(),
+      givenBy: currentUser || 'Admin',
+      isDeleted: false,
+      type: 'REGULAR'
+    };
+
+    setAdvances(prev => [...prev, newEntry]);
+    setIsRepayModalOpen(false);
+    alert(`${staff.name}-এর বেতন থেকে ৳${repayFormData.amount} সমন্বয় করা হয়েছে।`);
   };
 
   // --- FILTER & DATA LOGIC ---
@@ -405,10 +463,17 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
     const staffExpenses = safeExpenses.filter(e => e && e.staffId === staffId && !e.isDeleted);
     const approved = staffExpenses.filter(e => e.status === 'APPROVED').reduce((sum, e) => sum + Number(e.amount || 0), 0);
     
+    // Advances (Sum of Positive and Negative entries)
+    // Regular advance minus repayments handled automatically by sum because repayment is negative
     const staffAdvances = safeAdvances.filter(a => a && a.staffId === staffId && !a.isDeleted);
-    const regularAdvance = staffAdvances.filter(a => a.type !== 'SALARY').reduce((sum, a) => sum + Number(a.amount || 0), 0);
     
-    const balance = regularAdvance - approved;
+    // Total Advance Taken (Including Salary Advance) - Repayments (Negative)
+    const totalAdvance = staffAdvances.reduce((sum, a) => sum + Number(a.amount || 0), 0);
+    
+    // Balance logic: Advance Taken - Approved Expenses
+    // Since 'totalAdvance' already accounts for repayments (negative values), 
+    // we simply subtract approved expenses from the net advance.
+    const balance = totalAdvance - approved;
     
     return { balance };
   };
@@ -585,8 +650,11 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
                               <button onClick={() => openGiftModal(staff.id)} className="w-8 h-8 flex items-center justify-center rounded-full bg-yellow-50 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 hover:bg-yellow-500 hover:text-white transition-colors" title="গিফট দিন">
                                   <Gift className="w-3.5 h-3.5" />
                               </button>
-                              <button onClick={() => openAdvanceModal(staff.id)} className="w-8 h-8 flex items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white transition-colors" title="টাকা দিন">
+                              <button onClick={() => openAdvanceModal(staff.id)} className="w-8 h-8 flex items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white transition-colors" title="টাকা দিন (Advance)">
                                   <Banknote className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => openRepayModal(staff.id)} className="w-8 h-8 flex items-center justify-center rounded-full bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-600 hover:text-white transition-colors" title="বেতন সমন্বয় (Adjustment)">
+                                  <WalletCards className="w-3.5 h-3.5" />
                               </button>
                               <button onClick={() => setHistoryStaff(staff)} className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-800 hover:text-white transition-colors" title="হিস্ট্রি">
                                   <History className="w-3.5 h-3.5" />
@@ -698,16 +766,21 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
                              </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-100 text-sm">
-                             {userAdvances.map(a => (
+                             {userAdvances.map(a => {
+                                const isRepayment = a.amount < 0;
+                                return (
                                 <tr key={a.id} className="hover:bg-gray-50 transition-colors">
                                    <td className="px-5 py-3 text-gray-600 font-medium whitespace-nowrap">
                                       {new Date(a.date).toLocaleDateString('bn-BD')}
                                       <p className="text-[9px] text-gray-400">{new Date(a.date).toLocaleTimeString('bn-BD', {hour: '2-digit', minute:'2-digit'})}</p>
                                    </td>
-                                   <td className="px-5 py-3 font-bold text-blue-700">
-                                     ৳ {Number(a.amount).toLocaleString()}
+                                   <td className={`px-5 py-3 font-bold ${isRepayment ? 'text-green-600' : 'text-blue-700'}`}>
+                                     {isRepayment ? '(-)' : ''} ৳ {Math.abs(Number(a.amount)).toLocaleString()}
                                      {a.type === 'SALARY' && (
                                        <span className="block text-[9px] text-purple-600 font-bold uppercase tracking-tight bg-purple-50 px-1 py-0.5 rounded w-fit mt-1">Salary Adv</span>
+                                     )}
+                                     {isRepayment && (
+                                       <span className="block text-[9px] text-green-600 font-bold uppercase tracking-tight bg-green-50 px-1 py-0.5 rounded w-fit mt-1">Repayment</span>
                                      )}
                                    </td>
                                    <td className="px-5 py-3 text-gray-600">
@@ -715,7 +788,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
                                       <p className="text-[9px] text-gray-400 mt-0.5">By: {a.givenBy}</p>
                                    </td>
                                 </tr>
-                             ))}
+                             )})}
                           </tbody>
                        </table>
                     );
@@ -805,6 +878,69 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
             </form>
           </div>
         </div>
+      )}
+
+      {/* Repayment Modal */}
+      {isRepayModalOpen && (
+         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in duration-200">
+           <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden">
+             <div className="bg-green-600 p-6 text-white text-center">
+                <div className="bg-white/20 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <WalletCards className="w-6 h-6" />
+                </div>
+                <h3 className="text-xl font-bold">বেতন সমন্বয় / ফেরত</h3>
+                <p className="text-green-100 text-xs mt-1">অগ্রীম নেওয়া টাকা বেতন থেকে কর্তন করুন বা ফেরত নিন</p>
+             </div>
+             
+             <form onSubmit={handleRepay} className="p-6 space-y-5">
+                <div>
+                   <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">কর্তন/পরিশোধের পরিমাণ</label>
+                   <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">৳</span>
+                      <input 
+                        autoFocus
+                        required 
+                        type="number" 
+                        className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none transition-all font-bold text-lg text-gray-800"
+                        placeholder="0.00"
+                        value={repayFormData.amount || ''}
+                        onChange={(e) => setRepayFormData({...repayFormData, amount: Number(e.target.value)})}
+                      />
+                   </div>
+                </div>
+
+                <div>
+                   <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">তারিখ</label>
+                   <input 
+                     type="date"
+                     required 
+                     className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none transition-all font-bold text-gray-800"
+                     value={repayFormData.date}
+                     onChange={(e) => setRepayFormData({...repayFormData, date: e.target.value})}
+                   />
+                </div>
+
+                <div>
+                   <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">নোট</label>
+                   <input 
+                     type="text" 
+                     className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none transition-all text-sm font-medium"
+                     placeholder="উদা: বেতন থেকে সমন্বয় করা হলো"
+                     value={repayFormData.note}
+                     onChange={(e) => setRepayFormData({...repayFormData, note: e.target.value})}
+                   />
+                </div>
+                
+                <div className="pt-2 flex gap-3">
+                   <button type="button" onClick={() => setIsRepayModalOpen(false)} className="flex-1 py-3 text-gray-500 font-bold hover:bg-gray-50 rounded-xl transition-colors">বাতিল</button>
+                   <button type="submit" className="flex-[2] bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 shadow-xl shadow-green-100 flex items-center justify-center gap-2 active:scale-95 transition-all">
+                      <WalletCards className="w-5 h-5" />
+                      সমন্বয় করুন
+                   </button>
+                </div>
+             </form>
+           </div>
+         </div>
       )}
 
       {/* Profile Modal */}

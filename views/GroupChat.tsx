@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Users, User, Crown, UserCog, Car, ArrowRightCircle } from 'lucide-react';
-import { ChatMessage, UserRole, Staff } from '../types';
+import { Send, Users, User, Crown, UserCog, Car, ArrowRightCircle, MessageCircle, SmilePlus } from 'lucide-react';
+import { ChatMessage, UserRole, Staff, Reaction } from '../types';
 
 interface GroupChatProps {
   messages: ChatMessage[];
@@ -13,9 +13,15 @@ interface GroupChatProps {
   staffList: Staff[];
 }
 
+const AVAILABLE_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+
 const GroupChatView: React.FC<GroupChatProps> = ({ messages, setMessages, currentUser, role, onNavigate, onUpdatePoints, staffList }) => {
   const [inputText, setInputText] = useState('');
+  const [activeReactionId, setActiveReactionId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // REPLACE THIS WITH YOUR ACTUAL WHATSAPP GROUP INVITE LINK
+  const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/YOUR_GROUP_INVITE_LINK_HERE";
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -35,7 +41,8 @@ const GroupChatView: React.FC<GroupChatProps> = ({ messages, setMessages, curren
       sender: currentUser,
       role: role,
       timestamp: new Date().toISOString(),
-      type: 'TEXT'
+      type: 'TEXT',
+      reactions: []
     };
 
     setMessages(prev => [...prev, newMessage]);
@@ -48,6 +55,34 @@ const GroupChatView: React.FC<GroupChatProps> = ({ messages, setMessages, curren
           onUpdatePoints(staff.id, 1, 'CHAT_ACTIVITY');
        }
     }
+  };
+
+  const toggleReaction = (msgId: string, emoji: string) => {
+    if (!currentUser) return;
+
+    setMessages(prev => prev.map(msg => {
+      if (msg.id === msgId) {
+        const reactions = msg.reactions || [];
+        const existingIndex = reactions.findIndex(r => r.userId === currentUser && r.emoji === emoji); // Simple logic: one reaction per user per message or just toggle specific emoji
+        
+        // Better logic: If user already reacted with THIS emoji, remove it. If different, add/swap?
+        // Let's implement: User can have multiple reactions, but toggling same one removes it.
+        
+        let newReactions = [...reactions];
+        if (existingIndex > -1) {
+           newReactions.splice(existingIndex, 1); // Remove
+        } else {
+           // Remove any other reaction by this user first (optional, standard is usually one reaction per user)
+           const userPrevReaction = newReactions.findIndex(r => r.userId === currentUser);
+           if (userPrevReaction > -1) newReactions.splice(userPrevReaction, 1);
+
+           newReactions.push({ userId: currentUser, userName: currentUser, emoji });
+        }
+        return { ...msg, reactions: newReactions };
+      }
+      return msg;
+    }));
+    setActiveReactionId(null);
   };
 
   // Sort messages by time
@@ -69,8 +104,12 @@ const GroupChatView: React.FC<GroupChatProps> = ({ messages, setMessages, curren
     }
   };
 
+  const openWhatsApp = () => {
+    window.open(WHATSAPP_GROUP_LINK, '_blank');
+  };
+
   return (
-    <div className="flex flex-col h-[calc(100vh-140px)] bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-140px)] bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden" onClick={() => setActiveReactionId(null)}>
       {/* Chat Header */}
       <div className="p-4 bg-indigo-600 text-white flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
@@ -82,6 +121,16 @@ const GroupChatView: React.FC<GroupChatProps> = ({ messages, setMessages, curren
             <p className="text-xs text-indigo-200">সকল স্টাফ, অ্যাডমিন এবং এমডি</p>
           </div>
         </div>
+        
+        {/* WhatsApp Button */}
+        <button 
+          onClick={openWhatsApp}
+          className="bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded-xl flex items-center gap-2 text-xs font-bold transition-all shadow-lg active:scale-95"
+          title="Open WhatsApp Group"
+        >
+          <MessageCircle className="w-4 h-4" />
+          <span className="hidden sm:inline">WhatsApp Group</span>
+        </button>
       </div>
 
       {/* Messages Area */}
@@ -112,9 +161,11 @@ const GroupChatView: React.FC<GroupChatProps> = ({ messages, setMessages, curren
           // ---------------------------------------
 
           const isMe = msg.sender === currentUser;
+          const reactions = msg.reactions || [];
+
           return (
-            <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[80%] md:max-w-[60%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
+            <div key={msg.id} className={`flex w-full group ${isMe ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[80%] md:max-w-[60%] flex flex-col ${isMe ? 'items-end' : 'items-start'} relative`}>
                 
                 {/* Sender Name & Role */}
                 {!isMe && (
@@ -129,19 +180,64 @@ const GroupChatView: React.FC<GroupChatProps> = ({ messages, setMessages, curren
                   </div>
                 )}
 
-                {/* Message Bubble */}
-                <div 
-                  className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm ${
-                    isMe 
-                      ? 'bg-indigo-600 text-white rounded-tr-none' 
-                      : 'bg-white text-gray-800 border border-gray-200 rounded-tl-none'
-                  }`}
-                >
-                  {msg.text}
+                {/* Message Bubble Container */}
+                <div className="relative">
+                   {/* Reaction Trigger Button */}
+                   <button 
+                      onClick={(e) => { e.stopPropagation(); setActiveReactionId(activeReactionId === msg.id ? null : msg.id); }}
+                      className={`absolute top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-gray-100 text-gray-400 hover:text-indigo-600 hover:bg-white shadow-sm opacity-0 group-hover:opacity-100 transition-all z-10 ${isMe ? '-left-8' : '-right-8'}`}
+                   >
+                      <SmilePlus className="w-4 h-4" />
+                   </button>
+
+                   {/* Reaction Picker Popup */}
+                   {activeReactionId === msg.id && (
+                      <div className={`absolute bottom-full mb-2 bg-white rounded-full shadow-xl border border-gray-100 p-1.5 flex gap-1 z-20 animate-in zoom-in duration-200 ${isMe ? 'right-0' : 'left-0'}`}>
+                         {AVAILABLE_REACTIONS.map(emoji => (
+                            <button 
+                              key={emoji}
+                              onClick={(e) => { e.stopPropagation(); toggleReaction(msg.id, emoji); }}
+                              className="w-8 h-8 flex items-center justify-center text-xl hover:bg-gray-100 rounded-full transition-colors hover:scale-125"
+                            >
+                               {emoji}
+                            </button>
+                         ))}
+                      </div>
+                   )}
+
+                   {/* Message Bubble */}
+                   <div 
+                     className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm ${
+                       isMe 
+                         ? 'bg-indigo-600 text-white rounded-tr-none' 
+                         : 'bg-white text-gray-800 border border-gray-200 rounded-tl-none'
+                     }`}
+                   >
+                     {msg.text}
+                   </div>
+
+                   {/* Display Reactions - Clickable to see who reacted */}
+                   {reactions.length > 0 && (
+                      <div className={`absolute -bottom-3 ${isMe ? 'right-0' : 'left-0'} flex -space-x-1`}>
+                         <div 
+                           onClick={(e) => {
+                              e.stopPropagation();
+                              alert(`Reacted by:\n${reactions.map(r => `${r.emoji} ${r.userName}`).join('\n')}`);
+                           }}
+                           className="bg-white border border-gray-200 rounded-full px-1.5 py-0.5 shadow-sm flex items-center gap-1 cursor-pointer hover:bg-gray-50 transition-all active:scale-95" 
+                           title="Click to see who reacted"
+                         >
+                            {Array.from(new Set(reactions.map(r => r.emoji))).map(emoji => (
+                               <span key={emoji} className="text-xs leading-none">{emoji}</span>
+                            ))}
+                            <span className="text-[10px] font-bold text-gray-500 ml-0.5">{reactions.length}</span>
+                         </div>
+                      </div>
+                   )}
                 </div>
 
                 {/* Timestamp */}
-                <span className="text-[9px] text-gray-400 mt-1 mx-1">
+                <span className="text-[9px] text-gray-400 mt-2 mx-1 select-none">
                   {new Date(msg.timestamp).toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' })}
                 </span>
               </div>

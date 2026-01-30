@@ -6,6 +6,12 @@ export enum UserRole {
   KIOSK = 'KIOSK' // New Role for Factory Common Device
 }
 
+export interface Reaction {
+  userId: string;
+  userName: string;
+  emoji: string;
+}
+
 export interface Staff {
   id: string;
   name: string;
@@ -96,6 +102,7 @@ export interface Notice {
   role: string;
   date: string;
   isDeleted?: boolean;
+  reactions?: Reaction[]; // Added reactions
 }
 
 export interface AdvanceLog {
@@ -131,6 +138,7 @@ export interface ChatMessage {
   timestamp: string;
   type?: 'TEXT' | 'SYSTEM_MOVEMENT'; 
   targetView?: string; 
+  reactions?: Reaction[]; // Added reactions
 }
 
 export interface StaffLocation {

@@ -520,6 +520,7 @@ const App: React.FC = () => {
 
   const unreadCount = appNotifications.filter(n => !n.isRead).length;
 
+  // 1. WATCHER FOR MESSAGES (Chat/Movement) -> Notify Everyone
   const prevMessagesLength = useRef(0);
   useEffect(() => {
     if (messages.length > 0 && prevMessagesLength.current > 0 && messages.length > prevMessagesLength.current) {
@@ -537,6 +538,54 @@ const App: React.FC = () => {
     }
     prevMessagesLength.current = messages.length;
   }, [messages, currentUser]);
+
+  // 2. WATCHER FOR EXPENSES -> Notify Targeted Users (Owner / Admin / MD)
+  const prevExpensesRef = useRef<Expense[]>([]);
+  useEffect(() => {
+    const prev = prevExpensesRef.current;
+    if (prev.length === 0 && expenses.length > 0) {
+        // Initial load, don't spam
+        prevExpensesRef.current = expenses;
+        return;
+    }
+
+    // A. Detect NEW Expenses (Submission)
+    const newExpenses = expenses.filter(e => !prev.find(p => p.id === e.id));
+    newExpenses.forEach(e => {
+        // Condition: If I am Admin/MD, notify me about ANY new bill
+        if (role === UserRole.ADMIN || role === UserRole.MD) {
+            handleAddNotification('নতুন বিল সাবমিট', `${e.staffName} ৳${e.amount} টাকার বিল সাবমিট করেছেন।`, 'INFO', 'expenses');
+        }
+    });
+
+    // B. Detect STATUS CHANGE (Approval/Rejection)
+    const updatedExpenses = expenses.filter(e => {
+        const old = prev.find(p => p.id === e.id);
+        return old && old.status !== e.status;
+    });
+
+    updatedExpenses.forEach(e => {
+        // Condition 1: If I am the OWNER of the bill, notify me
+        if (currentUser && e.staffName === currentUser) {
+            let msg = '';
+            let type: AppNotification['type'] = 'INFO';
+            if (e.status === 'APPROVED') { msg = `আপনার ৳${e.amount} টাকার বিলটি অনুমোদিত হয়েছে!`; type = 'SUCCESS'; }
+            else if (e.status === 'REJECTED') { msg = `আপনার ৳${e.amount} টাকার বিলটি বাতিল করা হয়েছে।`; type = 'ERROR'; }
+            else if (e.status === 'VERIFIED') { msg = `আপনার ৳${e.amount} টাকার বিলটি ভেরিফাইড হয়েছে।`; type = 'INFO'; }
+            
+            handleAddNotification('বিল আপডেট', msg, type, 'expenses');
+        }
+
+        // Condition 2: If I am Admin/MD, notify me of status changes (for tracking)
+        if (role === UserRole.ADMIN || role === UserRole.MD) {
+             // Don't notify if I triggered it myself (optimization optional, keeping it simple for now to ensure feedback)
+             // handleAddNotification('বিল স্ট্যাটাস', `${e.staffName}-এর বিল এখন ${e.status}`, 'INFO', 'expenses');
+        }
+    });
+
+    prevExpensesRef.current = expenses;
+  }, [expenses, role, currentUser]);
+
 
   useEffect(() => {
     if (role) {
@@ -894,7 +943,7 @@ const App: React.FC = () => {
       case 'funds': return <FundLedgerView funds={funds} setFunds={updateFunds} totalFund={totalFund} cashOnHand={cashOnHand} role={role} />;
       case 'staff': return <StaffManagementView staffList={staffList} setStaffList={updateStaffList} role={role} expenses={expenses} advances={advances} setAdvances={updateAdvances} currentUser={currentUser} />;
       case 'movements': return <MovementLogView movements={movements} setMovements={updateMovements} staffList={staffList} billingRules={billingRules} role={role} setMessages={updateMessages} currentUser={currentUser} onUpdatePoints={handlePointUpdate} />;
-      case 'expenses': return <ExpenseManagementView expenses={expenses} setExpenses={updateExpenses} staffList={staffList} role={role} currentUser={currentUser} onNotify={handleAddNotification} />;
+      case 'expenses': return <ExpenseManagementView expenses={expenses} setExpenses={updateExpenses} staffList={staffList} role={role} currentUser={currentUser} />;
       case 'reports': return <ReportsView expenses={expenses} staffList={staffList} advances={advances} attendanceList={attendanceList} />;
       case 'settings': return <SettingsView billingRules={billingRules} setBillingRules={updateBillingRules} role={role} exportData={handleExport} importData={handleImport} cloudConfig={firebaseConfig} saveCloudConfig={(config) => { localStorage.setItem('fb_config', JSON.stringify(config)); alert('Settings saved! Reloading...'); window.location.reload(); }} />;
       case 'trash': return <TrashView staffList={staffList} setStaffList={updateStaffList} movements={movements} setMovements={updateMovements} expenses={expenses} setExpenses={updateExpenses} funds={funds} setFunds={updateFunds} notices={notices} setNotices={updateNotices} role={role} />;
