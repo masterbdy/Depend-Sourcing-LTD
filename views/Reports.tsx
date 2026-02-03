@@ -25,6 +25,36 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
 
   const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f59e0b', '#10b981'];
 
+  // --- COMMON STYLES FOR PDF ---
+  const getCommonStyle = () => `
+    body { font-family: 'Hind Siliguri', sans-serif; -webkit-print-color-adjust: exact; color: #1f2937; }
+    @page { size: A4; margin: 10mm; }
+    .no-break { break-inside: avoid; }
+    .watermark {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(-45deg);
+      font-size: 100px;
+      font-weight: 900;
+      color: rgba(0, 0, 0, 0.03);
+      z-index: -1;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    .header-section { border-bottom: 2px solid; padding-bottom: 10px; margin-bottom: 15px; }
+    .company-name { font-size: 24px; font-weight: 900; text-transform: uppercase; letter-spacing: -0.5px; line-height: 1; }
+    .tagline { font-size: 10px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; margin-top: 4px; color: #6b7280; }
+    .address-block { font-size: 9px; text-align: right; color: #4b5563; line-height: 1.3; }
+    .report-title-box { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; border-radius: 6px; margin-bottom: 15px; }
+    .report-title { font-size: 14px; font-weight: 800; text-transform: uppercase; }
+    .meta-text { font-size: 10px; font-weight: 500; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+    th { font-size: 9px; text-transform: uppercase; font-weight: 800; padding: 6px; }
+    td { font-size: 10px; padding: 5px 6px; border-bottom: 1px solid #e5e7eb; }
+    .footer { position: fixed; bottom: 0; left: 0; right: 0; border-top: 1px solid #e5e7eb; padding-top: 8px; display: flex; justify-content: space-between; align-items: flex-end; font-size: 9px; color: #9ca3af; }
+  `;
+
   // Attendance Report Generator
   const generateAttendanceReport = () => {
     const start = reportStartDate ? new Date(reportStartDate).setHours(0, 0, 0, 0) : 0;
@@ -60,48 +90,63 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
       <html lang="bn">
       <head>
         <meta charset="UTF-8">
-        <title>Attendance Report - Depend Sourcing Ltd</title>
+        <title>Attendance Report</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&display=swap" rel="stylesheet">
         <style>
-          body { font-family: 'Hind Siliguri', sans-serif; -webkit-print-color-adjust: exact; }
-          @page { size: A4; margin: 10mm; } /* Compact Margin */
-          .no-break { break-inside: avoid; }
+          ${getCommonStyle()}
+          .theme-color { color: #166534; } /* Green-800 */
+          .theme-bg { background-color: #166534; color: white; }
+          .theme-border { border-color: #166534; }
+          .theme-light-bg { background-color: #f0fdf4; } /* Green-50 */
         </style>
       </head>
-      <body class="bg-white text-gray-800">
-        <div class="max-w-[210mm] mx-auto p-2">
-          <!-- Header -->
-          <div class="flex justify-between items-start mb-4 border-b border-green-600 pb-2">
-            <div>
-               <h1 class="text-xl font-black text-green-800 tracking-tight">Depend Sourcing Ltd.</h1>
-               <p class="text-[10px] text-gray-500 font-medium">Monthly Attendance Report</p>
-            </div>
-            <div class="text-right">
-              <div class="text-[10px] text-gray-500 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">
-                <span class="font-bold">Period:</span> ${reportStartDate ? new Date(reportStartDate).toLocaleDateString('bn-BD') : 'Start'} — ${reportEndDate ? new Date(reportEndDate).toLocaleDateString('bn-BD') : 'Current'}
-              </div>
-              <p class="text-[9px] text-gray-400 mt-0.5">Print: ${new Date().toLocaleDateString('bn-BD')}</p>
-            </div>
+      <body>
+        <div class="watermark">DEPEND SOURCING</div>
+        <div class="max-w-[210mm] mx-auto">
+          
+          <!-- Letterhead Header -->
+          <div class="header-section theme-border flex justify-between items-end">
+             <div>
+                <h1 class="company-name theme-color">Depend Sourcing Ltd.</h1>
+                <p class="tagline">Promise Beyond Business</p>
+             </div>
+             <div class="address-block">
+                <p><strong>Head Office:</strong> A-14/8, Johir Complex (Ground Floor), Talbagh, Savar, Dhaka, Bangladesh.</p>
+                <p>Phone: +8801764700203 | Web: www.dependsourcingltd.com</p>
+                <p>Email: dependsource@gmail.com, info@dependsourcingltd.com</p>
+             </div>
+          </div>
+
+          <!-- Report Title Bar -->
+          <div class="report-title-box theme-light-bg border border-green-200">
+             <div>
+                <h2 class="report-title theme-color">ATTENDANCE REPORT</h2>
+                <p class="meta-text text-gray-500">Employee Attendance Log</p>
+             </div>
+             <div class="text-right meta-text">
+                <p><strong>Period:</strong> ${reportStartDate ? new Date(reportStartDate).toLocaleDateString('bn-BD') : 'Start'} — ${reportEndDate ? new Date(reportEndDate).toLocaleDateString('bn-BD') : 'Today'}</p>
+                <p>Generated: ${new Date().toLocaleString('bn-BD', {dateStyle:'medium', timeStyle:'short'})}</p>
+             </div>
           </div>
 
           <!-- Summary Table -->
-          <div class="mb-4 no-break">
-             <h3 className="font-bold text-gray-700 mb-1 text-xs border-l-2 border-green-500 pl-2">Summary</h3>
-             <table class="w-full text-left border-collapse border border-gray-200">
+          <div class="mb-6 no-break">
+             <h3 class="text-xs font-bold text-gray-700 mb-2 uppercase border-l-2 theme-border pl-2">Attendance Summary</h3>
+             <table class="border border-gray-200">
                 <thead>
-                   <tr class="bg-gray-50 text-[10px] font-bold text-gray-600 uppercase">
-                      <th class="p-1 border border-gray-200">Staff Name</th>
-                      <th class="p-1 border border-gray-200 text-center">Total Present</th>
-                      <th class="p-1 border border-gray-200 text-center">Late Days</th>
+                   <tr class="bg-gray-50 text-gray-600">
+                      <th class="text-left border-r border-gray-200">Staff Name</th>
+                      <th class="text-center border-r border-gray-200">Total Present</th>
+                      <th class="text-center">Late Days</th>
                    </tr>
                 </thead>
-                <tbody class="text-[10px]">
+                <tbody>
                    ${summary.map(s => `
                       <tr>
-                         <td class="p-1 border border-gray-200 font-bold">${s.name}</td>
-                         <td class="p-1 border border-gray-200 text-center">${s.present}</td>
-                         <td class="p-1 border border-gray-200 text-center text-red-600 font-bold">${s.late > 0 ? s.late : '-'}</td>
+                         <td class="font-bold border-r border-gray-200">${s.name}</td>
+                         <td class="text-center border-r border-gray-200">${s.present}</td>
+                         <td class="text-center text-red-600 font-bold">${s.late > 0 ? s.late : '-'}</td>
                       </tr>
                    `).join('')}
                 </tbody>
@@ -109,37 +154,50 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
           </div>
 
           <!-- Detailed Log Table -->
-          <h3 className="font-bold text-gray-700 mb-1 text-xs border-l-2 border-green-500 pl-2 mt-4">Detailed Log</h3>
-          <table class="w-full text-left border-collapse mb-4">
+          <h3 class="text-xs font-bold text-gray-700 mb-2 uppercase border-l-2 theme-border pl-2">Detailed Daily Log</h3>
+          <table>
             <thead>
-              <tr class="bg-green-800 text-white text-[9px] uppercase tracking-wider">
-                <th class="p-1.5 rounded-tl-md font-bold">Date</th>
-                <th class="p-1.5 font-bold">Staff Name</th>
-                <th class="p-1.5 font-bold text-center">In</th>
-                <th class="p-1.5 font-bold text-center">Out</th>
-                <th class="p-1.5 font-bold text-center">Status</th>
-                <th class="p-1.5 font-bold text-right rounded-tr-md">Location</th>
+              <tr class="theme-bg">
+                <th class="text-left rounded-tl">Date</th>
+                <th class="text-left">Staff Name</th>
+                <th class="text-center">Check-In</th>
+                <th class="text-center">Check-Out</th>
+                <th class="text-center">Status</th>
+                <th class="text-right rounded-tr">Location</th>
               </tr>
             </thead>
-            <tbody class="text-[10px]">
+            <tbody>
               ${filteredAttendance.map((a, index) => `
-                <tr class="${index % 2 === 0 ? 'bg-white' : 'bg-green-50/30'} border-b border-gray-100 no-break">
-                  <td class="p-1.5 whitespace-nowrap font-bold text-gray-600">${new Date(a.date).toLocaleDateString('bn-BD')}</td>
-                  <td class="p-1.5 font-bold text-gray-800">${a.staffName}</td>
-                  <td class="p-1.5 text-center font-medium">${new Date(a.checkInTime).toLocaleTimeString('bn-BD', {hour:'2-digit', minute:'2-digit'})}</td>
-                  <td class="p-1.5 text-center text-gray-500">${a.checkOutTime ? new Date(a.checkOutTime).toLocaleTimeString('bn-BD', {hour:'2-digit', minute:'2-digit'}) : '--'}</td>
-                  <td class="p-1.5 text-center">
-                    <span class="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-tight ${
+                <tr class="${index % 2 === 0 ? 'bg-white' : 'theme-light-bg'}">
+                  <td class="font-bold text-gray-600 whitespace-nowrap">${new Date(a.date).toLocaleDateString('bn-BD')}</td>
+                  <td class="font-bold text-gray-800">${a.staffName}</td>
+                  <td class="text-center font-medium">${new Date(a.checkInTime).toLocaleTimeString('bn-BD', {hour:'2-digit', minute:'2-digit'})}</td>
+                  <td class="text-center text-gray-500">${a.checkOutTime ? new Date(a.checkOutTime).toLocaleTimeString('bn-BD', {hour:'2-digit', minute:'2-digit'}) : '--'}</td>
+                  <td class="text-center">
+                    <span class="px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${
                       a.status === 'LATE' ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'
                     }">
                       ${a.status}
                     </span>
                   </td>
-                  <td class="p-1.5 text-right text-gray-500 truncate max-w-[120px]">${a.location?.address || 'N/A'}</td>
+                  <td class="text-right text-gray-500 truncate max-w-[120px]">${a.location?.address || 'N/A'}</td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
+
+          <!-- Footer -->
+          <div class="footer">
+             <div>
+                <p>Depend Sourcing Ltd. Internal Document.</p>
+                <p>System Generated Report.</p>
+             </div>
+             <div class="text-right">
+               <div class="h-8 border-b border-gray-400 w-32 mb-1"></div>
+               <p class="font-bold uppercase">Authorized Signature</p>
+             </div>
+          </div>
+
         </div>
         <script>
           window.onload = () => { setTimeout(() => { window.print(); }, 500); }
@@ -192,7 +250,6 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
                 advanceAmount: 0
             };
         }
-        // Only Add bill description if amount > 0
         groupedData[key].descriptions.push(`${e.reason}`);
         if(e.status !== 'APPROVED') {
            groupedData[key].descriptions[groupedData[key].descriptions.length - 1] += ` (${e.status})`;
@@ -233,93 +290,107 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
       <html lang="bn">
       <head>
         <meta charset="UTF-8">
-        <title>Ledger Report - Depend Sourcing Ltd</title>
+        <title>Ledger Report</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&display=swap" rel="stylesheet">
         <style>
-          body { font-family: 'Hind Siliguri', sans-serif; -webkit-print-color-adjust: exact; }
-          @page { size: A4; margin: 10mm; } /* Tight Margins for max content */
-          .no-break { break-inside: avoid; }
+          ${getCommonStyle()}
+          .theme-color { color: #312e81; } /* Indigo-900 */
+          .theme-bg { background-color: #312e81; color: white; }
+          .theme-border { border-color: #312e81; }
+          .theme-light-bg { background-color: #e0e7ff; } /* Indigo-100 */
         </style>
       </head>
-      <body class="bg-white text-gray-800">
+      <body>
+        <div class="watermark">DEPEND FINANCIAL</div>
         <div class="max-w-[210mm] mx-auto">
-          <!-- Compact Header -->
-          <div class="flex justify-between items-center mb-4 border-b-2 border-indigo-600 pb-2">
-            <div>
-               <h1 class="text-xl font-black text-indigo-900 tracking-tight leading-none">Depend Sourcing Ltd.</h1>
-               <p class="text-[10px] text-gray-500 font-medium">Billing & Expense Ledger</p>
-            </div>
-            <div class="text-right">
-              <div class="text-[10px] text-gray-600 font-bold bg-gray-100 px-2 py-1 rounded inline-block">
-                ${reportStartDate ? new Date(reportStartDate).toLocaleDateString('bn-BD') : 'Start'} — ${reportEndDate ? new Date(reportEndDate).toLocaleDateString('bn-BD') : 'Current'}
-              </div>
-              <p class="text-[9px] text-gray-400 mt-0.5">Printed: ${new Date().toLocaleDateString('bn-BD')}</p>
-            </div>
+          
+          <!-- Letterhead Header -->
+          <div class="header-section theme-border flex justify-between items-end">
+             <div>
+                <h1 class="company-name theme-color">Depend Sourcing Ltd.</h1>
+                <p class="tagline">Promise Beyond Business</p>
+             </div>
+             <div class="address-block">
+                <p><strong>Head Office:</strong> A-14/8, Johir Complex (Ground Floor), Talbagh, Savar, Dhaka, Bangladesh.</p>
+                <p>Phone: +8801764700203 | Web: www.dependsourcingltd.com</p>
+                <p>Email: dependsource@gmail.com, info@dependsourcingltd.com</p>
+             </div>
           </div>
 
-          <!-- Compact Summary Row -->
+          <!-- Report Title Bar -->
+          <div class="report-title-box theme-light-bg border border-indigo-200">
+             <div>
+                <h2 class="report-title theme-color">FINANCIAL LEDGER</h2>
+                <p class="meta-text text-gray-600">Expense & Advance Statement</p>
+             </div>
+             <div class="text-right meta-text">
+                <p><strong>Period:</strong> ${reportStartDate ? new Date(reportStartDate).toLocaleDateString('bn-BD') : 'Start'} — ${reportEndDate ? new Date(reportEndDate).toLocaleDateString('bn-BD') : 'Today'}</p>
+                <p>Generated: ${new Date().toLocaleString('bn-BD', {dateStyle:'medium', timeStyle:'short'})}</p>
+             </div>
+          </div>
+
+          <!-- Summary Cards Row -->
           <div class="flex justify-between gap-4 mb-4 text-xs">
-            <div class="flex-1 bg-indigo-50 p-2 rounded border border-indigo-100 flex justify-between items-center">
-               <span class="font-bold text-indigo-600 uppercase">Total Bill</span>
-               <span class="font-black text-indigo-800 text-sm">৳ ${totalExpenseAmount.toLocaleString()}</span>
+            <div class="flex-1 bg-gray-50 p-2 rounded border border-gray-200 flex justify-between items-center">
+               <span class="font-bold text-gray-600 uppercase">Total Bill Submitted</span>
+               <span class="font-black text-indigo-900 text-sm">৳ ${totalExpenseAmount.toLocaleString()}</span>
             </div>
-            <div class="flex-1 bg-blue-50 p-2 rounded border border-blue-100 flex justify-between items-center">
-               <span class="font-bold text-blue-600 uppercase">Total Advance</span>
+            <div class="flex-1 bg-gray-50 p-2 rounded border border-gray-200 flex justify-between items-center">
+               <span class="font-bold text-gray-600 uppercase">Total Advance Given</span>
                <span class="font-black text-blue-800 text-sm">৳ ${totalAdvanceGiven.toLocaleString()}</span>
             </div>
           </div>
 
           <!-- Compact Table -->
-          <table class="w-full text-left border-collapse mb-4">
+          <table>
             <thead>
-              <tr class="bg-indigo-900 text-white text-[9px] uppercase tracking-wider">
-                <th class="p-1.5 rounded-tl-md font-bold w-8 text-center">SL</th>
-                <th class="p-1.5 font-bold w-20">Date</th>
-                <th class="p-1.5 font-bold w-28">Name</th>
-                <th class="p-1.5 font-bold">Details</th>
-                <th class="p-1.5 font-bold text-right w-20">Bill (৳)</th>
-                <th class="p-1.5 font-bold text-right rounded-tr-md w-20">Adv (৳)</th>
+              <tr class="theme-bg">
+                <th class="text-center w-8 rounded-tl">SL</th>
+                <th class="text-left w-20">Date</th>
+                <th class="text-left w-28">Staff Name</th>
+                <th class="text-left">Description (Particulars)</th>
+                <th class="text-right w-20">Bill (৳)</th>
+                <th class="text-right w-20 rounded-tr">Adv (৳)</th>
               </tr>
             </thead>
-            <tbody class="text-[10px]">
+            <tbody>
               ${allTransactions.map((t, index) => `
-                <tr class="${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'} border-b border-gray-100 no-break">
-                  <td class="p-1.5 font-medium text-gray-400 text-center align-top">${index + 1}</td>
-                  <td class="p-1.5 whitespace-nowrap align-top">${new Date(t.date).toLocaleDateString('bn-BD')}</td>
-                  <td class="p-1.5 font-bold text-gray-700 align-top">${t.staffName}</td>
-                  <td class="p-1.5 text-gray-600 align-top">
+                <tr class="${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}">
+                  <td class="text-center font-medium text-gray-400 align-top">${index + 1}</td>
+                  <td class="whitespace-nowrap align-top font-semibold text-gray-600">${new Date(t.date).toLocaleDateString('bn-BD')}</td>
+                  <td class="font-bold text-gray-700 align-top">${t.staffName}</td>
+                  <td class="text-gray-600 align-top">
                      <ul class="list-disc list-inside space-y-0 leading-tight">
                        ${t.descriptions.map(d => `<li>${d}</li>`).join('')}
                      </ul>
                   </td>
-                  <td class="p-1.5 text-right font-bold text-gray-800 align-top">${t.billAmount > 0 ? t.billAmount.toLocaleString() : '-'}</td>
-                  <td class="p-1.5 text-right font-bold text-blue-700 align-top">${t.advanceAmount > 0 ? t.advanceAmount.toLocaleString() : '-'}</td>
+                  <td class="text-right font-bold text-gray-800 align-top">${t.billAmount > 0 ? t.billAmount.toLocaleString() : '-'}</td>
+                  <td class="text-right font-bold text-blue-700 align-top">${t.advanceAmount > 0 ? t.advanceAmount.toLocaleString() : '-'}</td>
                 </tr>
               `).join('')}
             </tbody>
             <tfoot>
-               <tr class="bg-gray-100 text-gray-800 font-bold text-[10px] border-t-2 border-gray-300">
-                 <td colspan="4" class="p-2 text-right uppercase tracking-wider">Net Total</td>
-                 <td class="p-2 text-right text-indigo-700">৳ ${totalExpenseAmount.toLocaleString()}</td>
-                 <td class="p-2 text-right text-blue-700">৳ ${totalAdvanceGiven.toLocaleString()}</td>
+               <tr class="bg-gray-100 font-bold text-[10px] border-t-2 border-gray-300 text-gray-800">
+                 <td colspan="4" class="text-right uppercase p-2">Net Total</td>
+                 <td class="text-right text-indigo-900 p-2">৳ ${totalExpenseAmount.toLocaleString()}</td>
+                 <td class="text-right text-blue-800 p-2">৳ ${totalAdvanceGiven.toLocaleString()}</td>
                </tr>
             </tfoot>
           </table>
 
-          <!-- Compact Footer -->
-          <div class="mt-8 pt-4 border-t border-gray-200 flex justify-between items-end text-[9px] text-gray-400 no-break">
+          <!-- Footer -->
+          <div class="footer">
              <div>
-                <p class="font-bold text-gray-500">Depend Sourcing Ltd.</p>
-                <p>© ${new Date().getFullYear()} Internal Document.</p>
+                <p>Depend Sourcing Ltd. Confidential.</p>
+                <p>Accounts Department.</p>
              </div>
              <div class="text-right">
-               <div class="h-10 flex flex-col justify-end">
-                  <div class="w-32 border-b border-gray-300 mb-1"></div>
-               </div>
-               <p class="font-bold uppercase tracking-wider">Authorized Signature</p>
+               <div class="h-8 border-b border-gray-400 w-32 mb-1"></div>
+               <p class="font-bold uppercase">Accounts Signature</p>
              </div>
           </div>
+
         </div>
         <script>
           window.onload = () => { setTimeout(() => { window.print(); }, 500); }
