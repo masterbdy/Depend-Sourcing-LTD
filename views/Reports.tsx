@@ -125,8 +125,8 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
                 <p class="meta-text text-gray-500">Employee Attendance Log</p>
              </div>
              <div class="text-right meta-text">
-                <p><strong>Period:</strong> ${reportStartDate ? new Date(reportStartDate).toLocaleDateString('bn-BD') : 'Start'} — ${reportEndDate ? new Date(reportEndDate).toLocaleDateString('bn-BD') : 'Today'}</p>
-                <p>Generated: ${new Date().toLocaleString('bn-BD', {dateStyle:'medium', timeStyle:'short'})}</p>
+                <p><strong>Period:</strong> ${reportStartDate ? new Date(reportStartDate).toLocaleDateString('en-GB') : 'Start'} — ${reportEndDate ? new Date(reportEndDate).toLocaleDateString('en-GB') : 'Today'}</p>
+                <p>Generated: ${new Date().toLocaleString('en-GB', {dateStyle:'medium', timeStyle:'short'})}</p>
              </div>
           </div>
 
@@ -169,10 +169,10 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
             <tbody>
               ${filteredAttendance.map((a, index) => `
                 <tr class="${index % 2 === 0 ? 'bg-white' : 'theme-light-bg'}">
-                  <td class="font-bold text-gray-600 whitespace-nowrap">${new Date(a.date).toLocaleDateString('bn-BD')}</td>
+                  <td class="font-bold text-gray-600 whitespace-nowrap">${new Date(a.date).toLocaleDateString('en-GB')}</td>
                   <td class="font-bold text-gray-800">${a.staffName}</td>
-                  <td class="text-center font-medium">${new Date(a.checkInTime).toLocaleTimeString('bn-BD', {hour:'2-digit', minute:'2-digit'})}</td>
-                  <td class="text-center text-gray-500">${a.checkOutTime ? new Date(a.checkOutTime).toLocaleTimeString('bn-BD', {hour:'2-digit', minute:'2-digit'}) : '--'}</td>
+                  <td class="text-center font-medium">${new Date(a.checkInTime).toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'})}</td>
+                  <td class="text-center text-gray-500">${a.checkOutTime ? new Date(a.checkOutTime).toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'}) : '--'}</td>
                   <td class="text-center">
                     <span class="px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${
                       a.status === 'LATE' ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'
@@ -325,8 +325,8 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
                 <p class="meta-text text-gray-600">Expense & Advance Statement</p>
              </div>
              <div class="text-right meta-text">
-                <p><strong>Period:</strong> ${reportStartDate ? new Date(reportStartDate).toLocaleDateString('bn-BD') : 'Start'} — ${reportEndDate ? new Date(reportEndDate).toLocaleDateString('bn-BD') : 'Today'}</p>
-                <p>Generated: ${new Date().toLocaleString('bn-BD', {dateStyle:'medium', timeStyle:'short'})}</p>
+                <p><strong>Period:</strong> ${reportStartDate ? new Date(reportStartDate).toLocaleDateString('en-GB') : 'Start'} — ${reportEndDate ? new Date(reportEndDate).toLocaleDateString('en-GB') : 'Today'}</p>
+                <p>Generated: ${new Date().toLocaleString('en-GB', {dateStyle:'medium', timeStyle:'short'})}</p>
              </div>
           </div>
 
@@ -358,7 +358,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
               ${allTransactions.map((t, index) => `
                 <tr class="${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}">
                   <td class="text-center font-medium text-gray-400 align-top">${index + 1}</td>
-                  <td class="whitespace-nowrap align-top font-semibold text-gray-600">${new Date(t.date).toLocaleDateString('bn-BD')}</td>
+                  <td class="whitespace-nowrap align-top font-semibold text-gray-600">${new Date(t.date).toLocaleDateString('en-GB')}</td>
                   <td class="font-bold text-gray-700 align-top">${t.staffName}</td>
                   <td class="text-gray-600 align-top">
                      <ul class="list-disc list-inside space-y-0 leading-tight">
@@ -387,7 +387,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
              </div>
              <div class="text-right">
                <div class="h-8 border-b border-gray-400 w-32 mb-1"></div>
-               <p class="font-bold uppercase">Accounts Signature</p>
+               <p class="font-bold uppercase">Managing Director Signature</p>
              </div>
           </div>
 

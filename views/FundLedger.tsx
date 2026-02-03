@@ -25,9 +25,13 @@ interface Transaction {
   displayType: string;
 }
 
-const FundLedgerView: React.FC<FundProps> = ({ funds, setFunds, expenses, advances, totalFund, cashOnHand, role }) => {
+const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = [], advances = [], totalFund, cashOnHand, role }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [formData, setFormData] = useState({ amount: 0, note: '' });
+  const [formData, setFormData] = useState({ 
+    amount: 0, 
+    note: '',
+    date: new Date().toISOString().split('T')[0] 
+  });
 
   // Filtering States
   const [searchTerm, setSearchTerm] = useState('');
@@ -40,51 +44,57 @@ const FundLedgerView: React.FC<FundProps> = ({ funds, setFunds, expenses, advanc
     const list: Transaction[] = [];
 
     // 1. Funds (Money In / Credit)
-    funds.forEach(f => {
-      if (!f.isDeleted) {
-        list.push({
-          id: f.id,
-          date: f.date,
-          description: f.note,
-          amount: f.amount,
-          type: 'FUND_IN',
-          originalType: 'FUND',
-          displayType: 'ফান্ড জমা (Credit)'
-        });
-      }
-    });
+    if (Array.isArray(funds)) {
+      funds.forEach(f => {
+        if (!f.isDeleted) {
+          list.push({
+            id: f.id,
+            date: f.date,
+            description: f.note,
+            amount: f.amount,
+            type: 'FUND_IN',
+            originalType: 'FUND',
+            displayType: 'ফান্ড জমা (Credit)'
+          });
+        }
+      });
+    }
 
     // 2. Approved Expenses (Money Out / Debit)
-    expenses.forEach(e => {
-      if (!e.isDeleted && e.status === 'APPROVED') {
-        list.push({
-          id: e.id,
-          date: e.createdAt,
-          description: `${e.reason} (${e.staffName})`,
-          amount: e.amount,
-          type: 'EXPENSE_OUT',
-          originalType: 'EXPENSE',
-          displayType: 'খরচ (Debit)'
-        });
-      }
-    });
+    if (Array.isArray(expenses)) {
+      expenses.forEach(e => {
+        if (!e.isDeleted && e.status === 'APPROVED') {
+          list.push({
+            id: e.id,
+            date: e.createdAt,
+            description: `${e.reason} (${e.staffName})`,
+            amount: e.amount,
+            type: 'EXPENSE_OUT',
+            originalType: 'EXPENSE',
+            displayType: 'খরচ (Debit)'
+          });
+        }
+      });
+    }
 
     // 3. Advances Given (Money Out / Debit) - Assuming positive amount is Money Out
-    advances.forEach(a => {
-      if (!a.isDeleted && a.amount > 0) {
-        const isSalary = a.type === 'SALARY';
-        list.push({
-          id: a.id,
-          date: a.date,
-          description: `${isSalary ? 'বেতন অগ্রিম' : 'সাধারণ অগ্রিম'}: ${a.staffName} ${a.note ? `(${a.note})` : ''}`,
-          amount: a.amount,
-          type: 'ADVANCE_OUT',
-          originalType: 'ADVANCE',
-          subType: a.type,
-          displayType: isSalary ? 'বেতন অগ্রিম (Salary Adv)' : 'সাধারণ অগ্রিম (Regular Adv)'
-        });
-      }
-    });
+    if (Array.isArray(advances)) {
+      advances.forEach(a => {
+        if (!a.isDeleted && a.amount > 0) {
+          const isSalary = a.type === 'SALARY';
+          list.push({
+            id: a.id,
+            date: a.date,
+            description: `${isSalary ? 'বেতন অগ্রিম' : 'সাধারণ অগ্রিম'}: ${a.staffName} ${a.note ? `(${a.note})` : ''}`,
+            amount: a.amount,
+            type: 'ADVANCE_OUT',
+            originalType: 'ADVANCE',
+            subType: a.type,
+            displayType: isSalary ? 'বেতন অগ্রিম (Salary Adv)' : 'সাধারণ অগ্রিম (Regular Adv)'
+          });
+        }
+      });
+    }
 
     // Sort by Date (Newest First)
     return list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -116,15 +126,23 @@ const FundLedgerView: React.FC<FundProps> = ({ funds, setFunds, expenses, advanc
 
   const handleAddFund = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Construct Date with current time to preserve relative ordering if added today
+    // or just set to selected date
+    const submitDate = new Date(formData.date);
+    const now = new Date();
+    // Use selected date but current time, to make sorting predictable for same-day entries
+    submitDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
+
     const newEntry: FundEntry = {
       id: Math.random().toString(36).substr(2, 9),
       amount: Number(formData.amount),
       note: formData.note,
-      date: new Date().toISOString()
+      date: submitDate.toISOString()
     };
     setFunds(prev => [...prev, newEntry]);
     setIsModalOpen(false);
-    setFormData({ amount: 0, note: '' });
+    setFormData({ amount: 0, note: '', date: new Date().toISOString().split('T')[0] });
   };
 
   const deleteEntry = (id: string) => {
@@ -329,6 +347,19 @@ const FundLedgerView: React.FC<FundProps> = ({ funds, setFunds, expenses, advanc
               <button onClick={() => setIsModalOpen(false)} className="text-indigo-200 hover:text-white transition-colors text-2xl">×</button>
             </div>
             <form onSubmit={handleAddFund} className="p-6 space-y-5">
+              <div>
+                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">তারিখ (Date)</label>
+                <div className="relative">
+                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input 
+                    type="date"
+                    required
+                    className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-gray-800"
+                    value={formData.date}
+                    onChange={(e) => setFormData({...formData, date: e.target.value})}
+                  />
+                </div>
+              </div>
               <div>
                 <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">টাকার পরিমাণ (MD থেকে প্রাপ্ত)</label>
                 <div className="relative">
