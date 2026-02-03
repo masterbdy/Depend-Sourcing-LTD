@@ -76,11 +76,13 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
     amount: number;
     note: string;
     date: string;
+    type: 'REGULAR' | 'SALARY';
   }>({
     staffId: '',
     amount: 0,
-    note: 'Salary Adjustment',
-    date: new Date().toISOString().split('T')[0]
+    note: 'Adjustment',
+    date: new Date().toISOString().split('T')[0],
+    type: 'SALARY'
   });
 
   // Gift Points Modal State
@@ -327,7 +329,8 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
       staffId,
       amount: 0,
       note: 'Salary Adjustment',
-      date: new Date().toISOString().split('T')[0]
+      date: new Date().toISOString().split('T')[0],
+      type: 'SALARY' // Default to salary
     });
     setIsRepayModalOpen(true);
   };
@@ -368,20 +371,25 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
     const submitDate = new Date(repayFormData.date);
     const now = new Date();
     submitDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
+    
+    // Tag the adjustment properly
+    const adjustmentType = repayFormData.type === 'SALARY' ? 'SALARY' : 'REGULAR';
+    const notePrefix = adjustmentType === 'SALARY' ? '[SALARY ADJ]' : '[REGULAR ADJ]';
+
     const newEntry: AdvanceLog = {
       id: Math.random().toString(36).substr(2, 9),
       staffId: staff.id,
       staffName: staff.name,
       amount: -Number(repayFormData.amount),
-      note: `[REPAYMENT] ${repayFormData.note}`,
+      note: `${notePrefix} ${repayFormData.note}`,
       date: submitDate.toISOString(),
       givenBy: currentUser || 'Admin',
       isDeleted: false,
-      type: 'REGULAR'
+      type: adjustmentType
     };
     setAdvances(prev => [...prev, newEntry]);
     setIsRepayModalOpen(false);
-    alert(`${staff.name}-এর বেতন থেকে ৳${repayFormData.amount} সমন্বয় করা হয়েছে।`);
+    alert(`${staff.name}-এর ${adjustmentType === 'SALARY' ? 'বেতন' : 'রেগুলার হিসাব'} থেকে ৳${repayFormData.amount} সমন্বয় করা হয়েছে।`);
   };
 
   // ... (Filter and Stats Logic)
@@ -735,10 +743,17 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
             <div className="p-6 bg-green-600 text-white flex justify-between items-center">
-              <h3 className="font-bold text-xl flex items-center gap-2"><WalletCards className="w-6 h-6"/> বেতন সমন্বয় (Repay)</h3>
+              <h3 className="font-bold text-xl flex items-center gap-2"><WalletCards className="w-6 h-6"/> টাকা সমন্বয় (Adjustment)</h3>
               <button onClick={() => setIsRepayModalOpen(false)} className="p-1 hover:bg-green-700 rounded-full"><X className="w-6 h-6"/></button>
             </div>
             <form onSubmit={handleRepay} className="p-6 space-y-4">
+               <div>
+                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">সমন্বয়ের ধরণ</label>
+                 <div className="flex gap-2">
+                    <button type="button" onClick={() => setRepayFormData({...repayFormData, type: 'SALARY'})} className={`flex-1 py-2 rounded-lg text-xs font-bold border ${repayFormData.type === 'SALARY' ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-white text-gray-500'}`}>বেতন সমন্বয়</button>
+                    <button type="button" onClick={() => setRepayFormData({...repayFormData, type: 'REGULAR'})} className={`flex-1 py-2 rounded-lg text-xs font-bold border ${repayFormData.type === 'REGULAR' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-white text-gray-500'}`}>রেগুলার সমন্বয়</button>
+                 </div>
+               </div>
                <div>
                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">কাটার পরিমাণ (Deduct)</label>
                  <input 
@@ -833,7 +848,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
                            <div>
                               <div className="flex items-center gap-2 mb-1">
                                 <span className={`text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider ${adv.type === 'SALARY' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
-                                  {adv.type === 'SALARY' ? 'Salary Adv' : 'Regular Adv'}
+                                  {adv.type === 'SALARY' ? 'Salary' : 'Regular'}
                                 </span>
                                 <p className="text-xs text-gray-400 font-bold">{new Date(adv.date).toLocaleDateString('bn-BD')}</p>
                               </div>
