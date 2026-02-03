@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef } from 'react';
-import { Receipt, Camera, CheckCircle, XCircle, Clock, Eye, Trash2, Search, Calendar, FilterX, RotateCcw, CheckCheck, Sparkles, Image as ImageIcon, X, Edit3, Eraser, AlertTriangle, FileWarning } from 'lucide-react';
+import { Receipt, Camera, CheckCircle, XCircle, Clock, Eye, Trash2, Search, Calendar, FilterX, RotateCcw, CheckCheck, Sparkles, Image as ImageIcon, X, Edit3, Eraser, AlertTriangle, FileWarning, User } from 'lucide-react';
 import { Expense, Staff, UserRole, AppNotification } from '../types';
 
 interface ExpenseProps {
@@ -37,10 +37,13 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
   
   // Filtering States
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedStaffFilter, setSelectedStaffFilter] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
   const activeStaff = staffList.filter(s => !s.deletedAt && s.status === 'ACTIVE');
+  // For filter dropdown, include inactive staff too so we can see history
+  const allStaffForFilter = staffList.filter(s => !s.deletedAt);
 
   // Helper for safe date comparison
   const getSafeDateStr = (dateStr: string) => {
@@ -63,6 +66,11 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
          if (e.staffName !== currentUser) return false;
       }
       
+      // Filter by Selected Staff (Dropdown)
+      if (selectedStaffFilter && e.staffId !== selectedStaffFilter) {
+        return false;
+      }
+      
       const matchesSearch = 
         e.reason.toLowerCase().includes(searchTerm.toLowerCase()) || 
         e.staffName.toLowerCase().includes(searchTerm.toLowerCase());
@@ -75,7 +83,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
 
       return matchesSearch && matchesDate;
     });
-  }, [expenses, searchTerm, startDate, endDate, role, currentUser]);
+  }, [expenses, searchTerm, selectedStaffFilter, startDate, endDate, role, currentUser]);
 
   const handleReasonChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const text = e.target.value;
@@ -400,6 +408,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
 
   const clearFilters = () => {
     setSearchTerm('');
+    setSelectedStaffFilter('');
     setStartDate('');
     setEndDate('');
   };
@@ -465,8 +474,9 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
 
       {/* Filter Bar */}
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-wrap items-end gap-4">
+        {/* Keyword Search */}
         <div className="flex-1 min-w-[200px]">
-          <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">খুঁজুন (কারন বা নাম)</label>
+          <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">খুঁজুন (কারন)</label>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input 
@@ -478,6 +488,27 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
             />
           </div>
         </div>
+
+        {/* Staff Filter Dropdown (Added) */}
+        {(role === UserRole.ADMIN || role === UserRole.MD) && (
+          <div className="w-full sm:w-auto min-w-[150px]">
+            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">স্টাফ ফিল্টার</label>
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <select 
+                className="w-full pl-9 pr-8 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-gray-700 appearance-none cursor-pointer"
+                value={selectedStaffFilter}
+                onChange={(e) => setSelectedStaffFilter(e.target.value)}
+              >
+                <option value="">সকল স্টাফ (All)</option>
+                {allStaffForFilter.map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
+
         <div className="w-full sm:w-auto">
           <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">শুরু</label>
           <div className="relative">

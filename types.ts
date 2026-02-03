@@ -138,7 +138,8 @@ export interface ChatMessage {
   timestamp: string;
   type?: 'TEXT' | 'SYSTEM_MOVEMENT'; 
   targetView?: string; 
-  reactions?: Reaction[]; // Added reactions
+  reactions?: Reaction[];
+  hiddenFor?: string[]; // Array of users who deleted this message for themselves
 }
 
 export interface StaffLocation {

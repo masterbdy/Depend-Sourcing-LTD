@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Bell, Plus, Trash2, Megaphone, Info, AlertCircle, X, Check, Pin, Eye, User } from 'lucide-react';
+import { Bell, Plus, Trash2, Megaphone, Info, AlertCircle, X, Check, Pin, Eye, User, CalendarDays } from 'lucide-react';
 import { Notice, UserRole } from '../types';
 import { ROLE_LABELS } from '../constants';
 
@@ -70,49 +70,64 @@ const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices, setNotices, role
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="space-y-8">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-gray-200 pb-6">
         <div>
-          <h2 className="text-2xl font-black text-gray-800 tracking-tight flex items-center gap-3">
-             <Bell className="w-6 h-6 text-indigo-600" />
+          <h2 className="text-3xl font-black text-gray-800 tracking-tight flex items-center gap-3">
+             <div className="bg-indigo-100 p-2 rounded-xl">
+               <Bell className="w-8 h-8 text-indigo-600" />
+             </div>
              অফিস নোটিশ বোর্ড
           </h2>
-          <p className="text-sm text-gray-500 mt-1">অফিসের সকল ঘোষণা ও নির্দেশাবলী</p>
+          <p className="text-gray-500 mt-2 font-medium">অফিসের সকল ঘোষণা, আপডেট এবং নির্দেশাবলী</p>
         </div>
         
         {canPost && (
           <button 
             onClick={() => setIsModalOpen(true)}
-            className="bg-indigo-600 text-white px-6 py-3 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 flex items-center gap-2 active:scale-95"
+            className="bg-indigo-600 text-white px-6 py-3 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-200 flex items-center gap-2 active:scale-95 transform hover:-translate-y-0.5"
           >
             <Plus className="w-5 h-5" />
-            নতুন নোটিশ দিন
+            নতুন ঘোষণা প্রকাশ করুন
           </button>
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {activeNotices.map((notice) => {
             const reactions = notice.reactions || [];
             const hasSeen = reactions.some(r => r.userId === currentUser);
+            const isUrgent = notice.type === 'URGENT';
 
             return (
             <div 
               key={notice.id} 
-              className={`relative rounded-2xl shadow-sm border p-6 flex flex-col transition-transform hover:-translate-y-1 duration-300 ${
-                notice.type === 'URGENT' 
-                  ? 'bg-red-50 border-red-200' 
-                  : 'bg-white border-gray-100'
+              className={`group relative rounded-3xl p-6 flex flex-col transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl ${
+                isUrgent 
+                  ? 'bg-gradient-to-br from-red-50 via-white to-red-50/30 border-2 border-red-100 shadow-red-100' 
+                  : 'bg-gradient-to-br from-white via-indigo-50/20 to-white border border-gray-100 shadow-lg shadow-gray-100'
               }`}
             >
-               <div className="flex justify-between items-start mb-4">
-                 <div className={`p-2 rounded-xl ${notice.type === 'URGENT' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
-                   {notice.type === 'URGENT' ? <AlertCircle className="w-6 h-6 animate-pulse" /> : <Pin className="w-6 h-6" />}
-                 </div>
+               {/* Decorative PIN */}
+               <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center">
+                  <div className={`w-3 h-3 rounded-full shadow-sm mb-[-6px] z-0 ${isUrgent ? 'bg-red-800' : 'bg-indigo-800'}`}></div>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shadow-md border-2 border-white relative z-10 ${isUrgent ? 'bg-red-100 text-red-600' : 'bg-indigo-100 text-indigo-600'}`}>
+                      <Pin className="w-4 h-4 fill-current transform -rotate-45" />
+                  </div>
+               </div>
+
+               {/* Header Section */}
+               <div className="mt-4 flex justify-between items-start mb-3">
+                 <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm ${
+                    isUrgent ? 'bg-red-500 text-white' : 'bg-indigo-500 text-white'
+                 }`}>
+                    {isUrgent ? 'জরুরী ঘোষণা' : 'নোটিশ'}
+                 </span>
+                 
                  {canPost && (
                    <button 
                       onClick={(e) => deleteNotice(e, notice.id)}
-                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-white rounded-lg transition-colors z-10"
+                      className="text-gray-300 hover:text-red-500 transition-colors p-1"
                       title="মুছে ফেলুন"
                    >
                       <Trash2 className="w-4 h-4" />
@@ -120,67 +135,76 @@ const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices, setNotices, role
                  )}
                </div>
 
-               <div className="flex-1">
-                  <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded mb-2 inline-block ${
-                    notice.type === 'URGENT' ? 'bg-red-200 text-red-800' : 'bg-gray-100 text-gray-500'
-                  }`}>
-                    {notice.type === 'URGENT' ? 'জরুরী ঘোষণা' : 'সাধারণ নোটিশ'}
-                  </span>
-                  <h3 className={`text-lg font-bold mb-2 ${notice.type === 'URGENT' ? 'text-red-900' : 'text-gray-800'}`}>
+               {/* Content */}
+               <div className="flex-1 mb-6">
+                  <h3 className={`text-xl font-bold mb-3 leading-tight ${isUrgent ? 'text-red-900' : 'text-gray-800'}`}>
                     {notice.title}
                   </h3>
-                  <p className={`text-sm leading-relaxed whitespace-pre-line ${notice.type === 'URGENT' ? 'text-red-800' : 'text-gray-600'}`}>
+                  <div className={`text-sm leading-relaxed whitespace-pre-line p-3 rounded-xl bg-white/60 border border-white/50 backdrop-blur-sm ${isUrgent ? 'text-red-800' : 'text-gray-600'}`}>
                     {notice.content}
-                  </p>
+                  </div>
                </div>
 
-               <div className="mt-4 pt-4 border-t border-gray-200/50 flex justify-between items-center">
+               {/* Footer Info */}
+               <div className="flex items-center gap-2 mb-4 pb-4 border-b border-gray-100">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${isUrgent ? 'bg-red-100 text-red-700' : 'bg-indigo-100 text-indigo-700'}`}>
+                     {notice.postedBy.charAt(0)}
+                  </div>
+                  <div>
+                     <p className="text-[10px] uppercase font-bold text-gray-400">প্রকাশক</p>
+                     <p className="text-xs font-bold text-gray-700">{notice.postedBy.split('(')[0]}</p>
+                  </div>
+                  <div className="ml-auto text-right">
+                     <p className="text-[10px] uppercase font-bold text-gray-400">তারিখ</p>
+                     <p className="text-xs font-bold text-gray-700 flex items-center gap-1">
+                        <CalendarDays className="w-3 h-3" />
+                        {new Date(notice.date).toLocaleDateString('bn-BD', { day: 'numeric', month: 'short' })}
+                     </p>
+                  </div>
+               </div>
+
+               {/* Action Bar */}
+               <div className="flex justify-between items-center">
                   {/* Reaction Button */}
                   <button 
                     onClick={() => toggleReaction(notice.id)}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all active:scale-95 border ${hasSeen ? 'bg-green-100 text-green-700 border-green-200' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 shadow-sm border ${hasSeen ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}
                   >
-                     {hasSeen ? <Check className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                     {hasSeen ? 'Seen' : 'Mark as Seen'}
+                     {hasSeen ? <Check className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                     {hasSeen ? 'দেখেছি (Seen)' : 'মার্ক করুন (Seen)'}
                   </button>
 
                   {/* Seen Count & List Trigger */}
                   {reactions.length > 0 && (
                     <button 
                       onClick={() => setSeenListNoticeId(notice.id)}
-                      className="flex items-center -space-x-2 overflow-hidden hover:scale-105 transition-transform"
-                      title="Click to view list"
+                      className="flex items-center -space-x-2 overflow-hidden hover:scale-105 transition-transform p-1"
+                      title="কারা দেখেছে?"
                     >
                        {reactions.slice(0, 3).map((r, i) => (
-                          <div key={i} className="w-7 h-7 rounded-full bg-indigo-100 border-2 border-white flex items-center justify-center text-[10px] font-bold text-indigo-600" title={r.userName}>
+                          <div key={i} className="w-8 h-8 rounded-full bg-white border-2 border-indigo-50 flex items-center justify-center text-[10px] font-bold text-indigo-600 shadow-sm" title={r.userName}>
                              {r.userName.charAt(0)}
                           </div>
                        ))}
                        {reactions.length > 3 && (
-                          <div className="w-7 h-7 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center text-[9px] font-bold text-gray-500">
+                          <div className="w-8 h-8 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center text-[9px] font-bold text-gray-500 shadow-sm">
                              +{reactions.length - 3}
                           </div>
                        )}
-                       <span className="text-[10px] text-gray-400 font-bold ml-3 underline">View All</span>
                     </button>
                   )}
-               </div>
-               
-               <div className="mt-2 text-right">
-                  <p className="text-[9px] text-gray-400">
-                    Posted: {new Date(notice.date).toLocaleDateString('bn-BD', { day: 'numeric', month: 'short' })}
-                  </p>
                </div>
             </div>
         )})}
 
         {activeNotices.length === 0 && (
-          <div className="col-span-full py-20 text-center bg-white rounded-3xl border border-dashed border-gray-200">
-             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-50 text-gray-300 mb-4">
-                <Bell className="w-8 h-8" />
+          <div className="col-span-full py-24 text-center bg-white rounded-3xl border-2 border-dashed border-gray-200">
+             <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gray-50 text-gray-300 mb-6 animate-pulse">
+                <Bell className="w-10 h-10" />
              </div>
-             <p className="text-lg font-bold text-gray-500">বর্তমানে কোনো নোটিশ নেই</p>
-             {canPost && <p className="text-sm text-gray-400">নতুন ঘোষণা দিতে উপরের বাটনে ক্লিক করুন</p>}
+             <h3 className="text-xl font-bold text-gray-600">বর্তমানে কোনো নোটিশ নেই</h3>
+             <p className="text-gray-400 mt-2">সবকিছু আপ-টু-ডেট আছে!</p>
+             {canPost && <button onClick={() => setIsModalOpen(true)} className="mt-6 text-indigo-600 font-bold hover:underline">নতুন নোটিশ তৈরি করুন</button>}
           </div>
         )}
       </div>
@@ -191,21 +215,24 @@ const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices, setNotices, role
            <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[60vh]" onClick={e => e.stopPropagation()}>
               <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                  <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                    <Eye className="w-4 h-4 text-indigo-600" /> Seen By List
+                    <Eye className="w-4 h-4 text-indigo-600" /> কারা নোটিশটি দেখেছে
                  </h3>
                  <button onClick={() => setSeenListNoticeId(null)} className="p-1 hover:bg-gray-200 rounded-full transition-colors"><X className="w-4 h-4 text-gray-500"/></button>
               </div>
               <div className="flex-1 overflow-y-auto p-2 space-y-1">
                  {getNoticeReactions(seenListNoticeId).map((r, idx) => (
-                    <div key={idx} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-xl transition-colors">
-                       <div className="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-xs">
+                    <div key={idx} className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-xl transition-colors border-b border-gray-50 last:border-0">
+                       <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs border border-indigo-200">
                           {r.userName.charAt(0)}
                        </div>
-                       <p className="text-sm font-bold text-gray-700">{r.userName}</p>
+                       <div>
+                          <p className="text-sm font-bold text-gray-800">{r.userName}</p>
+                          <p className="text-[10px] text-green-600 font-bold flex items-center gap-1"><Check className="w-3 h-3"/> Seen</p>
+                       </div>
                     </div>
                  ))}
                  {getNoticeReactions(seenListNoticeId).length === 0 && (
-                    <p className="text-center text-gray-400 text-xs py-4">No one has seen this yet.</p>
+                    <p className="text-center text-gray-400 text-xs py-8">এখনো কেউ দেখেনি।</p>
                  )}
               </div>
            </div>
@@ -242,12 +269,12 @@ const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices, setNotices, role
                 <div>
                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">নোটিশের ধরণ</label>
                    <div className="flex gap-4">
-                      <label className={`flex-1 cursor-pointer border-2 rounded-xl p-3 flex items-center justify-center gap-2 transition-all ${formData.type === 'NORMAL' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-100 bg-white text-gray-500 hover:bg-gray-50'}`}>
+                      <label className={`flex-1 cursor-pointer border-2 rounded-xl p-3 flex items-center justify-center gap-2 transition-all ${formData.type === 'NORMAL' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-sm' : 'border-gray-100 bg-white text-gray-500 hover:bg-gray-50'}`}>
                          <input type="radio" className="hidden" name="type" checked={formData.type === 'NORMAL'} onChange={() => setFormData({...formData, type: 'NORMAL'})} />
                          <Info className="w-5 h-5" />
                          <span className="font-bold text-sm">সাধারণ নোটিশ</span>
                       </label>
-                      <label className={`flex-1 cursor-pointer border-2 rounded-xl p-3 flex items-center justify-center gap-2 transition-all ${formData.type === 'URGENT' ? 'border-red-600 bg-red-50 text-red-700' : 'border-gray-100 bg-white text-gray-500 hover:bg-gray-50'}`}>
+                      <label className={`flex-1 cursor-pointer border-2 rounded-xl p-3 flex items-center justify-center gap-2 transition-all ${formData.type === 'URGENT' ? 'border-red-600 bg-red-50 text-red-700 shadow-sm' : 'border-gray-100 bg-white text-gray-500 hover:bg-gray-50'}`}>
                          <input type="radio" className="hidden" name="type" checked={formData.type === 'URGENT'} onChange={() => setFormData({...formData, type: 'URGENT'})} />
                          <AlertCircle className="w-5 h-5" />
                          <span className="font-bold text-sm">জরুরী ঘোষণা</span>

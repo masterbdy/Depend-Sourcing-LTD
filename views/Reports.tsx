@@ -200,31 +200,58 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
       return;
     }
 
-    // Merge and Sort by Date
-    const allTransactions = [
-      ...filteredExpenses.map(e => ({
-        id: e.id,
-        date: e.createdAt,
-        type: 'BILL',
-        staffName: e.staffName,
-        description: e.reason,
-        amount: e.amount,
-        status: e.status
-      })),
-      ...filteredAdvances.map(a => ({
-        id: a.id,
-        date: a.date,
-        type: 'ADVANCE',
-        staffName: a.staffName,
-        description: (a.type === 'SALARY' ? '[SALARY ADV] ' : '') + (a.note || 'Advance Payment'),
-        amount: a.amount,
-        status: 'PAID'
-      }))
-    ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    // --- AGGREGATION LOGIC ---
+    // Key: YYYY-MM-DD_staffId
+    const groupedData: Record<string, { date: string, staffName: string, descriptions: string[], billAmount: number, advanceAmount: number }> = {};
+    const toKey = (dateStr: string, id: string) => `${new Date(dateStr).toDateString()}_${id}`;
 
-    const totalExpenseAmount = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
-    const totalApproved = filteredExpenses.filter(e => e.status === 'APPROVED').reduce((sum, e) => sum + e.amount, 0);
-    const totalAdvanceGiven = filteredAdvances.reduce((sum, a) => sum + a.amount, 0);
+    // Process Expenses (Bills)
+    filteredExpenses.forEach(e => {
+        const key = toKey(e.createdAt, e.staffId);
+        if(!groupedData[key]) {
+            groupedData[key] = {
+                date: e.createdAt,
+                staffName: e.staffName,
+                descriptions: [],
+                billAmount: 0,
+                advanceAmount: 0
+            };
+        }
+        // Only Add bill description if amount > 0
+        groupedData[key].descriptions.push(`${e.reason}`);
+        // If pending, visually mark? No, just calculate totals. Assuming approved for ledger or show all with status?
+        // Let's assume we show everything but maybe mark status in description if needed. 
+        // For simple ledger, usually approved expenses are counted. 
+        // But users want to see "Record". Let's include status if not Approved.
+        if(e.status !== 'APPROVED') {
+           groupedData[key].descriptions[groupedData[key].descriptions.length - 1] += ` (${e.status})`;
+        }
+        groupedData[key].billAmount += Number(e.amount);
+    });
+
+    // Process Advances
+    filteredAdvances.forEach(a => {
+        const key = toKey(a.date, a.staffId);
+        if(!groupedData[key]) {
+            groupedData[key] = {
+                date: a.date,
+                staffName: a.staffName,
+                descriptions: [],
+                billAmount: 0,
+                advanceAmount: 0
+            };
+        }
+        const prefix = a.type === 'SALARY' ? '[Salary Adv]' : '[Adv]';
+        groupedData[key].descriptions.push(`${prefix} ${a.note || ''}`);
+        groupedData[key].advanceAmount += Number(a.amount);
+    });
+
+    // Convert to Array & Sort
+    const allTransactions = Object.values(groupedData).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    // Calculate Totals for Footer
+    const totalExpenseAmount = allTransactions.reduce((sum, t) => sum + t.billAmount, 0);
+    const totalAdvanceGiven = allTransactions.reduce((sum, t) => sum + t.advanceAmount, 0);
 
     // Open new window for print view
     const printWindow = window.open('', '_blank');
@@ -268,14 +295,10 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
           </div>
 
           <!-- Summary Cards -->
-          <div class="grid grid-cols-3 gap-4 mb-8">
-            <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
-               <p class="text-[9px] text-gray-500 uppercase font-black tracking-widest">Total Bill Submitted</p>
-               <p class="text-2xl font-black text-gray-800 mt-1">৳ ${totalExpenseAmount.toLocaleString()}</p>
-            </div>
+          <div class="grid grid-cols-2 gap-4 mb-8">
             <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
-               <p class="text-[9px] text-indigo-600 uppercase font-black tracking-widest">Total Approved (Paid)</p>
-               <p class="text-2xl font-black text-indigo-700 mt-1">৳ ${totalApproved.toLocaleString()}</p>
+               <p class="text-[9px] text-indigo-600 uppercase font-black tracking-widest">Total Bill Submitted</p>
+               <p class="text-2xl font-black text-indigo-700 mt-1">৳ ${totalExpenseAmount.toLocaleString()}</p>
             </div>
             <div class="bg-blue-50 p-4 rounded-xl border border-blue-100">
                <p class="text-[9px] text-blue-600 uppercase font-black tracking-widest">Total Advance Given</p>
@@ -287,48 +310,35 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
           <table class="w-full text-left border-collapse mb-8">
             <thead>
               <tr class="bg-indigo-900 text-white text-[10px] uppercase tracking-wider">
-                <th class="p-3 rounded-tl-lg font-bold">SL</th>
-                <th class="p-3 font-bold">Date</th>
-                <th class="p-3 font-bold">Type</th>
-                <th class="p-3 font-bold">Staff Name</th>
-                <th class="p-3 font-bold w-1/4">Description</th>
-                <th class="p-3 font-bold text-center">Status</th>
-                <th class="p-3 font-bold text-right rounded-tr-lg">Amount</th>
+                <th class="p-3 rounded-tl-lg font-bold w-12">SL</th>
+                <th class="p-3 font-bold w-24">Date</th>
+                <th class="p-3 font-bold w-32">Staff Name</th>
+                <th class="p-3 font-bold">Description (Details)</th>
+                <th class="p-3 font-bold text-right w-24">Bill (৳)</th>
+                <th class="p-3 font-bold text-right rounded-tr-lg w-24">Advance (৳)</th>
               </tr>
             </thead>
             <tbody class="text-sm">
               ${allTransactions.map((t, index) => `
                 <tr class="${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'} border-b border-gray-100 no-break">
-                  <td class="p-3 font-medium text-gray-400">${index + 1}</td>
+                  <td class="p-3 font-medium text-gray-400 text-xs">${index + 1}</td>
                   <td class="p-3 whitespace-nowrap text-xs">${new Date(t.date).toLocaleDateString('bn-BD')}</td>
-                  <td class="p-3">
-                    <span class="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-tight ${t.type === 'ADVANCE' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}">
-                      ${t.type === 'ADVANCE' ? 'ADVANCE' : 'EXPENSE'}
-                    </span>
-                  </td>
                   <td class="p-3 font-bold text-gray-700 text-xs">${t.staffName}</td>
-                  <td class="p-3 text-gray-600 text-xs">${t.description}</td>
-                  <td class="p-3 text-center">
-                    <span class="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-tight ${
-                      t.status === 'APPROVED' || t.status === 'PAID' ? 'bg-green-100 text-green-700' : 
-                      t.status === 'PENDING' ? 'bg-orange-100 text-orange-700' : 
-                      t.status === 'REJECTED' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
-                    }">
-                      ${t.status}
-                    </span>
+                  <td class="p-3 text-gray-600 text-xs">
+                     <ul class="list-disc list-inside space-y-0.5">
+                       ${t.descriptions.map(d => `<li>${d}</li>`).join('')}
+                     </ul>
                   </td>
-                  <td class="p-3 text-right font-bold ${t.type === 'ADVANCE' ? 'text-blue-700' : 'text-gray-800'}">৳ ${t.amount.toLocaleString()}</td>
+                  <td class="p-3 text-right font-bold text-gray-800">${t.billAmount > 0 ? t.billAmount.toLocaleString() : '-'}</td>
+                  <td class="p-3 text-right font-bold text-blue-700">${t.advanceAmount > 0 ? t.advanceAmount.toLocaleString() : '-'}</td>
                 </tr>
               `).join('')}
             </tbody>
             <tfoot>
-               <tr class="bg-gray-100 text-gray-800 font-bold text-xs">
-                 <td colspan="6" class="p-3 text-right uppercase tracking-wider">Net Bill Approved (Expense)</td>
-                 <td class="p-3 text-right">৳ ${totalApproved.toLocaleString()}</td>
-               </tr>
-               <tr class="bg-gray-100 text-blue-700 font-bold text-xs">
-                 <td colspan="6" class="p-3 text-right uppercase tracking-wider">Net Advance Given</td>
-                 <td class="p-3 text-right rounded-br-lg">৳ ${totalAdvanceGiven.toLocaleString()}</td>
+               <tr class="bg-gray-100 text-gray-800 font-bold text-xs border-t-2 border-gray-200">
+                 <td colspan="4" class="p-3 text-right uppercase tracking-wider">Net Total</td>
+                 <td class="p-3 text-right text-indigo-700">৳ ${totalExpenseAmount.toLocaleString()}</td>
+                 <td class="p-3 text-right text-blue-700 rounded-br-lg">৳ ${totalAdvanceGiven.toLocaleString()}</td>
                </tr>
             </tfoot>
           </table>

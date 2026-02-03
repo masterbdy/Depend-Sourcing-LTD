@@ -434,8 +434,6 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
     const approved = staffExpenses.filter(e => e.status === 'APPROVED').reduce((sum, e) => sum + Number(e.amount || 0), 0);
     
     const staffAdvances = safeAdvances.filter(a => a && a.staffId === staffId && !a.isDeleted);
-    // Total Advance includes ALL advances (for admin reference if needed)
-    // const totalAdvance = staffAdvances.reduce((sum, a) => sum + Number(a.amount || 0), 0);
     
     // Separate breakdown
     const totalRegularAdv = staffAdvances.filter(a => a.type !== 'SALARY').reduce((sum, a) => sum + Number(a.amount || 0), 0);
