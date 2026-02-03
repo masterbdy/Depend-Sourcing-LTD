@@ -72,7 +72,8 @@ const TrashView: React.FC<TrashProps> = ({ staffList, setStaffList, movements, s
           </div>
         </div>
         
-        {(role === UserRole.ADMIN || role === UserRole.MD) && hasTrash && (
+        {/* Only Admin can empty trash */}
+        {role === UserRole.ADMIN && hasTrash && (
            <button 
              onClick={handleEmptyTrash}
              className="bg-red-600 text-white px-5 py-3 rounded-xl font-bold hover:bg-red-700 transition-all shadow-lg shadow-red-200 flex items-center gap-2 active:scale-95 whitespace-nowrap"

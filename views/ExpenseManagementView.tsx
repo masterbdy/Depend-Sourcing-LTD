@@ -1,17 +1,36 @@
-import React, { useState, useMemo } from 'react';
-import { Receipt, Camera, CheckCircle, XCircle, Clock, Eye, Trash2, Search, Calendar, FilterX, RotateCcw } from 'lucide-react';
-import { Expense, Staff, UserRole } from '../types';
+
+import React, { useState, useMemo, useRef } from 'react';
+import { Receipt, Camera, CheckCircle, XCircle, Clock, Eye, Trash2, Search, Calendar, FilterX, RotateCcw, CheckCheck, Sparkles, Image as ImageIcon, X, Edit3, Eraser, AlertTriangle, FileWarning } from 'lucide-react';
+import { Expense, Staff, UserRole, AppNotification } from '../types';
 
 interface ExpenseProps {
   expenses: Expense[];
   setExpenses: React.Dispatch<React.SetStateAction<Expense[]>>;
   staffList: Staff[];
   role: UserRole;
+  currentUser: string | null;
+  onNotify?: (title: string, message: string, type: AppNotification['type']) => void;
 }
 
-const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, staffList, role }) => {
+const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, staffList, role, currentUser }) => {
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
-  const [formData, setFormData] = useState({ staffId: '', amount: 0, reason: '' });
+  const [formData, setFormData] = useState({ 
+    staffId: '', 
+    amount: 0, 
+    reason: '', 
+    voucherImage: '',
+    date: new Date().toISOString().split('T')[0] // Default to today
+  });
+  const [viewingVoucher, setViewingVoucher] = useState<string | null>(null);
+  
+  // Correction/Edit State
+  const [isCorrectionModalOpen, setIsCorrectionModalOpen] = useState(false);
+  const [correctionData, setCorrectionData] = useState<{id: string, amount: number, reason: string, date: string} | null>(null);
+
+  // Delete Confirmation State
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Filtering States
   const [searchTerm, setSearchTerm] = useState('');
@@ -20,9 +39,26 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
 
   const activeStaff = staffList.filter(s => !s.deletedAt && s.status === 'ACTIVE');
 
+  // Helper for safe date comparison
+  const getSafeDateStr = (dateStr: string) => {
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return '';
+      return d.toISOString().split('T')[0];
+    } catch {
+      return '';
+    }
+  };
+
   const filteredExpenses = useMemo(() => {
     return expenses.filter(e => {
       if (e.isDeleted) return false;
+
+      // SECURITY: Staff can only see their own expenses
+      // Admin and MD can see everyone's expenses
+      if (role === UserRole.STAFF && currentUser) {
+         if (e.staffName !== currentUser) return false;
+      }
       
       const matchesSearch = 
         e.reason.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -36,33 +72,288 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
 
       return matchesSearch && matchesDate;
     });
-  }, [expenses, searchTerm, startDate, endDate]);
+  }, [expenses, searchTerm, startDate, endDate, role, currentUser]);
+
+  const handleReasonChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const text = e.target.value;
+    
+    // 1. Convert Bengali digits to English for calculation
+    const banglaToEng = (str: string) => str.replace(/[০-৯]/g, d => "0123456789"["০১২৩৪৫৬৭৮৯".indexOf(d)]);
+    let processedText = banglaToEng(text);
+
+    // 2. EXCLUSION LOGIC: Mask numbers that are part of addresses/locations
+    const exclusionPattern = /(মিরপুর|উত্তরা|সেক্টর|রোড|বাসা|ফ্ল্যাট|লেভেল|তলা|ব্লক|লেন|ওয়ার্ড|নম্বর|নং|প্লাটফর্ম|গাড়ি|বাস নং|Mirpur|Uttara|Sector|Road|House|Flat|Level|Floor|Block|Lane|Ward|No|Num)[\s\-\.]*[0-9]+/gi;
+    processedText = processedText.replace(exclusionPattern, (match) => match.replace(/[0-9]/g, 'X'));
+
+    // 3. Extract remaining numbers and sum them up
+    const matches = processedText.match(/(\d+(\.\d+)?)/g);
+    let total = 0;
+    if (matches) {
+      total = matches.reduce((sum, num) => sum + parseFloat(num), 0);
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      reason: text,
+      amount: total // Auto update amount
+    }));
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          const MAX_WIDTH = 800;
+          let width = img.width;
+          let height = img.height;
+          
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          ctx?.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+          setFormData(prev => ({ ...prev, voucherImage: dataUrl }));
+        };
+        img.src = event.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeImage = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if(window.confirm("আপনি কি নিশ্চিত যে ছবি মুছে ফেলতে চান?")) {
+      setFormData(prev => ({ ...prev, voucherImage: '' }));
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const staff = activeStaff.find(s => s.id === formData.staffId);
+
+    // 1. Resolve Staff ID
+    let targetStaffId = formData.staffId;
+    if (role === UserRole.STAFF && currentUser) {
+       const myself = activeStaff.find(s => s.name === currentUser);
+       if (!myself) {
+         alert("আপনার প্রোফাইল ডাটা পাওয়া যাচ্ছে না। রিফ্রেশ দিন।");
+         return;
+       }
+       targetStaffId = myself.id;
+    }
+
+    if (!targetStaffId) {
+      alert("স্টাফ নির্বাচন করা হয়নি।");
+      return;
+    }
+
+    const staff = activeStaff.find(s => s.id === targetStaffId);
+    if (!staff) {
+      alert("স্টাফ পাওয়া যায়নি।");
+      return;
+    }
+
+    // 2. Validate Amount
+    if (!formData.amount || Number(formData.amount) <= 0) {
+       alert("দয়া করে টাকার সঠিক পরিমাণ লিখুন।");
+       return;
+    }
+
+    // 3. Validate Date
+    if (!formData.date) {
+        alert("তারিখ নির্বাচন করুন।");
+        return;
+    }
+
+    // 4. Duplicate Check (Warning only)
+    let isDuplicate = false;
+    try {
+        isDuplicate = expenses.some(e => {
+            if (e.isDeleted || e.staffId !== targetStaffId) return false;
+            return getSafeDateStr(e.createdAt) === formData.date;
+        });
+    } catch (err) {
+        console.error("Duplicate check error", err);
+    }
+
+    if (isDuplicate) {
+      // Allow submission but warn user
+      const confirmMsg = `সতর্কতা: ${staff.name}-এর জন্য ${new Date(formData.date).toLocaleDateString('bn-BD')} তারিখে ইতিমধ্যে একটি বিল সিস্টেমে আছে।\n\nআপনি কি নিশ্চিত যে এটি একটি আলাদা বিল এবং সাবমিট করতে চান?`;
+      if (!window.confirm(confirmMsg)) {
+        return; // User cancelled
+      }
+    }
+
+    // 5. Create Object
+    const submitDate = new Date(formData.date);
+    const now = new Date();
+    submitDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
+
     const newExpense: Expense = {
       id: Math.random().toString(36).substr(2, 9),
-      staffId: formData.staffId,
-      staffName: staff?.name || 'Unknown',
+      staffId: targetStaffId,
+      staffName: staff.name,
       amount: Number(formData.amount),
       reason: formData.reason,
+      voucherImage: formData.voucherImage,
       status: 'PENDING',
-      createdAt: new Date().toISOString()
+      createdAt: submitDate.toISOString()
     };
+    
     setExpenses(prev => [newExpense, ...prev]);
     setIsSubmitModalOpen(false);
-    setFormData({ staffId: '', amount: 0, reason: '' });
+    
+    // Reset form
+    setFormData({ 
+      staffId: '', 
+      amount: 0, 
+      reason: '', 
+      voucherImage: '', 
+      date: new Date().toISOString().split('T')[0] 
+    });
   };
 
   const updateStatus = (id: string, status: Expense['status']) => {
+    // Add confirmation logic for sensitive actions
+    if (status === 'REJECTED') {
+      if (!window.confirm('আপনি কি নিশ্চিত যে এই বিলটি বাতিল (Reject) করতে চান?')) {
+        return;
+      }
+    }
+    if (status === 'APPROVED') {
+      if (!window.confirm('আপনি কি নিশ্চিত যে এই বিলটি অনুমোদন (Approve) করতে চান?')) {
+        return;
+      }
+    }
+    
     setExpenses(prev => prev.map(e => e.id === id ? { ...e, status } : e));
   };
 
   const softDelete = (id: string) => {
-    if (confirm('এই বিলটি ডিলিট করতে চান?')) {
-      setExpenses(prev => prev.map(e => e.id === id ? { ...e, isDeleted: true } : e));
+    setDeleteConfirmId(id);
+  };
+
+  const confirmDelete = () => {
+    if (deleteConfirmId) {
+      setExpenses(prev => prev.map(e => e.id === deleteConfirmId ? { ...e, isDeleted: true } : e));
+      setDeleteConfirmId(null);
     }
+  };
+
+  const handleClearHistory = () => {
+    const candidates = expenses.filter(e => !e.isDeleted && (e.status === 'APPROVED'));
+    const count = candidates.length;
+
+    if (count === 0) {
+      alert('ক্লিন করার মতো কোনো অনুমোদিত (Approved) বিল নেই।');
+      return;
+    }
+
+    if (window.confirm(`সতর্কতা: আপনি কি নিশ্চিত যে ${count} টি পুরনো অনুমোদিত বিল হিস্ট্রি থেকে মুছে ফেলতে চান?`)) {
+      const idsToDelete = new Set(candidates.map(c => c.id));
+      setExpenses(prev => prev.map(e => 
+        idsToDelete.has(e.id) ? { ...e, isDeleted: true } : e
+      ));
+      alert('হিস্ট্রি ক্লিন করা হয়েছে।');
+    }
+  };
+
+  // New Function: Specifically Clear Rejected Bills
+  const handleClearRejected = () => {
+    const candidates = expenses.filter(e => !e.isDeleted && e.status === 'REJECTED');
+    const count = candidates.length;
+
+    if (count === 0) {
+      alert('কোনো বাতিল (Rejected) বিল নেই।');
+      return;
+    }
+
+    if (window.confirm(`সতর্কতা: আপনি কি নিশ্চিত যে ${count} টি বাতিল (Rejected) বিল একসাথে মুছে ফেলতে চান?`)) {
+      const idsToDelete = new Set(candidates.map(c => c.id));
+      setExpenses(prev => prev.map(e => 
+        idsToDelete.has(e.id) ? { ...e, isDeleted: true } : e
+      ));
+      alert('সকল বাতিল বিল রিসাইকেল বিনে পাঠানো হয়েছে।');
+    }
+  };
+
+  const handleApproveAll = () => {
+    const pendingCount = expenses.filter(e => !e.isDeleted && (e.status === 'PENDING' || e.status === 'VERIFIED')).length;
+    if (pendingCount === 0) {
+      alert('কোনো পেন্ডিং বা ভেরিফাইড বিল নেই।');
+      return;
+    }
+
+    if (window.confirm(`আপনি কি নিশ্চিত যে ${pendingCount} টি বিল একসাথে অ্যাপ্রুভ করতে চান?`)) {
+      setExpenses(prev => prev.map(e => 
+        (!e.isDeleted && (e.status === 'PENDING' || e.status === 'VERIFIED')) 
+          ? { ...e, status: 'APPROVED' } 
+          : e
+      ));
+    }
+  };
+
+  const handleOpenSubmitModal = () => {
+    let initialStaffId = '';
+    if (role === UserRole.STAFF && currentUser) {
+      const myself = activeStaff.find(s => s.name === currentUser);
+      if (myself) {
+        initialStaffId = myself.id;
+      }
+    }
+    
+    setFormData({ 
+      staffId: initialStaffId, 
+      amount: 0, 
+      reason: '', 
+      voucherImage: '', 
+      date: new Date().toISOString().split('T')[0]
+    });
+    setIsSubmitModalOpen(true);
+  };
+
+  // --- Correction Handlers ---
+  const openCorrectionModal = (e: Expense) => {
+    const dateStr = getSafeDateStr(e.createdAt) || new Date().toISOString().split('T')[0];
+    setCorrectionData({ id: e.id, amount: e.amount, reason: e.reason, date: dateStr });
+    setIsCorrectionModalOpen(true);
+  };
+
+  const saveCorrection = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!correctionData) return;
+    
+    setExpenses(prev => prev.map(ex => {
+      if (ex.id === correctionData.id) {
+        const originalDate = new Date(ex.createdAt);
+        const [y, m, d] = correctionData.date.split('-').map(Number);
+        
+        const updatedDate = new Date(originalDate);
+        updatedDate.setFullYear(y);
+        updatedDate.setMonth(m - 1);
+        updatedDate.setDate(d);
+
+        return { 
+          ...ex, 
+          amount: Number(correctionData.amount), 
+          reason: correctionData.reason,
+          createdAt: updatedDate.toISOString()
+        };
+      }
+      return ex;
+    }));
+    
+    setIsCorrectionModalOpen(false);
+    setCorrectionData(null);
   };
 
   const clearFilters = () => {
@@ -71,19 +362,63 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
     setEndDate('');
   };
 
+  const getStaffDisplayId = (staffId: string) => {
+    const staff = staffList.find(s => s.id === staffId);
+    return staff ? staff.staffId : '';
+  };
+
+  // Helper to get expense object for confirmation modal
+  const getExpenseForDelete = () => {
+    return expenses.find(e => e.id === deleteConfirmId);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <h2 className="text-xl font-bold text-gray-800">খরচ ও ভাউচার ম্যানেজমেন্ট</h2>
-        {(role === UserRole.ADMIN || role === UserRole.STAFF) && (
-          <button 
-            onClick={() => setIsSubmitModalOpen(true)}
-            className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-lg shadow-indigo-100"
-          >
-            <Receipt className="w-5 h-5" />
-            নতুন বিল সাবমিট
-          </button>
-        )}
+        <div className="flex flex-wrap gap-3">
+          {/* Admin Specific Buttons - Only Admin */}
+          {role === UserRole.ADMIN && (
+             <>
+               <button
+                 onClick={handleClearRejected}
+                 className="bg-red-50 text-red-600 px-4 py-2 rounded-xl font-bold hover:bg-red-100 hover:text-red-700 border border-red-200 transition-colors flex items-center gap-2 shadow-sm whitespace-nowrap"
+                 title="সকল বাতিল (Rejected) বিল মুছে ফেলুন"
+               >
+                 <FileWarning className="w-5 h-5" />
+                 বাতিল বিল মুছুন
+               </button>
+               <button
+                 onClick={handleClearHistory}
+                 className="bg-white text-gray-600 px-4 py-2 rounded-xl font-bold hover:bg-gray-100 hover:text-gray-800 border border-gray-200 transition-colors flex items-center gap-2 shadow-sm whitespace-nowrap"
+                 title="সকল অনুমোদিত (Approved) বিল মুছে ফেলুন"
+               >
+                 <Eraser className="w-5 h-5" />
+                 হিস্ট্রি ক্লিন (Approved)
+               </button>
+             </>
+          )}
+          
+          {(role === UserRole.ADMIN || role === UserRole.STAFF) && (
+            <button 
+              onClick={handleOpenSubmitModal}
+              className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-lg shadow-indigo-100"
+            >
+              <Receipt className="w-5 h-5" />
+              নতুন বিল সাবমিট
+            </button>
+          )}
+          
+          {role === UserRole.MD && (
+            <button 
+              onClick={handleApproveAll}
+              className="bg-green-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-green-700 transition-colors flex items-center gap-2 shadow-lg shadow-green-100"
+            >
+              <CheckCheck className="w-5 h-5" />
+              সব অ্যাপ্রুভ করুন
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filter Bar */}
@@ -135,8 +470,17 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredExpenses.map((expense) => (
-          <div key={expense.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col hover:shadow-md transition-shadow">
+        {filteredExpenses.map((expense) => {
+          // Check for duplicate check (Admin Warning Only)
+          const expenseDateStr = getSafeDateStr(expense.createdAt);
+          const isDuplicate = expenses.filter(e => 
+             !e.isDeleted && 
+             e.staffId === expense.staffId && 
+             getSafeDateStr(e.createdAt) === expenseDateStr
+          ).length > 1;
+
+          return (
+          <div key={expense.id} className={`bg-white rounded-2xl shadow-sm border overflow-hidden flex flex-col hover:shadow-md transition-all ${isDuplicate && (role === UserRole.ADMIN || role === UserRole.MD) ? 'border-red-300 ring-2 ring-red-100' : 'border-gray-100'}`}>
             <div className="p-5 flex-1">
               <div className="flex justify-between items-start mb-4">
                 <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
@@ -146,19 +490,48 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                 }`}>
                   {expense.status === 'PENDING' ? 'পেন্ডিং' : expense.status === 'VERIFIED' ? 'ভেরিফাইড (MD)' : expense.status === 'APPROVED' ? 'অনুমোদিত' : 'প্রত্যাখ্যাত'}
                 </span>
-                <p className="text-xs text-gray-400">{new Date(expense.createdAt).toLocaleDateString('bn-BD')}</p>
+                
+                <div className="flex items-center gap-2">
+                  {((role === UserRole.ADMIN || role === UserRole.MD) && (expense.status === 'PENDING' || expense.status === 'VERIFIED')) && (
+                    <button 
+                      onClick={() => openCorrectionModal(expense)}
+                      className="text-orange-500 hover:text-orange-700 transition-colors p-1 hover:bg-orange-50 rounded-full"
+                      title="বিল সংশোধন করুন"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+                  )}
+                  {expense.voucherImage && (
+                    <button 
+                      onClick={() => setViewingVoucher(expense.voucherImage!)}
+                      className="text-indigo-600 hover:text-indigo-800 transition-colors p-1 hover:bg-indigo-50 rounded-full"
+                      title="ভাউচার দেখুন"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </button>
+                  )}
+                  <p className="text-xs text-gray-400">{new Date(expense.createdAt).toLocaleDateString('bn-BD')}</p>
+                </div>
               </div>
               
               <h4 className="text-lg font-bold text-gray-800 mb-1">৳ {expense.amount.toLocaleString()}</h4>
               <p className="text-sm text-gray-600 mb-4 font-medium h-10 line-clamp-2">{expense.reason}</p>
               
+              {/* DUPLICATE WARNING BADGE (Visible to Admin/MD) */}
+              {isDuplicate && (role === UserRole.ADMIN || role === UserRole.MD) && (
+                 <div className="mb-3 bg-red-100 text-red-700 px-3 py-2 rounded-lg text-[10px] font-black flex items-center gap-1.5 border border-red-200 animate-pulse">
+                    <AlertTriangle className="w-4 h-4" />
+                    সতর্কতা: একই তারিখে একাধিক বিল (Duplicate)!
+                 </div>
+              )}
+
               <div className="flex items-center gap-3 py-3 border-t border-gray-50">
                 <div className="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-xs">
                   {expense.staffName[0]}
                 </div>
                 <div>
                   <p className="text-xs font-bold text-gray-700">{expense.staffName}</p>
-                  <p className="text-[10px] text-gray-400">Staff Member</p>
+                  <p className="text-[10px] text-gray-400">ID: {getStaffDisplayId(expense.staffId)}</p>
                 </div>
               </div>
             </div>
@@ -167,7 +540,6 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                {/* ADMIN CONTROLS */}
                {role === UserRole.ADMIN && (
                  <>
-                   {/* PENDING: Verify (Send to MD) | Reject | Delete */}
                    {expense.status === 'PENDING' && (
                      <>
                         <button onClick={() => updateStatus(expense.id, 'VERIFIED')} className="flex-[2] bg-indigo-600 text-white py-2 rounded-lg text-xs font-bold hover:bg-indigo-700 shadow-sm transition-colors">
@@ -181,8 +553,6 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                         </button>
                      </>
                    )}
-                   
-                   {/* VERIFIED: Undo (Back to Pending) | Delete */}
                    {expense.status === 'VERIFIED' && (
                      <>
                         <button onClick={() => updateStatus(expense.id, 'PENDING')} className="flex-1 bg-orange-50 text-orange-700 border border-orange-200 py-2 rounded-lg text-xs font-bold hover:bg-orange-100 transition-colors flex items-center justify-center gap-2">
@@ -192,13 +562,6 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                            <Trash2 className="w-3.5 h-3.5" /> ডিলিট করুন
                         </button>
                      </>
-                   )}
-
-                   {/* APPROVED/REJECTED: Delete Record */}
-                   {(expense.status === 'APPROVED' || expense.status === 'REJECTED') && (
-                      <button onClick={() => softDelete(expense.id)} className="w-full bg-white text-gray-400 border border-gray-200 hover:border-red-200 hover:text-red-500 py-2 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-2">
-                        <Trash2 className="w-4 h-4" /> রেকর্ড মুছে ফেলুন
-                      </button>
                    )}
                  </>
                )}
@@ -214,9 +577,23 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                    </button>
                  </>
                )}
+
+               {/* SHARED DELETE ACTION (Approved/Rejected) - Visible to Admin Only */}
+               {(role === UserRole.ADMIN && (expense.status === 'APPROVED' || expense.status === 'REJECTED')) && (
+                  <button onClick={() => softDelete(expense.id)} className="w-full bg-white text-gray-400 border border-gray-200 hover:border-red-200 hover:text-red-500 py-2 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-2">
+                    <Trash2 className="w-4 h-4" /> রেকর্ড মুছে ফেলুন (Delete)
+                  </button>
+               )}
+
+               {/* STAFF CONTROLS - Delete Pending or Rejected */}
+               {role === UserRole.STAFF && (expense.status === 'PENDING' || expense.status === 'REJECTED') && (
+                  <button onClick={() => softDelete(expense.id)} className="w-full bg-white text-red-500 border border-red-200 hover:bg-red-50 py-2 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-2">
+                    <Trash2 className="w-4 h-4" /> {expense.status === 'PENDING' ? 'ভুল বিল ডিলিট করুন' : 'রেকর্ড ক্লিয়ার করুন'}
+                  </button>
+               )}
             </div>
           </div>
-        ))}
+        )})}
         {filteredExpenses.length === 0 && (
           <div className="col-span-full py-12 text-center bg-white rounded-2xl border border-dashed border-gray-200 text-gray-400">
              কোনো বিল পাওয়া যায়নি
@@ -235,27 +612,164 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">স্টাফ নির্বাচন করুন</label>
-                <select required className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all" value={formData.staffId} onChange={(e) => setFormData({...formData, staffId: e.target.value})}>
-                  <option value="">নির্বাচন করুন</option>
-                  {activeStaff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
+                {role === UserRole.STAFF ? (
+                  <div className="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg font-bold text-gray-600 flex items-center justify-between cursor-not-allowed">
+                     <span>{currentUser}</span>
+                     <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded uppercase">Self</span>
+                  </div>
+                ) : (
+                  <select required className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all" value={formData.staffId} onChange={(e) => setFormData({...formData, staffId: e.target.value})}>
+                    <option value="">নির্বাচন করুন</option>
+                    {activeStaff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                )}
               </div>
+
+              {(role === UserRole.ADMIN || role === UserRole.MD) && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">তারিখ (Date)</label>
+                  <input 
+                    type="date"
+                    required
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    value={formData.date}
+                    onChange={(e) => setFormData({...formData, date: e.target.value})}
+                  />
+                </div>
+              )}
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 flex justify-between">
+                  <span>খরচের কারণ ও বিবরণ</span>
+                  <span className="text-xs text-indigo-600 font-bold flex items-center gap-1"><Sparkles className="w-3 h-3"/> Auto Calculator</span>
+                </label>
+                <textarea 
+                  required 
+                  rows={3} 
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all" 
+                  placeholder="যেমন: নাস্তা ৫০, রিক্সা ভাড়া ১০০..." 
+                  value={formData.reason} 
+                  onChange={handleReasonChange} 
+                />
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">টাকার পরিমাণ</label>
-                <input required type="number" className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all" placeholder="0.00" value={formData.amount || ''} onChange={(e) => setFormData({...formData, amount: Number(e.target.value)})} />
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">৳</span>
+                  <input 
+                    required 
+                    type="number" 
+                    className="w-full pl-8 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-lg text-gray-800" 
+                    placeholder="0.00" 
+                    value={formData.amount || ''} 
+                    onChange={(e) => setFormData({...formData, amount: Number(e.target.value)})} 
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">খরচের কারণ</label>
-                <textarea required rows={3} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all" placeholder="বিস্তারিত লিখুন..." value={formData.reason} onChange={(e) => setFormData({...formData, reason: e.target.value})} />
+
+              <div 
+                onClick={() => fileInputRef.current?.click()}
+                className="p-4 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 transition-colors relative overflow-hidden"
+              >
+                 <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={handleImageUpload} />
+                 {formData.voucherImage ? (
+                   <>
+                     <img src={formData.voucherImage} alt="Preview" className="h-32 w-full object-contain" />
+                     <button type="button" onClick={removeImage} className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full"><X className="w-4 h-4" /></button>
+                   </>
+                 ) : (
+                   <>
+                     <Camera className="w-8 h-8 text-gray-400 mb-2" />
+                     <p className="text-xs text-gray-500 font-medium">ভাউচারের ছবি দিন</p>
+                   </>
+                 )}
               </div>
-              <div className="p-4 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 transition-colors">
-                 <Camera className="w-8 h-8 text-gray-400 mb-2" />
-                 <p className="text-xs text-gray-500 font-medium">ভাউচারের ছবি তুলুন বা আপলোড করুন</p>
-              </div>
+
               <div className="pt-4">
                 <button type="submit" className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all">বিল সাবমিট করুন</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Correction Modal */}
+      {isCorrectionModalOpen && correctionData && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+             <div className="p-5 border-b border-gray-100 bg-orange-500 text-white flex justify-between items-center">
+                <h3 className="font-bold text-lg">বিল সংশোধন (Correction)</h3>
+                <button onClick={() => setIsCorrectionModalOpen(false)} className="text-orange-100 hover:text-white"><X className="w-5 h-5"/></button>
+             </div>
+             <form onSubmit={saveCorrection} className="p-6 space-y-4">
+                <div>
+                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">তারিখ (Date)</label>
+                  <input type="date" required className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none font-bold text-gray-800" value={correctionData.date} onChange={(e) => setCorrectionData({...correctionData, date: e.target.value})} />
+                </div>
+                <div>
+                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">সঠিক টাকার পরিমাণ</label>
+                  <input type="number" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none font-bold text-xl text-gray-800" value={correctionData.amount} onChange={(e) => setCorrectionData({...correctionData, amount: Number(e.target.value)})} />
+                </div>
+                <div>
+                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">সংশোধিত কারণ/নোট</label>
+                  <textarea rows={4} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm font-medium" value={correctionData.reason} onChange={(e) => setCorrectionData({...correctionData, reason: e.target.value})} />
+                </div>
+                <button type="submit" className="w-full bg-orange-500 text-white py-3 rounded-xl font-bold hover:bg-orange-600 shadow-lg shadow-orange-100 flex items-center justify-center gap-2"><Edit3 className="w-4 h-4" /> সেইভ করুন</button>
+             </form>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE CONFIRMATION MODAL */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle className="w-8 h-8 text-red-600" />
+              </div>
+              <h3 className="text-xl font-black text-gray-800 mb-2">আপনি কি নিশ্চিত?</h3>
+              {getExpenseForDelete()?.status === 'REJECTED' && (
+                 <p className="text-sm text-gray-500 mb-6">
+                   আপনি একটি "বাতিল করা" (Rejected) বিল ডিলিট করছেন।
+                 </p>
+              )}
+              {getExpenseForDelete()?.status === 'APPROVED' && (
+                 <p className="text-sm text-gray-500 mb-6">
+                   সতর্কতা: আপনি একটি "অনুমোদিত" (Approved) বিল ডিলিট করছেন। এর ফলে মোট খরচের হিসাব পরিবর্তন হবে।
+                 </p>
+              )}
+              {!['REJECTED', 'APPROVED'].includes(getExpenseForDelete()?.status || '') && (
+                 <p className="text-sm text-gray-500 mb-6">
+                   আপনি এই বিলটি রিসাইকেল বিনে পাঠাতে চাচ্ছেন।
+                 </p>
+              )}
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setDeleteConfirmId(null)}
+                  className="flex-1 py-3 border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors"
+                >
+                  না, বাতিল করুন
+                </button>
+                <button 
+                  onClick={confirmDelete}
+                  className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 shadow-lg shadow-red-200 transition-colors"
+                >
+                  হ্যাঁ, ডিলিট করুন
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Viewer */}
+      {viewingVoucher && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm animate-in fade-in zoom-in duration-200" onClick={() => setViewingVoucher(null)}>
+          <div className="relative max-w-3xl w-full max-h-screen p-2">
+             <button onClick={() => setViewingVoucher(null)} className="absolute -top-12 right-0 text-white hover:text-red-400 transition-colors"><X className="w-8 h-8" /></button>
+             <img src={viewingVoucher} alt="Voucher Full View" className="w-full h-auto max-h-[85vh] object-contain rounded-lg shadow-2xl bg-white" />
           </div>
         </div>
       )}

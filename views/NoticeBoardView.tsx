@@ -40,7 +40,7 @@ const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices, setNotices, role
 
   const deleteNotice = (e: React.MouseEvent, id: string) => {
     e.stopPropagation(); // Prevent any parent clicks
-    if (confirm('আপনি কি এই নোটিশটি মুছে ফেলতে চান?')) {
+    if (window.confirm('সতর্কতা: আপনি কি নিশ্চিত যে এই নোটিশটি মুছে ফেলতে চান?')) {
       const updatedNotices = notices.map(n => n.id === id ? { ...n, isDeleted: true } : n);
       setNotices(updatedNotices);
     }

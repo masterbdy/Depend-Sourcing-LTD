@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   LayoutDashboard, Users, Car, Receipt, BarChart3, Settings, Trash2, 
-  LogOut, Wallet, User, Cloud, WifiOff, AlertTriangle, Menu, X, RefreshCw, Lock, ArrowRightLeft, XCircle, Landmark, Bell, Phone, Briefcase, Crown, UserCog, ShieldCheck, Camera, Save, KeyRound, CreditCard, MessageSquareWarning, MessagesSquare, MapPin, MonitorSmartphone, Satellite, Trophy, Gift, Gamepad2, Shield, CheckCircle, LogIn, Sparkles, ClipboardList, Check, Eye, EyeOff, Moon, Sun, Loader2
+  LogOut, Wallet, User, Cloud, WifiOff, AlertTriangle, Menu, X, RefreshCw, Lock, ArrowRightLeft, XCircle, Landmark, Bell, Phone, Briefcase, Crown, UserCog, ShieldCheck, Camera, Save, KeyRound, CreditCard, MessageSquareWarning, MessagesSquare, MapPin, MonitorSmartphone, Satellite, Trophy, Gift, Gamepad2, Shield, CheckCircle, LogIn, Sparkles, ClipboardList, Check, Eye, EyeOff, Moon, Sun, Loader2, MoreHorizontal, Grid
 } from 'lucide-react';
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { getDatabase, ref, onValue, set } from "firebase/database";
@@ -14,12 +14,12 @@ import GlowingCursor from './GlowingCursor';
 import DashboardView from './views/Dashboard';
 import StaffManagementView from './views/StaffManagement';
 import MovementLogView from './views/MovementLog';
-import ExpenseManagementView from './views/ExpenseManagement';
+import ExpenseManagementView from './views/ExpenseManagementView';
 import FundLedgerView from './views/FundLedger';
 import SettingsView from './views/Settings';
 import ReportsView from './views/Reports';
 import TrashView from './views/Trash';
-import NoticeBoardView from './views/NoticeBoard';
+import NoticeBoardView from './views/NoticeBoardView'; 
 import ComplaintBoxView from './views/ComplaintBox';
 import GroupChatView from './views/GroupChat';
 import AttendanceView from './views/Attendance';
@@ -30,8 +30,8 @@ const App: React.FC = () => {
   const [role, setRole] = useState<UserRole | null>(null);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false); // New state for Bottom Nav More Menu
   
   // Theme State
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -508,6 +508,38 @@ const App: React.FC = () => {
     };
   }, [currentUser, role, isCloudEnabled, myStaffId]);
 
+  // --- ATTENDANCE REMINDER LOGIC ---
+  useEffect(() => {
+    // 1. Exclude MD and ensure user is logged in
+    if (!currentUser || !role || role === UserRole.MD) return;
+
+    const checkAttendance = () => {
+      const today = new Date().toISOString().split('T')[0];
+      const amICheckedIn = attendanceList.some(a => a.date === today && a.staffName === currentUser);
+
+      if (!amICheckedIn) {
+         // Create notification
+         handleAddNotification(
+           '⚠️ হাজিরা রিমাইন্ডার',
+           'আপনি আজ এখনো হাজিরা (Check-In) দেননি। দ্রুত হাজিরা নিশ্চিত করুন।',
+           'WARNING',
+           'attendance'
+         );
+      }
+    };
+
+    // Initial check after 15 seconds of load/login to let data sync
+    const initialTimeout = setTimeout(checkAttendance, 15000);
+
+    // Repeat check every 30 minutes (30 * 60 * 1000 ms)
+    const interval = setInterval(checkAttendance, 30 * 60 * 1000); 
+
+    return () => {
+      clearTimeout(initialTimeout);
+      clearInterval(interval);
+    };
+  }, [currentUser, role, attendanceList]);
+
   // --- NOTIFICATION LOGIC ---
   const requestNotificationPermission = () => {
     // Only ask if default, never ask again if denied or granted
@@ -864,6 +896,30 @@ const App: React.FC = () => {
     return staffList.find(s => s && !s.deletedAt && s.name === currentUser);
   }, [staffList, currentUser]);
 
+  // Define Navigation Items based on Role
+  const allNavItems = useMemo(() => [
+    { id: 'dashboard', label: 'ড্যাশবোর্ড', icon: LayoutDashboard, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF, UserRole.KIOSK] },
+    { id: 'attendance', label: 'হাজিরা', icon: MapPin, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF, UserRole.KIOSK] },
+    { id: 'expenses', label: 'বিল', icon: Receipt, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF] },
+    { id: 'notices', label: 'নোটিশ', icon: ClipboardList, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF, UserRole.KIOSK] },
+    { id: 'chat', label: 'টিম চ্যাট', icon: MessagesSquare, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF] },
+    { id: 'luckydraw', label: 'লাকি ড্র', icon: Gamepad2, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF] },
+    { id: 'live-location', label: 'ট্র্যাকিং', icon: Satellite, roles: [UserRole.ADMIN, UserRole.MD] },
+    { id: 'complaints', label: 'অভিযোগ', icon: MessageSquareWarning, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF] },
+    { id: 'funds', label: 'ফান্ড লেজার', icon: Landmark, roles: [UserRole.ADMIN, UserRole.MD] },
+    { id: 'staff', label: 'স্টাফ', icon: Users, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF] },
+    { id: 'movements', label: 'মুভমেন্ট', icon: Car, roles: [UserRole.ADMIN, UserRole.STAFF] },
+    { id: 'reports', label: 'রিপোর্ট', icon: BarChart3, roles: [UserRole.ADMIN, UserRole.MD] },
+    { id: 'settings', label: 'সেটিংস', icon: Settings, roles: [UserRole.ADMIN] },
+    { id: 'trash', label: 'রিসাইকেল', icon: Trash2, roles: [UserRole.ADMIN] },
+  ], []);
+
+  const allowedNavItems = useMemo(() => allNavItems.filter(item => role && item.roles.includes(role)), [allNavItems, role]);
+
+  // Split Navigation for Bottom Bar (Mobile)
+  const bottomNavItems = allowedNavItems.slice(0, 4); // First 4 items
+  const moreMenuItems = allowedNavItems.slice(4); // Rest of the items
+
   // --- LOGIN SCREEN ---
   if (!role) {
     // ... (Login Screen Render - No Changes needed here) ...
@@ -1044,49 +1100,32 @@ const App: React.FC = () => {
         </>
       )}
 
-      {isSidebarOpen && <div className="fixed inset-0 z-40 bg-black/50 md:hidden" onClick={() => setIsSidebarOpen(false)} />}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 transform transition-transform duration-300 md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} ${isDarkMode ? 'bg-gray-900/80 backdrop-blur-md border-r border-white/10 text-white' : 'bg-indigo-900 text-white'}`}>
-        <div className="flex flex-col h-full">
-          <div className={`p-6 text-center ${isDarkMode ? 'border-b border-white/10' : 'border-b border-indigo-800'}`}>
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3 ${isDarkMode ? 'bg-white/10 ring-1 ring-white/20' : 'bg-indigo-400/20'}`}>
-              <Wallet className={`w-7 h-7 ${isDarkMode ? 'text-indigo-400' : 'text-indigo-400'}`} />
-            </div>
-            <h2 className="text-xl font-bold tracking-tight">বিলিং সেন্টার</h2>
+      {/* DESKTOP SIDEBAR - Hidden on Mobile */}
+      <aside className={`hidden md:flex flex-col w-64 h-full border-r ${isDarkMode ? 'bg-gray-900/80 backdrop-blur-md border-white/10 text-white' : 'bg-indigo-900 text-white'}`}>
+        <div className={`p-6 text-center shrink-0 ${isDarkMode ? 'border-b border-white/10' : 'border-b border-indigo-800'}`}>
+          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3 ${isDarkMode ? 'bg-white/10 ring-1 ring-white/20' : 'bg-indigo-400/20'}`}>
+            <Wallet className={`w-7 h-7 ${isDarkMode ? 'text-indigo-400' : 'text-indigo-400'}`} />
           </div>
-          <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
-            {[
-              { id: 'dashboard', label: 'ড্যাশবোর্ড', icon: LayoutDashboard, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF, UserRole.KIOSK] },
-              { id: 'chat', label: 'টিম চ্যাট', icon: MessagesSquare, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF] },
-              { id: 'luckydraw', label: 'লাকি ড্র & লিডারবোর্ড', icon: Gamepad2, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF] },
-              { id: 'attendance', label: 'স্মার্ট হাজিরা', icon: MapPin, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF, UserRole.KIOSK] },
-              { id: 'live-location', label: 'লাইভ ট্র্যাকিং', icon: Satellite, roles: [UserRole.ADMIN, UserRole.MD] },
-              { id: 'notices', label: 'নোটিশ বোর্ড', icon: ClipboardList, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF, UserRole.KIOSK] },
-              { id: 'complaints', label: 'অভিযোগ বাক্স', icon: MessageSquareWarning, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF] },
-              { id: 'funds', label: 'ফান্ড লেজার', icon: Landmark, roles: [UserRole.ADMIN, UserRole.MD] },
-              { id: 'staff', label: 'স্টাফ প্রোফাইল', icon: Users, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF] },
-              { id: 'movements', label: 'মুভমেন্ট লগ', icon: Car, roles: [UserRole.ADMIN, UserRole.STAFF] },
-              { id: 'expenses', label: 'বিল রিকোয়েস্ট', icon: Receipt, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF] },
-              { id: 'reports', label: 'রিপোর্ট', icon: BarChart3, roles: [UserRole.ADMIN, UserRole.MD] },
-              { id: 'settings', label: 'সেটিংস', icon: Settings, roles: [UserRole.ADMIN] },
-              { id: 'trash', label: 'রিসাইকেল বিন', icon: Trash2, roles: [UserRole.ADMIN] },
-            ].filter(item => item.roles.includes(role)).map((item) => (
-              <button key={item.id} onClick={() => { setActiveTab(item.id); setIsSidebarOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === item.id ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/50' : 'text-indigo-200 hover:bg-indigo-800'}`}>
-                <item.icon className="w-5 h-5" /> {item.label}
-              </button>
-            ))}
-          </nav>
-          <div className={`p-4 border-t ${isDarkMode ? 'border-white/10' : 'border-indigo-800'}`}>
-             <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-red-300 hover:bg-red-900/30 transition-colors">
-              <LogOut className="w-5 h-5" /> লগআউট
+          <h2 className="text-xl font-bold tracking-tight">বিলিং সেন্টার</h2>
+        </div>
+        <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto custom-scrollbar">
+          {allowedNavItems.map((item) => (
+            <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === item.id ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/50' : 'text-indigo-200 hover:bg-indigo-800'}`}>
+              <item.icon className="w-5 h-5" /> {item.label}
             </button>
-          </div>
+          ))}
+        </nav>
+        <div className={`p-4 border-t shrink-0 ${isDarkMode ? 'border-white/10' : 'border-indigo-800'}`}>
+           <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-red-300 hover:bg-red-900/30 transition-colors">
+            <LogOut className="w-5 h-5" /> লগআউট
+          </button>
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col h-full overflow-hidden relative z-10">
+      <main className="flex-1 flex flex-col h-full overflow-hidden relative z-10 pb-[70px] md:pb-0">
         <header className={`h-16 flex items-center justify-between px-6 shrink-0 relative z-20 ${isDarkMode ? 'bg-gray-900/80 backdrop-blur-md border-b border-white/10' : 'bg-white border-b border-gray-200'}`}>
           <div className="flex items-center gap-4">
-            <button onClick={() => setIsSidebarOpen(true)} className={`md:hidden p-2 rounded-lg ${isDarkMode ? 'hover:bg-white/10 text-white' : 'hover:bg-gray-100 text-gray-600'}`}><Menu className="w-6 h-6" /></button>
+            {/* Removed Mobile Sidebar Toggle */}
             <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest cursor-pointer ${isCloudEnabled ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-500'}`} title={cloudError || "System Normal"} onClick={() => !isCloudEnabled && setShowDbHelp(true)}>
               {isCloudEnabled ? <Cloud className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
               <span>{isCloudEnabled ? (isSyncing ? 'Syncing...' : 'Online') : 'Offline'}</span>
@@ -1102,7 +1141,6 @@ const App: React.FC = () => {
                <div className="hidden sm:flex items-center gap-2 bg-yellow-50 px-3 py-1.5 rounded-full border border-yellow-100">
                   <Trophy className="w-4 h-4 text-yellow-500" />
                   <span className="text-xs font-black text-yellow-700">
-                    {/* Display logic: If point month doesn't match current month, effectively 0 */}
                     {(myProfile.pointsMonth === `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`) 
                       ? (myProfile.points || 0) 
                       : 0} pts
@@ -1200,6 +1238,79 @@ const App: React.FC = () => {
           </div>
         </div>
       </main>
+
+      {/* MOBILE BOTTOM NAVIGATION BAR */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 flex justify-around items-center px-2 py-2 z-50 shadow-lg">
+         {bottomNavItems.map((item) => (
+            <button 
+               key={item.id}
+               onClick={() => { setActiveTab(item.id); setIsMoreMenuOpen(false); }}
+               className={`flex flex-col items-center justify-center w-full py-1.5 rounded-lg transition-colors ${activeTab === item.id ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'}`}
+            >
+               <item.icon className="w-6 h-6 mb-1" />
+               <span className="text-[10px] font-bold">{item.label}</span>
+            </button>
+         ))}
+         {/* MORE BUTTON */}
+         <button 
+            onClick={() => setIsMoreMenuOpen(true)}
+            className={`flex flex-col items-center justify-center w-full py-1.5 rounded-lg transition-colors ${isMoreMenuOpen ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'}`}
+         >
+            <MoreHorizontal className="w-6 h-6 mb-1" />
+            <span className="text-[10px] font-bold">আরও</span>
+         </button>
+      </div>
+
+      {/* MOBILE MORE MENU OVERLAY */}
+      {isMoreMenuOpen && (
+         <div className="fixed inset-0 z-[60] bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm md:hidden animate-in fade-in slide-in-from-bottom-10 duration-200 flex flex-col">
+            <div className="p-5 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center bg-white dark:bg-gray-900 shadow-sm">
+               <div className="flex items-center gap-2">
+                  <Grid className="w-5 h-5 text-indigo-600" />
+                  <h3 className="text-lg font-black text-gray-800 dark:text-white">সব মেনু</h3>
+               </div>
+               <button onClick={() => setIsMoreMenuOpen(false)} className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                  <X className="w-6 h-6 text-gray-600 dark:text-gray-300" />
+               </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6">
+               <div className="grid grid-cols-3 gap-4">
+                  {moreMenuItems.map((item) => (
+                     <button 
+                        key={item.id}
+                        onClick={() => { setActiveTab(item.id); setIsMoreMenuOpen(false); }}
+                        className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-all active:scale-95 ${activeTab === item.id ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/30 dark:border-indigo-700 dark:text-indigo-300' : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:shadow-md'}`}
+                     >
+                        <item.icon className="w-8 h-8 mb-2 opacity-80" />
+                        <span className="text-xs font-bold text-center">{item.label}</span>
+                     </button>
+                  ))}
+               </div>
+
+               {/* Profile & Logout Section in More Menu */}
+               <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-800 space-y-4">
+                  <button onClick={() => { openProfile(); setIsMoreMenuOpen(false); }} className="w-full flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700">
+                     <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold overflow-hidden">
+                        {myProfile && myProfile.photo ? (
+                           <img src={myProfile.photo} className="w-full h-full object-cover" />
+                        ) : (
+                           currentUser ? currentUser[0].toUpperCase() : <User className="w-5 h-5" />
+                        )}
+                     </div>
+                     <div className="text-left">
+                        <p className="font-bold text-gray-800 dark:text-white">{currentUser}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">প্রোফাইল দেখুন</p>
+                     </div>
+                  </button>
+                  
+                  <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-2xl font-bold border border-red-100 dark:border-red-900/30">
+                     <LogOut className="w-5 h-5" /> লগআউট করুন
+                  </button>
+               </div>
+            </div>
+         </div>
+      )}
 
       {/* Profile Modal */}
       {isProfileModalOpen && (

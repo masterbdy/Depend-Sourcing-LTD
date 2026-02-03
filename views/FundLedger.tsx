@@ -59,7 +59,7 @@ const FundLedgerView: React.FC<FundProps> = ({ funds, setFunds, totalFund, cashO
   };
 
   const deleteEntry = (id: string) => {
-    if (confirm('এই ফান্ড রেকর্ডটি ডিলিট করতে চান?')) {
+    if (window.confirm('সতর্কতা: আপনি কি নিশ্চিত যে এই ফান্ড রেকর্ডটি ডিলিট করতে চান?')) {
       setFunds(prev => prev.map(f => f.id === id ? { ...f, isDeleted: true } : f));
     }
   };

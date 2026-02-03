@@ -151,7 +151,7 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
                <div className="flex gap-3">
                  {cloudConfig && (
                    <button 
-                     onClick={() => { if(confirm('ডিসকানেক্ট করতে চান?')) { localStorage.removeItem('fb_config'); window.location.reload(); } }}
+                     onClick={() => { if(window.confirm('সতর্কতা: আপনি কি নিশ্চিত যে ক্লাউড কানেকশন বিচ্ছিন্ন করতে চান? \n\nএর ফলে ডাটা সিঙ্ক বন্ধ হয়ে যাবে।')) { localStorage.removeItem('fb_config'); window.location.reload(); } }}
                      className="flex-1 px-4 py-3 text-sm font-bold text-red-500 hover:bg-red-50 rounded-2xl transition-colors"
                    >
                      রিমুভ করুন

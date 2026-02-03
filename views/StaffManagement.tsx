@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef } from 'react';
-import { Plus, Search, Edit2, Trash2, UserPlus, X, Calendar, FilterX, Phone, Banknote, Users, UserCheck, UserX, ArrowUpDown, ShieldCheck, ShieldAlert, Eye, EyeOff, Lock, Camera, Image as ImageIcon, Briefcase, Wallet, ArrowRight, Coins, Crown, UserCog, History, CalendarClock, MapPin, LocateFixed, Globe, ToggleLeft, ToggleRight, Map, MonitorSmartphone, Gift, Star, MoreVertical, WalletCards } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, UserPlus, X, Calendar, FilterX, Phone, Banknote, Users, UserCheck, UserX, ArrowUpDown, ShieldCheck, ShieldAlert, Eye, EyeOff, Lock, Camera, Image as ImageIcon, Briefcase, Wallet, ArrowRight, Coins, Crown, UserCog, History, CalendarClock, MapPin, LocateFixed, Globe, ToggleLeft, ToggleRight, Map, MonitorSmartphone, Gift, Star, MoreVertical, WalletCards, AlertTriangle } from 'lucide-react';
 import { Staff, UserRole, Expense, AdvanceLog } from '../types';
 import { ROLE_LABELS } from '../constants';
 
@@ -25,6 +25,9 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   
+  // Delete Confirmation State
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
   // Form Data
   const [formData, setFormData] = useState({ 
     name: '', 
@@ -229,15 +232,21 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
   const toggleStatus = (id: string, currentStatus: 'ACTIVE' | 'DEACTIVATED') => {
     if (isStaff) return;
     const newStatus = currentStatus === 'ACTIVE' ? 'DEACTIVATED' : 'ACTIVE';
-    if (confirm(`আপনি কি নিশ্চিতভাবে এই স্টাফকে ${newStatus === 'ACTIVE' ? 'সক্রিয় (Active)' : 'নিষ্ক্রিয় (Deactivate)'} করতে চান?`)) {
+    const actionText = newStatus === 'ACTIVE' ? 'সক্রিয় (Active)' : 'নিষ্ক্রিয় (Deactivate)';
+    if (window.confirm(`আপনি কি নিশ্চিতভাবে এই স্টাফকে ${actionText} করতে চান?`)) {
        setStaffList(prev => prev.map(s => s && s.id === id ? { ...s, status: newStatus, updatedAt: new Date().toISOString() } : s));
     }
   };
 
-  const softDelete = (id: string) => {
+  const handleDeleteRequest = (id: string) => {
     if (isStaff) return;
-    if (confirm('আপনি কি এই স্টাফকে সরাতে চান? এটি ট্রাশে জমা হবে।')) {
-      setStaffList(prev => prev.map(s => s && s.id === id ? { ...s, deletedAt: new Date().toISOString() } : s));
+    setDeleteConfirmId(id);
+  };
+
+  const confirmDelete = () => {
+    if (deleteConfirmId) {
+      setStaffList(prev => prev.map(s => s && s.id === deleteConfirmId ? { ...s, deletedAt: new Date().toISOString() } : s));
+      setDeleteConfirmId(null);
     }
   };
 
@@ -270,8 +279,10 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
   };
 
   const removePhoto = () => {
-    setFormData(prev => ({ ...prev, photo: '' }));
-    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (window.confirm("আপনি কি নিশ্চিত যে এই ছবিটি মুছে ফেলতে চান?")) {
+      setFormData(prev => ({ ...prev, photo: '' }));
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   const handleGivePoints = (e: React.FormEvent) => {
@@ -588,9 +599,12 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
                             <button onClick={() => toggleStatus(staff.id, staff.status)} className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${isActive ? 'bg-orange-50 dark:bg-orange-900/30 text-orange-500 hover:bg-orange-500 hover:text-white' : 'bg-green-50 dark:bg-green-900/30 text-green-500 hover:bg-green-500 hover:text-white'}`} title={isActive ? 'Deactivate' : 'Activate'}>
                                 {isActive ? <UserX className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
                             </button>
-                            <button onClick={() => softDelete(staff.id)} className="w-8 h-8 flex items-center justify-center rounded-full bg-red-50 dark:bg-red-900/30 text-red-500 hover:bg-red-500 hover:text-white transition-colors" title="মুছে ফেলুন">
-                                <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            {/* CHANGED: Only Admin can delete */}
+                            {role === UserRole.ADMIN && (
+                                <button onClick={() => handleDeleteRequest(staff.id)} className="w-8 h-8 flex items-center justify-center rounded-full bg-red-50 dark:bg-red-900/30 text-red-500 hover:bg-red-500 hover:text-white transition-colors" title="মুছে ফেলুন">
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                            )}
                           </>
                        )}
                   </div>
@@ -951,6 +965,37 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
                   <button type="submit" className="flex-[2] bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all active:scale-95">{editingStaff ? 'আপডেট করুন' : 'সেভ করুন'}</button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE CONFIRMATION MODAL */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle className="w-8 h-8 text-red-600" />
+              </div>
+              <h3 className="text-xl font-black text-gray-800 mb-2">আপনি কি নিশ্চিত?</h3>
+              <p className="text-sm text-gray-500 mb-6">
+                আপনি এই স্টাফ মেম্বারকে ডিলিট করতে যাচ্ছেন। এটি রিসাইকেল বিনে জমা হবে এবং তিনি আর লগইন করতে পারবেন না।
+              </p>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setDeleteConfirmId(null)}
+                  className="flex-1 py-3 border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors"
+                >
+                  না, বাতিল করুন
+                </button>
+                <button 
+                  onClick={confirmDelete}
+                  className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 shadow-lg shadow-red-200 transition-colors"
+                >
+                  হ্যাঁ, ডিলিট করুন
+                </button>
+              </div>
             </div>
           </div>
         </div>
