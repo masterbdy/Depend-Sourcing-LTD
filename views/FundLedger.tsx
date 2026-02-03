@@ -1,17 +1,31 @@
 
 import React, { useState, useMemo } from 'react';
-import { PlusCircle, History, Landmark, Wallet, ArrowUpCircle, Trash2, Search, Calendar, FilterX, Info } from 'lucide-react';
-import { FundEntry, UserRole } from '../types';
+import { PlusCircle, History, Landmark, Wallet, ArrowUpCircle, Trash2, Search, Calendar, FilterX, Info, ArrowDownLeft, ArrowUpRight, Banknote } from 'lucide-react';
+import { FundEntry, UserRole, Expense, AdvanceLog } from '../types';
 
 interface FundProps {
   funds: FundEntry[];
   setFunds: React.Dispatch<React.SetStateAction<FundEntry[]>>;
+  expenses: Expense[];
+  advances: AdvanceLog[];
   totalFund: number;
   cashOnHand: number;
   role: UserRole;
 }
 
-const FundLedgerView: React.FC<FundProps> = ({ funds, setFunds, totalFund, cashOnHand, role }) => {
+// Unified Transaction Type for Display
+interface Transaction {
+  id: string;
+  date: string;
+  description: string;
+  amount: number;
+  type: 'FUND_IN' | 'EXPENSE_OUT' | 'ADVANCE_OUT'; // We are simplifying to In/Out
+  originalType: 'FUND' | 'EXPENSE' | 'ADVANCE';
+  subType?: 'SALARY' | 'REGULAR'; // Added to distinguish advances
+  displayType: string;
+}
+
+const FundLedgerView: React.FC<FundProps> = ({ funds, setFunds, expenses, advances, totalFund, cashOnHand, role }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({ amount: 0, note: '' });
 
@@ -19,31 +33,86 @@ const FundLedgerView: React.FC<FundProps> = ({ funds, setFunds, totalFund, cashO
   const [searchTerm, setSearchTerm] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [filterType, setFilterType] = useState<'ALL' | 'CREDIT' | 'DEBIT'>('ALL');
 
-  // Filtered Data Calculation
-  const filteredFunds = useMemo(() => {
-    return funds
-      .filter(f => !f.isDeleted)
-      .filter(f => {
-        const matchesSearch = f.note.toLowerCase().includes(searchTerm.toLowerCase());
-        
-        const fundDate = new Date(f.date).setHours(0, 0, 0, 0);
-        const start = startDate ? new Date(startDate).setHours(0, 0, 0, 0) : null;
-        const end = endDate ? new Date(endDate).setHours(23, 59, 59, 999) : null;
+  // --- MERGE & PREPARE DATA ---
+  const allTransactions = useMemo(() => {
+    const list: Transaction[] = [];
 
-        const matchesDate = (!start || fundDate >= start) && (!end || fundDate <= end);
+    // 1. Funds (Money In / Credit)
+    funds.forEach(f => {
+      if (!f.isDeleted) {
+        list.push({
+          id: f.id,
+          date: f.date,
+          description: f.note,
+          amount: f.amount,
+          type: 'FUND_IN',
+          originalType: 'FUND',
+          displayType: 'ফান্ড জমা (Credit)'
+        });
+      }
+    });
 
-        return matchesSearch && matchesDate;
-      })
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [funds, searchTerm, startDate, endDate]);
+    // 2. Approved Expenses (Money Out / Debit)
+    expenses.forEach(e => {
+      if (!e.isDeleted && e.status === 'APPROVED') {
+        list.push({
+          id: e.id,
+          date: e.createdAt,
+          description: `${e.reason} (${e.staffName})`,
+          amount: e.amount,
+          type: 'EXPENSE_OUT',
+          originalType: 'EXPENSE',
+          displayType: 'খরচ (Debit)'
+        });
+      }
+    });
 
-  // Calculate total for the visible/filtered period
-  const periodTotal = useMemo(() => {
-    return filteredFunds.reduce((sum, f) => sum + f.amount, 0);
-  }, [filteredFunds]);
+    // 3. Advances Given (Money Out / Debit) - Assuming positive amount is Money Out
+    advances.forEach(a => {
+      if (!a.isDeleted && a.amount > 0) {
+        const isSalary = a.type === 'SALARY';
+        list.push({
+          id: a.id,
+          date: a.date,
+          description: `${isSalary ? 'বেতন অগ্রিম' : 'সাধারণ অগ্রিম'}: ${a.staffName} ${a.note ? `(${a.note})` : ''}`,
+          amount: a.amount,
+          type: 'ADVANCE_OUT',
+          originalType: 'ADVANCE',
+          subType: a.type,
+          displayType: isSalary ? 'বেতন অগ্রিম (Salary Adv)' : 'সাধারণ অগ্রিম (Regular Adv)'
+        });
+      }
+    });
 
-  const isFilterActive = searchTerm !== '' || startDate !== '' || endDate !== '';
+    // Sort by Date (Newest First)
+    return list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [funds, expenses, advances]);
+
+  // --- FILTERING LOGIC ---
+  const filteredTransactions = useMemo(() => {
+    return allTransactions.filter(t => {
+      // Text Search
+      const searchLower = searchTerm.toLowerCase();
+      const matchesSearch = t.description.toLowerCase().includes(searchLower);
+
+      // Date Range
+      const tDate = new Date(t.date).setHours(0, 0, 0, 0);
+      const start = startDate ? new Date(startDate).setHours(0, 0, 0, 0) : null;
+      const end = endDate ? new Date(endDate).setHours(23, 59, 59, 999) : null;
+      const matchesDate = (!start || tDate >= start) && (!end || tDate <= end);
+
+      // Type Filter
+      let matchesType = true;
+      if (filterType === 'CREDIT') matchesType = t.type === 'FUND_IN';
+      if (filterType === 'DEBIT') matchesType = t.type === 'EXPENSE_OUT' || t.type === 'ADVANCE_OUT';
+
+      return matchesSearch && matchesDate && matchesType;
+    });
+  }, [allTransactions, searchTerm, startDate, endDate, filterType]);
+
+  const isFilterActive = searchTerm !== '' || startDate !== '' || endDate !== '' || filterType !== 'ALL';
 
   const handleAddFund = (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,6 +137,7 @@ const FundLedgerView: React.FC<FundProps> = ({ funds, setFunds, totalFund, cashO
     setSearchTerm('');
     setStartDate('');
     setEndDate('');
+    setFilterType('ALL');
   };
 
   return (
@@ -85,6 +155,7 @@ const FundLedgerView: React.FC<FundProps> = ({ funds, setFunds, totalFund, cashO
           <div>
             <p className="text-sm text-indigo-100 font-medium mb-1 uppercase tracking-wider">বর্তমান ক্যাশ ব্যালেন্স</p>
             <h3 className="text-3xl font-black">৳ {cashOnHand.toLocaleString()}</h3>
+            <p className="text-[10px] text-indigo-200 mt-1 opacity-80">(ফান্ড - খরচ - অ্যাডভান্স)</p>
           </div>
           <div className="bg-indigo-500/50 p-4 rounded-2xl"><Wallet className="w-8 h-8 text-white" /></div>
         </div>
@@ -95,7 +166,10 @@ const FundLedgerView: React.FC<FundProps> = ({ funds, setFunds, totalFund, cashO
         <div className="p-6 border-b border-gray-50 flex flex-wrap justify-between items-center gap-4">
           <div className="flex items-center gap-3">
             <div className="bg-indigo-100 p-2 rounded-lg"><History className="w-5 h-5 text-indigo-600" /></div>
-            <h3 className="font-bold text-gray-800">ফান্ড লেনদেন ইতিহাস</h3>
+            <div>
+               <h3 className="font-bold text-gray-800">লেনদেনের খাতা (Cashbook)</h3>
+               <p className="text-xs text-gray-400">ফান্ড জমা, খরচ এবং অ্যাডভান্সের সম্মিলিত তালিকা</p>
+            </div>
           </div>
           {(role === UserRole.ADMIN || role === UserRole.MD) && (
             <button 
@@ -103,7 +177,7 @@ const FundLedgerView: React.FC<FundProps> = ({ funds, setFunds, totalFund, cashO
               className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-50 active:scale-95"
             >
               <PlusCircle className="w-4 h-4" />
-              ফান্ড যোগ করুন
+              ফান্ড জমা করুন
             </button>
           )}
         </div>
@@ -122,6 +196,18 @@ const FundLedgerView: React.FC<FundProps> = ({ funds, setFunds, totalFund, cashO
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
+          </div>
+          <div className="w-full sm:w-auto">
+             <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">ধরণ (Type)</label>
+             <select 
+               className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 focus:ring-2 focus:ring-indigo-500 outline-none"
+               value={filterType}
+               onChange={(e) => setFilterType(e.target.value as any)}
+             >
+                <option value="ALL">সব লেনদেন (All)</option>
+                <option value="CREDIT">শুধুমাত্র জমা (Credit)</option>
+                <option value="DEBIT">খরচ ও অ্যাডভান্স (Debit)</option>
+             </select>
           </div>
           <div className="w-full sm:w-auto">
             <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">শুরু তারিখ</label>
@@ -158,58 +244,73 @@ const FundLedgerView: React.FC<FundProps> = ({ funds, setFunds, totalFund, cashO
           )}
         </div>
 
-        {/* Filter Summary Badge */}
-        {isFilterActive && (
-          <div className="px-6 py-3 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-indigo-700">
-              <Info className="w-4 h-4" />
-              <span className="text-xs font-bold">ফিল্টার করা সময়ের মোট প্রাপ্তি:</span>
-            </div>
-            <span className="text-sm font-black text-indigo-700">৳ {periodTotal.toLocaleString()}</span>
-          </div>
-        )}
-
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
                 <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">তারিখ</th>
                 <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">বিবরণ</th>
-                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">পরিমাণ</th>
+                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">ধরন</th>
+                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Debit (Out)</th>
+                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Credit (In)</th>
                 {role === UserRole.ADMIN && <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">অ্যাকশন</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filteredFunds.map((fund) => (
-                <tr key={fund.id} className="hover:bg-gray-50 transition-colors group">
-                  <td className="px-6 py-4 text-sm text-gray-600 font-medium">
-                    {new Date(fund.date).toLocaleDateString('bn-BD', { day: '2-digit', month: 'long', year: 'numeric' })}
+              {filteredTransactions.map((t) => (
+                <tr key={t.id} className={`hover:bg-gray-50 transition-colors group ${t.type === 'FUND_IN' ? 'bg-green-50/20' : ''}`}>
+                  <td className="px-6 py-4 text-sm text-gray-600 font-medium whitespace-nowrap">
+                    {new Date(t.date).toLocaleDateString('bn-BD', { day: '2-digit', month: 'short', year: '2-digit' })}
                   </td>
                   <td className="px-6 py-4">
-                     <p className="text-sm font-bold text-gray-800">{fund.note}</p>
-                     <p className="text-[10px] text-green-500 font-black uppercase tracking-tighter">Received from MD</p>
+                     <p className="text-sm font-bold text-gray-800 line-clamp-1">{t.description}</p>
                   </td>
+                  <td className="px-6 py-4">
+                     <span className={`text-[10px] font-black uppercase tracking-tight px-2 py-1 rounded-full flex items-center gap-1 w-fit ${
+                        t.type === 'FUND_IN' ? 'bg-green-100 text-green-700' :
+                        t.originalType === 'ADVANCE' ? (t.subType === 'SALARY' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700') : 
+                        'bg-red-100 text-red-700'
+                     }`}>
+                        {t.type === 'FUND_IN' ? <ArrowDownLeft className="w-3 h-3"/> : <ArrowUpRight className="w-3 h-3"/>}
+                        {t.displayType}
+                     </span>
+                  </td>
+                  
+                  {/* DEBIT COLUMN (Money Out) */}
                   <td className="px-6 py-4 text-right">
-                    <span className="text-sm font-black text-gray-900 bg-gray-100 px-3 py-1 rounded-lg">৳ {fund.amount.toLocaleString()}</span>
+                    {t.type !== 'FUND_IN' ? (
+                       <span className="text-sm font-black text-red-600">৳ {t.amount.toLocaleString()}</span>
+                    ) : <span className="text-gray-300">-</span>}
                   </td>
+
+                  {/* CREDIT COLUMN (Money In) */}
+                  <td className="px-6 py-4 text-right">
+                    {t.type === 'FUND_IN' ? (
+                       <span className="text-sm font-black text-green-600">৳ {t.amount.toLocaleString()}</span>
+                    ) : <span className="text-gray-300">-</span>}
+                  </td>
+
                   {role === UserRole.ADMIN && (
                     <td className="px-6 py-4 text-right">
-                      <button 
-                        onClick={() => deleteEntry(fund.id)} 
-                        className="p-2 text-gray-300 hover:text-red-600 rounded-xl hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {t.originalType === 'FUND' && (
+                        <button 
+                          onClick={() => deleteEntry(t.id)} 
+                          className="p-2 text-gray-300 hover:text-red-600 rounded-xl hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
+                          title="ফান্ড ডিলিট করুন"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </td>
                   )}
                 </tr>
               ))}
-              {filteredFunds.length === 0 && (
+              {filteredTransactions.length === 0 && (
                 <tr>
-                  <td colSpan={role === UserRole.ADMIN ? 4 : 3} className="px-6 py-20 text-center">
+                  <td colSpan={role === UserRole.ADMIN ? 6 : 5} className="px-6 py-20 text-center">
                     <div className="flex flex-col items-center gap-3 opacity-20">
                       <Search className="w-12 h-12" />
-                      <p className="text-lg font-bold">কোনো ফান্ড লেনদেন পাওয়া যায়নি</p>
+                      <p className="text-lg font-bold">কোনো লেনদেন পাওয়া যায়নি</p>
                     </div>
                   </td>
                 </tr>

@@ -432,10 +432,19 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
     const safeAdvances = advances || [];
     const staffExpenses = safeExpenses.filter(e => e && e.staffId === staffId && !e.isDeleted);
     const approved = staffExpenses.filter(e => e.status === 'APPROVED').reduce((sum, e) => sum + Number(e.amount || 0), 0);
+    
     const staffAdvances = safeAdvances.filter(a => a && a.staffId === staffId && !a.isDeleted);
-    const totalAdvance = staffAdvances.reduce((sum, a) => sum + Number(a.amount || 0), 0);
-    const balance = totalAdvance - approved;
-    return { balance };
+    // Total Advance includes ALL advances (for admin reference if needed)
+    // const totalAdvance = staffAdvances.reduce((sum, a) => sum + Number(a.amount || 0), 0);
+    
+    // Separate breakdown
+    const totalRegularAdv = staffAdvances.filter(a => a.type !== 'SALARY').reduce((sum, a) => sum + Number(a.amount || 0), 0);
+    const totalSalaryAdv = staffAdvances.filter(a => a.type === 'SALARY').reduce((sum, a) => sum + Number(a.amount || 0), 0);
+
+    // CHANGED: Hand Balance = Regular Advance - Approved Expenses
+    // Salary Advance is tracked separately
+    const balance = totalRegularAdv - approved;
+    return { balance, totalRegularAdv, totalSalaryAdv, approved };
   };
 
   return (
@@ -513,7 +522,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {filteredStaff.map((staff) => {
           if (!staff) return null;
-          const { balance } = getStaffFinancials(staff.id);
+          const { balance, totalSalaryAdv } = getStaffFinancials(staff.id);
           const safeName = staff.name || 'Unknown';
           const safeId = staff.staffId || 'N/A';
           const isActive = staff.status === 'ACTIVE';
@@ -522,6 +531,12 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
             <div key={staff.id} className="group relative bg-white dark:bg-gray-800/60 dark:backdrop-blur-md rounded-2xl shadow-sm hover:shadow-xl border border-gray-200 dark:border-white/10 overflow-hidden transition-all duration-300 hover:-translate-y-1">
               <div className={`h-24 w-full absolute top-0 left-0 ${isActive ? 'bg-gradient-to-r from-indigo-500 to-purple-600' : 'bg-gradient-to-r from-gray-400 to-gray-500'}`}></div>
               <div className="relative pt-12 px-5 pb-5 flex flex-col h-full">
+                  
+                  {/* Points Badge (Moved to top-left corner) */}
+                  <div className="absolute top-3 left-3 bg-yellow-400 text-yellow-900 text-[10px] font-black px-2 py-1 rounded-full shadow-sm flex items-center gap-1 z-10 border border-yellow-200">
+                     <Star className="w-3 h-3 fill-yellow-900" /> {staff.points || 0}
+                  </div>
+
                   <div className="flex flex-col items-center">
                       <div className="relative">
                           {staff.photo ? (
@@ -562,18 +577,27 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
                           </span>
                       </div>
                   </div>
+                  
+                  {/* Updated Grid: Balance vs Salary Advance */}
                   <div className="grid grid-cols-2 gap-3 mt-4">
-                      <div className="bg-indigo-50 dark:bg-indigo-900/30 rounded-xl p-3 text-center border border-indigo-100 dark:border-indigo-800">
-                          <p className="text-[9px] uppercase font-bold text-indigo-400">ব্যালেন্স</p>
-                          <p className={`text-sm font-black ${balance < 0 ? 'text-red-500' : 'text-indigo-700 dark:text-indigo-400'}`}>৳ {balance.toLocaleString()}</p>
+                      {/* Operational Balance */}
+                      <div className={`rounded-xl p-3 text-center border ${balance < 0 ? 'bg-red-50 border-red-100 dark:bg-red-900/20 dark:border-red-800' : 'bg-indigo-50 border-indigo-100 dark:bg-indigo-900/30 dark:border-indigo-800'}`}>
+                          <p className={`text-[9px] uppercase font-bold ${balance < 0 ? 'text-red-600' : 'text-gray-500 dark:text-gray-400'}`}>
+                            {balance < 0 ? 'পাবে (Payable)' : 'হাতে আছে (Cash)'}
+                          </p>
+                          <p className={`text-sm font-black ${balance < 0 ? 'text-red-700 dark:text-red-400' : 'text-indigo-700 dark:text-indigo-400'}`}>
+                             {balance < 0 ? '- ' : ''}৳ {Math.abs(balance).toLocaleString()}
+                          </p>
                       </div>
-                      <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-xl p-3 text-center border border-yellow-100 dark:border-yellow-800">
-                          <p className="text-[9px] uppercase font-bold text-yellow-500">পয়েন্ট</p>
-                          <p className="text-sm font-black text-yellow-700 dark:text-yellow-400 flex items-center justify-center gap-1">
-                              <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" /> {staff.points || 0}
+                      {/* Salary Advance */}
+                      <div className="bg-purple-50 dark:bg-purple-900/20 rounded-xl p-3 text-center border border-purple-100 dark:border-purple-800">
+                          <p className="text-[9px] uppercase font-bold text-purple-500">বেতন অগ্রিম</p>
+                          <p className="text-sm font-black text-purple-700 dark:text-purple-400">
+                              ৳ {totalSalaryAdv.toLocaleString()}
                           </p>
                       </div>
                   </div>
+
                   <div className="flex items-center justify-center gap-2 mt-5 pt-4 border-t border-gray-100 dark:border-white/10">
                        <button onClick={() => openEdit(staff)} className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300 hover:bg-indigo-600 hover:text-white transition-colors" title="এডিট করুন">
                           <Edit2 className="w-3.5 h-3.5" />
@@ -696,8 +720,8 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
                <div>
                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">ধরন</label>
                  <div className="flex gap-2">
-                    <button type="button" onClick={() => setAdvanceFormData({...advanceFormData, type: 'REGULAR'})} className={`flex-1 py-2 rounded-lg text-xs font-bold border ${advanceFormData.type === 'REGULAR' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-white text-gray-500'}`}>Regular</button>
-                    <button type="button" onClick={() => setAdvanceFormData({...advanceFormData, type: 'SALARY'})} className={`flex-1 py-2 rounded-lg text-xs font-bold border ${advanceFormData.type === 'SALARY' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-white text-gray-500'}`}>Salary Adv</button>
+                    <button type="button" onClick={() => setAdvanceFormData({...advanceFormData, type: 'REGULAR'})} className={`flex-1 py-2 rounded-lg text-xs font-bold border ${advanceFormData.type === 'REGULAR' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-white text-gray-500'}`}>Regular Adv</button>
+                    <button type="button" onClick={() => setAdvanceFormData({...advanceFormData, type: 'SALARY'})} className={`flex-1 py-2 rounded-lg text-xs font-bold border ${advanceFormData.type === 'SALARY' ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-white text-gray-500'}`}>Salary Adv</button>
                  </div>
                </div>
                <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-100">
@@ -769,16 +793,38 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
             
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
                {/* Financial Summary */}
-               <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-indigo-50 p-4 rounded-xl text-center border border-indigo-100">
-                     <p className="text-xs text-indigo-500 font-bold uppercase">মোট বিল (Approved)</p>
-                     <p className="text-xl font-black text-indigo-700">৳ {expenses.filter(e => e.staffId === historyStaff.id && e.status === 'APPROVED' && !e.isDeleted).reduce((s, e) => s + e.amount, 0).toLocaleString()}</p>
-                  </div>
-                  <div className="bg-blue-50 p-4 rounded-xl text-center border border-blue-100">
-                     <p className="text-xs text-blue-500 font-bold uppercase">নেট ব্যালেন্স (Due/Adv)</p>
-                     <p className={`text-xl font-black ${getStaffFinancials(historyStaff.id).balance < 0 ? 'text-red-600' : 'text-blue-700'}`}>৳ {getStaffFinancials(historyStaff.id).balance.toLocaleString()}</p>
-                  </div>
-               </div>
+               {(() => {
+                  const { balance, totalRegularAdv, totalSalaryAdv, approved } = getStaffFinancials(historyStaff.id);
+                  
+                  return (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {/* Expense */}
+                      <div className="bg-indigo-50 p-3 rounded-xl text-center border border-indigo-100">
+                         <p className="text-[10px] text-indigo-500 font-bold uppercase">মোট বিল (Exp)</p>
+                         <p className="text-lg font-black text-indigo-700">৳ {approved.toLocaleString()}</p>
+                      </div>
+                      {/* Regular Adv */}
+                      <div className="bg-blue-50 p-3 rounded-xl text-center border border-blue-100">
+                         <p className="text-[10px] text-blue-500 font-bold uppercase">সাধারণ অগ্রিম</p>
+                         <p className="text-lg font-black text-blue-700">৳ {totalRegularAdv.toLocaleString()}</p>
+                      </div>
+                      {/* Salary Adv */}
+                      <div className="bg-purple-50 p-3 rounded-xl text-center border border-purple-100">
+                         <p className="text-[10px] text-purple-500 font-bold uppercase">বেতন অগ্রিম</p>
+                         <p className="text-lg font-black text-purple-700">৳ {totalSalaryAdv.toLocaleString()}</p>
+                      </div>
+                      {/* Net Balance */}
+                      <div className={`p-3 rounded-xl text-center border ${balance < 0 ? 'bg-red-50 border-red-100' : 'bg-indigo-50 border-indigo-100'}`}>
+                         <p className={`text-[10px] font-bold uppercase ${balance < 0 ? 'text-red-600' : 'text-indigo-600'}`}>
+                           {balance < 0 ? 'পাবে (Payable)' : 'হাতে আছে (Cash)'}
+                         </p>
+                         <p className={`text-lg font-black ${balance < 0 ? 'text-red-700' : 'text-indigo-700'}`}>
+                           {balance < 0 ? '- ' : ''}৳ {Math.abs(balance).toLocaleString()}
+                         </p>
+                      </div>
+                    </div>
+                  );
+               })()}
 
                {/* Advance History */}
                <div>
@@ -787,8 +833,13 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
                      {advances.filter(a => a.staffId === historyStaff.id && !a.isDeleted).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(adv => (
                         <div key={adv.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-xl border border-gray-100 text-sm">
                            <div>
-                              <p className="font-bold text-gray-700">{adv.note || 'No description'}</p>
-                              <p className="text-xs text-gray-400">{new Date(adv.date).toLocaleDateString('bn-BD')}</p>
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className={`text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider ${adv.type === 'SALARY' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                                  {adv.type === 'SALARY' ? 'Salary Adv' : 'Regular Adv'}
+                                </span>
+                                <p className="text-xs text-gray-400 font-bold">{new Date(adv.date).toLocaleDateString('bn-BD')}</p>
+                              </div>
+                              <p className="font-bold text-gray-700 text-sm">{adv.note || 'No description'}</p>
                            </div>
                            <span className={`font-black ${adv.amount > 0 ? 'text-blue-600' : 'text-green-600'}`}>
                               {adv.amount > 0 ? `+ ৳${adv.amount}` : `- ৳${Math.abs(adv.amount)}`}

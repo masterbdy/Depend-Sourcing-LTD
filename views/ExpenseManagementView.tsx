@@ -30,6 +30,9 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
   // Delete Confirmation State
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
+  // Status Update Confirmation State
+  const [statusConfirmData, setStatusConfirmData] = useState<{id: string, status: Expense['status']} | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Filtering States
@@ -81,7 +84,19 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
     const banglaToEng = (str: string) => str.replace(/[০-৯]/g, d => "0123456789"["০১২৩৪৫৬৭৮৯".indexOf(d)]);
     let processedText = banglaToEng(text);
 
-    // 2. EXCLUSION LOGIC: Mask numbers that are part of addresses/locations
+    // --- IMPROVED EXCLUSION LOGIC ---
+
+    // A. Mask Time Formats (e.g., 10:15, 09:30, 9:00)
+    // Replaces digits in time with 'X' so they are not summed
+    processedText = processedText.replace(/\d{1,2}:\d{2}/g, (match) => match.replace(/\d/g, 'X'));
+
+    // B. Mask Units (pcs, Yds, kg, etc.)
+    // Matches numbers followed immediately or by space with unit names
+    // Example: 100pcs, 100 pcs, 50yds, 10kg
+    const unitPattern = /(\d+)[\s\-]*(pcs|pc|yds|yd|kg|ltr|m|cm|inch|ft|g|gm|mg|ml|pack|box|pair|set|ali|hali|dizon|jon|ta|ti|to|p|y|গজ|পিস|কেজি|টা|টি|জন)/gi;
+    processedText = processedText.replace(unitPattern, (match) => match.replace(/\d/g, 'X'));
+
+    // C. Mask Addresses/Locations (Existing Logic)
     const exclusionPattern = /(মিরপুর|উত্তরা|সেক্টর|রোড|বাসা|ফ্ল্যাট|লেভেল|তলা|ব্লক|লেন|ওয়ার্ড|নম্বর|নং|প্লাটফর্ম|গাড়ি|বাস নং|Mirpur|Uttara|Sector|Road|House|Flat|Level|Floor|Block|Lane|Ward|No|Num)[\s\-\.]*[0-9]+/gi;
     processedText = processedText.replace(exclusionPattern, (match) => match.replace(/[0-9]/g, 'X'));
 
@@ -174,6 +189,36 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
         return;
     }
 
+    // DATE RESTRICTION FOR STAFF (Max 1 day prior)
+    if (role === UserRole.STAFF) {
+        // Create date from YYYY-MM-DD string to ensure local time interpretation
+        const [y, m, d] = formData.date.split('-').map(Number);
+        const selectedDate = new Date(y, m - 1, d);
+        
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Normalize today to midnight
+        
+        // Calculate difference in days
+        const diffTime = today.getTime() - selectedDate.getTime();
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+        // Logic: 
+        // diffDays = 0 (Today) -> Allowed
+        // diffDays = 1 (Yesterday) -> Allowed
+        // diffDays > 1 (Before Yesterday) -> Blocked
+        
+        if (diffDays > 1) {
+            alert(`দুঃখিত! স্টাফরা সর্বোচ্চ ১ দিন আগের বিল সাবমিট করতে পারবে।\n\nআজকের তারিখ: ${today.toLocaleDateString('bn-BD')}\nআপনার নির্বাচিত তারিখ: ${selectedDate.toLocaleDateString('bn-BD')}`);
+            return;
+        }
+        
+        // Prevent future dates
+        if (diffDays < 0) {
+             alert("ভবিষ্যতের তারিখের বিল সাবমিট করা যাবে না।");
+             return;
+        }
+    }
+
     // 4. Duplicate Check (Warning only)
     let isDuplicate = false;
     try {
@@ -196,6 +241,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
     // 5. Create Object
     const submitDate = new Date(formData.date);
     const now = new Date();
+    // Keep the time component of now, but use the selected date
     submitDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
 
     const newExpense: Expense = {
@@ -223,19 +269,15 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
   };
 
   const updateStatus = (id: string, status: Expense['status']) => {
-    // Add confirmation logic for sensitive actions
-    if (status === 'REJECTED') {
-      if (!window.confirm('আপনি কি নিশ্চিত যে এই বিলটি বাতিল (Reject) করতে চান?')) {
-        return;
-      }
+    // Replaced window.confirm with custom modal to ensure it works on all devices
+    setStatusConfirmData({ id, status });
+  };
+
+  const confirmStatusUpdate = () => {
+    if (statusConfirmData) {
+       setExpenses(prev => prev.map(e => e.id === statusConfirmData.id ? { ...e, status: statusConfirmData.status } : e));
+       setStatusConfirmData(null);
     }
-    if (status === 'APPROVED') {
-      if (!window.confirm('আপনি কি নিশ্চিত যে এই বিলটি অনুমোদন (Approve) করতে চান?')) {
-        return;
-      }
-    }
-    
-    setExpenses(prev => prev.map(e => e.id === id ? { ...e, status } : e));
   };
 
   const softDelete = (id: string) => {
@@ -566,8 +608,8 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                  </>
                )}
 
-               {/* MD CONTROLS */}
-               {role === UserRole.MD && expense.status === 'VERIFIED' && (
+               {/* MD CONTROLS - NOW ALLOWS APPROVAL FROM PENDING OR VERIFIED */}
+               {role === UserRole.MD && (expense.status === 'VERIFIED' || expense.status === 'PENDING') && (
                  <>
                    <button onClick={() => updateStatus(expense.id, 'APPROVED')} className="flex-[2] bg-indigo-600 text-white py-2 rounded-lg text-xs font-bold hover:bg-indigo-700 shadow-sm transition-colors">
                      <CheckCircle className="w-4 h-4 inline mr-1"/> অ্যাপ্রুভ করুন
@@ -625,8 +667,8 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                 )}
               </div>
 
-              {(role === UserRole.ADMIN || role === UserRole.MD) && (
-                <div>
+              {/* Date Input - Visible for everyone with specific validation for Staff */}
+              <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">তারিখ (Date)</label>
                   <input 
                     type="date"
@@ -634,9 +676,14 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                     className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                     value={formData.date}
                     onChange={(e) => setFormData({...formData, date: e.target.value})}
+                    max={new Date().toISOString().split('T')[0]} // Prevent future
                   />
-                </div>
-              )}
+                  {role === UserRole.STAFF && (
+                    <p className="text-[10px] text-gray-400 mt-1 flex items-center gap-1">
+                      <Clock className="w-3 h-3" /> সর্বোচ্চ ১ দিন আগের বিল সাবমিট করা যাবে।
+                    </p>
+                  )}
+              </div>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 flex justify-between">
@@ -717,6 +764,39 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                 </div>
                 <button type="submit" className="w-full bg-orange-500 text-white py-3 rounded-xl font-bold hover:bg-orange-600 shadow-lg shadow-orange-100 flex items-center justify-center gap-2"><Edit3 className="w-4 h-4" /> সেইভ করুন</button>
              </form>
+          </div>
+        </div>
+      )}
+
+      {/* STATUS CONFIRMATION MODAL */}
+      {statusConfirmData && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
+            <div className="p-6 text-center">
+              <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${statusConfirmData.status === 'APPROVED' ? 'bg-green-100 text-green-600' : statusConfirmData.status === 'REJECTED' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+                {statusConfirmData.status === 'APPROVED' ? <CheckCircle className="w-8 h-8" /> : statusConfirmData.status === 'REJECTED' ? <XCircle className="w-8 h-8" /> : <RotateCcw className="w-8 h-8" />}
+              </div>
+              <h3 className="text-xl font-black text-gray-800 mb-2">
+                {statusConfirmData.status === 'APPROVED' ? 'অ্যাপ্রুভ করতে চান?' : statusConfirmData.status === 'REJECTED' ? 'বাতিল করতে চান?' : 'স্ট্যাটাস পরিবর্তন?'}
+              </h3>
+              <p className="text-sm text-gray-500 mb-6">
+                আপনি এই বিলটির স্ট্যাটাস পরিবর্তন করে "{statusConfirmData.status}" করতে যাচ্ছেন। আপনি কি নিশ্চিত?
+              </p>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setStatusConfirmData(null)}
+                  className="flex-1 py-3 border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors"
+                >
+                  না
+                </button>
+                <button 
+                  onClick={confirmStatusUpdate}
+                  className={`flex-1 py-3 text-white font-bold rounded-xl shadow-lg transition-colors ${statusConfirmData.status === 'APPROVED' ? 'bg-green-600 hover:bg-green-700 shadow-green-200' : statusConfirmData.status === 'REJECTED' ? 'bg-red-600 hover:bg-red-700 shadow-red-200' : 'bg-blue-600 hover:bg-blue-700'}`}
+                >
+                  হ্যাঁ, নিশ্চিত
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
