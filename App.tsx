@@ -1103,7 +1103,7 @@ const App: React.FC = () => {
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'dashboard': return <DashboardView totalExpense={totalExpense} pendingApprovals={pendingApprovals} expenses={expenses} cloudError={cloudError} totalFund={totalFund} cashOnHand={cashOnHand} role={role} staffList={staffList} advances={advances} />;
+      case 'dashboard': return <DashboardView totalExpense={totalExpense} pendingApprovals={pendingApprovals} expenses={expenses} cloudError={cloudError} totalFund={totalFund} cashOnHand={cashOnHand} role={role} staffList={staffList} advances={advances} currentUser={currentUser} />;
       case 'chat': return <GroupChatView messages={messages} setMessages={updateMessages} currentUser={currentUser} role={role} onNavigate={(view) => setActiveTab(view)} onUpdatePoints={handlePointUpdate} staffList={staffList} />;
       case 'attendance': return <AttendanceView staffList={staffList} attendanceList={attendanceList} setAttendanceList={updateAttendance} currentUser={currentUser} role={role} />;
       case 'live-location': return <LiveLocationView staffList={staffList} liveLocations={liveLocations} />;
@@ -1117,7 +1117,7 @@ const App: React.FC = () => {
       case 'reports': return <ReportsView expenses={expenses} staffList={staffList} advances={advances} attendanceList={attendanceList} funds={funds} />;
       case 'settings': return <SettingsView billingRules={billingRules} setBillingRules={updateBillingRules} role={role} exportData={handleExport} importData={handleImport} cloudConfig={firebaseConfig} saveCloudConfig={(config) => { localStorage.setItem('fb_config', JSON.stringify(config)); alert('Settings saved! Reloading...'); window.location.reload(); }} />;
       case 'trash': return <TrashView staffList={staffList} setStaffList={updateStaffList} movements={movements} setMovements={updateMovements} expenses={expenses} setExpenses={updateExpenses} funds={funds} setFunds={updateFunds} notices={notices} setNotices={updateNotices} role={role} />;
-      default: return <DashboardView totalExpense={totalExpense} pendingApprovals={pendingApprovals} expenses={expenses} cloudError={cloudError} totalFund={totalFund} cashOnHand={cashOnHand} role={role} staffList={staffList} advances={advances} />;
+      default: return <DashboardView totalExpense={totalExpense} pendingApprovals={pendingApprovals} expenses={expenses} cloudError={cloudError} totalFund={totalFund} cashOnHand={cashOnHand} role={role} staffList={staffList} advances={advances} currentUser={currentUser} />;
     }
   };
 
@@ -1363,7 +1363,7 @@ const App: React.FC = () => {
                            className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all duration-300 group active:scale-95 ${
                               activeTab === item.id 
                                 ? 'bg-indigo-50 border-indigo-500 ring-1 ring-indigo-500 shadow-md' 
-                                : `bg-white border-gray-100 shadow-sm ${style.border} hover:shadow-md dark:bg-gray-800 dark:border-gray-700`
+                                : `bg-white border-gray-100 shadow-sm ${style.border} hover:shadow-md dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300`
                            }`}
                         >
                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-2 shadow-lg bg-gradient-to-br ${style.iconBg} text-white transform group-hover:scale-110 transition-transform duration-300`}>

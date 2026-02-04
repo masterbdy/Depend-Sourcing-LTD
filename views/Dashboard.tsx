@@ -13,9 +13,10 @@ interface DashboardProps {
   role: UserRole | null;
   staffList: Staff[];
   advances: AdvanceLog[];
+  currentUser: string | null;
 }
 
-const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApprovals, expenses, cloudError, totalFund, cashOnHand, role, staffList, advances }) => {
+const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApprovals, expenses, cloudError, totalFund, cashOnHand, role, staffList, advances, currentUser }) => {
   const recentActivities = [...expenses].filter(e => !e.isDeleted).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 6);
 
   // --- STATS CALCULATION ---
@@ -25,11 +26,38 @@ const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApproval
   const totalAdvance = regularAdvance + salaryAdvance;
 
   // Actual Cash in Hand (Fund - Total Advance)
-  // Note: Expense is excluded from cash calculation as per requirement.
   const actualCashOnHand = totalFund - totalAdvance;
+
+  // --- LEDGER PAYABLE CALCULATION (NEW LOGIC) ---
+  // Calculates the sum of "Payable" amounts from all staff profiles.
+  // Formula: If (Regular Advance - Approved Expenses) is negative, the company owes the staff.
+  const totalLedgerPayable = staffList.reduce((acc, staff) => {
+      if (staff.deletedAt) return acc; // Skip deleted staff
+      
+      const approvedExp = expenses
+        .filter(e => !e.isDeleted && e.status === 'APPROVED' && e.staffId === staff.id)
+        .reduce((sum, e) => sum + Number(e.amount), 0);
+      
+      const regularAdv = advances
+        .filter(a => !a.isDeleted && a.type !== 'SALARY' && a.staffId === staff.id)
+        .reduce((sum, a) => sum + Number(a.amount), 0);
+      
+      const balance = regularAdv - approvedExp;
+      
+      // If balance is negative, it means company owes the staff (Payable)
+      return balance < 0 ? acc + Math.abs(balance) : acc;
+  }, 0);
 
   const isStaff = role === UserRole.STAFF;
   const isManagement = role === UserRole.ADMIN || role === UserRole.MD;
+
+  // --- STAFF SPECIFIC STATS ---
+  const myExpenses = expenses.filter(e => e.staffName === currentUser && !e.isDeleted);
+  const myApprovedTotal = myExpenses.filter(e => e.status === 'APPROVED').reduce((sum, e) => sum + Number(e.amount), 0);
+  const myPendingCount = myExpenses.filter(e => e.status === 'PENDING' || e.status === 'VERIFIED').length;
+  
+  const myAdvances = advances.filter(a => a.staffName === currentUser && !a.isDeleted);
+  const myTotalReceived = myAdvances.reduce((sum, a) => sum + Number(a.amount), 0);
 
   // --- CHAMPIONS LOGIC ---
   const getPreviousMonthChampions = () => {
@@ -109,7 +137,7 @@ const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApproval
                 </div>
               </div>
 
-              {/* Row 2: Advance Breakdown (NEW) */}
+              {/* Row 2: Advance Breakdown */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                  <div className="bg-white rounded-2xl p-5 border border-orange-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-24 h-24 bg-orange-50 rounded-full -mr-8 -mt-8 opacity-50"></div>
@@ -140,7 +168,7 @@ const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApproval
                  </div>
               </div>
 
-              {/* Row 3: Expense & Pending */}
+              {/* Row 3: Expense & Payable Bill (UPDATED) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="bg-white rounded-2xl p-5 border border-indigo-100 shadow-sm hover:shadow-md transition-shadow">
                   <div className="flex items-start justify-between mb-3">
@@ -153,15 +181,24 @@ const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApproval
                     <h3 className="text-2xl font-black text-gray-800">৳ {totalExpense.toLocaleString()}</h3>
                   </div>
                 </div>
-                <div className="bg-white rounded-2xl p-5 border border-red-100 shadow-sm hover:shadow-md transition-shadow">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="bg-red-50 p-3 rounded-xl text-red-600">
-                      <AlertCircle className="w-6 h-6" />
+                
+                {/* Ledger Payable Bill Card */}
+                <div className="bg-white rounded-2xl p-5 border border-red-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-red-50 rounded-full -mr-8 -mt-8 opacity-50"></div>
+                  <div className="relative z-10">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="bg-red-50 p-3 rounded-xl text-red-600">
+                        <WalletCards className="w-6 h-6" />
+                      </div>
+                      <span className="bg-orange-100 text-orange-700 text-[10px] font-black px-2 py-1 rounded-full">
+                        পেন্ডিং রিকোয়েস্ট: {pendingApprovals}
+                      </span>
                     </div>
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">পেন্ডিং বিল রিকোয়েস্ট</p>
-                    <h3 className="text-2xl font-black text-gray-800">{pendingApprovals} টি</h3>
+                    <div>
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">মোট পাওনা (Ledger)</p>
+                      <h3 className="text-2xl font-black text-red-600">৳ {totalLedgerPayable.toLocaleString()}</h3>
+                      <p className="text-[10px] text-gray-400 mt-1">অ্যাপ্রুভড বিল - অগ্রিম (কোম্পানির দায়)</p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -171,19 +208,39 @@ const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApproval
           {/* Quick Stats Grid (STAFF VIEW) */}
           {isStaff && (
              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* 1. Total Received (Advance) */}
+                <div className="bg-white rounded-2xl p-5 border border-teal-100 shadow-sm relative overflow-hidden group">
+                   <div className="absolute top-0 right-0 w-24 h-24 bg-teal-50 rounded-full -mr-8 -mt-8 opacity-50"></div>
+                   <div className="relative z-10">
+                      <div className="flex items-center gap-3 mb-3">
+                         <div className="bg-teal-100 p-2.5 rounded-xl text-teal-600">
+                            <Wallet className="w-5 h-5" />
+                         </div>
+                         <span className="text-xs font-black text-teal-500 uppercase tracking-widest">মোট জমা (Received)</span>
+                      </div>
+                      <h3 className="text-2xl font-black text-gray-800">৳ {myTotalReceived.toLocaleString()}</h3>
+                      <p className="text-[10px] text-gray-400 mt-1">অফিস থেকে নেওয়া মোট অগ্রিম (Regular + Salary)</p>
+                   </div>
+                </div>
+
+                {/* 2. My Total Expense */}
                 <div className="bg-white rounded-2xl p-5 border border-indigo-100 shadow-sm">
                    <div className="flex items-start justify-between mb-3">
                       <div className="bg-indigo-50 p-3 rounded-xl text-indigo-600"><TrendingDown className="w-6 h-6" /></div>
                    </div>
                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">আমার মোট খরচ</p>
-                   <h3 className="text-2xl font-black text-gray-800">৳ {totalExpense.toLocaleString()}</h3>
+                   <h3 className="text-2xl font-black text-gray-800">৳ {myApprovedTotal.toLocaleString()}</h3>
+                   <p className="text-[10px] text-gray-400 mt-1">অনুমোদিত বিলের যোগফল</p>
                 </div>
-                <div className="bg-white rounded-2xl p-5 border border-orange-100 shadow-sm">
+
+                {/* 3. My Pending Bills */}
+                <div className="bg-white rounded-2xl p-5 border border-orange-100 shadow-sm sm:col-span-2">
                    <div className="flex items-start justify-between mb-3">
                       <div className="bg-orange-50 p-3 rounded-xl text-orange-600"><AlertCircle className="w-6 h-6" /></div>
                    </div>
                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">পেন্ডিং বিল</p>
-                   <h3 className="text-2xl font-black text-gray-800">{pendingApprovals} টি</h3>
+                   <h3 className="text-2xl font-black text-gray-800">{myPendingCount} টি</h3>
+                   <p className="text-[10px] text-gray-400 mt-1">অনুমোদনের অপেক্ষায় আছে</p>
                 </div>
              </div>
           )}
