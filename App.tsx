@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   LayoutDashboard, Users, Car, Receipt, BarChart3, Settings, Trash2, 
-  LogOut, Wallet, User, Cloud, WifiOff, AlertTriangle, Menu, X, RefreshCw, Lock, ArrowRightLeft, XCircle, Landmark, Bell, Phone, Briefcase, Crown, UserCog, ShieldCheck, Camera, Save, KeyRound, CreditCard, MessageSquareWarning, MessagesSquare, MapPin, MonitorSmartphone, Satellite, Trophy, Gift, Gamepad2, Shield, CheckCircle, LogIn, Sparkles, ClipboardList, Check, Eye, EyeOff, Moon, Sun, Loader2, MoreHorizontal, Grid
+  LogOut, Wallet, User, Cloud, WifiOff, AlertTriangle, Menu, X, RefreshCw, Lock, ArrowRightLeft, XCircle, Landmark, Bell, Phone, Briefcase, Crown, UserCog, ShieldCheck, Camera, Save, KeyRound, CreditCard, MessageSquareWarning, MessagesSquare, MapPin, MonitorSmartphone, Satellite, Trophy, Gift, Gamepad2, Shield, CheckCircle, LogIn, Sparkles, ClipboardList, Check, Eye, EyeOff, Moon, Sun, Loader2, MoreHorizontal, Grid, Info, BellRing
 } from 'lucide-react';
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { getDatabase, ref, onValue, set } from "firebase/database";
@@ -38,9 +38,23 @@ const App: React.FC = () => {
     return localStorage.getItem('app_theme') === 'dark';
   });
 
-  // Notification System State
-  const [appNotifications, setAppNotifications] = useState<AppNotification[]>([]);
+  // Notification System State (With Persistence)
+  const [appNotifications, setAppNotifications] = useState<AppNotification[]>(() => {
+    try {
+      const saved = localStorage.getItem('app_notifications');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  
+  const [toasts, setToasts] = useState<AppNotification[]>([]); // For Floating Toasts
   const [isNotifDropdownOpen, setIsNotifDropdownOpen] = useState(false);
+  
+  // Save Notifications on Change
+  useEffect(() => {
+    localStorage.setItem('app_notifications', JSON.stringify(appNotifications));
+  }, [appNotifications]);
   
   // Permission State
   const [permissionsGranted, setPermissionsGranted] = useState(() => {
@@ -560,6 +574,12 @@ const App: React.FC = () => {
     };
     
     setAppNotifications(prev => [newNotif, ...prev]);
+    setToasts(prev => [...prev, newNotif]); // Add to Toast queue
+
+    // Remove Toast after 5 seconds
+    setTimeout(() => {
+       setToasts(prev => prev.filter(t => t.id !== newNotif.id));
+    }, 5000);
 
     // Send Browser Notification
     if ('Notification' in window && Notification.permission === 'granted') {
@@ -583,6 +603,15 @@ const App: React.FC = () => {
 
   const clearNotifications = () => {
     setAppNotifications([]);
+  };
+
+  const removeNotification = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setAppNotifications(prev => prev.filter(n => n.id !== id));
+  };
+
+  const removeToast = (id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
   };
 
   const unreadCount = appNotifications.filter(n => !n.isRead).length;
@@ -766,7 +795,9 @@ const App: React.FC = () => {
     setLoginPassword('');
     setLoginError('');
     setActiveTab('dashboard');
-    setAppNotifications([]); // Clear notifications on logout
+    // We don't clear notifications on logout anymore to persist state, 
+    // or you can enable it if privacy is a concern.
+    // setAppNotifications([]); 
   };
 
   // ... (Rest of the handlers: export, import, profile photo, save profile remain same) ...
@@ -1072,7 +1103,7 @@ const App: React.FC = () => {
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'dashboard': return <DashboardView totalExpense={totalExpense} pendingApprovals={pendingApprovals} expenses={expenses} cloudError={cloudError} totalFund={totalFund} cashOnHand={cashOnHand} role={role} staffList={staffList} />;
+      case 'dashboard': return <DashboardView totalExpense={totalExpense} pendingApprovals={pendingApprovals} expenses={expenses} cloudError={cloudError} totalFund={totalFund} cashOnHand={cashOnHand} role={role} staffList={staffList} advances={advances} />;
       case 'chat': return <GroupChatView messages={messages} setMessages={updateMessages} currentUser={currentUser} role={role} onNavigate={(view) => setActiveTab(view)} onUpdatePoints={handlePointUpdate} staffList={staffList} />;
       case 'attendance': return <AttendanceView staffList={staffList} attendanceList={attendanceList} setAttendanceList={updateAttendance} currentUser={currentUser} role={role} />;
       case 'live-location': return <LiveLocationView staffList={staffList} liveLocations={liveLocations} />;
@@ -1086,7 +1117,7 @@ const App: React.FC = () => {
       case 'reports': return <ReportsView expenses={expenses} staffList={staffList} advances={advances} attendanceList={attendanceList} funds={funds} />;
       case 'settings': return <SettingsView billingRules={billingRules} setBillingRules={updateBillingRules} role={role} exportData={handleExport} importData={handleImport} cloudConfig={firebaseConfig} saveCloudConfig={(config) => { localStorage.setItem('fb_config', JSON.stringify(config)); alert('Settings saved! Reloading...'); window.location.reload(); }} />;
       case 'trash': return <TrashView staffList={staffList} setStaffList={updateStaffList} movements={movements} setMovements={updateMovements} expenses={expenses} setExpenses={updateExpenses} funds={funds} setFunds={updateFunds} notices={notices} setNotices={updateNotices} role={role} />;
-      default: return <DashboardView totalExpense={totalExpense} pendingApprovals={pendingApprovals} expenses={expenses} cloudError={cloudError} totalFund={totalFund} cashOnHand={cashOnHand} role={role} staffList={staffList} />;
+      default: return <DashboardView totalExpense={totalExpense} pendingApprovals={pendingApprovals} expenses={expenses} cloudError={cloudError} totalFund={totalFund} cashOnHand={cashOnHand} role={role} staffList={staffList} advances={advances} />;
     }
   };
 
@@ -1099,6 +1130,32 @@ const App: React.FC = () => {
           <div className="absolute inset-0 z-0"><GlowingCursor /></div>
         </>
       )}
+
+      {/* --- IN-APP TOAST NOTIFICATIONS CONTAINER --- */}
+      <div className="fixed bottom-6 right-6 z-[100] flex flex-col gap-3 pointer-events-none">
+         {toasts.map((toast) => (
+            <div key={toast.id} className="pointer-events-auto w-80 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-700 p-4 flex items-start gap-3 animate-in slide-in-from-right-10 fade-in duration-300">
+               <div className={`p-2 rounded-full shrink-0 ${
+                  toast.type === 'SUCCESS' ? 'bg-green-100 text-green-600' :
+                  toast.type === 'ERROR' ? 'bg-red-100 text-red-600' :
+                  toast.type === 'WARNING' ? 'bg-orange-100 text-orange-600' :
+                  'bg-blue-100 text-blue-600'
+               }`}>
+                  {toast.type === 'SUCCESS' ? <CheckCircle className="w-5 h-5" /> :
+                   toast.type === 'ERROR' ? <XCircle className="w-5 h-5" /> :
+                   toast.type === 'WARNING' ? <AlertTriangle className="w-5 h-5" /> :
+                   <Info className="w-5 h-5" />}
+               </div>
+               <div className="flex-1">
+                  <h4 className="text-sm font-bold text-gray-800 dark:text-gray-100">{toast.title}</h4>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-snug">{toast.message}</p>
+               </div>
+               <button onClick={() => removeToast(toast.id)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                  <X className="w-4 h-4" />
+               </button>
+            </div>
+         ))}
+      </div>
 
       {/* DESKTOP SIDEBAR - Hidden on Mobile */}
       <aside className={`hidden md:flex flex-col w-64 h-full border-r ${isDarkMode ? 'bg-gray-900/80 backdrop-blur-md border-white/10 text-white' : 'bg-indigo-900 text-white'}`}>
@@ -1165,7 +1222,7 @@ const App: React.FC = () => {
                   onClick={() => setIsNotifDropdownOpen(!isNotifDropdownOpen)}
                   className={`p-2 rounded-full transition-colors relative ${isNotifDropdownOpen ? 'bg-indigo-50 text-indigo-600' : isDarkMode ? 'text-gray-300 hover:bg-white/10' : 'hover:bg-gray-100 text-gray-500'}`}
                 >
-                   <Bell className="w-5 h-5" />
+                   {unreadCount > 0 ? <BellRing className="w-5 h-5 animate-pulse" /> : <Bell className="w-5 h-5" />}
                    {unreadCount > 0 && (
                      <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
                    )}
@@ -1175,7 +1232,7 @@ const App: React.FC = () => {
                 {isNotifDropdownOpen && (
                   <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200 text-gray-900 dark:text-gray-100">
                      <div className="p-3 border-b border-gray-50 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800">
-                        <h4 className="text-xs font-black uppercase tracking-widest text-gray-600 dark:text-gray-400">Notifications</h4>
+                        <h4 className="text-xs font-black uppercase tracking-widest text-gray-600 dark:text-gray-400">Notifications ({unreadCount})</h4>
                         <button onClick={markAllAsRead} className="text-[10px] font-bold text-indigo-600 hover:underline">Mark all read</button>
                      </div>
                      <div className="max-h-64 overflow-y-auto">
@@ -1183,7 +1240,7 @@ const App: React.FC = () => {
                            appNotifications.map((notif) => (
                               <div 
                                 key={notif.id} 
-                                className={`p-3 border-b border-gray-50 dark:border-gray-700 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer ${notif.isRead ? 'opacity-60' : 'bg-indigo-50/30 dark:bg-indigo-900/20'}`}
+                                className={`relative p-3 border-b border-gray-50 dark:border-gray-700 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer group ${notif.isRead ? 'opacity-60' : 'bg-indigo-50/30 dark:bg-indigo-900/20'}`}
                                 onClick={() => {
                                    if (notif.link) {
                                       setActiveTab(notif.link);
@@ -1191,11 +1248,18 @@ const App: React.FC = () => {
                                    }
                                 }}
                               >
-                                 <div className="flex justify-between items-start mb-1">
+                                 <div className="flex justify-between items-start mb-1 pr-4">
                                     <p className={`text-xs font-bold ${notif.isRead ? 'text-gray-600 dark:text-gray-400' : 'text-gray-800 dark:text-gray-200'}`}>{notif.title}</p>
                                     <span className="text-[9px] text-gray-400 whitespace-nowrap">{new Date(notif.timestamp).toLocaleTimeString('bn-BD', {hour:'2-digit', minute:'2-digit'})}</span>
                                  </div>
-                                 <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-snug">{notif.message}</p>
+                                 <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-snug pr-4">{notif.message}</p>
+                                 <button 
+                                    onClick={(e) => removeNotification(notif.id, e)} 
+                                    className="absolute top-2 right-2 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                                    title="Delete"
+                                 >
+                                    <X className="w-3 h-3" />
+                                 </button>
                               </div>
                            ))
                         ) : (
@@ -1275,17 +1339,42 @@ const App: React.FC = () => {
             </div>
             
             <div className="flex-1 overflow-y-auto p-6">
-               <div className="grid grid-cols-3 gap-4">
-                  {moreMenuItems.map((item) => (
-                     <button 
-                        key={item.id}
-                        onClick={() => { setActiveTab(item.id); setIsMoreMenuOpen(false); }}
-                        className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-all active:scale-95 ${activeTab === item.id ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/30 dark:border-indigo-700 dark:text-indigo-300' : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:shadow-md'}`}
-                     >
-                        <item.icon className="w-8 h-8 mb-2 opacity-80" />
-                        <span className="text-xs font-bold text-center">{item.label}</span>
-                     </button>
-                  ))}
+               <div className="grid grid-cols-3 gap-3">
+                  {moreMenuItems.map((item) => {
+                     let style = { iconBg: 'from-gray-500 to-gray-600', shadow: 'shadow-gray-200', border: 'hover:border-gray-200' };
+                     
+                     switch(item.id) {
+                        case 'luckydraw': style = { iconBg: 'from-pink-500 to-rose-500', shadow: 'shadow-pink-200', border: 'hover:border-pink-200' }; break;
+                        case 'live-location': style = { iconBg: 'from-cyan-500 to-blue-500', shadow: 'shadow-cyan-200', border: 'hover:border-cyan-200' }; break;
+                        case 'complaints': style = { iconBg: 'from-red-500 to-orange-500', shadow: 'shadow-red-200', border: 'hover:border-red-200' }; break;
+                        case 'funds': style = { iconBg: 'from-teal-500 to-emerald-500', shadow: 'shadow-teal-200', border: 'hover:border-teal-200' }; break;
+                        case 'staff': style = { iconBg: 'from-violet-500 to-purple-500', shadow: 'shadow-violet-200', border: 'hover:border-violet-200' }; break;
+                        case 'movements': style = { iconBg: 'from-lime-500 to-green-500', shadow: 'shadow-lime-200', border: 'hover:border-lime-200' }; break;
+                        case 'reports': style = { iconBg: 'from-sky-500 to-indigo-500', shadow: 'shadow-sky-200', border: 'hover:border-sky-200' }; break;
+                        case 'settings': style = { iconBg: 'from-slate-600 to-gray-700', shadow: 'shadow-slate-200', border: 'hover:border-slate-200' }; break;
+                        case 'trash': style = { iconBg: 'from-rose-500 to-red-600', shadow: 'shadow-rose-200', border: 'hover:border-rose-200' }; break;
+                        default: style = { iconBg: 'from-indigo-500 to-blue-600', shadow: 'shadow-indigo-200', border: 'hover:border-indigo-200' };
+                     }
+
+                     return (
+                        <button 
+                           key={item.id}
+                           onClick={() => { setActiveTab(item.id); setIsMoreMenuOpen(false); }}
+                           className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all duration-300 group active:scale-95 ${
+                              activeTab === item.id 
+                                ? 'bg-indigo-50 border-indigo-500 ring-1 ring-indigo-500 shadow-md' 
+                                : `bg-white border-gray-100 shadow-sm ${style.border} hover:shadow-md dark:bg-gray-800 dark:border-gray-700`
+                           }`}
+                        >
+                           <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-2 shadow-lg bg-gradient-to-br ${style.iconBg} text-white transform group-hover:scale-110 transition-transform duration-300`}>
+                              <item.icon className="w-6 h-6" />
+                           </div>
+                           <span className={`text-[11px] font-bold text-center leading-tight ${activeTab === item.id ? 'text-indigo-700' : 'text-gray-600 dark:text-gray-300'}`}>
+                              {item.label}
+                           </span>
+                        </button>
+                     );
+                  })}
                </div>
 
                {/* Profile & Logout Section in More Menu */}

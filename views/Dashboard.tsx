@@ -1,7 +1,7 @@
 
 import React from 'react';
-import { TrendingDown, AlertCircle, Clock, ShieldAlert, Landmark, Wallet, Trophy, Crown, ArrowUpRight } from 'lucide-react';
-import { Expense, UserRole, Staff } from '../types';
+import { TrendingDown, AlertCircle, Clock, ShieldAlert, Landmark, Wallet, Trophy, Crown, ArrowUpRight, Coins, Banknote, WalletCards } from 'lucide-react';
+import { Expense, UserRole, Staff, AdvanceLog } from '../types';
 
 interface DashboardProps {
   totalExpense: number;
@@ -12,53 +12,24 @@ interface DashboardProps {
   cashOnHand: number;
   role: UserRole | null;
   staffList: Staff[];
+  advances: AdvanceLog[];
 }
 
-const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApprovals, expenses, cloudError, totalFund, cashOnHand, role, staffList }) => {
+const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApprovals, expenses, cloudError, totalFund, cashOnHand, role, staffList, advances }) => {
   const recentActivities = [...expenses].filter(e => !e.isDeleted).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 6);
 
-  // Stats Configuration (Clean & Simple)
-  const stats = [
-    { 
-      label: 'মোট খরচ (অনুমোদিত)', 
-      value: `৳ ${totalExpense.toLocaleString()}`, 
-      icon: TrendingDown, 
-      color: 'bg-indigo-600',
-      iconBg: 'bg-indigo-100',
-      iconColor: 'text-indigo-600'
-    },
-    { 
-      label: 'পেন্ডিং বিল রিকোয়েস্ট', 
-      value: pendingApprovals.toString(), 
-      icon: AlertCircle, 
-      color: 'bg-orange-500',
-      iconBg: 'bg-orange-100',
-      iconColor: 'text-orange-600'
-    },
-  ];
+  // --- STATS CALCULATION ---
+  // Advance Breakdown
+  const regularAdvance = advances.filter(a => !a.isDeleted && a.type !== 'SALARY').reduce((sum, a) => sum + Number(a.amount), 0);
+  const salaryAdvance = advances.filter(a => !a.isDeleted && a.type === 'SALARY').reduce((sum, a) => sum + Number(a.amount), 0);
+  const totalAdvance = regularAdvance + salaryAdvance;
 
-  if (role === UserRole.ADMIN || role === UserRole.MD) {
-    stats.unshift(
-      { 
-        label: 'বর্তমান ক্যাশ ফান্ড', 
-        value: `৳ ${totalFund.toLocaleString()}`, 
-        icon: Landmark, 
-        color: 'bg-blue-600',
-        iconBg: 'bg-blue-100',
-        iconColor: 'text-blue-600'
-      },
-      { 
-        label: 'হাতে নগদ (Cash In Hand)', 
-        value: `৳ ${cashOnHand.toLocaleString()}`, 
-        icon: Wallet, 
-        color: 'bg-green-600',
-        iconBg: 'bg-green-100',
-        iconColor: 'text-green-600'
-      }
-    );
-  }
+  // Actual Cash in Hand (Fund - Total Advance)
+  // Note: Expense is excluded from cash calculation as per requirement.
+  const actualCashOnHand = totalFund - totalAdvance;
 
   const isStaff = role === UserRole.STAFF;
+  const isManagement = role === UserRole.ADMIN || role === UserRole.MD;
 
   // --- CHAMPIONS LOGIC ---
   const getPreviousMonthChampions = () => {
@@ -116,23 +87,105 @@ const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApproval
         {/* Left Column: Stats & Activity */}
         <div className="lg:col-span-2 space-y-6">
           
-          {/* Quick Stats Grid */}
-          {!isStaff && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {stats.map((stat, idx) => (
-                <div key={idx} className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+          {/* Quick Stats Grid (MANAGEMENT VIEW) */}
+          {isManagement && (
+            <>
+              {/* Row 1: Fund & Cash */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white shadow-lg shadow-blue-200 relative overflow-hidden group hover:scale-[1.02] transition-transform">
+                   <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Landmark className="w-24 h-24" /></div>
+                   <div className="relative z-10">
+                      <p className="text-xs font-bold text-blue-100 uppercase tracking-widest mb-1">বর্তমান ক্যাশ ফান্ড (In)</p>
+                      <h3 className="text-3xl font-black">৳ {totalFund.toLocaleString()}</h3>
+                   </div>
+                </div>
+                <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl p-6 text-white shadow-lg shadow-emerald-200 relative overflow-hidden group hover:scale-[1.02] transition-transform">
+                   <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Wallet className="w-24 h-24" /></div>
+                   <div className="relative z-10">
+                      <p className="text-xs font-bold text-emerald-100 uppercase tracking-widest mb-1">হাতে নগদ (Net Cash)</p>
+                      <h3 className="text-3xl font-black">৳ {actualCashOnHand.toLocaleString()}</h3>
+                      <p className="text-[10px] text-emerald-100 mt-1 opacity-80">(Total Fund - All Advances)</p>
+                   </div>
+                </div>
+              </div>
+
+              {/* Row 2: Advance Breakdown (NEW) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                 <div className="bg-white rounded-2xl p-5 border border-orange-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-orange-50 rounded-full -mr-8 -mt-8 opacity-50"></div>
+                    <div className="relative z-10">
+                       <div className="flex items-center gap-3 mb-3">
+                          <div className="bg-orange-100 p-2.5 rounded-xl text-orange-600">
+                             <Banknote className="w-5 h-5" />
+                          </div>
+                          <span className="text-xs font-black text-orange-400 uppercase tracking-widest">রেগুলার অ্যাডভান্স</span>
+                       </div>
+                       <h3 className="text-2xl font-black text-gray-800">৳ {regularAdvance.toLocaleString()}</h3>
+                       <p className="text-[10px] text-gray-400 mt-1">কর্মচারীদের দেওয়া সাধারণ অগ্রিম</p>
+                    </div>
+                 </div>
+
+                 <div className="bg-white rounded-2xl p-5 border border-purple-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-purple-50 rounded-full -mr-8 -mt-8 opacity-50"></div>
+                    <div className="relative z-10">
+                       <div className="flex items-center gap-3 mb-3">
+                          <div className="bg-purple-100 p-2.5 rounded-xl text-purple-600">
+                             <WalletCards className="w-5 h-5" />
+                          </div>
+                          <span className="text-xs font-black text-purple-400 uppercase tracking-widest">স্যালারি অ্যাডভান্স</span>
+                       </div>
+                       <h3 className="text-2xl font-black text-gray-800">৳ {salaryAdvance.toLocaleString()}</h3>
+                       <p className="text-[10px] text-gray-400 mt-1">বেতন থেকে সমন্বয়যোগ্য অগ্রিম</p>
+                    </div>
+                 </div>
+              </div>
+
+              {/* Row 3: Expense & Pending */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="bg-white rounded-2xl p-5 border border-indigo-100 shadow-sm hover:shadow-md transition-shadow">
                   <div className="flex items-start justify-between mb-3">
-                    <div className={`p-3 rounded-xl ${stat.iconBg}`}>
-                      <stat.icon className={`w-6 h-6 ${stat.iconColor}`} />
+                    <div className="bg-indigo-50 p-3 rounded-xl text-indigo-600">
+                      <TrendingDown className="w-6 h-6" />
                     </div>
                   </div>
                   <div>
-                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">{stat.label}</p>
-                    <h3 className="text-2xl font-black text-gray-800">{stat.value}</h3>
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">মোট খরচ (অনুমোদিত)</p>
+                    <h3 className="text-2xl font-black text-gray-800">৳ {totalExpense.toLocaleString()}</h3>
                   </div>
                 </div>
-              ))}
-            </div>
+                <div className="bg-white rounded-2xl p-5 border border-red-100 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="bg-red-50 p-3 rounded-xl text-red-600">
+                      <AlertCircle className="w-6 h-6" />
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">পেন্ডিং বিল রিকোয়েস্ট</p>
+                    <h3 className="text-2xl font-black text-gray-800">{pendingApprovals} টি</h3>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Quick Stats Grid (STAFF VIEW) */}
+          {isStaff && (
+             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="bg-white rounded-2xl p-5 border border-indigo-100 shadow-sm">
+                   <div className="flex items-start justify-between mb-3">
+                      <div className="bg-indigo-50 p-3 rounded-xl text-indigo-600"><TrendingDown className="w-6 h-6" /></div>
+                   </div>
+                   <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">আমার মোট খরচ</p>
+                   <h3 className="text-2xl font-black text-gray-800">৳ {totalExpense.toLocaleString()}</h3>
+                </div>
+                <div className="bg-white rounded-2xl p-5 border border-orange-100 shadow-sm">
+                   <div className="flex items-start justify-between mb-3">
+                      <div className="bg-orange-50 p-3 rounded-xl text-orange-600"><AlertCircle className="w-6 h-6" /></div>
+                   </div>
+                   <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">পেন্ডিং বিল</p>
+                   <h3 className="text-2xl font-black text-gray-800">{pendingApprovals} টি</h3>
+                </div>
+             </div>
           )}
 
           {/* Recent Transactions List */}
