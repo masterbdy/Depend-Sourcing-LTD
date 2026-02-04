@@ -37,7 +37,6 @@ const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = 
   const [searchTerm, setSearchTerm] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [filterType, setFilterType] = useState<'ALL' | 'CREDIT' | 'DEBIT'>('ALL');
 
   // --- MERGE & PREPARE DATA ---
   const allTransactions = useMemo(() => {
@@ -113,25 +112,20 @@ const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = 
       const end = endDate ? new Date(endDate).setHours(23, 59, 59, 999) : null;
       const matchesDate = (!start || tDate >= start) && (!end || tDate <= end);
 
-      // Type Filter
-      let matchesType = true;
-      if (filterType === 'CREDIT') matchesType = t.type === 'FUND_IN';
-      if (filterType === 'DEBIT') matchesType = t.type === 'EXPENSE_OUT' || t.type === 'ADVANCE_OUT';
-
-      return matchesSearch && matchesDate && matchesType;
+      return matchesSearch && matchesDate;
     });
-  }, [allTransactions, searchTerm, startDate, endDate, filterType]);
+  }, [allTransactions, searchTerm, startDate, endDate]);
 
-  const isFilterActive = searchTerm !== '' || startDate !== '' || endDate !== '' || filterType !== 'ALL';
+  const creditTransactions = filteredTransactions.filter(t => t.type === 'FUND_IN');
+  const debitTransactions = filteredTransactions.filter(t => t.type !== 'FUND_IN');
+
+  const isFilterActive = searchTerm !== '' || startDate !== '' || endDate !== '';
 
   const handleAddFund = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Construct Date with current time to preserve relative ordering if added today
-    // or just set to selected date
     const submitDate = new Date(formData.date);
     const now = new Date();
-    // Use selected date but current time, to make sorting predictable for same-day entries
     submitDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
 
     const newEntry: FundEntry = {
@@ -155,7 +149,6 @@ const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = 
     setSearchTerm('');
     setStartDate('');
     setEndDate('');
-    setFilterType('ALL');
   };
 
   return (
@@ -179,29 +172,8 @@ const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = 
         </div>
       </div>
 
-      {/* Transaction History Section */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-6 border-b border-gray-50 flex flex-wrap justify-between items-center gap-4">
-          <div className="flex items-center gap-3">
-            <div className="bg-indigo-100 p-2 rounded-lg"><History className="w-5 h-5 text-indigo-600" /></div>
-            <div>
-               <h3 className="font-bold text-gray-800">লেনদেনের খাতা (Cashbook)</h3>
-               <p className="text-xs text-gray-400">ফান্ড জমা, খরচ এবং অ্যাডভান্সের সম্মিলিত তালিকা</p>
-            </div>
-          </div>
-          {(role === UserRole.ADMIN || role === UserRole.MD) && (
-            <button 
-              onClick={() => setIsModalOpen(true)}
-              className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-lg shadow-indigo-50 active:scale-95"
-            >
-              <PlusCircle className="w-4 h-4" />
-              ফান্ড জমা করুন
-            </button>
-          )}
-        </div>
-
-        {/* Filter Toolbar */}
-        <div className="px-6 py-5 bg-gray-50 border-b border-gray-100 flex flex-wrap items-end gap-4">
+      {/* Filter Toolbar (Global for both tables) */}
+      <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-wrap items-end gap-4">
           <div className="flex-1 min-w-[200px]">
             <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">সার্চ করুন</label>
             <div className="relative">
@@ -209,23 +181,11 @@ const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = 
               <input 
                 type="text" 
                 placeholder="নোট বা বিবরণ..." 
-                className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-          </div>
-          <div className="w-full sm:w-auto">
-             <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">ধরণ (Type)</label>
-             <select 
-               className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 focus:ring-2 focus:ring-indigo-500 outline-none"
-               value={filterType}
-               onChange={(e) => setFilterType(e.target.value as any)}
-             >
-                <option value="ALL">সব লেনদেন (All)</option>
-                <option value="CREDIT">শুধুমাত্র জমা (Credit)</option>
-                <option value="DEBIT">খরচ ও অ্যাডভান্স (Debit)</option>
-             </select>
           </div>
           <div className="w-full sm:w-auto">
             <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">শুরু তারিখ</label>
@@ -233,7 +193,7 @@ const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = 
               <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input 
                 type="date" 
-                className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
               />
@@ -245,7 +205,7 @@ const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = 
               <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input 
                 type="date" 
-                className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
               />
@@ -260,82 +220,116 @@ const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = 
               <FilterX className="w-5 h-5" />
             </button>
           )}
-        </div>
+      </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-gray-50 border-b border-gray-100">
-              <tr>
-                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">তারিখ</th>
-                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">বিবরণ</th>
-                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">ধরন</th>
-                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Debit (Out)</th>
-                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Credit (In)</th>
-                {role === UserRole.ADMIN && <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">অ্যাকশন</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {filteredTransactions.map((t) => (
-                <tr key={t.id} className={`hover:bg-gray-50 transition-colors group ${t.type === 'FUND_IN' ? 'bg-green-50/20' : ''}`}>
-                  <td className="px-6 py-4 text-sm text-gray-600 font-medium whitespace-nowrap">
-                    {new Date(t.date).toLocaleDateString('bn-BD', { day: '2-digit', month: 'short', year: '2-digit' })}
-                  </td>
-                  <td className="px-6 py-4">
-                     <p className="text-sm font-bold text-gray-800 line-clamp-1">{t.description}</p>
-                  </td>
-                  <td className="px-6 py-4">
-                     <span className={`text-[10px] font-black uppercase tracking-tight px-2 py-1 rounded-full flex items-center gap-1 w-fit ${
-                        t.type === 'FUND_IN' ? 'bg-green-100 text-green-700' :
-                        t.originalType === 'ADVANCE' ? (t.subType === 'SALARY' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700') : 
-                        'bg-red-100 text-red-700'
-                     }`}>
-                        {t.type === 'FUND_IN' ? <ArrowDownLeft className="w-3 h-3"/> : <ArrowUpRight className="w-3 h-3"/>}
-                        {t.displayType}
-                     </span>
-                  </td>
-                  
-                  {/* DEBIT COLUMN (Money Out) */}
-                  <td className="px-6 py-4 text-right">
-                    {t.type !== 'FUND_IN' ? (
-                       <span className="text-sm font-black text-red-600">৳ {t.amount.toLocaleString()}</span>
-                    ) : <span className="text-gray-300">-</span>}
-                  </td>
-
-                  {/* CREDIT COLUMN (Money In) */}
-                  <td className="px-6 py-4 text-right">
-                    {t.type === 'FUND_IN' ? (
-                       <span className="text-sm font-black text-green-600">৳ {t.amount.toLocaleString()}</span>
-                    ) : <span className="text-gray-300">-</span>}
-                  </td>
-
-                  {role === UserRole.ADMIN && (
-                    <td className="px-6 py-4 text-right">
-                      {t.originalType === 'FUND' && (
-                        <button 
-                          onClick={() => deleteEntry(t.id)} 
-                          className="p-2 text-gray-300 hover:text-red-600 rounded-xl hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
-                          title="ফান্ড ডিলিট করুন"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          
+          {/* LEFT: FUND HISTORY (CREDIT) */}
+          <div className="bg-white rounded-2xl shadow-sm border border-green-100 overflow-hidden h-fit">
+             <div className="p-5 border-b border-green-50 flex justify-between items-center bg-green-50/30">
+                <div className="flex items-center gap-2">
+                   <div className="bg-green-100 p-2 rounded-lg text-green-600"><ArrowDownLeft className="w-5 h-5" /></div>
+                   <h3 className="font-bold text-gray-800">ফান্ড জমার হিস্ট্রি (Credit)</h3>
+                </div>
+                {(role === UserRole.ADMIN || role === UserRole.MD) && (
+                    <button 
+                    onClick={() => setIsModalOpen(true)}
+                    className="bg-green-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-green-700 transition-all flex items-center gap-1.5 shadow-md active:scale-95"
+                    >
+                    <PlusCircle className="w-3.5 h-3.5" />
+                    নতুন ফান্ড
+                    </button>
+                )}
+             </div>
+             <div className="overflow-x-auto max-h-[600px] custom-scrollbar">
+                <table className="w-full text-left">
+                   <thead className="bg-green-50/50 sticky top-0 z-10">
+                      <tr>
+                         <th className="px-4 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">তারিখ</th>
+                         <th className="px-4 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">বিবরণ</th>
+                         <th className="px-4 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">টাকা (In)</th>
+                         {role === UserRole.ADMIN && <th className="px-4 py-3 text-right"></th>}
+                      </tr>
+                   </thead>
+                   <tbody className="divide-y divide-gray-50">
+                      {creditTransactions.map((t) => (
+                         <tr key={t.id} className="hover:bg-green-50/10 transition-colors group">
+                            <td className="px-4 py-3 text-xs font-bold text-gray-600 whitespace-nowrap">
+                               {new Date(t.date).toLocaleDateString('bn-BD', { day: '2-digit', month: 'short', year: '2-digit' })}
+                            </td>
+                            <td className="px-4 py-3 text-xs text-gray-700 font-medium">
+                               {t.description}
+                            </td>
+                            <td className="px-4 py-3 text-right text-xs font-black text-green-600 whitespace-nowrap">
+                               ৳ {t.amount.toLocaleString()}
+                            </td>
+                            {role === UserRole.ADMIN && (
+                                <td className="px-4 py-3 text-right">
+                                    <button 
+                                    onClick={() => deleteEntry(t.id)} 
+                                    className="text-gray-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                                    title="Delete"
+                                    >
+                                    <Trash2 className="w-4 h-4" />
+                                    </button>
+                                </td>
+                            )}
+                         </tr>
+                      ))}
+                      {creditTransactions.length === 0 && (
+                         <tr><td colSpan={4} className="px-4 py-10 text-center text-gray-400 text-xs">কোনো ফান্ড জমা নেই</td></tr>
                       )}
-                    </td>
-                  )}
-                </tr>
-              ))}
-              {filteredTransactions.length === 0 && (
-                <tr>
-                  <td colSpan={role === UserRole.ADMIN ? 6 : 5} className="px-6 py-20 text-center">
-                    <div className="flex flex-col items-center gap-3 opacity-20">
-                      <Search className="w-12 h-12" />
-                      <p className="text-lg font-bold">কোনো লেনদেন পাওয়া যায়নি</p>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                   </tbody>
+                </table>
+             </div>
+          </div>
+
+          {/* RIGHT: DEBIT HISTORY (EXPENSES & ADVANCES) */}
+          <div className="bg-white rounded-2xl shadow-sm border border-red-100 overflow-hidden h-fit">
+             <div className="p-5 border-b border-red-50 flex items-center gap-2 bg-red-50/30">
+                <div className="bg-red-100 p-2 rounded-lg text-red-600"><ArrowUpRight className="w-5 h-5" /></div>
+                <h3 className="font-bold text-gray-800">খরচ ও অ্যাডভান্স (Debit)</h3>
+             </div>
+             <div className="overflow-x-auto max-h-[600px] custom-scrollbar">
+                <table className="w-full text-left">
+                   <thead className="bg-red-50/50 sticky top-0 z-10">
+                      <tr>
+                         <th className="px-4 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">তারিখ</th>
+                         <th className="px-4 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">বিবরণ</th>
+                         <th className="px-4 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">ধরন</th>
+                         <th className="px-4 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">টাকা (Out)</th>
+                      </tr>
+                   </thead>
+                   <tbody className="divide-y divide-gray-50">
+                      {debitTransactions.map((t) => (
+                         <tr key={t.id} className="hover:bg-red-50/10 transition-colors">
+                            <td className="px-4 py-3 text-xs font-bold text-gray-600 whitespace-nowrap">
+                               {new Date(t.date).toLocaleDateString('bn-BD', { day: '2-digit', month: 'short', year: '2-digit' })}
+                            </td>
+                            <td className="px-4 py-3 text-xs text-gray-700 font-medium">
+                               <p className="line-clamp-1">{t.description}</p>
+                            </td>
+                            <td className="px-4 py-3">
+                               <span className={`text-[9px] font-black uppercase tracking-tight px-1.5 py-0.5 rounded flex items-center gap-1 w-fit whitespace-nowrap ${
+                                  t.originalType === 'ADVANCE' ? (t.subType === 'SALARY' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700') : 
+                                  'bg-red-100 text-red-700'
+                               }`}>
+                                  {t.originalType === 'EXPENSE' ? 'খরচ' : (t.subType === 'SALARY' ? 'বেতন অগ্রিম' : 'অগ্রিম')}
+                               </span>
+                            </td>
+                            <td className="px-4 py-3 text-right text-xs font-black text-red-600 whitespace-nowrap">
+                               ৳ {t.amount.toLocaleString()}
+                            </td>
+                         </tr>
+                      ))}
+                      {debitTransactions.length === 0 && (
+                         <tr><td colSpan={4} className="px-4 py-10 text-center text-gray-400 text-xs">কোনো খরচ বা অ্যাডভান্স নেই</td></tr>
+                      )}
+                   </tbody>
+                </table>
+             </div>
+          </div>
+
       </div>
 
       {/* Add Fund Modal */}
