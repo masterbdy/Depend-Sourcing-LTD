@@ -12,19 +12,12 @@ interface ReportsProps {
   funds?: FundEntry[]; // Added funds to props
 }
 
-// Update App.tsx to pass funds to ReportsView if not already passing. 
-// Since I cannot see App.tsx in this specific block context, I will assume it is passed or I will handle if undefined.
-// But based on previous context, funds should be passed. 
-// *Note: In previous turns, App.tsx was passing expenses, staffList, advances, attendanceList. 
-// I will need to assume 'funds' might be missing in the parent render, 
-// but to implement "How much money I took" (Fund), I need the funds prop.
-// For now, I will use the props interface assuming funds are passed or calculate without if missing.
-// *Wait, I see App.tsx in context. ReportsView in App.tsx only passes expenses, staffList, advances, attendanceList.
-// I will update App.tsx in the next block to pass 'funds'. Here I update ReportsView to accept it.
-
 const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, attendanceList, funds = [] }) => {
   const [reportStartDate, setReportStartDate] = useState('');
   const [reportEndDate, setReportEndDate] = useState('');
+  
+  // New State for Staff Selection
+  const [selectedStaffId, setSelectedStaffId] = useState('');
   
   // New State for Monthly Report
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
@@ -55,7 +48,6 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
     const totalAdvance = regularAdvance + salaryAdvance;
 
     // 4. Closing Balance Calculation (Fund - Expense - Total Advance)
-    // Note: This is "Cash Flow" balance for the month, not overall system balance.
     const monthlyBalance = totalFund - (totalExpense + totalAdvance);
 
     return {
@@ -104,7 +96,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
     .report-title { font-size: 14px; font-weight: 800; text-transform: uppercase; }
     .meta-text { font-size: 10px; font-weight: 500; }
     table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-    th { font-size: 9px; text-transform: uppercase; font-weight: 800; padding: 6px; text-align: left; background-color: #f3f4f6; border-bottom: 1px solid #e5e7eb; }
+    th { font-size: 9px; text-transform: uppercase; font-weight: 800; padding: 6px; text-align: left; background-color: #f3f4f6; border-bottom: 1px solid #d1d5db; color: #111827; }
     td { font-size: 10px; padding: 5px 6px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
     .amount-col { text-align: right; font-weight: 700; font-family: monospace; }
     .footer { position: fixed; bottom: 0; left: 0; right: 0; border-top: 1px solid #e5e7eb; padding-top: 8px; display: flex; justify-content: space-between; align-items: flex-end; font-size: 9px; color: #9ca3af; }
@@ -133,7 +125,6 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
         <style>
           ${getCommonStyle()}
           .theme-color { color: #0f172a; } 
-          .theme-bg { background-color: #0f172a; color: white; }
           .theme-border { border-color: #0f172a; }
           .income-text { color: #166534; }
           .expense-text { color: #991b1b; }
@@ -143,7 +134,6 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
         <div class="watermark">MONTHLY</div>
         <div class="max-w-[210mm] mx-auto">
           
-          <!-- Header -->
           <div class="header-section theme-border flex justify-between items-end">
              <div>
                 <h1 class="company-name theme-color">Depend Sourcing Ltd.</h1>
@@ -157,7 +147,6 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
 
           <h2 class="report-title text-center mb-4 border-b pb-2">Financial Summary</h2>
 
-          <!-- Summary Boxes -->
           <div class="summary-grid">
              <div class="summary-box bg-green-50 border-green-200">
                 <span class="summary-label text-green-700">Total Fund Received (In)</span>
@@ -182,7 +171,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
              <span class="summary-val ${stats.monthlyBalance >= 0 ? 'text-gray-800' : 'text-red-600'}">৳ ${stats.monthlyBalance.toLocaleString()}</span>
           </div>
 
-          <!-- 1. FUND DETAILS -->
+          <!-- Tables -->
           <div class="no-break mb-6">
              <h3 class="text-xs font-bold uppercase mb-2 border-l-4 border-green-600 pl-2">Fund Received Details</h3>
              <table>
@@ -206,7 +195,6 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
              </table>
           </div>
 
-          <!-- 2. EXPENSE DETAILS -->
           <div class="no-break mb-6">
              <h3 class="text-xs font-bold uppercase mb-2 border-l-4 border-red-600 pl-2">Expense Details</h3>
              <table>
@@ -232,7 +220,6 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
              </table>
           </div>
 
-          <!-- 3. ADVANCE DETAILS -->
           <div class="no-break mb-6">
              <h3 class="text-xs font-bold uppercase mb-2 border-l-4 border-orange-600 pl-2">Advance Given Details</h3>
              <table>
@@ -261,21 +248,12 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
              </table>
           </div>
 
-          <!-- Footer -->
           <div class="footer">
-             <div>
-                <p>System Generated Report.</p>
-             </div>
-             <div class="text-right">
-               <div class="h-8 border-b border-gray-400 w-32 mb-1"></div>
-               <p class="font-bold uppercase">Managing Director Signature</p>
-             </div>
+             <div><p>System Generated Report.</p></div>
+             <div class="text-right"><div class="h-8 border-b border-gray-400 w-32 mb-1"></div><p class="font-bold uppercase">Managing Director Signature</p></div>
           </div>
-
         </div>
-        <script>
-          window.onload = () => { setTimeout(() => { window.print(); }, 500); }
-        </script>
+        <script>window.onload = () => { setTimeout(() => { window.print(); }, 500); }</script>
       </body>
       </html>
     `;
@@ -284,15 +262,17 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
     printWindow.document.close();
   };
 
-  // ... (Existing Attendance and Range PDF functions remain unchanged)
-  // Attendance Report Generator
+  // ... (Attendance Report function remains unchanged)
   const generateAttendanceReport = () => {
+    // ... [existing logic]
     const start = reportStartDate ? new Date(reportStartDate).setHours(0, 0, 0, 0) : 0;
     const end = reportEndDate ? new Date(reportEndDate).setHours(23, 59, 59, 999) : Number.MAX_VALUE;
 
     // Filter
     const filteredAttendance = attendanceList.filter(a => {
       const d = new Date(a.date).getTime();
+      // If filtering by specific staff in attendance report too:
+      if (selectedStaffId && a.staffId !== selectedStaffId) return false;
       return d >= start && d <= end;
     }).sort((a, b) => new Date(a.checkInTime).getTime() - new Date(b.checkInTime).getTime());
 
@@ -301,12 +281,11 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
       return;
     }
 
-    // Summary Calculation
-    const summary = staffList.map(staff => {
+    const summary = staffList.filter(s => !selectedStaffId || s.id === selectedStaffId).map(staff => {
       const records = filteredAttendance.filter(a => a.staffId === staff.id);
       return {
         name: staff.name,
-        present: records.filter(a => a.status === 'PRESENT' || a.status === 'LATE').length, // Total present
+        present: records.filter(a => a.status === 'PRESENT' || a.status === 'LATE').length, 
         late: records.filter(a => a.status === 'LATE').length,
         totalRecords: records.length
       };
@@ -325,10 +304,11 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
         <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&display=swap" rel="stylesheet">
         <style>
           ${getCommonStyle()}
-          .theme-color { color: #166534; } /* Green-800 */
-          .theme-bg { background-color: #166534; color: white; }
+          .theme-color { color: #166534; }
           .theme-border { border-color: #166534; }
-          .theme-light-bg { background-color: #f0fdf4; } /* Green-50 */
+          .theme-light-bg { background-color: #f0fdf4; }
+          /* Enhanced Header Visibility */
+          .table-header { background-color: #dcfce7 !important; color: #14532d !important; border-bottom: 2px solid #166534; }
         </style>
       </head>
       <body>
@@ -336,20 +316,14 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
         <div class="max-w-[210mm] mx-auto">
           
           <div class="header-section theme-border flex justify-between items-end">
-             <div>
-                <h1 class="company-name theme-color">Depend Sourcing Ltd.</h1>
-                <p class="tagline">Promise Beyond Business</p>
-             </div>
-             <div class="address-block">
-                <p><strong>Head Office:</strong> A-14/8, Johir Complex (Ground Floor), Talbagh, Savar, Dhaka, Bangladesh.</p>
-                <p>Phone: +8801764700203 | Web: www.dependsourcingltd.com</p>
-             </div>
+             <div><h1 class="company-name theme-color">Depend Sourcing Ltd.</h1><p class="tagline">Promise Beyond Business</p></div>
+             <div class="address-block"><p>Head Office: A-14/8, Johir Complex, Savar, Dhaka.</p></div>
           </div>
 
           <div class="report-title-box theme-light-bg border border-green-200">
              <div>
                 <h2 class="report-title theme-color">ATTENDANCE REPORT</h2>
-                <p class="meta-text text-gray-500">Employee Attendance Log</p>
+                <p class="meta-text text-gray-500">${selectedStaffId ? staffList.find(s=>s.id === selectedStaffId)?.name + ' - Individual Log' : 'All Employee Attendance Log'}</p>
              </div>
              <div class="text-right meta-text">
                 <p><strong>Period:</strong> ${reportStartDate ? new Date(reportStartDate).toLocaleDateString('en-GB') : 'Start'} — ${reportEndDate ? new Date(reportEndDate).toLocaleDateString('en-GB') : 'Today'}</p>
@@ -381,7 +355,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
           <h3 class="text-xs font-bold text-gray-700 mb-2 uppercase border-l-2 theme-border pl-2">Detailed Daily Log</h3>
           <table>
             <thead>
-              <tr class="theme-bg">
+              <tr class="table-header">
                 <th class="text-left rounded-tl">Date</th>
                 <th class="text-left">Staff Name</th>
                 <th class="text-center">Check-In</th>
@@ -429,12 +403,14 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
 
     const filteredExpenses = expenses.filter(e => {
       if (e.isDeleted) return false;
+      if (selectedStaffId && e.staffId !== selectedStaffId) return false; // Filter by Staff
       const d = new Date(e.createdAt).getTime();
       return d >= start && d <= end;
     });
 
     const filteredAdvances = advances.filter(a => {
       if (a.isDeleted) return false;
+      if (selectedStaffId && a.staffId !== selectedStaffId) return false; // Filter by Staff
       const d = new Date(a.date).getTime();
       return d >= start && d <= end;
     });
@@ -471,6 +447,13 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
     const totalExpenseAmount = allTransactions.reduce((sum, t) => sum + t.billAmount, 0);
     const totalAdvanceGiven = allTransactions.reduce((sum, t) => sum + t.advanceAmount, 0);
 
+    // Dynamic Title Logic
+    let selectedStaffName = 'All Staff';
+    if (selectedStaffId) {
+        const staff = staffList.find(s => s.id === selectedStaffId);
+        if (staff) selectedStaffName = staff.name;
+    }
+
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
@@ -485,9 +468,10 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
         <style>
           ${getCommonStyle()}
           .theme-color { color: #312e81; }
-          .theme-bg { background-color: #312e81; color: white; }
           .theme-border { border-color: #312e81; }
           .theme-light-bg { background-color: #e0e7ff; }
+          /* Enhanced Header Visibility - Dark Text on Light Background */
+          .table-header { background-color: #e0e7ff !important; color: #1e1b4b !important; border-bottom: 2px solid #312e81; }
         </style>
       </head>
       <body>
@@ -498,7 +482,10 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
              <div class="address-block"><p>Head Office: A-14/8, Johir Complex, Savar, Dhaka.</p></div>
           </div>
           <div class="report-title-box theme-light-bg border border-indigo-200">
-             <div><h2 class="report-title theme-color">FINANCIAL LEDGER</h2><p class="meta-text text-gray-600">Custom Date Range Report</p></div>
+             <div>
+               <h2 class="report-title theme-color">${selectedStaffId ? 'INDIVIDUAL LEDGER REPORT' : 'FINANCIAL LEDGER'}</h2>
+               <p class="meta-text text-gray-600">${selectedStaffId ? 'Staff Name: ' + selectedStaffName : 'Consolidated Expense & Advance Statement'}</p>
+             </div>
              <div class="text-right meta-text"><p><strong>Period:</strong> ${reportStartDate ? new Date(reportStartDate).toLocaleDateString('en-GB') : 'Start'} — ${reportEndDate ? new Date(reportEndDate).toLocaleDateString('en-GB') : 'Today'}</p></div>
           </div>
           <div class="flex justify-between gap-4 mb-4 text-xs">
@@ -511,7 +498,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
           </div>
           <table>
             <thead>
-              <tr class="theme-bg">
+              <tr class="table-header">
                 <th class="text-center w-8 rounded-tl">SL</th>
                 <th class="text-left w-20">Date</th>
                 <th class="text-left w-28">Staff Name</th>
@@ -631,6 +618,20 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
               onChange={(e) => setReportEndDate(e.target.value)}
             />
           </div>
+          {/* New Staff Selector */}
+          <div>
+            <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">স্টাফ নির্বাচন করুন</label>
+            <select 
+                className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
+                value={selectedStaffId}
+                onChange={(e) => setSelectedStaffId(e.target.value)}
+            >
+                <option value="">সকল স্টাফ (All)</option>
+                {staffList.filter(s => s.status === 'ACTIVE' && !s.deletedAt).map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+            </select>
+          </div>
           <button 
             onClick={generatePDFReport}
             className="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-bold hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 active:scale-95"
@@ -640,7 +641,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
           </button>
           <button 
             onClick={generateAttendanceReport}
-            className="w-full bg-green-600 text-white py-2.5 rounded-xl font-bold hover:bg-green-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-green-100 active:scale-95"
+            className="w-full bg-green-600 text-white py-2.5 rounded-xl font-bold hover:bg-green-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-green-100 active:scale-95 md:col-start-4"
           >
             <UserCheck className="w-5 h-5" />
             হাজিরা রিপোর্ট
