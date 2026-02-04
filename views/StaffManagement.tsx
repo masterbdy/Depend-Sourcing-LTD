@@ -82,7 +82,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
     amount: 0,
     note: 'Adjustment',
     date: new Date().toISOString().split('T')[0],
-    type: 'SALARY'
+    type: 'SALARY' // Default to salary
   });
 
   // Gift Points Modal State
@@ -571,34 +571,36 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
                           </div>
                       </div>
                   </div>
+                  
+                  {/* Updated Info Section with deeper backgrounds */}
                   <div className="mt-6 space-y-3 flex-1">
-                      <div className="flex items-center gap-3 p-2.5 rounded-xl bg-gray-50/80 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-600">
-                          <Phone className="w-4 h-4 text-gray-400" />
-                          <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">{staff.mobile || 'N/A'}</span>
+                      <div className="flex items-center gap-3 p-2.5 rounded-xl bg-gray-100 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600">
+                          <Phone className="w-4 h-4 text-gray-500" />
+                          <span className="text-sm font-bold text-gray-800 dark:text-gray-200">{staff.mobile || 'N/A'}</span>
                       </div>
-                      <div className="flex items-center gap-3 p-2.5 rounded-xl bg-gray-50/80 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-600">
-                          <MapPin className="w-4 h-4 text-gray-400" />
-                          <span className="text-xs font-semibold text-gray-700 dark:text-gray-200 truncate" title={staff.workLocation}>
+                      <div className="flex items-center gap-3 p-2.5 rounded-xl bg-gray-100 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600">
+                          <MapPin className="w-4 h-4 text-gray-500" />
+                          <span className="text-xs font-bold text-gray-800 dark:text-gray-200 truncate" title={staff.workLocation}>
                               {staff.workLocation === 'CUSTOM' ? staff.customLocation?.name || 'Custom Loc' : staff.workLocation}
                           </span>
                       </div>
                   </div>
                   
-                  {/* Updated Grid: Balance vs Salary Advance */}
+                  {/* Updated Grid: Balance vs Salary Advance with deeper backgrounds */}
                   <div className="grid grid-cols-2 gap-3 mt-4">
                       {/* Operational Balance */}
-                      <div className={`rounded-xl p-3 text-center border ${balance < 0 ? 'bg-red-50 border-red-100 dark:bg-red-900/20 dark:border-red-800' : 'bg-indigo-50 border-indigo-100 dark:bg-indigo-900/30 dark:border-indigo-800'}`}>
-                          <p className={`text-[9px] uppercase font-bold ${balance < 0 ? 'text-red-600' : 'text-gray-500 dark:text-gray-400'}`}>
+                      <div className={`rounded-xl p-3 text-center border ${balance < 0 ? 'bg-red-100 border-red-200 dark:bg-red-900/40 dark:border-red-800' : 'bg-indigo-100 border-indigo-200 dark:bg-indigo-900/40 dark:border-indigo-800'}`}>
+                          <p className={`text-[9px] uppercase font-black ${balance < 0 ? 'text-red-700' : 'text-gray-600 dark:text-gray-400'}`}>
                             {balance < 0 ? 'পাবে (Payable)' : 'হাতে আছে (Cash)'}
                           </p>
-                          <p className={`text-sm font-black ${balance < 0 ? 'text-red-700 dark:text-red-400' : 'text-indigo-700 dark:text-indigo-400'}`}>
+                          <p className={`text-sm font-black ${balance < 0 ? 'text-red-800 dark:text-red-400' : 'text-indigo-800 dark:text-indigo-400'}`}>
                              {balance < 0 ? '- ' : ''}৳ {Math.abs(balance).toLocaleString()}
                           </p>
                       </div>
                       {/* Salary Advance */}
-                      <div className="bg-purple-50 dark:bg-purple-900/20 rounded-xl p-3 text-center border border-purple-100 dark:border-purple-800">
-                          <p className="text-[9px] uppercase font-bold text-purple-500">বেতন অগ্রিম</p>
-                          <p className="text-sm font-black text-purple-700 dark:text-purple-400">
+                      <div className="bg-purple-100 dark:bg-purple-900/40 rounded-xl p-3 text-center border border-purple-200 dark:border-purple-800">
+                          <p className="text-[9px] uppercase font-black text-purple-700">বেতন অগ্রিম</p>
+                          <p className="text-sm font-black text-purple-800 dark:text-purple-400">
                               ৳ {totalSalaryAdv.toLocaleString()}
                           </p>
                       </div>

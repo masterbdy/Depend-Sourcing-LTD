@@ -105,7 +105,7 @@ const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices, setNotices, role
               className={`group relative rounded-3xl p-6 flex flex-col transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl ${
                 isUrgent 
                   ? 'bg-gradient-to-br from-red-50 via-white to-red-50/30 border-2 border-red-100 shadow-red-100' 
-                  : 'bg-gradient-to-br from-white via-indigo-50/20 to-white border border-gray-100 shadow-lg shadow-gray-100'
+                  : 'bg-gradient-to-br from-sky-50 via-indigo-50 to-blue-50 border border-sky-100 shadow-lg shadow-sky-50'
               }`}
             >
                {/* Decorative PIN */}
@@ -119,15 +119,15 @@ const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices, setNotices, role
                {/* Header Section */}
                <div className="mt-4 flex justify-between items-start mb-3">
                  <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm ${
-                    isUrgent ? 'bg-red-500 text-white' : 'bg-indigo-500 text-white'
+                    isUrgent ? 'bg-red-500 text-white' : 'bg-sky-500 text-white'
                  }`}>
-                    {isUrgent ? 'জরুরী ঘোষণা' : 'নোটিশ'}
+                    {isUrgent ? 'জরুরী ঘোষণা' : 'সাধারণ নোটিশ'}
                  </span>
                  
                  {canPost && (
                    <button 
                       onClick={(e) => deleteNotice(e, notice.id)}
-                      className="text-gray-300 hover:text-red-500 transition-colors p-1"
+                      className="text-gray-400 hover:text-red-500 transition-colors p-1"
                       title="মুছে ফেলুন"
                    >
                       <Trash2 className="w-4 h-4" />
@@ -140,13 +140,15 @@ const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices, setNotices, role
                   <h3 className={`text-xl font-bold mb-3 leading-tight ${isUrgent ? 'text-red-900' : 'text-gray-800'}`}>
                     {notice.title}
                   </h3>
-                  <div className={`text-sm leading-relaxed whitespace-pre-line p-3 rounded-xl bg-white/60 border border-white/50 backdrop-blur-sm ${isUrgent ? 'text-red-800' : 'text-gray-600'}`}>
+                  <div className={`text-sm leading-relaxed whitespace-pre-line p-3 rounded-xl backdrop-blur-sm border ${
+                    isUrgent ? 'bg-red-50/50 border-red-100 text-red-800' : 'bg-indigo-100/50 border-indigo-200/50 text-gray-700'
+                  }`}>
                     {notice.content}
                   </div>
                </div>
 
                {/* Footer Info */}
-               <div className="flex items-center gap-2 mb-4 pb-4 border-b border-gray-100">
+               <div className="flex items-center gap-2 mb-4 pb-4 border-b border-gray-200/50">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${isUrgent ? 'bg-red-100 text-red-700' : 'bg-indigo-100 text-indigo-700'}`}>
                      {notice.postedBy.charAt(0)}
                   </div>
@@ -269,12 +271,12 @@ const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices, setNotices, role
                 <div>
                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">নোটিশের ধরণ</label>
                    <div className="flex gap-4">
-                      <label className={`flex-1 cursor-pointer border-2 rounded-xl p-3 flex items-center justify-center gap-2 transition-all ${formData.type === 'NORMAL' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-sm' : 'border-gray-100 bg-white text-gray-500 hover:bg-gray-50'}`}>
+                      <label className={`flex-1 cursor-pointer border-2 rounded-xl p-3 flex items-center justify-center gap-2 transition-all ${formData.type === 'NORMAL' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-100 bg-white text-gray-500 hover:bg-gray-50'}`}>
                          <input type="radio" className="hidden" name="type" checked={formData.type === 'NORMAL'} onChange={() => setFormData({...formData, type: 'NORMAL'})} />
                          <Info className="w-5 h-5" />
                          <span className="font-bold text-sm">সাধারণ নোটিশ</span>
                       </label>
-                      <label className={`flex-1 cursor-pointer border-2 rounded-xl p-3 flex items-center justify-center gap-2 transition-all ${formData.type === 'URGENT' ? 'border-red-600 bg-red-50 text-red-700 shadow-sm' : 'border-gray-100 bg-white text-gray-500 hover:bg-gray-50'}`}>
+                      <label className={`flex-1 cursor-pointer border-2 rounded-xl p-3 flex items-center justify-center gap-2 transition-all ${formData.type === 'URGENT' ? 'border-red-600 bg-red-50 text-red-700' : 'border-gray-100 bg-white text-gray-500 hover:bg-gray-50'}`}>
                          <input type="radio" className="hidden" name="type" checked={formData.type === 'URGENT'} onChange={() => setFormData({...formData, type: 'URGENT'})} />
                          <AlertCircle className="w-5 h-5" />
                          <span className="font-bold text-sm">জরুরী ঘোষণা</span>

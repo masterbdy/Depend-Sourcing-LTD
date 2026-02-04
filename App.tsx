@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
-  LayoutDashboard, Users, Car, Receipt, BarChart3, Settings, Trash2, 
-  LogOut, Wallet, User, Cloud, WifiOff, AlertTriangle, Menu, X, RefreshCw, Lock, ArrowRightLeft, XCircle, Landmark, Bell, Phone, Briefcase, Crown, UserCog, ShieldCheck, Camera, Save, KeyRound, CreditCard, MessageSquareWarning, MessagesSquare, MapPin, MonitorSmartphone, Satellite, Trophy, Gift, Gamepad2, Shield, CheckCircle, LogIn, Sparkles, ClipboardList, Check, Eye, EyeOff, Moon, Sun, Loader2, MoreHorizontal, Grid, Info, BellRing
+  LayoutGrid, UsersRound, Route, Banknote, PieChart, Settings2, Recycle, 
+  LogOut, Wallet, User, Cloud, WifiOff, AlertTriangle, Menu, X, RefreshCw, Lock, ArrowRightLeft, XCircle, Landmark, Bell, Phone, Briefcase, Crown, UserCog, ShieldCheck, Camera, Save, KeyRound, CreditCard, MessageSquareWarning, MapPin, MonitorSmartphone, Satellite, Trophy, Gift, Shield, CheckCircle, LogIn, Sparkles, ClipboardList, Check, Eye, EyeOff, Moon, Sun, Loader2, Grid, Info, BellRing, ChevronRight, Fingerprint, Megaphone, Radar, ShieldAlert, MessageCircleMore
 } from 'lucide-react';
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { getDatabase, ref, onValue, set } from "firebase/database";
@@ -10,7 +10,7 @@ import { UserRole, Staff, MovementLog, Expense, BillingRule, FundEntry, Notice, 
 import { INITIAL_STAFF, INITIAL_BILLING_RULES, ROLE_LABELS, DEFAULT_FIREBASE_CONFIG } from './constants';
 import GlowingCursor from './GlowingCursor';
 
-// --- Views ---
+// ... (Imports of Views remain same) ...
 import DashboardView from './views/Dashboard';
 import StaffManagementView from './views/StaffManagement';
 import MovementLogView from './views/MovementLog';
@@ -27,18 +27,17 @@ import LiveLocationView from './views/LiveLocation';
 import LuckyDrawView from './views/LuckyDraw';
 
 const App: React.FC = () => {
+  // ... (All existing state logic remains exactly the same) ...
   const [role, setRole] = useState<UserRole | null>(null);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false); // New state for Bottom Nav More Menu
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false); 
   
-  // Theme State
   const [isDarkMode, setIsDarkMode] = useState(() => {
     return localStorage.getItem('app_theme') === 'dark';
   });
 
-  // Notification System State (With Persistence)
   const [appNotifications, setAppNotifications] = useState<AppNotification[]>(() => {
     try {
       const saved = localStorage.getItem('app_notifications');
@@ -48,20 +47,17 @@ const App: React.FC = () => {
     }
   });
   
-  const [toasts, setToasts] = useState<AppNotification[]>([]); // For Floating Toasts
+  const [toasts, setToasts] = useState<AppNotification[]>([]); 
   const [isNotifDropdownOpen, setIsNotifDropdownOpen] = useState(false);
   
-  // Save Notifications on Change
   useEffect(() => {
     localStorage.setItem('app_notifications', JSON.stringify(appNotifications));
   }, [appNotifications]);
   
-  // Permission State
   const [permissionsGranted, setPermissionsGranted] = useState(() => {
      return localStorage.getItem('app_permissions_granted') === 'true';
   });
 
-  // Profile Form State
   const [profileForm, setProfileForm] = useState({
     designation: '',
     mobile: '',
@@ -71,13 +67,11 @@ const App: React.FC = () => {
   });
   const profileFileRef = useRef<HTMLInputElement>(null);
   
-  // Cloud States
   const [isCloudEnabled, setIsCloudEnabled] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [cloudError, setCloudError] = useState<string | null>(null);
   const [showDbHelp, setShowDbHelp] = useState(false);
 
-  // Login Form State
   const [loginUsername, setLoginUsername] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
@@ -86,7 +80,6 @@ const App: React.FC = () => {
   const [rememberMe, setRememberMe] = useState(false);
   const [savedAccounts, setSavedAccounts] = useState<any[]>([]);
 
-  // Global States
   const [staffList, setStaffList] = useState<Staff[]>([]);
   const [movements, setMovements] = useState<MovementLog[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -99,14 +92,12 @@ const App: React.FC = () => {
   const [attendanceList, setAttendanceList] = useState<Attendance[]>([]);
   const [liveLocations, setLiveLocations] = useState<Record<string, StaffLocation>>({});
 
-  // Helper for cleaning arrays
   const cleanArray = <T,>(data: any): T[] => {
     if (!data) return [];
     const array = typeof data === 'object' && !Array.isArray(data) ? Object.values(data) : data;
     return Array.isArray(array) ? array.filter(Boolean) as T[] : [];
   };
 
-  // Firebase Configuration
   const [firebaseConfig] = useState<any>(() => {
     const saved = localStorage.getItem('fb_config');
     let config;
@@ -115,14 +106,12 @@ const App: React.FC = () => {
     } catch {
       config = DEFAULT_FIREBASE_CONFIG;
     }
-    // Safety check for DB URL
     if (config && config.projectId && (!config.databaseURL || config.databaseURL.includes('undefined'))) {
       config.databaseURL = `https://${config.projectId}-default-rtdb.firebaseio.com`;
     }
     return config;
   });
 
-  // Load Initial Data from Local Storage (Backup)
   const loadLocalData = () => {
     const getLocal = (key: string, def: string) => {
       try {
@@ -144,7 +133,6 @@ const App: React.FC = () => {
     setMessages(getLocal('messages', '[]') as ChatMessage[]);
     setAttendanceList(getLocal('attendanceList', '[]') as Attendance[]);
     
-    // Load Saved Accounts
     try {
       const savedAcc = localStorage.getItem('saved_accounts');
       if (savedAcc) setSavedAccounts(JSON.parse(savedAcc));
@@ -178,15 +166,13 @@ const App: React.FC = () => {
           onValue(dataRef, (snapshot) => {
             if (snapshot.exists()) {
               const data = snapshot.val();
-              const arrayData = node === 'staff_locations' ? data : cleanArray(data); // staff_locations is an object map
+              const arrayData = node === 'staff_locations' ? data : cleanArray(data); 
               setter(arrayData);
-              // Update local storage as backup (except locations, too volatile)
               if (node !== 'staff_locations') {
                 localStorage.setItem(node, JSON.stringify(arrayData));
               }
               setIsCloudEnabled(true);
             } else {
-              // Node is empty in cloud, stick to local or init default
               setIsCloudEnabled(true);
             }
             setIsSyncing(false);
@@ -223,7 +209,6 @@ const App: React.FC = () => {
     }
   }, [firebaseConfig]);
 
-  // Check if permissions are already granted to skip the gate
   useEffect(() => {
     const checkPermissions = async () => {
       try {
@@ -241,14 +226,12 @@ const App: React.FC = () => {
     checkPermissions();
   }, []);
 
-  // Theme Toggle Handler
   const toggleTheme = () => {
     const newTheme = !isDarkMode;
     setIsDarkMode(newTheme);
     localStorage.setItem('app_theme', newTheme ? 'dark' : 'light');
   };
 
-  // Sync Data function
   const syncData = async (node: string, data: any) => {
     const cleaned = cleanArray(data);
     const jsonString = JSON.stringify(cleaned);
@@ -286,23 +269,19 @@ const App: React.FC = () => {
   const updateMessages = (val: any) => { const next = typeof val === 'function' ? val(messages) : val; setMessages(next); syncData('messages', next); };
   const updateAttendance = (val: any) => { const next = typeof val === 'function' ? val(attendanceList) : val; setAttendanceList(next); syncData('attendanceList', next); };
 
-  // Sync Saved Accounts when Staff List Updates (Fix for Profile Update Issue)
   useEffect(() => {
     if (currentUser && staffList.length > 0) {
       const myData = staffList.find(s => s.name === currentUser);
       if (myData) {
-        // Update saved accounts if this user exists there
         const saved = localStorage.getItem('saved_accounts');
         if (saved) {
           const accounts = JSON.parse(saved);
           const updatedAccounts = accounts.map((acc: any) => {
             if (acc.username === currentUser) {
-              return { ...acc, photo: myData.photo }; // Sync photo
+              return { ...acc, photo: myData.photo };
             }
             return acc;
           });
-          // Only update local storage if there's a change to avoid loops, but photo comparison is heavy.
-          // Simple approach: just update.
           localStorage.setItem('saved_accounts', JSON.stringify(updatedAccounts));
           setSavedAccounts(updatedAccounts);
         }
@@ -310,7 +289,6 @@ const App: React.FC = () => {
     }
   }, [staffList, currentUser]);
 
-  // ... (Gamification logic remains same)
   const handlePointUpdate = (staffId: string, pointsToAdd: number, reason: string) => {
     const now = new Date();
     const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -434,7 +412,6 @@ const App: React.FC = () => {
 
   }, [currentUser, role, staffList.length]); 
 
-  // --- LIVE TRACKING LOGIC ---
   const wakeLockRef = useRef<any>(null);
 
   const requestWakeLock = async () => {
@@ -449,7 +426,6 @@ const App: React.FC = () => {
     }
   };
 
-  // Optimization: Memoize the staff ID so we don't depend on the whole staffList in useEffect
   const myStaffId = useMemo(() => {
     if (!currentUser || !staffList) return null;
     const profile = staffList.find(s => s.name === currentUser);
@@ -469,11 +445,8 @@ const App: React.FC = () => {
       }
 
       if ('geolocation' in navigator) {
-        // Only ask if we haven't already granted permissions (to avoid popup spam)
-        // Though watchPosition will trigger the icon regardless
         watchId = navigator.geolocation.watchPosition(
           async (position) => {
-            // Once we get a position, we know we have permission
             if (!permissionsGranted) {
                setPermissionsGranted(true);
                localStorage.setItem('app_permissions_granted', 'true');
@@ -522,9 +495,7 @@ const App: React.FC = () => {
     };
   }, [currentUser, role, isCloudEnabled, myStaffId]);
 
-  // --- ATTENDANCE REMINDER LOGIC ---
   useEffect(() => {
-    // 1. Exclude MD and ensure user is logged in
     if (!currentUser || !role || role === UserRole.MD) return;
 
     const checkAttendance = () => {
@@ -532,7 +503,6 @@ const App: React.FC = () => {
       const amICheckedIn = attendanceList.some(a => a.date === today && a.staffName === currentUser);
 
       if (!amICheckedIn) {
-         // Create notification
          handleAddNotification(
            '⚠️ হাজিরা রিমাইন্ডার',
            'আপনি আজ এখনো হাজিরা (Check-In) দেননি। দ্রুত হাজিরা নিশ্চিত করুন।',
@@ -542,10 +512,7 @@ const App: React.FC = () => {
       }
     };
 
-    // Initial check after 15 seconds of load/login to let data sync
     const initialTimeout = setTimeout(checkAttendance, 15000);
-
-    // Repeat check every 30 minutes (30 * 60 * 1000 ms)
     const interval = setInterval(checkAttendance, 30 * 60 * 1000); 
 
     return () => {
@@ -554,9 +521,7 @@ const App: React.FC = () => {
     };
   }, [currentUser, role, attendanceList]);
 
-  // --- NOTIFICATION LOGIC ---
   const requestNotificationPermission = () => {
-    // Only ask if default, never ask again if denied or granted
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
     }
@@ -574,14 +539,12 @@ const App: React.FC = () => {
     };
     
     setAppNotifications(prev => [newNotif, ...prev]);
-    setToasts(prev => [...prev, newNotif]); // Add to Toast queue
+    setToasts(prev => [...prev, newNotif]); 
 
-    // Remove Toast after 5 seconds
     setTimeout(() => {
        setToasts(prev => prev.filter(t => t.id !== newNotif.id));
     }, 5000);
 
-    // Send Browser Notification
     if ('Notification' in window && Notification.permission === 'granted') {
       try {
         const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
@@ -616,7 +579,6 @@ const App: React.FC = () => {
 
   const unreadCount = appNotifications.filter(n => !n.isRead).length;
 
-  // 1. WATCHER FOR MESSAGES (Chat/Movement) -> Notify Everyone
   const prevMessagesLength = useRef(0);
   useEffect(() => {
     if (messages.length > 0 && prevMessagesLength.current > 0 && messages.length > prevMessagesLength.current) {
@@ -635,33 +597,27 @@ const App: React.FC = () => {
     prevMessagesLength.current = messages.length;
   }, [messages, currentUser]);
 
-  // 2. WATCHER FOR EXPENSES -> Notify Targeted Users (Owner / Admin / MD)
   const prevExpensesRef = useRef<Expense[]>([]);
   useEffect(() => {
     const prev = prevExpensesRef.current;
     if (prev.length === 0 && expenses.length > 0) {
-        // Initial load, don't spam
         prevExpensesRef.current = expenses;
         return;
     }
 
-    // A. Detect NEW Expenses (Submission)
     const newExpenses = expenses.filter(e => !prev.find(p => p.id === e.id));
     newExpenses.forEach(e => {
-        // Condition: If I am Admin/MD, notify me about ANY new bill
         if (role === UserRole.ADMIN || role === UserRole.MD) {
             handleAddNotification('নতুন বিল সাবমিট', `${e.staffName} ৳${e.amount} টাকার বিল সাবমিট করেছেন।`, 'INFO', 'expenses');
         }
     });
 
-    // B. Detect STATUS CHANGE (Approval/Rejection)
     const updatedExpenses = expenses.filter(e => {
         const old = prev.find(p => p.id === e.id);
         return old && old.status !== e.status;
     });
 
     updatedExpenses.forEach(e => {
-        // Condition 1: If I am the OWNER of the bill, notify me
         if (currentUser && e.staffName === currentUser) {
             let msg = '';
             let type: AppNotification['type'] = 'INFO';
@@ -693,7 +649,6 @@ const App: React.FC = () => {
     
     let authenticatedUser: { role: UserRole, name: string } | null = null;
 
-    // 1. Check Staff List
     const staffMember = staffList.find(s => s && !s.deletedAt && s.name.toLowerCase() === username.toLowerCase());
     if (staffMember) {
       const validPassword = staffMember.password || `${staffMember.name}@`;
@@ -701,11 +656,9 @@ const App: React.FC = () => {
         authenticatedUser = { role: staffMember.role || UserRole.STAFF, name: staffMember.name };
       }
     }
-    // 2. Check MD
     else if (username.toLowerCase() === 'ispa' && password === 'ayaan') {
       authenticatedUser = { role: UserRole.MD, name: 'ISPA' };
     }
-    // 3. Check Admin
     else if (username.toLowerCase() === 'mehedi@' && password === 'mehedi@60') {
       authenticatedUser = { role: UserRole.ADMIN, name: 'Mehedi' };
     }
@@ -714,13 +667,12 @@ const App: React.FC = () => {
       const proceedLogin = () => {
           setRole(authenticatedUser!.role);
           setCurrentUser(authenticatedUser!.name);
-          setIsLoggingIn(false); // Stop loading
+          setIsLoggingIn(false); 
           
           if (authenticatedUser!.role === UserRole.KIOSK) {
             setActiveTab('attendance'); 
           }
 
-          // Check for pending bills if admin
           if (authenticatedUser!.role === UserRole.ADMIN) {
              const pending = expenses.filter(e => !e.isDeleted && e.status === 'PENDING').length;
              if (pending > 0) {
@@ -728,7 +680,6 @@ const App: React.FC = () => {
              }
           }
 
-          // Save Account Logic
           if (rememberMe && !quickAuthData) {
              const photo = staffList.find(s => s.name === authenticatedUser!.name)?.photo || '';
              const newAccount = { 
@@ -744,7 +695,6 @@ const App: React.FC = () => {
           }
       };
 
-      // Strict Location Check for Staff/Kiosk
       if (authenticatedUser.role === UserRole.STAFF || authenticatedUser.role === UserRole.KIOSK) {
           if (!navigator.geolocation) {
              setLoginError("ডিভাইসে লোকেশন সাপোর্ট নেই।");
@@ -754,11 +704,9 @@ const App: React.FC = () => {
           
           navigator.geolocation.getCurrentPosition(
             (pos) => {
-               // Location found, proceed
                proceedLogin();
             },
             (err) => {
-               // Location failed
                console.error("Login Location Check Failed:", err);
                setIsLoggingIn(false);
                
@@ -772,7 +720,6 @@ const App: React.FC = () => {
             { enableHighAccuracy: true, timeout: 8000 }
           );
       } else {
-          // Admin/MD login without location check
           proceedLogin();
       }
       return;
@@ -795,12 +742,8 @@ const App: React.FC = () => {
     setLoginPassword('');
     setLoginError('');
     setActiveTab('dashboard');
-    // We don't clear notifications on logout anymore to persist state, 
-    // or you can enable it if privacy is a concern.
-    // setAppNotifications([]); 
   };
 
-  // ... (Rest of the handlers: export, import, profile photo, save profile remain same) ...
   const handleExport = () => {
     const data = {
       staffList, expenses, movements, billingRules, funds, notices, advances, complaints, messages, attendanceList,
@@ -927,51 +870,59 @@ const App: React.FC = () => {
     return staffList.find(s => s && !s.deletedAt && s.name === currentUser);
   }, [staffList, currentUser]);
 
-  // Define Navigation Items based on Role
   const allNavItems = useMemo(() => [
-    { id: 'dashboard', label: 'ড্যাশবোর্ড', icon: LayoutDashboard, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF, UserRole.KIOSK] },
-    { id: 'attendance', label: 'হাজিরা', icon: MapPin, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF, UserRole.KIOSK] },
-    { id: 'expenses', label: 'বিল', icon: Receipt, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF] },
-    { id: 'notices', label: 'নোটিশ', icon: ClipboardList, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF, UserRole.KIOSK] },
-    { id: 'chat', label: 'টিম চ্যাট', icon: MessagesSquare, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF] },
-    { id: 'luckydraw', label: 'লাকি ড্র', icon: Gamepad2, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF] },
-    { id: 'live-location', label: 'ট্র্যাকিং', icon: Satellite, roles: [UserRole.ADMIN, UserRole.MD] },
-    { id: 'complaints', label: 'অভিযোগ', icon: MessageSquareWarning, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF] },
-    { id: 'funds', label: 'ফান্ড লেজার', icon: Landmark, roles: [UserRole.ADMIN, UserRole.MD] },
-    { id: 'staff', label: 'স্টাফ', icon: Users, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF] },
-    { id: 'movements', label: 'মুভমেন্ট', icon: Car, roles: [UserRole.ADMIN, UserRole.STAFF] },
-    { id: 'reports', label: 'রিপোর্ট', icon: BarChart3, roles: [UserRole.ADMIN, UserRole.MD] },
-    { id: 'settings', label: 'সেটিংস', icon: Settings, roles: [UserRole.ADMIN] },
-    { id: 'trash', label: 'রিসাইকেল', icon: Trash2, roles: [UserRole.ADMIN] },
+    { id: 'dashboard', label: 'ড্যাশবোর্ড', icon: LayoutGrid, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF, UserRole.KIOSK], color: 'text-sky-600', bgColor: 'bg-sky-50' },
+    { id: 'attendance', label: 'হাজিরা', icon: Fingerprint, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF, UserRole.KIOSK], color: 'text-green-600', bgColor: 'bg-green-50' },
+    { id: 'expenses', label: 'বিল ও খরচ', icon: Banknote, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-rose-600', bgColor: 'bg-rose-50' },
+    { id: 'notices', label: 'নোটিশ বোর্ড', icon: Megaphone, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF, UserRole.KIOSK], color: 'text-orange-600', bgColor: 'bg-orange-50' },
+    { id: 'chat', label: 'টিম চ্যাট', icon: MessageCircleMore, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-violet-600', bgColor: 'bg-violet-50' },
+    { id: 'luckydraw', label: 'লাকি ড্র', icon: Gift, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-pink-600', bgColor: 'bg-pink-50' },
+    { id: 'live-location', label: 'লাইভ ট্র্যাকিং', icon: Radar, roles: [UserRole.ADMIN, UserRole.MD], color: 'text-cyan-600', bgColor: 'bg-cyan-50' },
+    { id: 'complaints', label: 'অভিযোগ বক্স', icon: ShieldAlert, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-red-600', bgColor: 'bg-red-50' },
+    { id: 'funds', label: 'ফান্ড লেজার', icon: Landmark, roles: [UserRole.ADMIN, UserRole.MD], color: 'text-emerald-600', bgColor: 'bg-emerald-50' },
+    { id: 'staff', label: 'স্টাফ লিস্ট', icon: UsersRound, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-indigo-600', bgColor: 'bg-indigo-50' },
+    { id: 'movements', label: 'মুভমেন্ট লগ', icon: Route, roles: [UserRole.ADMIN, UserRole.STAFF], color: 'text-amber-600', bgColor: 'bg-amber-50' },
+    { id: 'reports', label: 'রিপোর্ট ও ফাইল', icon: PieChart, roles: [UserRole.ADMIN, UserRole.MD], color: 'text-slate-600', bgColor: 'bg-slate-50' },
+    { id: 'settings', label: 'সেটিংস', icon: Settings2, roles: [UserRole.ADMIN], color: 'text-gray-600', bgColor: 'bg-gray-50' },
+    { id: 'trash', label: 'রিসাইকেল বিন', icon: Recycle, roles: [UserRole.ADMIN], color: 'text-red-500', bgColor: 'bg-red-50' },
   ], []);
 
   const allowedNavItems = useMemo(() => allNavItems.filter(item => role && item.roles.includes(role)), [allNavItems, role]);
 
-  // Split Navigation for Bottom Bar (Mobile)
-  const bottomNavItems = allowedNavItems.slice(0, 4); // First 4 items
-  const moreMenuItems = allowedNavItems.slice(4); // Rest of the items
+  const bottomNavItems = allowedNavItems.slice(0, 4); 
+  const mobileSidebarItems = allowedNavItems; 
 
-  // --- LOGIN SCREEN ---
   if (!role) {
-    // ... (Login Screen Render - No Changes needed here) ...
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4 relative overflow-hidden">
         
-        {/* Animated Background */}
         <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-black to-blue-900 opacity-80 z-0"></div>
         <div className="absolute inset-0 z-0"><GlowingCursor /></div>
         
-        {/* Updated Login Card: Dark Glassmorphism for better visuals with GlowingCursor */}
         <div className="bg-gray-900/40 backdrop-blur-xl rounded-3xl shadow-2xl p-8 w-full max-w-md border border-white/10 relative z-10 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-500">
-          <div className="text-center mb-8">
-            <div className="bg-indigo-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-xl shadow-indigo-500/30 ring-4 ring-indigo-500/20">
-              <Wallet className="w-8 h-8 text-white" />
+          
+          <div className="text-center mb-8 relative">
+            {/* Decorative Glow */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 bg-indigo-500/20 blur-[50px] rounded-full"></div>
+            
+            <div className="relative z-10">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                    <span className="h-[1px] w-6 bg-indigo-500/50"></span>
+                    <p className="text-[9px] font-bold text-indigo-300 uppercase tracking-[0.3em]">Est. 2015</p>
+                    <span className="h-[1px] w-6 bg-indigo-500/50"></span>
+                </div>
+                <h2 className="text-3xl font-black tracking-tight text-white leading-tight drop-shadow-lg mb-1">
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-indigo-400">DEPEND</span> <span className="text-gray-200">SOURCING</span>
+                </h2>
+                <p className="text-[10px] text-gray-400 font-medium tracking-[0.3em] uppercase flex items-center justify-center gap-2 mb-4">
+                    <Sparkles className="w-3 h-3 text-yellow-500" /> Promise Beyond Business
+                </p>
+                <div className="inline-block px-4 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-bold text-indigo-200 backdrop-blur-sm">
+                    অ্যাকাউন্ট লগইন
+                </div>
             </div>
-            <h1 className="text-xl font-black text-white tracking-tight">অ্যাকাউন্ট লগইন</h1>
-            <p className="text-indigo-200 text-xs mt-1">Depend Sourcing Ltd.</p>
           </div>
 
-          {/* SAVED ACCOUNTS */}
           {savedAccounts.length > 0 && (
             <div className="mb-6">
                <p className="text-[10px] font-bold text-indigo-300 uppercase tracking-widest mb-3 ml-1">Saved Accounts</p>
@@ -1082,7 +1033,6 @@ const App: React.FC = () => {
             </button>
           </form>
 
-          {/* Connection Status Indicator */}
           <div className="mt-6 flex flex-col items-center gap-3">
             {isCloudEnabled ? (
                <span className="flex items-center gap-1.5 text-[10px] text-green-400 bg-green-900/30 px-3 py-1 rounded-full font-bold border border-green-500/30 shadow-lg shadow-green-900/20">
@@ -1131,7 +1081,6 @@ const App: React.FC = () => {
         </>
       )}
 
-      {/* --- IN-APP TOAST NOTIFICATIONS CONTAINER --- */}
       <div className="fixed bottom-6 right-6 z-[100] flex flex-col gap-3 pointer-events-none">
          {toasts.map((toast) => (
             <div key={toast.id} className="pointer-events-auto w-80 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-700 p-4 flex items-start gap-3 animate-in slide-in-from-right-10 fade-in duration-300">
@@ -1157,7 +1106,6 @@ const App: React.FC = () => {
          ))}
       </div>
 
-      {/* DESKTOP SIDEBAR - Hidden on Mobile */}
       <aside className={`hidden md:flex flex-col w-64 h-full border-r ${isDarkMode ? 'bg-gray-900/80 backdrop-blur-md border-white/10 text-white' : 'bg-indigo-900 text-white'}`}>
         <div className={`p-6 text-center shrink-0 ${isDarkMode ? 'border-b border-white/10' : 'border-b border-indigo-800'}`}>
           <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3 ${isDarkMode ? 'bg-white/10 ring-1 ring-white/20' : 'bg-indigo-400/20'}`}>
@@ -1182,7 +1130,6 @@ const App: React.FC = () => {
       <main className="flex-1 flex flex-col h-full overflow-hidden relative z-10 pb-[70px] md:pb-0">
         <header className={`h-16 flex items-center justify-between px-6 shrink-0 relative z-20 ${isDarkMode ? 'bg-gray-900/80 backdrop-blur-md border-b border-white/10' : 'bg-white border-b border-gray-200'}`}>
           <div className="flex items-center gap-4">
-            {/* Removed Mobile Sidebar Toggle */}
             <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest cursor-pointer ${isCloudEnabled ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-500'}`} title={cloudError || "System Normal"} onClick={() => !isCloudEnabled && setShowDbHelp(true)}>
               {isCloudEnabled ? <Cloud className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
               <span>{isCloudEnabled ? (isSyncing ? 'Syncing...' : 'Online') : 'Offline'}</span>
@@ -1193,7 +1140,6 @@ const App: React.FC = () => {
               </div>
             )}
             
-            {/* Points Badge in Header - Exclude MD and Office */}
             {role !== UserRole.KIOSK && role !== UserRole.MD && myProfile && !myProfile.name.toLowerCase().includes('office') && (
                <div className="hidden sm:flex items-center gap-2 bg-yellow-50 px-3 py-1.5 rounded-full border border-yellow-100">
                   <Trophy className="w-4 h-4 text-yellow-500" />
@@ -1207,7 +1153,6 @@ const App: React.FC = () => {
           </div>
           
           <div className="flex items-center gap-4">
-             {/* THEME TOGGLE */}
              <button 
                onClick={toggleTheme}
                className={`p-2 rounded-full transition-all active:scale-95 ${isDarkMode ? 'bg-white/10 text-yellow-400 hover:bg-white/20' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
@@ -1216,7 +1161,6 @@ const App: React.FC = () => {
                {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
              </button>
 
-             {/* NOTIFICATION BELL */}
              <div className="relative">
                 <button 
                   onClick={() => setIsNotifDropdownOpen(!isNotifDropdownOpen)}
@@ -1228,7 +1172,6 @@ const App: React.FC = () => {
                    )}
                 </button>
 
-                {/* Dropdown Panel */}
                 {isNotifDropdownOpen && (
                   <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200 text-gray-900 dark:text-gray-100">
                      <div className="p-3 border-b border-gray-50 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800">
@@ -1278,7 +1221,6 @@ const App: React.FC = () => {
                 )}
              </div>
 
-             {/* Profile Info */}
              <div className="text-right hidden md:block">
                <p className={`text-sm font-bold ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>{currentUser || 'Guest'}</p>
                <p className="text-xs text-gray-500">{role ? ROLE_LABELS[role] : ''}</p>
@@ -1303,7 +1245,6 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      {/* MOBILE BOTTOM NAVIGATION BAR */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 flex justify-around items-center px-2 py-2 z-50 shadow-lg">
          {bottomNavItems.map((item) => (
             <button 
@@ -1315,93 +1256,91 @@ const App: React.FC = () => {
                <span className="text-[10px] font-bold">{item.label}</span>
             </button>
          ))}
-         {/* MORE BUTTON */}
          <button 
             onClick={() => setIsMoreMenuOpen(true)}
             className={`flex flex-col items-center justify-center w-full py-1.5 rounded-lg transition-colors ${isMoreMenuOpen ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'}`}
          >
-            <MoreHorizontal className="w-6 h-6 mb-1" />
-            <span className="text-[10px] font-bold">আরও</span>
+            <Menu className="w-6 h-6 mb-1" />
+            <span className="text-[10px] font-bold">মেনু</span>
          </button>
       </div>
 
-      {/* MOBILE MORE MENU OVERLAY */}
       {isMoreMenuOpen && (
-         <div className="fixed inset-0 z-[60] bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm md:hidden animate-in fade-in slide-in-from-bottom-10 duration-200 flex flex-col">
-            <div className="p-5 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center bg-white dark:bg-gray-900 shadow-sm">
-               <div className="flex items-center gap-2">
-                  <Grid className="w-5 h-5 text-indigo-600" />
-                  <h3 className="text-lg font-black text-gray-800 dark:text-white">সব মেনু</h3>
-               </div>
-               <button onClick={() => setIsMoreMenuOpen(false)} className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
-                  <X className="w-6 h-6 text-gray-600 dark:text-gray-300" />
-               </button>
-            </div>
+         <div className="fixed inset-0 z-[60] md:hidden">
+            <div 
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300"
+              onClick={() => setIsMoreMenuOpen(false)}
+            ></div>
             
-            <div className="flex-1 overflow-y-auto p-6">
-               <div className="grid grid-cols-3 gap-3">
-                  {moreMenuItems.map((item) => {
-                     let style = { iconBg: 'from-gray-500 to-gray-600', shadow: 'shadow-gray-200', border: 'hover:border-gray-200' };
-                     
-                     switch(item.id) {
-                        case 'luckydraw': style = { iconBg: 'from-pink-500 to-rose-500', shadow: 'shadow-pink-200', border: 'hover:border-pink-200' }; break;
-                        case 'live-location': style = { iconBg: 'from-cyan-500 to-blue-500', shadow: 'shadow-cyan-200', border: 'hover:border-cyan-200' }; break;
-                        case 'complaints': style = { iconBg: 'from-red-500 to-orange-500', shadow: 'shadow-red-200', border: 'hover:border-red-200' }; break;
-                        case 'funds': style = { iconBg: 'from-teal-500 to-emerald-500', shadow: 'shadow-teal-200', border: 'hover:border-teal-200' }; break;
-                        case 'staff': style = { iconBg: 'from-violet-500 to-purple-500', shadow: 'shadow-violet-200', border: 'hover:border-violet-200' }; break;
-                        case 'movements': style = { iconBg: 'from-lime-500 to-green-500', shadow: 'shadow-lime-200', border: 'hover:border-lime-200' }; break;
-                        case 'reports': style = { iconBg: 'from-sky-500 to-indigo-500', shadow: 'shadow-sky-200', border: 'hover:border-sky-200' }; break;
-                        case 'settings': style = { iconBg: 'from-slate-600 to-gray-700', shadow: 'shadow-slate-200', border: 'hover:border-slate-200' }; break;
-                        case 'trash': style = { iconBg: 'from-rose-500 to-red-600', shadow: 'shadow-rose-200', border: 'hover:border-rose-200' }; break;
-                        default: style = { iconBg: 'from-indigo-500 to-blue-600', shadow: 'shadow-indigo-200', border: 'hover:border-indigo-200' };
-                     }
-
-                     return (
-                        <button 
-                           key={item.id}
-                           onClick={() => { setActiveTab(item.id); setIsMoreMenuOpen(false); }}
-                           className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all duration-300 group active:scale-95 ${
-                              activeTab === item.id 
-                                ? 'bg-indigo-50 border-indigo-500 ring-1 ring-indigo-500 shadow-md' 
-                                : `bg-white border-gray-100 shadow-sm ${style.border} hover:shadow-md dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300`
-                           }`}
-                        >
-                           <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-2 shadow-lg bg-gradient-to-br ${style.iconBg} text-white transform group-hover:scale-110 transition-transform duration-300`}>
-                              <item.icon className="w-6 h-6" />
-                           </div>
-                           <span className={`text-[11px] font-bold text-center leading-tight ${activeTab === item.id ? 'text-indigo-700' : 'text-gray-600 dark:text-gray-300'}`}>
-                              {item.label}
-                           </span>
-                        </button>
-                     );
-                  })}
-               </div>
-
-               {/* Profile & Logout Section in More Menu */}
-               <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-800 space-y-4">
-                  <button onClick={() => { openProfile(); setIsMoreMenuOpen(false); }} className="w-full flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700">
-                     <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold overflow-hidden">
+            <div className="absolute top-0 left-0 bottom-0 w-72 bg-white dark:bg-gray-900 shadow-2xl flex flex-col animate-in slide-in-from-left duration-300 border-r border-gray-100 dark:border-gray-800">
+               
+               <div className="p-5 border-b border-gray-100 dark:border-gray-800 bg-indigo-600 dark:bg-gray-900 text-white flex flex-col gap-4 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-4 opacity-10">
+                     <Wallet className="w-24 h-24 text-white" />
+                  </div>
+                  
+                  <div className="flex justify-between items-start relative z-10">
+                     <div className="w-12 h-12 rounded-full border-2 border-white/30 bg-white/10 flex items-center justify-center overflow-hidden backdrop-blur-sm">
                         {myProfile && myProfile.photo ? (
                            <img src={myProfile.photo} className="w-full h-full object-cover" />
                         ) : (
-                           currentUser ? currentUser[0].toUpperCase() : <User className="w-5 h-5" />
+                           <span className="text-xl font-bold">{currentUser ? currentUser[0].toUpperCase() : 'U'}</span>
                         )}
                      </div>
-                     <div className="text-left">
-                        <p className="font-bold text-gray-800 dark:text-white">{currentUser}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">প্রোফাইল দেখুন</p>
-                     </div>
-                  </button>
+                     <button onClick={() => setIsMoreMenuOpen(false)} className="p-1.5 bg-white/10 rounded-full hover:bg-white/20 transition-colors">
+                        <X className="w-5 h-5" />
+                     </button>
+                  </div>
                   
-                  <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-2xl font-bold border border-red-100 dark:border-red-900/30">
-                     <LogOut className="w-5 h-5" /> লগআউট করুন
+                  <div className="relative z-10">
+                     <h3 className="font-bold text-lg leading-tight">{currentUser || 'Guest'}</h3>
+                     <p className="text-xs text-indigo-200">{role ? ROLE_LABELS[role] : 'No Role'}</p>
+                  </div>
+               </div>
+
+               <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1 custom-scrollbar">
+                  <p className="px-3 text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Navigation</p>
+                  {mobileSidebarItems.map((item) => (
+                     <button 
+                        key={item.id}
+                        onClick={() => { setActiveTab(item.id); setIsMoreMenuOpen(false); }}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all mb-1 ${
+                           activeTab === item.id 
+                              ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' 
+                              : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                        }`}
+                     >
+                        <div className={`p-2 rounded-lg transition-colors ${
+                           activeTab === item.id 
+                              ? 'bg-white text-indigo-600 shadow-sm dark:bg-indigo-950 dark:text-indigo-300' 
+                              : `${item.bgColor} dark:bg-gray-800`
+                        }`}>
+                           <item.icon className={`w-4 h-4 ${item.color}`} />
+                        </div>
+                        <span className="flex-1 text-left">{item.label}</span>
+                        {activeTab === item.id && <ChevronRight className="w-4 h-4 opacity-50" />}
+                     </button>
+                  ))}
+               </div>
+
+               <div className="p-4 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50">
+                  <button 
+                     onClick={() => { openProfile(); setIsMoreMenuOpen(false); }} 
+                     className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-bold text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800 transition-colors mb-2"
+                  >
+                     <UserCog className="w-4 h-4" /> প্রোফাইল সেটিংস
+                  </button>
+                  <button 
+                     onClick={handleLogout} 
+                     className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400 hover:bg-red-100 transition-colors"
+                  >
+                     <LogOut className="w-4 h-4" /> লগআউট
                   </button>
                </div>
             </div>
          </div>
       )}
 
-      {/* Profile Modal */}
       {isProfileModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in duration-200 text-gray-900">
           <div className="bg-white w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl border border-white/40 backdrop-blur-md relative dark:bg-gray-800 dark:border-gray-700">

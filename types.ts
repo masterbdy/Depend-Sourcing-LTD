@@ -128,6 +128,7 @@ export interface Complaint {
   date: string;
   status: 'PENDING' | 'INVESTIGATING' | 'RESOLVED' | 'DISMISSED';
   isDeleted?: boolean;
+  type?: 'COMPLAINT' | 'SUGGESTION'; // Added Type to distinguish
 }
 
 export interface ChatMessage {

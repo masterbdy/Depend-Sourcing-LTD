@@ -92,21 +92,28 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
     const banglaToEng = (str: string) => str.replace(/[০-৯]/g, d => "0123456789"["০১২৩৪৫৬৭৮৯".indexOf(d)]);
     let processedText = banglaToEng(text);
 
-    // --- IMPROVED EXCLUSION LOGIC ---
+    // --- IMPROVED EXCLUSION MASKS ---
 
-    // A. Mask Time Formats (e.g., 10:15, 09:30, 9:00)
-    // Replaces digits in time with 'X' so they are not summed
-    processedText = processedText.replace(/\d{1,2}:\d{2}/g, (match) => match.replace(/\d/g, 'X'));
+    // A. Dates (e.g., 12/05/2024, 12-05-24, 2024-05-12, 12.05.24)
+    // Matches patterns with separators /, -, or .
+    const datePattern = /\b\d{1,4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,4}\b/g;
+    processedText = processedText.replace(datePattern, 'DATE');
 
-    // B. Mask Units (pcs, Yds, kg, etc.)
-    // Matches numbers followed immediately or by space with unit names
-    // Example: 100pcs, 100 pcs, 50yds, 10kg
-    const unitPattern = /(\d+)[\s\-]*(pcs|pc|yds|yd|kg|ltr|m|cm|inch|ft|g|gm|mg|ml|pack|box|pair|set|ali|hali|dizon|jon|ta|ti|to|p|y|গজ|পিস|কেজি|টা|টি|জন)/gi;
-    processedText = processedText.replace(unitPattern, (match) => match.replace(/\d/g, 'X'));
+    // B. Phone Numbers (e.g., 01711223344)
+    // Looks for 11 digits starting with 01
+    const phonePattern = /\b01\d{9}\b/g;
+    processedText = processedText.replace(phonePattern, 'PHONE');
 
-    // C. Mask Addresses/Locations (Existing Logic)
-    const exclusionPattern = /(মিরপুর|উত্তরা|সেক্টর|রোড|বাসা|ফ্ল্যাট|লেভেল|তলা|ব্লক|লেন|ওয়ার্ড|নম্বর|নং|প্লাটফর্ম|গাড়ি|বাস নং|Mirpur|Uttara|Sector|Road|House|Flat|Level|Floor|Block|Lane|Ward|No|Num)[\s\-\.]*[0-9]+/gi;
-    processedText = processedText.replace(exclusionPattern, (match) => match.replace(/[0-9]/g, 'X'));
+    // C. Time Formats (e.g., 10:15, 09:30)
+    processedText = processedText.replace(/\d{1,2}:\d{2}/g, 'TIME');
+
+    // D. Mask Units (pcs, kg, etc.)
+    const unitPattern = /(\d+)[\s\-]*(pcs|pc|yds|yd|kg|ltr|m|cm|inch|ft|g|gm|mg|ml|pack|box|pair|set|ali|hali|dizon|jon|ta|ti|to|p|y|গজ|পিস|কেজি|টা|টি|জন|বস্তা)/gi;
+    processedText = processedText.replace(unitPattern, 'UNIT');
+
+    // E. Mask Addresses/Locations
+    const exclusionPattern = /(মিরপুর|উত্তরা|সেক্টর|রোড|বাসা|ফ্ল্যাট|লেভেল|তলা|ব্লক|লেন|ওয়ার্ড|নম্বর|নং|প্লাটফর্ম|গাড়ি|বাস নং|দোকান|রুম|হোল্ডিং|Mirpur|Uttara|Sector|Road|House|Flat|Level|Floor|Block|Lane|Ward|No|Num|Shop|Room|Holding)[\s\-\.]*[0-9]+/gi;
+    processedText = processedText.replace(exclusionPattern, 'LOC');
 
     // 3. Extract remaining numbers and sum them up
     const matches = processedText.match(/(\d+(\.\d+)?)/g);

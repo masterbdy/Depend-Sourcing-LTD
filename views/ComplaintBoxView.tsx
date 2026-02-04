@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { MessageSquareWarning, Search, FilterX, Send, ShieldAlert, CheckCircle2, XCircle, Clock, ChevronDown, ChevronUp, User, Lightbulb, Sparkles, Trash2, AlertTriangle } from 'lucide-react';
+import { MessageSquareWarning, Search, FilterX, Send, ShieldAlert, CheckCircle2, XCircle, Clock, ChevronDown, ChevronUp, User, Lightbulb, Sparkles } from 'lucide-react';
 import { Complaint, Staff, UserRole } from '../types';
 
 interface ComplaintProps {
@@ -16,13 +16,10 @@ const ComplaintBoxView: React.FC<ComplaintProps> = ({ complaints, setComplaints,
   const [formData, setFormData] = useState({ 
     againstStaffId: '', 
     subject: '', 
-    description: '',
+    description: '', 
     type: 'COMPLAINT' as 'COMPLAINT' | 'SUGGESTION' 
   });
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  
-  // Delete Confirmation State
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // Filter States
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
@@ -30,9 +27,7 @@ const ComplaintBoxView: React.FC<ComplaintProps> = ({ complaints, setComplaints,
   const activeStaff = staffList.filter(s => !s.deletedAt && s.status === 'ACTIVE');
   const isManagement = role === UserRole.ADMIN || role === UserRole.MD;
 
-  // Filter Logic: 
-  // - Management sees ALL complaints.
-  // - Staff sees ONLY their own submitted complaints.
+  // Filter Logic
   const visibleComplaints = useMemo(() => {
     let list = complaints.filter(c => !c.isDeleted);
     
@@ -54,17 +49,17 @@ const ComplaintBoxView: React.FC<ComplaintProps> = ({ complaints, setComplaints,
     let accusedStaffId = 'GENERAL';
     let accusedStaffName = 'General / System';
 
-    // Validation & Data Prep based on Type
+    // Only require accused staff if it's a complaint
     if (formData.type === 'COMPLAINT') {
         const accusedStaff = staffList.find(s => s.id === formData.againstStaffId);
         if (!accusedStaff) return alert('যার বিরুদ্ধে অভিযোগ তাকে নির্বাচন করুন');
         accusedStaffId = accusedStaff.id;
         accusedStaffName = accusedStaff.name;
     } else {
+        // For suggestion
         accusedStaffName = 'পরামর্শ (Suggestion)';
     }
 
-    // Find submitter ID if possible
     const submitter = staffList.find(s => s.name === currentUser);
 
     const newComplaint: Complaint = {
@@ -87,17 +82,6 @@ const ComplaintBoxView: React.FC<ComplaintProps> = ({ complaints, setComplaints,
 
   const updateStatus = (id: string, status: Complaint['status']) => {
     setComplaints(prev => prev.map(c => c.id === id ? { ...c, status } : c));
-  };
-
-  const handleDeleteRequest = (id: string) => {
-    setDeleteConfirmId(id);
-  };
-
-  const confirmDelete = () => {
-    if (deleteConfirmId) {
-      setComplaints(prev => prev.map(c => c.id === deleteConfirmId ? { ...c, isDeleted: true } : c));
-      setDeleteConfirmId(null);
-    }
   };
 
   return (
@@ -231,13 +215,6 @@ const ComplaintBoxView: React.FC<ComplaintProps> = ({ complaints, setComplaints,
                            Dismiss
                          </button>
                        )}
-                       {/* Delete Button */}
-                       <button 
-                         onClick={() => handleDeleteRequest(item.id)} 
-                         className="px-4 py-2 bg-white text-red-500 rounded-xl text-xs font-bold hover:bg-red-50 transition-colors border border-red-200 flex items-center gap-1"
-                       >
-                         <Trash2 className="w-3 h-3" /> Delete
-                       </button>
                     </div>
                   )}
                </div>
@@ -351,37 +328,6 @@ const ComplaintBoxView: React.FC<ComplaintProps> = ({ complaints, setComplaints,
                     </div>
                 </form>
              </div>
-          </div>
-        </div>
-      )}
-
-      {/* DELETE CONFIRMATION MODAL */}
-      {deleteConfirmId && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
-            <div className="p-6 text-center">
-              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <AlertTriangle className="w-8 h-8 text-red-600" />
-              </div>
-              <h3 className="text-xl font-black text-gray-800 mb-2">আপনি কি নিশ্চিত?</h3>
-              <p className="text-sm text-gray-500 mb-6">
-                আপনি এই রেকর্ডটি ডিলিট করতে যাচ্ছেন। এটি রিসাইকেল বিনে জমা হবে।
-              </p>
-              <div className="flex gap-3">
-                <button 
-                  onClick={() => setDeleteConfirmId(null)}
-                  className="flex-1 py-3 border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors"
-                >
-                  না, বাতিল করুন
-                </button>
-                <button 
-                  onClick={confirmDelete}
-                  className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 shadow-lg shadow-red-200 transition-colors"
-                >
-                  হ্যাঁ, ডিলিট করুন
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       )}
