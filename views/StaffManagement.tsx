@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef } from 'react';
-import { Plus, Search, Edit2, Trash2, UserPlus, X, Calendar, FilterX, Phone, Banknote, Users, UserCheck, UserX, ArrowUpDown, ShieldCheck, ShieldAlert, Eye, EyeOff, Lock, Camera, Image as ImageIcon, Briefcase, Wallet, ArrowRight, Coins, Crown, UserCog, History, CalendarClock, MapPin, LocateFixed, Globe, ToggleLeft, ToggleRight, Map, MonitorSmartphone, Gift, Star, MoreVertical, WalletCards, AlertTriangle } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, UserPlus, X, Calendar, FilterX, Phone, Banknote, Users, UserCheck, UserX, ArrowUpDown, ShieldCheck, ShieldAlert, Eye, EyeOff, Lock, Camera, Image as ImageIcon, Briefcase, Wallet, ArrowRight, Coins, Crown, UserCog, History, CalendarClock, MapPin, LocateFixed, Globe, ToggleLeft, ToggleRight, Map, MonitorSmartphone, Gift, Star, MoreVertical, WalletCards, AlertTriangle, CheckCircle, RotateCcw } from 'lucide-react';
 import { Staff, UserRole, Expense, AdvanceLog } from '../types';
 import { ROLE_LABELS } from '../constants';
 
@@ -27,6 +27,9 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
   
   // Delete Confirmation State
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  // Status Change Confirmation State
+  const [statusConfirmData, setStatusConfirmData] = useState<{id: string, newStatus: 'ACTIVE' | 'DEACTIVATED'} | null>(null);
 
   // Form Data
   const [formData, setFormData] = useState({ 
@@ -231,12 +234,18 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
     );
   };
 
-  const toggleStatus = (id: string, currentStatus: 'ACTIVE' | 'DEACTIVATED') => {
+  const requestStatusChange = (id: string, currentStatus: 'ACTIVE' | 'DEACTIVATED') => {
     if (isStaff) return;
-    const newStatus = currentStatus === 'ACTIVE' ? 'DEACTIVATED' : 'ACTIVE';
-    const actionText = newStatus === 'ACTIVE' ? 'সক্রিয় (Active)' : 'নিষ্ক্রিয় (Deactivate)';
-    if (window.confirm(`আপনি কি নিশ্চিতভাবে এই স্টাফকে ${actionText} করতে চান?`)) {
-       setStaffList(prev => prev.map(s => s && s.id === id ? { ...s, status: newStatus, updatedAt: new Date().toISOString() } : s));
+    setStatusConfirmData({
+        id,
+        newStatus: currentStatus === 'ACTIVE' ? 'DEACTIVATED' : 'ACTIVE'
+    });
+  };
+
+  const confirmStatusChange = () => {
+    if (statusConfirmData) {
+       setStaffList(prev => prev.map(s => s && s.id === statusConfirmData.id ? { ...s, status: statusConfirmData.newStatus, updatedAt: new Date().toISOString() } : s));
+       setStatusConfirmData(null);
     }
   };
 
@@ -628,7 +637,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
                        )}
                        {!isStaff && (
                           <>
-                            <button onClick={() => toggleStatus(staff.id, staff.status)} className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${isActive ? 'bg-orange-50 dark:bg-orange-900/30 text-orange-500 hover:bg-orange-500 hover:text-white' : 'bg-green-50 dark:bg-green-900/30 text-green-500 hover:bg-green-500 hover:text-white'}`} title={isActive ? 'Deactivate' : 'Activate'}>
+                            <button onClick={() => requestStatusChange(staff.id, staff.status)} className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${isActive ? 'bg-orange-50 dark:bg-orange-900/30 text-orange-500 hover:bg-orange-500 hover:text-white' : 'bg-green-50 dark:bg-green-900/30 text-green-500 hover:bg-green-500 hover:text-white'}`} title={isActive ? 'Deactivate' : 'Activate'}>
                                 {isActive ? <UserX className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
                             </button>
                             {/* CHANGED: Only Admin can delete */}
@@ -1031,6 +1040,39 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
                   <button type="submit" className="flex-[2] bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all active:scale-95">{editingStaff ? 'আপডেট করুন' : 'সেভ করুন'}</button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* STATUS CHANGE CONFIRMATION MODAL */}
+      {statusConfirmData && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
+            <div className="p-6 text-center">
+              <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${statusConfirmData.newStatus === 'ACTIVE' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                {statusConfirmData.newStatus === 'ACTIVE' ? <CheckCircle className="w-8 h-8" /> : <UserX className="w-8 h-8" />}
+              </div>
+              <h3 className="text-xl font-black text-gray-800 mb-2">
+                {statusConfirmData.newStatus === 'ACTIVE' ? 'অ্যাকাউন্ট চালু করবেন?' : 'অ্যাকাউন্ট বন্ধ করবেন?'}
+              </h3>
+              <p className="text-sm text-gray-500 mb-6">
+                আপনি এই স্টাফের স্ট্যাটাস পরিবর্তন করে <strong>{statusConfirmData.newStatus === 'ACTIVE' ? 'সক্রিয় (Active)' : 'নিষ্ক্রিয় (Deactivated)'}</strong> করতে যাচ্ছেন। আপনি কি নিশ্চিত?
+              </p>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setStatusConfirmData(null)}
+                  className="flex-1 py-3 border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors"
+                >
+                  না
+                </button>
+                <button 
+                  onClick={confirmStatusChange}
+                  className={`flex-1 py-3 text-white font-bold rounded-xl shadow-lg transition-colors ${statusConfirmData.newStatus === 'ACTIVE' ? 'bg-green-600 hover:bg-green-700 shadow-green-200' : 'bg-red-600 hover:bg-red-700 shadow-red-200'}`}
+                >
+                  হ্যাঁ, নিশ্চিত
+                </button>
+              </div>
             </div>
           </div>
         </div>

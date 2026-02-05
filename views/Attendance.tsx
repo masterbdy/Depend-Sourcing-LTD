@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { MapPin, Clock, Calendar, CheckCircle, XCircle, AlertTriangle, Fingerprint, UserCheck, ShieldCheck, Navigation, MonitorSmartphone, Search } from 'lucide-react';
+import { MapPin, Clock, Calendar, CheckCircle, XCircle, AlertTriangle, Fingerprint, UserCheck, ShieldCheck, Navigation, MonitorSmartphone, Search, FileText, X } from 'lucide-react';
 import { Staff, Attendance, UserRole } from '../types';
 import { OFFICE_START_TIME, WORK_LOCATIONS } from '../constants';
 
@@ -18,6 +18,11 @@ const AttendanceView: React.FC<AttendanceProps> = ({ staffList, attendanceList, 
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [kioskSearchTerm, setKioskSearchTerm] = useState('');
+  
+  // Late Reason State
+  const [isLateModalOpen, setIsLateModalOpen] = useState(false);
+  const [lateReason, setLateReason] = useState('');
+  const [pendingCheckInData, setPendingCheckInData] = useState<{staffId: string, isManual: boolean} | null>(null);
   
   const today = new Date().toISOString().split('T')[0];
   const activeStaff = staffList.filter(s => !s.deletedAt && s.status === 'ACTIVE');
@@ -147,6 +152,43 @@ const AttendanceView: React.FC<AttendanceProps> = ({ staffList, attendanceList, 
     }
   }, [role, targetLocations]);
 
+  // Final check-in execution logic
+  const performCheckIn = (staffId: string, isManual: boolean, status: 'PRESENT' | 'LATE', note?: string) => {
+    const staff = activeStaff.find(s => s.id === staffId);
+    if (!staff) return;
+
+    const now = new Date();
+    
+    const newRecord: Attendance = {
+      id: Math.random().toString(36).substr(2, 9),
+      staffId: staff.id,
+      staffName: staff.name,
+      date: today,
+      checkInTime: now.toISOString(),
+      status: status,
+      isManualByAdmin: isManual,
+      note: note,
+      location: isManual ? undefined : { 
+        lat: currentLocation ? currentLocation.lat : 0, 
+        lng: currentLocation ? currentLocation.lng : 0, 
+        address: isManual ? staff.workLocation : distanceInfo?.targetName
+      }
+    };
+
+    setAttendanceList(prev => [...prev, newRecord]);
+    
+    if (role === UserRole.KIOSK) {
+      alert(`${staff.name} - এর হাজিরা সফল হয়েছে! ✅`);
+    } else if (!isManual) {
+      alert("সফলভাবে চেক-ইন সম্পন্ন হয়েছে! ✅");
+    }
+
+    // Reset Modal State
+    setPendingCheckInData(null);
+    setLateReason('');
+    setIsLateModalOpen(false);
+  };
+
   const handleCheckIn = (staffId: string, isManual = false) => {
     const staff = activeStaff.find(s => s.id === staffId);
     if (!staff) return;
@@ -168,28 +210,24 @@ const AttendanceView: React.FC<AttendanceProps> = ({ staffList, attendanceList, 
     const currentTimeStr = now.toLocaleTimeString('en-US', { hour12: false });
     const isLate = currentTimeStr > OFFICE_START_TIME;
 
-    const newRecord: Attendance = {
-      id: Math.random().toString(36).substr(2, 9),
-      staffId: staff.id,
-      staffName: staff.name,
-      date: today,
-      checkInTime: now.toISOString(),
-      status: isLate ? 'LATE' : 'PRESENT',
-      isManualByAdmin: isManual,
-      location: isManual ? undefined : { 
-        lat: currentLocation ? currentLocation.lat : 0, 
-        lng: currentLocation ? currentLocation.lng : 0, 
-        address: isManual ? staff.workLocation : distanceInfo?.targetName
-      }
-    };
-
-    setAttendanceList(prev => [...prev, newRecord]);
-    
-    if (role === UserRole.KIOSK) {
-      alert(`${staff.name} - এর হাজিরা সফল হয়েছে! ✅`);
-    } else if (!isManual) {
-      alert("সফলভাবে চেক-ইন সম্পন্ন হয়েছে! ✅");
+    if (isLate) {
+       // Open Modal for Reason
+       setPendingCheckInData({ staffId, isManual });
+       setIsLateModalOpen(true);
+    } else {
+       // Proceed normally
+       performCheckIn(staffId, isManual, 'PRESENT');
     }
+  };
+
+  const handleSubmitLateReason = (e: React.FormEvent) => {
+     e.preventDefault();
+     if (!pendingCheckInData) return;
+     if (!lateReason.trim()) {
+        alert("দয়া করে দেরির কারণ লিখুন।");
+        return;
+     }
+     performCheckIn(pendingCheckInData.staffId, pendingCheckInData.isManual, 'LATE', lateReason);
   };
 
   const handleCheckOut = (recordId: string, isForceByAdmin = false) => {
@@ -515,9 +553,17 @@ const AttendanceView: React.FC<AttendanceProps> = ({ staffList, attendanceList, 
                        </td>
                        <td className="px-6 py-4">
                          {record ? (
-                           <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-tight ${getStatusColor(record.status)}`}>
-                             {record.status}
-                           </span>
+                           <>
+                             <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-tight ${getStatusColor(record.status)}`}>
+                               {record.status}
+                             </span>
+                             {record.note && (
+                               <div className="mt-1 flex items-start gap-1 text-[10px] text-red-500 bg-red-50 px-1.5 py-0.5 rounded border border-red-100">
+                                  <FileText className="w-3 h-3 shrink-0 mt-0.5"/>
+                                  <span>{record.note}</span>
+                               </div>
+                             )}
+                           </>
                          ) : (
                            <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-tight bg-gray-100 dark:bg-gray-700 text-gray-400">
                              NOT CHECKED IN
@@ -587,6 +633,55 @@ const AttendanceView: React.FC<AttendanceProps> = ({ staffList, attendanceList, 
                </ul>
             </div>
          </div>
+      )}
+
+      {/* LATE REASON MODAL */}
+      {isLateModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in duration-200">
+           <div className="bg-white dark:bg-gray-800 w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden p-6">
+              <div className="text-center mb-6">
+                 <div className="w-16 h-16 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Clock className="w-8 h-8 text-orange-600 dark:text-orange-400" />
+                 </div>
+                 <h3 className="text-xl font-black text-gray-800 dark:text-white">আপনি আজ লেট! ⚠️</h3>
+                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">অফিস সময় সকাল ৯:০০ টা। দয়া করে দেরির কারণ উল্লেখ করুন।</p>
+              </div>
+              
+              <form onSubmit={handleSubmitLateReason} className="space-y-4">
+                 <div>
+                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">দেরির কারণ</label>
+                    <textarea 
+                      required 
+                      rows={3} 
+                      className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all font-medium text-gray-800 dark:text-white"
+                      placeholder="যেমন: ট্রাফিক জ্যাম, অসুস্থতা..."
+                      value={lateReason}
+                      onChange={(e) => setLateReason(e.target.value)}
+                    />
+                 </div>
+                 
+                 <div className="flex gap-3">
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                         setIsLateModalOpen(false);
+                         setPendingCheckInData(null);
+                         setLateReason('');
+                      }}
+                      className="flex-1 py-3 border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 font-bold rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    >
+                       বাতিল
+                    </button>
+                    <button 
+                      type="submit" 
+                      className="flex-[2] bg-orange-500 text-white py-3 rounded-xl font-bold hover:bg-orange-600 transition-colors shadow-lg shadow-orange-200 dark:shadow-none"
+                    >
+                       সাবমিট করুন
+                    </button>
+                 </div>
+              </form>
+           </div>
+        </div>
       )}
     </div>
   );

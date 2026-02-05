@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Bell, Plus, Trash2, Megaphone, Info, AlertCircle, X, Check, Pin, Eye, User, CalendarDays } from 'lucide-react';
+import { Bell, Plus, Trash2, Megaphone, Info, AlertCircle, X, Check, Pin, Eye, User, CalendarDays, AlertTriangle } from 'lucide-react';
 import { Notice, UserRole } from '../types';
 import { ROLE_LABELS } from '../constants';
 
@@ -15,6 +15,9 @@ const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices, setNotices, role
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({ title: '', content: '', type: 'NORMAL' as 'NORMAL' | 'URGENT' });
   const [seenListNoticeId, setSeenListNoticeId] = useState<string | null>(null);
+  
+  // Delete Confirmation State
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // Only show active notices
   const activeNotices = notices.filter(n => !n.isDeleted).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -38,11 +41,16 @@ const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices, setNotices, role
     setFormData({ title: '', content: '', type: 'NORMAL' });
   };
 
-  const deleteNotice = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation(); // Prevent any parent clicks
-    if (window.confirm('সতর্কতা: আপনি কি নিশ্চিত যে এই নোটিশটি মুছে ফেলতে চান?')) {
-      const updatedNotices = notices.map(n => n.id === id ? { ...n, isDeleted: true } : n);
+  const handleDeleteRequest = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation(); // Prevent parent clicks
+    setDeleteConfirmId(id);
+  };
+
+  const confirmDelete = () => {
+    if (deleteConfirmId) {
+      const updatedNotices = notices.map(n => n.id === deleteConfirmId ? { ...n, isDeleted: true } : n);
       setNotices(updatedNotices);
+      setDeleteConfirmId(null);
     }
   };
 
@@ -126,7 +134,7 @@ const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices, setNotices, role
                  
                  {canPost && (
                    <button 
-                      onClick={(e) => deleteNotice(e, notice.id)}
+                      onClick={(e) => handleDeleteRequest(e, notice.id)}
                       className="text-gray-400 hover:text-red-500 transition-colors p-1"
                       title="মুছে ফেলুন"
                    >
@@ -306,6 +314,37 @@ const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices, setNotices, role
                    </button>
                 </div>
              </form>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE CONFIRMATION MODAL */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle className="w-8 h-8 text-red-600" />
+              </div>
+              <h3 className="text-xl font-black text-gray-800 mb-2">আপনি কি নিশ্চিত?</h3>
+              <p className="text-sm text-gray-500 mb-6">
+                আপনি এই নোটিশটি ডিলিট করতে যাচ্ছেন। এটি রিসাইকেল বিনে জমা হবে।
+              </p>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setDeleteConfirmId(null)}
+                  className="flex-1 py-3 border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors"
+                >
+                  না, বাতিল করুন
+                </button>
+                <button 
+                  onClick={confirmDelete}
+                  className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 shadow-lg shadow-red-200 transition-colors"
+                >
+                  হ্যাঁ, ডিলিট করুন
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

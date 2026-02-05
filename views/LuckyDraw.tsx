@@ -105,7 +105,7 @@ const LuckyDrawView: React.FC<LuckyDrawProps> = ({ staffList, currentUser, onUpd
       <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-3xl p-8 text-white text-center relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
         <Crown className="w-16 h-16 mx-auto mb-4 text-yellow-300 drop-shadow-lg" />
-        <h2 className="text-3xl font-black tracking-tight mb-2">লাকি ড্র & লিডারবোর্ড</h2>
+        <h2 className="text-3xl font-black tracking-tight mb-2">Leaderboard</h2>
         <div className="inline-block bg-white/20 px-4 py-1 rounded-full backdrop-blur-sm text-sm font-bold border border-white/30 mb-2">
            <CalendarClock className="w-4 h-4 inline mr-2" />
            {currentMonthName}

@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { PlusCircle, History, Landmark, Wallet, ArrowUpCircle, Trash2, Search, Calendar, FilterX, Info, ArrowDownLeft, ArrowUpRight, Banknote } from 'lucide-react';
+import { PlusCircle, History, Landmark, Wallet, ArrowUpCircle, Trash2, Search, Calendar, FilterX, Info, ArrowDownLeft, ArrowUpRight, Banknote, AlertTriangle } from 'lucide-react';
 import { FundEntry, UserRole, Expense, AdvanceLog } from '../types';
 
 interface FundProps {
@@ -27,6 +27,7 @@ interface Transaction {
 
 const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = [], advances = [], totalFund, cashOnHand, role }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ 
     amount: 0, 
     note: '',
@@ -140,8 +141,13 @@ const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = 
   };
 
   const deleteEntry = (id: string) => {
-    if (window.confirm('সতর্কতা: আপনি কি নিশ্চিত যে এই ফান্ড রেকর্ডটি ডিলিট করতে চান?')) {
-      setFunds(prev => prev.map(f => f.id === id ? { ...f, isDeleted: true } : f));
+    setDeleteConfirmId(id);
+  };
+
+  const confirmDelete = () => {
+    if (deleteConfirmId) {
+      setFunds(prev => prev.map(f => f.id === deleteConfirmId ? { ...f, isDeleted: true } : f));
+      setDeleteConfirmId(null);
     }
   };
 
@@ -248,7 +254,7 @@ const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = 
                          <th className="px-4 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">তারিখ</th>
                          <th className="px-4 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">বিবরণ</th>
                          <th className="px-4 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">টাকা (In)</th>
-                         {role === UserRole.ADMIN && <th className="px-4 py-3 text-right"></th>}
+                         {(role === UserRole.ADMIN || role === UserRole.MD) && <th className="px-4 py-3 text-right"></th>}
                       </tr>
                    </thead>
                    <tbody className="divide-y divide-gray-50">
@@ -263,12 +269,12 @@ const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = 
                             <td className="px-4 py-3 text-right text-xs font-black text-green-600 whitespace-nowrap">
                                ৳ {t.amount.toLocaleString()}
                             </td>
-                            {role === UserRole.ADMIN && (
+                            {(role === UserRole.ADMIN || role === UserRole.MD) && (
                                 <td className="px-4 py-3 text-right">
                                     <button 
                                     onClick={() => deleteEntry(t.id)} 
-                                    className="text-gray-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                                    title="Delete"
+                                    className="text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 p-1.5 rounded-lg transition-colors"
+                                    title="Delete Fund Entry"
                                     >
                                     <Trash2 className="w-4 h-4" />
                                     </button>
@@ -373,6 +379,37 @@ const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = 
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE CONFIRMATION MODAL */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle className="w-8 h-8 text-red-600" />
+              </div>
+              <h3 className="text-xl font-black text-gray-800 mb-2">আপনি কি নিশ্চিত?</h3>
+              <p className="text-sm text-gray-500 mb-6">
+                আপনি এই ফান্ড রেকর্ডটি মুছে ফেলতে চাচ্ছেন। এটি রিসাইকেল বিনে জমা হবে।
+              </p>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setDeleteConfirmId(null)}
+                  className="flex-1 py-3 border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors"
+                >
+                  না, বাতিল করুন
+                </button>
+                <button 
+                  onClick={confirmDelete}
+                  className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 shadow-lg shadow-red-200 transition-colors"
+                >
+                  হ্যাঁ, ডিলিট করুন
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
