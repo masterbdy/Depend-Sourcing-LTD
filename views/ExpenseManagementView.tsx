@@ -284,14 +284,13 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
   };
 
   const updateStatus = (id: string, status: Expense['status']) => {
-    // Replaced window.confirm with custom modal to ensure it works on all devices
     setStatusConfirmData({ id, status });
   };
 
   const confirmStatusUpdate = () => {
     if (statusConfirmData) {
-       setExpenses(prev => prev.map(e => e.id === statusConfirmData.id ? { ...e, status: statusConfirmData.status } : e));
-       setStatusConfirmData(null);
+      setExpenses(prev => prev.map(e => e.id === statusConfirmData.id ? { ...e, status: statusConfirmData.status } : e));
+      setStatusConfirmData(null);
     }
   };
 
@@ -306,24 +305,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
     }
   };
 
-  // New Function: Specifically Clear Rejected Bills
-  const handleClearRejected = () => {
-    const candidates = expenses.filter(e => !e.isDeleted && e.status === 'REJECTED');
-    const count = candidates.length;
-
-    if (count === 0) {
-      alert('কোনো বাতিল (Rejected) বিল নেই।');
-      return;
-    }
-
-    if (window.confirm(`সতর্কতা: আপনি কি নিশ্চিত যে ${count} টি বাতিল (Rejected) বিল একসাথে মুছে ফেলতে চান?`)) {
-      const idsToDelete = new Set(candidates.map(c => c.id));
-      setExpenses(prev => prev.map(e => 
-        idsToDelete.has(e.id) ? { ...e, isDeleted: true } : e
-      ));
-      alert('সকল বাতিল বিল রিসাইকেল বিনে পাঠানো হয়েছে।');
-    }
-  };
+  // Bulk History/Reject Clear functionality removed as per request.
 
   const handleApproveAll = () => {
     const pendingCount = expenses.filter(e => !e.isDeleted && (e.status === 'PENDING' || e.status === 'VERIFIED')).length;
@@ -417,19 +399,6 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <h2 className="text-xl font-bold text-gray-800">খরচ ও ভাউচার ম্যানেজমেন্ট</h2>
         <div className="flex flex-wrap gap-3">
-          {/* Admin Specific Buttons - Only Admin */}
-          {role === UserRole.ADMIN && (
-             <>
-               <button
-                 onClick={handleClearRejected}
-                 className="bg-red-50 text-red-600 px-4 py-2 rounded-xl font-bold hover:bg-red-100 hover:text-red-700 border border-red-200 transition-colors flex items-center gap-2 shadow-sm whitespace-nowrap"
-                 title="সকল বাতিল (Rejected) বিল মুছে ফেলুন"
-               >
-                 <FileWarning className="w-5 h-5" />
-                 বাতিল বিল মুছুন
-               </button>
-             </>
-          )}
           
           {(role === UserRole.ADMIN || role === UserRole.STAFF) && (
             <button 
