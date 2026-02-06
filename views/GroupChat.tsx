@@ -17,7 +17,7 @@ const AVAILABLE_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 const QUICK_EMOJIS = ["👍", "👋", "✅", "❌", "🎉", "🔥", "❤️", "😂", "😮", "😢", "🙏", "🤝"];
 const QUICK_REPLIES = ["👍 ঠিক আছে", "✅ কাজ শেষ", "🚗 অন দ্য ওয়ে", "🙏 ধন্যবাদ", "👀 দেখছি", "❌ হবে না"];
 
-const GroupChatView: React.FC<GroupChatProps> = ({ messages, setMessages, currentUser, role, onNavigate, onUpdatePoints, staffList }) => {
+const GroupChatView: React.FC<GroupChatProps> = ({ messages = [], setMessages, currentUser, role, onNavigate, onUpdatePoints, staffList = [] }) => {
   const [inputText, setInputText] = useState('');
   const [activeReactionId, setActiveReactionId] = useState<string | null>(null);
   const [viewingReactionMsgId, setViewingReactionMsgId] = useState<string | null>(null);
@@ -56,7 +56,7 @@ const GroupChatView: React.FC<GroupChatProps> = ({ messages, setMessages, curren
     setShowEmojiPicker(false);
 
     if (role === UserRole.STAFF) {
-       const staff = staffList.find(s => s.name === currentUser);
+       const staff = (staffList || []).find(s => s.name === currentUser);
        if (staff) {
           onUpdatePoints(staff.id, 1, 'CHAT_ACTIVITY');
        }
@@ -106,7 +106,7 @@ const GroupChatView: React.FC<GroupChatProps> = ({ messages, setMessages, curren
     setMessages(prev => [...prev, newMessage]);
     
     if (role === UserRole.STAFF) {
-       const staff = staffList.find(s => s.name === currentUser);
+       const staff = (staffList || []).find(s => s.name === currentUser);
        if (staff) {
           onUpdatePoints(staff.id, 1, 'CHAT_ACTIVITY');
        }
@@ -148,7 +148,7 @@ const GroupChatView: React.FC<GroupChatProps> = ({ messages, setMessages, curren
     }
   };
 
-  const sortedMessages = [...messages]
+  const sortedMessages = [...(messages || [])]
     .filter(m => !m.hiddenFor?.includes(currentUser || ''))
     .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
@@ -174,7 +174,7 @@ const GroupChatView: React.FC<GroupChatProps> = ({ messages, setMessages, curren
 
   const getReactionsForModal = () => {
      if (!viewingReactionMsgId) return [];
-     const msg = messages.find(m => m.id === viewingReactionMsgId);
+     const msg = (messages || []).find(m => m.id === viewingReactionMsgId);
      return msg?.reactions || [];
   };
 

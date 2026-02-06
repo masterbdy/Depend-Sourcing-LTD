@@ -12,7 +12,7 @@ interface ReportsProps {
   funds?: FundEntry[]; // Added funds to props
 }
 
-const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, attendanceList, funds = [] }) => {
+const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], advances = [], attendanceList = [], funds = [] }) => {
   const [reportStartDate, setReportStartDate] = useState('');
   const [reportEndDate, setReportEndDate] = useState('');
   
@@ -22,7 +22,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
   // New State for Monthly Report
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
 
-  const approvedExpenses = expenses.filter(e => !e.isDeleted && e.status === 'APPROVED');
+  const approvedExpenses = (expenses || []).filter(e => !e.isDeleted && e.status === 'APPROVED');
   
   // --- MONTHLY STATISTICS CALCULATION ---
   const monthlyStats = useMemo(() => {
@@ -34,7 +34,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
     };
 
     // 1. Total Fund Received
-    const monthlyFunds = funds.filter(f => !f.isDeleted && isSameMonth(f.date));
+    const monthlyFunds = (funds || []).filter(f => !f.isDeleted && isSameMonth(f.date));
     const totalFund = monthlyFunds.reduce((sum, f) => sum + Number(f.amount), 0);
 
     // 2. Total Expense
@@ -42,7 +42,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
     const totalExpense = monthlyExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
 
     // 3. Advances (Split into Regular and Salary)
-    const monthlyAdvances = advances.filter(a => !a.isDeleted && isSameMonth(a.date));
+    const monthlyAdvances = (advances || []).filter(a => !a.isDeleted && isSameMonth(a.date));
     const regularAdvance = monthlyAdvances.filter(a => a.type !== 'SALARY').reduce((sum, a) => sum + Number(a.amount), 0);
     const salaryAdvance = monthlyAdvances.filter(a => a.type === 'SALARY').reduce((sum, a) => sum + Number(a.amount), 0);
     const totalAdvance = regularAdvance + salaryAdvance;
@@ -64,7 +64,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
   }, [selectedMonth, funds, approvedExpenses, advances]);
 
   // Chart Data Preparation (Staff-wise expenses) - Overall
-  const staffData = staffList.map(s => {
+  const staffData = (staffList || []).map(s => {
     const total = approvedExpenses.filter(e => e.staffId === s.id).reduce((sum, e) => sum + e.amount, 0);
     return { name: s.name, amount: total };
   }).filter(d => d.amount > 0);
@@ -269,7 +269,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
     const end = reportEndDate ? new Date(reportEndDate).setHours(23, 59, 59, 999) : Number.MAX_VALUE;
 
     // Filter
-    const filteredAttendance = attendanceList.filter(a => {
+    const filteredAttendance = (attendanceList || []).filter(a => {
       const d = new Date(a.date).getTime();
       // If filtering by specific staff in attendance report too:
       if (selectedStaffId && a.staffId !== selectedStaffId) return false;
@@ -281,7 +281,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
       return;
     }
 
-    const summary = staffList.filter(s => !selectedStaffId || s.id === selectedStaffId).map(staff => {
+    const summary = (staffList || []).filter(s => !selectedStaffId || s.id === selectedStaffId).map(staff => {
       const records = filteredAttendance.filter(a => a.staffId === staff.id);
       return {
         name: staff.name,
@@ -323,7 +323,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
           <div class="report-title-box theme-light-bg border border-green-200">
              <div>
                 <h2 class="report-title theme-color">ATTENDANCE REPORT</h2>
-                <p class="meta-text text-gray-500">${selectedStaffId ? staffList.find(s=>s.id === selectedStaffId)?.name + ' - Individual Log' : 'All Employee Attendance Log'}</p>
+                <p class="meta-text text-gray-500">${selectedStaffId ? (staffList || []).find(s=>s.id === selectedStaffId)?.name + ' - Individual Log' : 'All Employee Attendance Log'}</p>
              </div>
              <div class="text-right meta-text">
                 <p><strong>Period:</strong> ${reportStartDate ? new Date(reportStartDate).toLocaleDateString('en-GB') : 'Start'} — ${reportEndDate ? new Date(reportEndDate).toLocaleDateString('en-GB') : 'Today'}</p>
@@ -401,14 +401,14 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
     const start = reportStartDate ? new Date(reportStartDate).setHours(0, 0, 0, 0) : 0;
     const end = reportEndDate ? new Date(reportEndDate).setHours(23, 59, 59, 999) : Number.MAX_VALUE;
 
-    const filteredExpenses = expenses.filter(e => {
+    const filteredExpenses = (expenses || []).filter(e => {
       if (e.isDeleted) return false;
       if (selectedStaffId && e.staffId !== selectedStaffId) return false; // Filter by Staff
       const d = new Date(e.createdAt).getTime();
       return d >= start && d <= end;
     });
 
-    const filteredAdvances = advances.filter(a => {
+    const filteredAdvances = (advances || []).filter(a => {
       if (a.isDeleted) return false;
       if (selectedStaffId && a.staffId !== selectedStaffId) return false; // Filter by Staff
       const d = new Date(a.date).getTime();
@@ -450,7 +450,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
     // Dynamic Title Logic
     let selectedStaffName = 'All Staff';
     if (selectedStaffId) {
-        const staff = staffList.find(s => s.id === selectedStaffId);
+        const staff = (staffList || []).find(s => s.id === selectedStaffId);
         if (staff) selectedStaffName = staff.name;
     }
 
@@ -627,7 +627,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses, staffList, advances, at
                 onChange={(e) => setSelectedStaffId(e.target.value)}
             >
                 <option value="">সকল স্টাফ (All)</option>
-                {staffList.filter(s => s.status === 'ACTIVE' && !s.deletedAt).map(s => (
+                {(staffList || []).filter(s => s.status === 'ACTIVE' && !s.deletedAt).map(s => (
                     <option key={s.id} value={s.id}>{s.name}</option>
                 ))}
             </select>

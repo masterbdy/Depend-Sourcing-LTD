@@ -10,7 +10,6 @@ import { UserRole, Staff, MovementLog, Expense, BillingRule, FundEntry, Notice, 
 import { INITIAL_STAFF, INITIAL_BILLING_RULES, ROLE_LABELS, DEFAULT_FIREBASE_CONFIG } from './constants';
 import GlowingCursor from './GlowingCursor';
 
-// ... (Imports of Views remain same) ...
 import DashboardView from './views/Dashboard';
 import StaffManagementView from './views/StaffManagement';
 import MovementLogView from './views/MovementLog';
@@ -24,10 +23,8 @@ import ComplaintBoxView from './views/ComplaintBox';
 import GroupChatView from './views/GroupChat';
 import AttendanceView from './views/Attendance';
 import LiveLocationView from './views/LiveLocation';
-import LuckyDrawView from './views/LuckyDraw';
 
 const App: React.FC = () => {
-  // ... (All existing state logic remains exactly the same) ...
   const [role, setRole] = useState<UserRole | null>(null);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -327,24 +324,6 @@ const App: React.FC = () => {
     });
   };
 
-  const updateLuckyDrawTime = (staffId: string) => {
-    setStaffList(prevList => {
-      const newList = prevList.map(s => {
-        if (s.id === staffId) {
-          return {
-             ...s,
-             lastLuckyDrawTime: new Date().toISOString(),
-             luckyDrawCount: (s.luckyDrawCount || 0) + 1,
-             updatedAt: new Date().toISOString()
-           };
-         }
-        return s;
-      });
-      syncData('staffList', newList);
-      return newList;
-    });
-  };
-
   useEffect(() => {
     if (!currentUser || !role || role === UserRole.KIOSK || role === UserRole.MD) return;
     if (currentUser.toLowerCase().includes('office')) return;
@@ -352,7 +331,7 @@ const App: React.FC = () => {
     const checkAndAwardVisitPoint = () => {
        if (document.visibilityState !== 'visible') return;
 
-       const staff = staffList.find(s => s.name === currentUser && s.status === 'ACTIVE' && !s.deletedAt);
+       const staff = (staffList || []).find(s => s.name === currentUser && s.status === 'ACTIVE' && !s.deletedAt);
        if (!staff) return;
        if (staff.role === UserRole.MD || staff.name.toLowerCase().includes('office')) return;
 
@@ -649,7 +628,7 @@ const App: React.FC = () => {
     
     let authenticatedUser: { role: UserRole, name: string } | null = null;
 
-    const staffMember = staffList.find(s => s && !s.deletedAt && s.name.toLowerCase() === username.toLowerCase());
+    const staffMember = (staffList || []).find(s => s && !s.deletedAt && s.name.toLowerCase() === username.toLowerCase());
     if (staffMember) {
       const validPassword = staffMember.password || `${staffMember.name}@`;
       if (password === validPassword) {
@@ -674,14 +653,14 @@ const App: React.FC = () => {
           }
 
           if (authenticatedUser!.role === UserRole.ADMIN) {
-             const pending = expenses.filter(e => !e.isDeleted && e.status === 'PENDING').length;
+             const pending = (expenses || []).filter(e => !e.isDeleted && e.status === 'PENDING').length;
              if (pending > 0) {
                 handleAddNotification('পেন্ডিং বিল', `${pending} টি বিল অনুমোদনের অপেক্ষায় আছে।`, 'WARNING', 'expenses');
              }
           }
 
           if (rememberMe && !quickAuthData) {
-             const photo = staffList.find(s => s.name === authenticatedUser!.name)?.photo || '';
+             const photo = (staffList || []).find(s => s.name === authenticatedUser!.name)?.photo || '';
              const newAccount = { 
                username: authenticatedUser!.name, 
                password: password, 
@@ -781,14 +760,14 @@ const App: React.FC = () => {
     }
   };
 
-  const totalExpense = useMemo(() => expenses.filter(e => e && !e.isDeleted && e.status === 'APPROVED').reduce((sum, e) => sum + Number(e.amount || 0), 0), [expenses]);
-  const totalFund = useMemo(() => funds.filter(f => f && !f.isDeleted).reduce((sum, f) => sum + Number(f.amount || 0), 0), [funds]);
-  const totalAdvances = useMemo(() => advances.filter(a => !a.isDeleted).reduce((sum, a) => sum + Number(a.amount || 0), 0), [advances]);
+  const totalExpense = useMemo(() => (expenses || []).filter(e => e && !e.isDeleted && e.status === 'APPROVED').reduce((sum, e) => sum + Number(e.amount || 0), 0), [expenses]);
+  const totalFund = useMemo(() => (funds || []).filter(f => f && !f.isDeleted).reduce((sum, f) => sum + Number(f.amount || 0), 0), [funds]);
+  const totalAdvances = useMemo(() => (advances || []).filter(a => !a.isDeleted).reduce((sum, a) => sum + Number(a.amount || 0), 0), [advances]);
   const cashOnHand = totalFund - totalAdvances; 
-  const pendingApprovals = expenses.filter(e => e && !e.isDeleted && (e.status === 'PENDING' || e.status === 'VERIFIED')).length;
+  const pendingApprovals = (expenses || []).filter(e => e && !e.isDeleted && (e.status === 'PENDING' || e.status === 'VERIFIED')).length;
 
   const openProfile = () => {
-    const profile = staffList.find(s => s && !s.deletedAt && s.name === currentUser);
+    const profile = (staffList || []).find(s => s && !s.deletedAt && s.name === currentUser);
     setProfileForm({
       designation: profile?.designation || '',
       mobile: profile?.mobile || '',
@@ -839,7 +818,7 @@ const App: React.FC = () => {
     e.preventDefault();
     if (!currentUser) return;
 
-    const existingProfileIndex = staffList.findIndex(s => s && !s.deletedAt && s.name === currentUser);
+    const existingProfileIndex = (staffList || []).findIndex(s => s && !s.deletedAt && s.name === currentUser);
     
     if (existingProfileIndex >= 0) {
       const updatedList = [...staffList];
@@ -861,13 +840,13 @@ const App: React.FC = () => {
         points: 0,
         ...profileForm
       };
-      updateStaffList([...staffList, newProfile]);
+      updateStaffList([...(staffList || []), newProfile]);
     }
     setIsProfileModalOpen(false);
   };
 
   const myProfile = useMemo(() => {
-    return staffList.find(s => s && !s.deletedAt && s.name === currentUser);
+    return (staffList || []).find(s => s && !s.deletedAt && s.name === currentUser);
   }, [staffList, currentUser]);
 
   const allNavItems = useMemo(() => [
@@ -876,7 +855,6 @@ const App: React.FC = () => {
     { id: 'expenses', label: 'বিল ও খরচ', icon: Banknote, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-rose-600', bgColor: 'bg-rose-50' },
     { id: 'notices', label: 'নোটিশ বোর্ড', icon: Megaphone, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF, UserRole.KIOSK], color: 'text-orange-600', bgColor: 'bg-orange-50' },
     { id: 'chat', label: 'টিম চ্যাট', icon: MessageCircleMore, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-violet-600', bgColor: 'bg-violet-50' },
-    { id: 'luckydraw', label: 'Leaderboard', icon: Gift, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-pink-600', bgColor: 'bg-pink-50' },
     { id: 'live-location', label: 'লাইভ ট্র্যাকিং', icon: Radar, roles: [UserRole.ADMIN, UserRole.MD], color: 'text-cyan-600', bgColor: 'bg-cyan-50' },
     { id: 'complaints', label: 'অভিযোগ বক্স', icon: ShieldAlert, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-red-600', bgColor: 'bg-red-50' },
     { id: 'funds', label: 'ফান্ড লেজার', icon: Landmark, roles: [UserRole.ADMIN, UserRole.MD], color: 'text-emerald-600', bgColor: 'bg-emerald-50' },
@@ -1057,7 +1035,6 @@ const App: React.FC = () => {
       case 'chat': return <GroupChatView messages={messages} setMessages={updateMessages} currentUser={currentUser} role={role} onNavigate={(view) => setActiveTab(view)} onUpdatePoints={handlePointUpdate} staffList={staffList} />;
       case 'attendance': return <AttendanceView staffList={staffList} attendanceList={attendanceList} setAttendanceList={updateAttendance} currentUser={currentUser} role={role} />;
       case 'live-location': return <LiveLocationView staffList={staffList} liveLocations={liveLocations} />;
-      case 'luckydraw': return <LuckyDrawView staffList={staffList} currentUser={currentUser} onUpdatePoints={handlePointUpdate} onUpdateDrawTime={updateLuckyDrawTime} role={role} />;
       case 'notices': return <NoticeBoardView notices={notices} setNotices={updateNotices} role={role} currentUser={currentUser || ''} />;
       case 'complaints': return <ComplaintBoxView complaints={complaints} setComplaints={updateComplaints} staffList={staffList} role={role} currentUser={currentUser} />;
       case 'funds': return <FundLedgerView funds={funds} setFunds={updateFunds} expenses={expenses} advances={advances} totalFund={totalFund} cashOnHand={cashOnHand} role={role} />;

@@ -14,7 +14,7 @@ interface StaffProps {
   currentUser: string | null;
 }
 
-const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, role, expenses, advances, setAdvances, currentUser }) => {
+const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffList, role, expenses = [], advances = [], setAdvances, currentUser }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -348,7 +348,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
     e.preventDefault();
     if (!canManageMoney) { alert("আপনার এই অ্যাকশন করার অনুমতি নেই।"); return; }
     if (Number(advanceFormData.amount) <= 0) { alert("দয়া করে সঠিক টাকার পরিমাণ লিখুন (০ এর বেশি)।"); return; }
-    const staff = staffList.find(s => s.id === advanceFormData.staffId);
+    const staff = (staffList || []).find(s => s.id === advanceFormData.staffId);
     if (!staff) { alert("স্টাফ মেম্বার পাওয়া যাচ্ছে না। পেজটি রিফ্রেশ দিয়ে আবার চেষ্টা করুন।"); return; }
     const submitDate = new Date(advanceFormData.date);
     if (isNaN(submitDate.getTime())) { alert("তারিখ সঠিক নয়।"); return; }
@@ -375,7 +375,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
     e.preventDefault();
     if (!canManageMoney) return;
     if (Number(repayFormData.amount) <= 0) { alert("টাকার পরিমাণ ০ এর বেশি হতে হবে।"); return; }
-    const staff = staffList.find(s => s.id === repayFormData.staffId);
+    const staff = (staffList || []).find(s => s.id === repayFormData.staffId);
     if (!staff) return;
     const submitDate = new Date(repayFormData.date);
     const now = new Date();
@@ -410,7 +410,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
   };
 
   const filteredStaff = useMemo(() => {
-    let result = staffList.filter(s => {
+    let result = (staffList || []).filter(s => {
       if (!s) return false;
       if (s.deletedAt) return false;
       if (isStaff && s.name !== currentUser) return false;
@@ -439,9 +439,9 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
   }, [staffList, searchTerm, startDate, endDate, sortBy, isStaff, currentUser]);
 
   const stats = {
-    total: staffList.filter(s => s && !s.deletedAt).length,
-    active: staffList.filter(s => s && !s.deletedAt && s.status === 'ACTIVE').length,
-    inactive: staffList.filter(s => s && !s.deletedAt && s.status === 'DEACTIVATED').length
+    total: (staffList || []).filter(s => s && !s.deletedAt).length,
+    active: (staffList || []).filter(s => s && !s.deletedAt && s.status === 'ACTIVE').length,
+    inactive: (staffList || []).filter(s => s && !s.deletedAt && s.status === 'DEACTIVATED').length
   };
 
   const getStaffFinancials = (staffId: string) => {
@@ -854,7 +854,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
                <div>
                   <h4 className="font-bold text-gray-800 mb-3 flex items-center gap-2 text-sm uppercase tracking-wider"><Banknote className="w-4 h-4"/> লেনদেন হিস্ট্রি (Advance & Repay)</h4>
                   <div className="space-y-2">
-                     {advances.filter(a => a.staffId === historyStaff.id && !a.isDeleted).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(adv => (
+                     {(advances || []).filter(a => a.staffId === historyStaff.id && !a.isDeleted).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(adv => (
                         <div key={adv.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-xl border border-gray-100 text-sm">
                            <div>
                               <div className="flex items-center gap-2 mb-1">
@@ -870,7 +870,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList, setStaffList, ro
                            </span>
                         </div>
                      ))}
-                     {advances.filter(a => a.staffId === historyStaff.id && !a.isDeleted).length === 0 && (
+                     {(advances || []).filter(a => a.staffId === historyStaff.id && !a.isDeleted).length === 0 && (
                         <p className="text-center text-gray-400 text-xs py-4">কোনো লেনদেন পাওয়া যায়নি।</p>
                      )}
                   </div>

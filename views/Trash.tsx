@@ -17,11 +17,11 @@ interface TrashProps {
   role: UserRole;
 }
 
-const TrashView: React.FC<TrashProps> = ({ staffList, setStaffList, movements, setMovements, expenses, setExpenses, funds, setFunds, notices, setNotices, role }) => {
-  const trashedStaff = staffList.filter(s => s && !!s.deletedAt);
-  const trashedExpenses = expenses.filter(e => e && !!e.isDeleted);
-  const trashedFunds = funds.filter(f => f && !!f.isDeleted);
-  const trashedNotices = notices.filter(n => n && !!n.isDeleted);
+const TrashView: React.FC<TrashProps> = ({ staffList = [], setStaffList, movements = [], setMovements, expenses = [], setExpenses, funds = [], setFunds, notices = [], setNotices, role }) => {
+  const trashedStaff = (staffList || []).filter(s => s && !!s.deletedAt);
+  const trashedExpenses = (expenses || []).filter(e => e && !!e.isDeleted);
+  const trashedFunds = (funds || []).filter(f => f && !!f.isDeleted);
+  const trashedNotices = (notices || []).filter(n => n && !!n.isDeleted);
 
   const restoreStaff = (id: string) => {
     setStaffList(prev => prev.map(s => s && s.id === id ? { ...s, deletedAt: undefined } : s));

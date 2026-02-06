@@ -32,13 +32,12 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
       }
 
       // 2. Fix unquoted keys (e.g., apiKey: "..." -> "apiKey": "...")
-      // This regex looks for word characters followed by a colon, ensuring they are not already quoted
       jsonString = jsonString.replace(/(\w+)(?=\s*:)/g, '"$1"');
 
-      // 3. Remove trailing commas (which are valid in JS but invalid in JSON)
+      // 3. Remove trailing commas
       jsonString = jsonString.replace(/,(\s*})/g, '$1');
 
-      // 4. Clean up any potential single quotes to double quotes for JSON standard
+      // 4. Clean up any potential single quotes
       jsonString = jsonString.replace(/'/g, '"');
 
       const parsed = JSON.parse(jsonString);
@@ -181,7 +180,7 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
         </div>
 
         <div className="space-y-6">
-          {billingRules.map((rule) => (
+          {(billingRules || []).map((rule) => (
             <div key={rule.type} className={`p-6 rounded-2xl border ${rule.type === 'HOLIDAY' ? 'bg-purple-50 border-purple-100' : 'bg-gray-50 border-gray-100'}`}>
               <h4 className={`font-bold mb-4 flex items-center gap-2 ${rule.type === 'HOLIDAY' ? 'text-purple-700' : 'text-gray-700'}`}>
                 <div className={`w-2 h-2 rounded-full ${rule.type === 'HOLIDAY' ? 'bg-purple-600' : 'bg-indigo-500'}`}></div>

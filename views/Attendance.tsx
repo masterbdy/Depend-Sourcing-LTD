@@ -12,7 +12,7 @@ interface AttendanceProps {
   role: UserRole;
 }
 
-const AttendanceView: React.FC<AttendanceProps> = ({ staffList, attendanceList, setAttendanceList, currentUser, role }) => {
+const AttendanceView: React.FC<AttendanceProps> = ({ staffList = [], attendanceList = [], setAttendanceList, currentUser, role }) => {
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [distanceInfo, setDistanceInfo] = useState<{ distance: number, targetName: string, isAllowed: boolean } | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);

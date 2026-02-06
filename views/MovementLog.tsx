@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { LogIn, LogOut, Clock, Info, Search, Calendar, FilterX, CalendarDays } from 'lucide-react';
 import { MovementLog, Staff, BillingRule, UserRole, ChatMessage } from '../types';
@@ -13,7 +14,7 @@ interface MovementProps {
   onUpdatePoints: (staffId: string, points: number, reason: string) => void;
 }
 
-const MovementLogView: React.FC<MovementProps> = ({ movements, setMovements, staffList, billingRules, role, setMessages, currentUser, onUpdatePoints }) => {
+const MovementLogView: React.FC<MovementProps> = ({ movements = [], setMovements, staffList = [], billingRules = [], role, setMessages, currentUser, onUpdatePoints }) => {
   const [selectedStaff, setSelectedStaff] = useState('');
   const [location, setLocation] = useState('');
 
@@ -22,11 +23,11 @@ const MovementLogView: React.FC<MovementProps> = ({ movements, setMovements, sta
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
-  const activeStaff = staffList.filter(s => !s.deletedAt && s.status === 'ACTIVE');
+  const activeStaff = (staffList || []).filter(s => !s.deletedAt && s.status === 'ACTIVE');
 
   // Filter Logic
   const filteredMovements = useMemo(() => {
-    return movements
+    return (movements || [])
       .filter(m => !m.isDeleted)
       .filter(m => {
         const matchesSearch = 
@@ -92,10 +93,10 @@ const MovementLogView: React.FC<MovementProps> = ({ movements, setMovements, sta
         const dayOfWeek = checkInDate.getDay();
         if (dayOfWeek === 5) { // Friday
            allowanceType = 'HOLIDAY';
-           amount = billingRules.find(r => r.type === 'HOLIDAY')?.amount || 0;
+           amount = (billingRules || []).find(r => r.type === 'HOLIDAY')?.amount || 0;
         } else {
            // 2. Normal Rules (Lunch/Dinner/Night) only if NOT a holiday
-           const lunchRule = billingRules.find(r => r.type === 'LUNCH');
+           const lunchRule = (billingRules || []).find(r => r.type === 'LUNCH');
            if (lunchRule) {
               const [lH, lM] = lunchRule.startTime.split(':').map(Number);
               const lunchTrigger = new Date(checkOutDate); lunchTrigger.setHours(lH, lM, 0);
@@ -111,11 +112,11 @@ const MovementLogView: React.FC<MovementProps> = ({ movements, setMovements, sta
            // Priority: Dinner > Night
            if (hour >= 22) {
              allowanceType = 'DINNER';
-             amount = billingRules.find(r => r.type === 'DINNER')?.amount || 0;
+             amount = (billingRules || []).find(r => r.type === 'DINNER')?.amount || 0;
            } else if (hour > 21 || (hour === 21 && min >= 15)) {
              // Only apply Night if not Dinner
              allowanceType = 'NIGHT';
-             amount = billingRules.find(r => r.type === 'NIGHT')?.amount || 0;
+             amount = (billingRules || []).find(r => r.type === 'NIGHT')?.amount || 0;
            }
         }
 
@@ -145,7 +146,7 @@ const MovementLogView: React.FC<MovementProps> = ({ movements, setMovements, sta
   };
 
   const getStaffDisplayId = (staffId: string) => {
-    const staff = staffList.find(s => s.id === staffId);
+    const staff = (staffList || []).find(s => s.id === staffId);
     return staff ? staff.staffId : '';
   };
 

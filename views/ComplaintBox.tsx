@@ -11,12 +11,12 @@ interface ComplaintProps {
   currentUser: string | null;
 }
 
-const ComplaintBoxView: React.FC<ComplaintProps> = ({ complaints, setComplaints, staffList, role, currentUser }) => {
+const ComplaintBoxView: React.FC<ComplaintProps> = ({ complaints = [], setComplaints, staffList = [], role, currentUser }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({ 
     againstStaffId: '', 
     subject: '', 
-    description: '',
+    description: '', 
     type: 'COMPLAINT' as 'COMPLAINT' | 'SUGGESTION' 
   });
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -27,14 +27,14 @@ const ComplaintBoxView: React.FC<ComplaintProps> = ({ complaints, setComplaints,
   // Filter States
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
 
-  const activeStaff = staffList.filter(s => !s.deletedAt && s.status === 'ACTIVE');
+  const activeStaff = (staffList || []).filter(s => !s.deletedAt && s.status === 'ACTIVE');
   const isManagement = role === UserRole.ADMIN || role === UserRole.MD;
 
   // Filter Logic: 
   // - Management sees ALL complaints.
   // - Staff sees ONLY their own submitted complaints.
   const visibleComplaints = useMemo(() => {
-    let list = complaints.filter(c => !c.isDeleted);
+    let list = (complaints || []).filter(c => !c.isDeleted);
     
     if (!isManagement) {
       list = list.filter(c => c.submittedBy === currentUser);
@@ -56,7 +56,7 @@ const ComplaintBoxView: React.FC<ComplaintProps> = ({ complaints, setComplaints,
 
     // Validation & Data Prep based on Type
     if (formData.type === 'COMPLAINT') {
-        const accusedStaff = staffList.find(s => s.id === formData.againstStaffId);
+        const accusedStaff = activeStaff.find(s => s.id === formData.againstStaffId);
         if (!accusedStaff) return alert('যার বিরুদ্ধে অভিযোগ তাকে নির্বাচন করুন');
         accusedStaffId = accusedStaff.id;
         accusedStaffName = accusedStaff.name;
@@ -65,7 +65,7 @@ const ComplaintBoxView: React.FC<ComplaintProps> = ({ complaints, setComplaints,
     }
 
     // Find submitter ID if possible
-    const submitter = staffList.find(s => s.name === currentUser);
+    const submitter = (staffList || []).find(s => s.name === currentUser);
 
     const newComplaint: Complaint = {
       id: Math.random().toString(36).substr(2, 9),

@@ -11,7 +11,7 @@ interface NoticeBoardProps {
   currentUser: string;
 }
 
-const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices, setNotices, role, currentUser }) => {
+const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices = [], setNotices, role, currentUser }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({ title: '', content: '', type: 'NORMAL' as 'NORMAL' | 'URGENT' });
   const [seenListNoticeId, setSeenListNoticeId] = useState<string | null>(null);
@@ -20,7 +20,7 @@ const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices, setNotices, role
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // Only show active notices
-  const activeNotices = notices.filter(n => !n.isDeleted).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const activeNotices = (notices || []).filter(n => !n.isDeleted).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   
   const canPost = role === UserRole.ADMIN || role === UserRole.MD;
 
@@ -232,17 +232,14 @@ const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices, setNotices, role
               <div className="flex-1 overflow-y-auto p-2 space-y-1">
                  {getNoticeReactions(seenListNoticeId).map((r, idx) => (
                     <div key={idx} className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-xl transition-colors border-b border-gray-50 last:border-0">
-                       <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs border border-indigo-200">
+                       <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xs uppercase">
                           {r.userName.charAt(0)}
                        </div>
-                       <div>
-                          <p className="text-sm font-bold text-gray-800">{r.userName}</p>
-                          <p className="text-[10px] text-green-600 font-bold flex items-center gap-1"><Check className="w-3 h-3"/> Seen</p>
-                       </div>
+                       <p className="text-sm font-bold text-gray-700">{r.userName}</p>
                     </div>
                  ))}
                  {getNoticeReactions(seenListNoticeId).length === 0 && (
-                    <p className="text-center text-gray-400 text-xs py-8">এখনো কেউ দেখেনি।</p>
+                    <div className="text-center py-8 text-gray-400 text-xs">কেউ এখনো দেখেনি।</div>
                  )}
               </div>
            </div>

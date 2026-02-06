@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { TrendingDown, AlertCircle, Clock, ShieldAlert, Landmark, Wallet, Trophy, Crown, ArrowUpRight, Coins, Banknote, WalletCards, Calendar, Sparkles } from 'lucide-react';
 import { Expense, UserRole, Staff, AdvanceLog } from '../types';
 
@@ -16,54 +16,71 @@ interface DashboardProps {
   currentUser: string | null;
 }
 
-const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApprovals, expenses, cloudError, totalFund, cashOnHand, role, staffList, advances, currentUser }) => {
-  const recentActivities = [...expenses].filter(e => !e.isDeleted).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 6);
+const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApprovals, expenses = [], cloudError, totalFund, cashOnHand, role, staffList = [], advances = [], currentUser }) => {
+  const recentActivities = useMemo(() => {
+    return [...(expenses || [])].filter(e => !e.isDeleted).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 6);
+  }, [expenses]);
 
   // --- STATS CALCULATION ---
   // Advance Breakdown
-  const regularAdvance = advances.filter(a => !a.isDeleted && a.type !== 'SALARY').reduce((sum, a) => sum + Number(a.amount), 0);
-  const salaryAdvance = advances.filter(a => !a.isDeleted && a.type === 'SALARY').reduce((sum, a) => sum + Number(a.amount), 0);
-  const totalAdvance = regularAdvance + salaryAdvance;
+  const { regularAdvance, salaryAdvance, totalAdvance } = useMemo(() => {
+    const safeAdvances = advances || [];
+    const regular = safeAdvances.filter(a => !a.isDeleted && a.type !== 'SALARY').reduce((sum, a) => sum + Number(a.amount), 0);
+    const salary = safeAdvances.filter(a => !a.isDeleted && a.type === 'SALARY').reduce((sum, a) => sum + Number(a.amount), 0);
+    return { regularAdvance: regular, salaryAdvance: salary, totalAdvance: regular + salary };
+  }, [advances]);
 
   // Actual Cash in Hand (Fund - Total Advance)
   const actualCashOnHand = totalFund - totalAdvance;
 
-  // --- LEDGER PAYABLE CALCULATION (NEW LOGIC) ---
-  const totalLedgerPayable = staffList.reduce((acc, staff) => {
-      if (staff.deletedAt) return acc; // Skip deleted staff
-      
-      const approvedExp = expenses
-        .filter(e => !e.isDeleted && e.status === 'APPROVED' && e.staffId === staff.id)
-        .reduce((sum, e) => sum + Number(e.amount), 0);
-      
-      const regularAdv = advances
-        .filter(a => !a.isDeleted && a.type !== 'SALARY' && a.staffId === staff.id)
-        .reduce((sum, a) => sum + Number(a.amount), 0);
-      
-      const balance = regularAdv - approvedExp;
-      return balance < 0 ? acc + Math.abs(balance) : acc;
-  }, 0);
+  // --- LEDGER PAYABLE CALCULATION (NEW LOGIC - OPTIMIZED) ---
+  const totalLedgerPayable = useMemo(() => {
+    const safeStaffList = staffList || [];
+    const safeExpenses = expenses || [];
+    const safeAdvances = advances || [];
+
+    return safeStaffList.reduce((acc, staff) => {
+        if (staff.deletedAt) return acc; // Skip deleted staff
+        
+        const approvedExp = safeExpenses
+          .filter(e => !e.isDeleted && e.status === 'APPROVED' && e.staffId === staff.id)
+          .reduce((sum, e) => sum + Number(e.amount), 0);
+        
+        const regularAdv = safeAdvances
+          .filter(a => !a.isDeleted && a.type !== 'SALARY' && a.staffId === staff.id)
+          .reduce((sum, a) => sum + Number(a.amount), 0);
+        
+        const balance = regularAdv - approvedExp;
+        return balance < 0 ? acc + Math.abs(balance) : acc;
+    }, 0);
+  }, [staffList, expenses, advances]);
 
   const isStaff = role === UserRole.STAFF;
   const isManagement = role === UserRole.ADMIN || role === UserRole.MD;
 
   // --- STAFF SPECIFIC STATS ---
-  const myExpenses = expenses.filter(e => e.staffName === currentUser && !e.isDeleted);
-  const myApprovedTotal = myExpenses.filter(e => e.status === 'APPROVED').reduce((sum, e) => sum + Number(e.amount), 0);
-  const myPendingCount = myExpenses.filter(e => e.status === 'PENDING' || e.status === 'VERIFIED').length;
+  const { myApprovedTotal, myPendingCount } = useMemo(() => {
+    const safeExpenses = expenses || [];
+    const myExps = safeExpenses.filter(e => e.staffName === currentUser && !e.isDeleted);
+    return {
+      myApprovedTotal: myExps.filter(e => e.status === 'APPROVED').reduce((sum, e) => sum + Number(e.amount), 0),
+      myPendingCount: myExps.filter(e => e.status === 'PENDING' || e.status === 'VERIFIED').length
+    };
+  }, [expenses, currentUser]);
   
-  const myAdvances = advances.filter(a => a.staffName === currentUser && !a.isDeleted);
-  const myTotalReceived = myAdvances.reduce((sum, a) => sum + Number(a.amount), 0);
+  const myTotalReceived = useMemo(() => {
+    return (advances || []).filter(a => a.staffName === currentUser && !a.isDeleted).reduce((sum, a) => sum + Number(a.amount), 0);
+  }, [advances, currentUser]);
 
   // --- CHAMPIONS LOGIC ---
-  const getPreviousMonthChampions = () => {
+  const { champions, monthName } = useMemo(() => {
     const now = new Date();
     const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const prevMonthStr = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
     const prevMonthName = prevDate.toLocaleDateString('bn-BD', { month: 'long', year: 'numeric' });
 
-    const champions = staffList
-      .filter(s => s.status === 'ACTIVE' && !s.deletedAt && s.role === UserRole.STAFF && !s.name.toLowerCase().includes('office'))
+    const sortedChampions = (staffList || [])
+      .filter(s => s.status === 'ACTIVE' && !s.deletedAt && s.role === UserRole.STAFF && (s.name || '').toLowerCase().includes('office') === false)
       .map(s => {
           if (s.prevMonthName === prevMonthStr) {
              return { ...s, score: s.prevMonthPoints || 0 };
@@ -77,10 +94,8 @@ const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApproval
       .sort((a, b) => b.score - a.score)
       .slice(0, 3);
 
-    return { champions, monthName: prevMonthName };
-  };
-
-  const { champions, monthName } = getPreviousMonthChampions();
+    return { champions: sortedChampions, monthName: prevMonthName };
+  }, [staffList]);
 
   return (
     <div className="space-y-6">

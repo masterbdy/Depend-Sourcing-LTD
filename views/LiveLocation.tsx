@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Map, Navigation, Battery, Signal, SignalHigh, SignalLow, ExternalLink, Clock } from 'lucide-react';
+import { Map, Navigation, Battery, SignalHigh, ExternalLink, Clock } from 'lucide-react';
 import { Staff, StaffLocation, UserRole } from '../types';
 
 interface LiveLocationProps {
@@ -8,8 +8,8 @@ interface LiveLocationProps {
   liveLocations: Record<string, StaffLocation>;
 }
 
-const LiveLocationView: React.FC<LiveLocationProps> = ({ staffList, liveLocations }) => {
-  const activeStaff = staffList.filter(s => s.status === 'ACTIVE' && !s.deletedAt && s.role === UserRole.STAFF);
+const LiveLocationView: React.FC<LiveLocationProps> = ({ staffList = [], liveLocations }) => {
+  const activeStaff = (staffList || []).filter(s => s.status === 'ACTIVE' && !s.deletedAt && s.role === UserRole.STAFF);
 
   const getStatus = (lastSeen: string) => {
     const diff = new Date().getTime() - new Date(lastSeen).getTime();
