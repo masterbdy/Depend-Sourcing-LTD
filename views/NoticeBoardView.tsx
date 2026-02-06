@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Bell, Plus, Trash2, Megaphone, Info, AlertCircle, X, Check, Pin, Eye, User, CalendarDays, AlertTriangle } from 'lucide-react';
+import { Bell, Plus, Trash2, Megaphone, Info, AlertCircle, X, Check, Pin, Eye, CalendarDays, AlertTriangle } from 'lucide-react';
 import { Notice, UserRole } from '../types';
 import { ROLE_LABELS } from '../constants';
 

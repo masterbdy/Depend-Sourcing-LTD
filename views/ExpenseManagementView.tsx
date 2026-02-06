@@ -57,9 +57,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
   };
 
   const filteredExpenses = useMemo(() => {
-    if (!Array.isArray(expenses)) return [];
-    
-    return expenses.filter(e => {
+    return (expenses || []).filter(e => {
       if (!e || e.isDeleted) return false;
 
       // SECURITY: Staff can only see their own expenses
@@ -231,7 +229,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
   };
 
   const handleClearHistory = () => {
-    const candidates = expenses.filter(e => !e.isDeleted && (e.status === 'APPROVED' || e.status === 'REJECTED'));
+    const candidates = (expenses || []).filter(e => !e.isDeleted && (e.status === 'APPROVED' || e.status === 'REJECTED'));
     const count = candidates.length;
 
     if (count === 0) return alert('কোনো ডাটা নেই।');

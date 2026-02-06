@@ -11,7 +11,7 @@ interface LuckyDrawProps {
   role: UserRole | null;
 }
 
-const LuckyDrawView: React.FC<LuckyDrawProps> = ({ staffList, currentUser, onUpdatePoints, onUpdateDrawTime, role }) => {
+const LuckyDrawView: React.FC<LuckyDrawProps> = ({ staffList = [], currentUser, onUpdatePoints, onUpdateDrawTime, role }) => {
   const [isSpinning, setIsSpinning] = useState(false);
   const [spinResult, setSpinResult] = useState<number | null>(null);
   const [timeLeft, setTimeLeft] = useState<string>('');
@@ -21,12 +21,12 @@ const LuckyDrawView: React.FC<LuckyDrawProps> = ({ staffList, currentUser, onUpd
   const currentMonthName = now.toLocaleDateString('bn-BD', { month: 'long', year: 'numeric' });
 
   // Filter out MD and Office from the list used for Leaderboard and Gameplay
-  const activeStaff = staffList.filter(s => 
+  const activeStaff = (staffList || []).filter(s => 
     s.status === 'ACTIVE' && 
     !s.deletedAt && 
     s.role !== UserRole.KIOSK && 
     s.role !== UserRole.MD && 
-    !s.name.toLowerCase().includes('office')
+    !(s.name || '').toLowerCase().includes('office')
   );
   
   const myProfile = activeStaff.find(s => s.name === currentUser);
