@@ -95,12 +95,96 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
     const banglaToEng = (str: string) => str.replace(/[০-৯]/g, d => "0123456789"["০১২৩৪৫৬৭৮৯".indexOf(d)]);
     let processedText = banglaToEng(text);
 
-    // --- SIMPLE EXTRACTION (Optimized) ---
-    // Remove dates/phones/units to avoid summing them
-    processedText = processedText.replace(/\d{4}-\d{2}-\d{2}/g, 'DATE'); // ISO Date
-    processedText = processedText.replace(/\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}/g, 'DATE'); // Common Date
-    processedText = processedText.replace(/01\d{9}/g, 'PHONE'); // BD Phone
+    // --- STEP 0: PROTECT CURRENCY WORDS ---
+    // We replace words like "Taka", "Tk", "টাকা" with a safe placeholder so they are NOT treated as units later.
+    processedText = processedText.replace(/(taka|tk|bdt|টাকা)/gi, 'CURRENCY_SYMBOL');
 
+    // --- SMART EXCLUSION LOGIC (Advanced) ---
+    
+    // A. Dates (ISO, Common formats)
+    processedText = processedText.replace(/\d{4}-\d{2}-\d{2}/g, 'SKIP_DATE'); 
+    processedText = processedText.replace(/\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}/g, 'SKIP_DATE');
+
+    // B. Phone Numbers (01xxxxxxxxx)
+    processedText = processedText.replace(/01\d{9}/g, 'SKIP_PHONE');
+
+    // C. Time 
+    // 1. Colon separated (e.g. 08:30, 10:45) - Treat as time
+    processedText = processedText.replace(/\d{1,2}:\d{2}/g, 'SKIP_TIME_COLON'); 
+    
+    // 2. Time with suffix (10.30 am, 5 pm, 10 ta)
+    processedText = processedText.replace(/\d{1,2}[:\.]\d{2}\s*(am|pm|a\.m|p\.m)/gi, 'SKIP_TIME');
+    processedText = processedText.replace(/\d{1,2}\s*(am|pm|a\.m|p\.m|টা|বাজে|বাজা)/gi, 'SKIP_TIME');
+
+    // D. Date Ranges ("22 theke 28 tarikh", "22-28 tarikh", "22 হতে 28 তারিখ")
+    const dateRangeRegex = /(\d+)[\s\-]*(?:থেকে|theke|to|untill|পর্যন্ত|হতে|[\-])[\s]*(\d+)[\s]*(?:তারিখ|date|tarikh|tarik)/gi;
+    processedText = processedText.replace(dateRangeRegex, "SKIP_DATE_RANGE");
+
+    // E. Single Date with Keyword ("5 tarikh", "10 date", "2023 sale")
+    const specificDateRegex = /(\d+)[\s]*(?:তারিখ|date|tarikh|sal|sale|সাল|সালে|st|nd|rd|th)/gi;
+    processedText = processedText.replace(specificDateRegex, "SKIP_SINGLE_DATE");
+
+    // F. Units/Measurements (Piece, Dozen, Yard, KG, Minute, Hour etc.)
+    const units = [
+        'pc', 'pcs', 'pice', 'pices', 'pitch', 'pic', 'pis', 'pich', // Piece
+        'p', 't', 'ta', 'ti', 'khana', 'gulo', 'got', // Bengali count
+        'pisa', 'pich', 'পিস', 'টি', 'টা', 'খানা', 'গুলো',
+        'dz', 'doz', 'dozen', 'dozon', 'ডজন',
+        'goj', 'gaz', 'yard', 'yrd', 'গজ',
+        'kg', 'kilo', 'keji', 'কেজি',
+        'gm', 'gram', 'g', 'গ্রাম',
+        'ltr', 'liter', 'litre', 'l', 'লিটার',
+        'pkt', 'packet', 'pack', 'pket', 'প্যাকেট',
+        'bosta', 'bosta', 'বস্তা',
+        'set', 'সেট',
+        'jo', 'jora', 'pair', 'জোড়া',
+        'inch', 'in', 'ইঞ্চি',
+        'ft', 'feet', 'ফুট',
+        'm', 'meter', 'মিটার',
+        'jon', 'জন', // People count
+        // Time Units
+        'min', 'minute', 'mnt', 'মিনিট',
+        'hr', 'hour', 'ghonta', 'ঘন্টা',
+        'sec', 'second', 'সেকেন্ড'
+    ];
+    
+    // Regex Update: Added boundary check `(?![a-zA-Z\u0980-\u09FF])`
+    const unitRegex = new RegExp(`(\\d+[\\.]?\\d*)\\s*(${units.join('|')})(?![a-zA-Z\u0980-\u09FF])`, 'gi');
+    processedText = processedText.replace(unitRegex, "SKIP_UNIT");
+
+    // G. Locations & Addresses
+    const locPrefixes = [
+        'road', 'rd', 'রোড',
+        'house', 'h', 'bas', 'basa', 'বাসা', 'বাড়ি',
+        'flat', 'apt', 'ফ্ল্যাট',
+        'sector', 'sec', 'সেক্টর',
+        'block', 'blk', 'ব্লক',
+        'lane', 'goli', 'গলি',
+        'level', 'lvl', 'লেভেল',
+        'ward', 'word', 'ওয়ার্ড',
+        'room', 'rm', 'রুম', 'কক্ষ',
+        'platfrom', 'platform', 'প্লাটফর্ম',
+        'counter', 'কাউন্টার',
+        'shop', 'dokan', 'দোকান',
+        'bus', 'গাড়ি', 'বাস'
+    ];
+    const locRegexPrefix = new RegExp(`(${locPrefixes.join('|')})[\\s\\-\\.]*(\\d+)`, 'gi');
+    processedText = processedText.replace(locRegexPrefix, "SKIP_LOC");
+
+    const locSuffixes = [
+        'floor', 'tala', 'তলা',
+        'level', 'no', 'nong', 'number', 'num', 'নং', 'নম্বর',
+        'th', 'nd', 'rd', 'st'
+    ];
+    const locRegexSuffix = new RegExp(`(\\d+)[\\s\\-\\.]*(${locSuffixes.join('|')})`, 'gi');
+    processedText = processedText.replace(locRegexSuffix, "SKIP_LOC");
+
+    // H. Specific Place Names with numbers
+    const places = ['mirpur', ' মিরপুর', 'uttara', 'উত্তরা', 'dhanmondi', 'ধানমন্ডি', 'farmgate', 'ফার্মগেট', 'mohakhali', 'মহাখালী', 'banani', 'বনানী', 'gulshan', 'গুলশান', 'badda', 'বাড্ডা', 'savar', 'সাভার', 'gazipur', 'গাজীপুর'];
+    const placeRegex = new RegExp(`(${places.join('|')})\\s*(\\d+)`, 'gi');
+    processedText = processedText.replace(placeRegex, "SKIP_PLACE");
+
+    // --- SUMMATION ---
     const matches = processedText.match(/(\d+(\.\d+)?)/g);
     let total = 0;
     if (matches) {
@@ -461,7 +545,15 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
                    {activeStaff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
                 <input type="date" required className="w-full px-4 py-2 border rounded-lg" value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} />
-                <textarea required rows={3} className="w-full px-4 py-2 border rounded-lg" placeholder="কারণ..." value={formData.reason} onChange={handleReasonChange} />
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 flex justify-between">
+                    <span>খরচের কারণ ও বিবরণ</span>
+                    <span className="text-xs text-indigo-600 font-bold flex items-center gap-1"><Sparkles className="w-3 h-3"/> Auto Calculator</span>
+                  </label>
+                  <textarea required rows={3} className="w-full px-4 py-2 border rounded-lg" placeholder="কারণ..." value={formData.reason} onChange={handleReasonChange} />
+                </div>
+
                 <input required type="number" className="w-full px-4 py-2 border rounded-lg font-bold" placeholder="টাকা" value={formData.amount || ''} onChange={(e) => setFormData({...formData, amount: Number(e.target.value)})} />
                 <div onClick={() => fileInputRef.current?.click()} className="p-2 border border-dashed rounded-lg bg-gray-50 text-center cursor-pointer">
                    {formData.voucherImage ? <span className="text-green-600 font-bold">ছবি যুক্ত হয়েছে</span> : <span className="text-gray-500">ভাউচার ছবি দিন</span>}

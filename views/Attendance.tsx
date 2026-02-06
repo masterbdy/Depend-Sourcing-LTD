@@ -14,7 +14,7 @@ interface AttendanceProps {
 
 const AttendanceView: React.FC<AttendanceProps> = ({ staffList = [], attendanceList = [], setAttendanceList, currentUser, role }) => {
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [distanceInfo, setDistanceInfo] = useState<{ distance: number, targetName: string, isAllowed: boolean } | null>(null);
+  const [distanceInfo, setDistanceInfo] = useState<{ distance: number, targetName: string, isAllowed: boolean, allowedRadius: number } | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [kioskSearchTerm, setKioskSearchTerm] = useState('');
@@ -144,7 +144,7 @@ const AttendanceView: React.FC<AttendanceProps> = ({ staffList = [], attendanceL
         const lng = position.coords.longitude;
         setCurrentLocation({ lat, lng });
         
-        let bestMatch = { distance: Infinity, targetName: 'Unknown', isAllowed: false };
+        let bestMatch = { distance: Infinity, targetName: 'Unknown', isAllowed: false, allowedRadius: 0 };
 
         for (const target of targetLocations) {
            const dist = calculateDistance(lat, lng, target.lat, target.lng);
@@ -152,13 +152,13 @@ const AttendanceView: React.FC<AttendanceProps> = ({ staffList = [], attendanceL
            
            // If we find an allowed location, verify immediately (Field users are always allowed)
            if (allowed || target.allowedRadiusMeters > 5000000) { 
-              bestMatch = { distance: dist, targetName: target.name, isAllowed: true };
+              bestMatch = { distance: dist, targetName: target.name, isAllowed: true, allowedRadius: target.allowedRadiusMeters };
               break; 
            }
            
            // Keep track of the closest location found so far
            if (dist < bestMatch.distance) {
-              bestMatch = { distance: dist, targetName: target.name, isAllowed: false };
+              bestMatch = { distance: dist, targetName: target.name, isAllowed: false, allowedRadius: target.allowedRadiusMeters };
            }
         }
 
@@ -183,7 +183,7 @@ const AttendanceView: React.FC<AttendanceProps> = ({ staffList = [], attendanceL
     if (role === UserRole.STAFF || role === UserRole.KIOSK) {
       getLocation(true); 
     }
-  }, [role, targetLocations]); // Re-run if role or assigned locations change
+  }, [role, targetLocations]); 
 
   // Final check-in execution logic
   const performCheckIn = (staffId: string, isManual: boolean, status: 'PRESENT' | 'LATE', note?: string) => {
@@ -228,20 +228,28 @@ const AttendanceView: React.FC<AttendanceProps> = ({ staffList = [], attendanceL
 
     if (!isManual) {
       if (!currentLocation || !distanceInfo) {
-        alert("আগে ডিভাইসের লোকেশন যাচাই করুন। 'Refresh Location' বাটনে ক্লিক করুন।");
+        alert("লোকেশন ডাটা পাওয়া যাচ্ছে না। অনুগ্রহ করে 'Refresh Location' বাটনে ক্লিক করুন।");
         getLocation(false); 
         return;
       }
       
       if (!distanceInfo.isAllowed) {
-        alert(`চেক-ইন ব্যর্থ! ❌\n\nডিভাইসটি ${distanceInfo.targetName} থেকে ${Math.round(distanceInfo.distance)} মিটার দূরে আছে।\nচেক-ইন করতে নির্ধারিত স্থানের কাছাকাছি থাকতে হবে।`);
+        alert(`চেক-ইন ব্যর্থ! ❌\n\nকারণ: আপনি নির্ধারিত স্থান থেকে দূরে আছেন।\n\nটার্গেট: ${distanceInfo.targetName}\nবর্তমান দূরত্ব: ${Math.round(distanceInfo.distance)} মিটার\nঅনুমোদিত দূরত্ব: ${distanceInfo.allowedRadius} মিটার\n\nদয়া করে লোকেশনের কাছাকাছি যান এবং পুনরায় চেষ্টা করুন।`);
+        getLocation(false); // Try refreshing just in case
         return;
       }
     }
 
     const now = new Date();
-    const currentTimeStr = now.toLocaleTimeString('en-US', { hour12: false });
-    const isLate = currentTimeStr > OFFICE_START_TIME;
+    // Improved Time Check Logic
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+    const currentTimeVal = hours * 60 + minutes;
+    
+    const [startH, startM] = OFFICE_START_TIME.split(':').map(Number);
+    const startTimeVal = startH * 60 + startM;
+    
+    const isLate = currentTimeVal > startTimeVal;
 
     if (isLate) {
        setPendingCheckInData({ staffId, isManual });
@@ -487,13 +495,18 @@ const AttendanceView: React.FC<AttendanceProps> = ({ staffList = [], attendanceL
                  <div className="flex items-center gap-3">
                     {/* Manual Check-in Button if enabled/needed or just status */}
                     {!myAttendance ? (
-                       <button 
-                         onClick={() => handleCheckIn(currentUserStaff.id)}
-                         disabled={!distanceInfo?.isAllowed && role === UserRole.STAFF}
-                         className={`text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg flex items-center gap-2 transition-all ${distanceInfo?.isAllowed || role !== UserRole.STAFF ? 'bg-indigo-600 hover:bg-indigo-700 active:scale-95 shadow-indigo-200' : 'bg-gray-400 cursor-not-allowed'}`}
-                       >
-                          <UserCheck className="w-4 h-4" /> চেক-ইন দিন
-                       </button>
+                       <>
+                         <button 
+                           onClick={() => handleCheckIn(currentUserStaff.id)}
+                           className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg hover:bg-indigo-700 active:scale-95 shadow-indigo-200 dark:shadow-none flex items-center gap-2 transition-all"
+                         >
+                            <UserCheck className="w-4 h-4" /> চেক-ইন দিন
+                         </button>
+                         {/* Manual Refresh Button for mobile convenience */}
+                         <button onClick={() => getLocation(false)} className="md:hidden bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 p-2 rounded-xl active:scale-95">
+                            <RefreshCw className={`w-4 h-4 ${isLoadingLocation ? 'animate-spin' : ''}`} />
+                         </button>
+                       </>
                     ) : !myAttendance.checkOutTime ? (
                        <button 
                          onClick={() => handleCheckOut(myAttendance.id)}

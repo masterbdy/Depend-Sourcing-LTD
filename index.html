@@ -3,7 +3,10 @@
 <html lang="bn">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#4f46e5">
+    <meta name="description" content="Depend Sourcing Staff Management & Billing System">
+    <link rel="apple-touch-icon" href="/pwa-192x192.png">
     <title>Staff Management & Billing Control Center</title>
     
     <!-- Tailwind CSS CDN -->
@@ -25,6 +28,7 @@
     <style>
         body {
             font-family: 'Hind Siliguri', sans-serif;
+            -webkit-tap-highlight-color: transparent;
         }
         /* Custom Scrollbar */
         ::-webkit-scrollbar {
@@ -58,12 +62,13 @@
     "vite": "https://esm.sh/vite@^7.3.1",
     "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
     "recharts": "https://esm.sh/recharts@^3.7.0",
-    "lucide-react": "https://esm.sh/lucide-react@^0.563.0"
+    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
+    "vite-plugin-pwa": "https://esm.sh/vite-plugin-pwa@^1.2.0"
   }
 }
 </script>
 </head>
-<body class="bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100 transition-colors duration-300">
+<body class="bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100 transition-colors duration-300 overscroll-none">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
 </body>

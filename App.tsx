@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   LayoutGrid, UsersRound, Route, Banknote, PieChart, Settings2, Recycle, 
@@ -19,10 +18,11 @@ import SettingsView from './views/Settings';
 import ReportsView from './views/Reports';
 import TrashView from './views/Trash';
 import NoticeBoardView from './views/NoticeBoardView'; 
-import ComplaintBoxView from './views/ComplaintBox';
+import ComplaintBoxView from './views/ComplaintBoxView';
 import GroupChatView from './views/GroupChat';
 import AttendanceView from './views/Attendance';
 import LiveLocationView from './views/LiveLocation';
+import LuckyDrawView from './views/LuckyDraw';
 
 const App: React.FC = () => {
   const [role, setRole] = useState<UserRole | null>(null);
@@ -316,6 +316,25 @@ const App: React.FC = () => {
                 updatedAt: new Date().toISOString()
               };
            }
+         }
+         return s;
+       });
+       syncData('staffList', newList);
+       return newList;
+    });
+  };
+
+  const handleDrawTimeUpdate = (staffId: string) => {
+    const now = new Date().toISOString();
+    setStaffList(prevList => {
+       const newList = prevList.map(s => {
+         if (s.id === staffId) {
+           return {
+             ...s,
+             lastLuckyDrawTime: now,
+             luckyDrawCount: (s.luckyDrawCount || 0) + 1,
+             updatedAt: now
+           };
          }
          return s;
        });
@@ -856,6 +875,7 @@ const App: React.FC = () => {
     { id: 'notices', label: 'নোটিশ বোর্ড', icon: Megaphone, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF, UserRole.KIOSK], color: 'text-orange-600', bgColor: 'bg-orange-50' },
     { id: 'chat', label: 'টিম চ্যাট', icon: MessageCircleMore, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-violet-600', bgColor: 'bg-violet-50' },
     { id: 'live-location', label: 'লাইভ ট্র্যাকিং', icon: Radar, roles: [UserRole.ADMIN, UserRole.MD], color: 'text-cyan-600', bgColor: 'bg-cyan-50' },
+    { id: 'lucky-draw', label: 'লাকি ড্র & গেম', icon: Gift, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-purple-600', bgColor: 'bg-purple-50' },
     { id: 'complaints', label: 'অভিযোগ বক্স', icon: ShieldAlert, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-red-600', bgColor: 'bg-red-50' },
     { id: 'funds', label: 'ফান্ড লেজার', icon: Landmark, roles: [UserRole.ADMIN, UserRole.MD], color: 'text-emerald-600', bgColor: 'bg-emerald-50' },
     { id: 'staff', label: 'স্টাফ লিস্ট', icon: UsersRound, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-indigo-600', bgColor: 'bg-indigo-50' },
@@ -875,7 +895,8 @@ const App: React.FC = () => {
       <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4 relative overflow-hidden">
         
         <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-black to-blue-900 opacity-80 z-0"></div>
-        <div className="absolute inset-0 z-0"><GlowingCursor /></div>
+        {/* Disable heavy animation on mobile for smoothness */}
+        <div className="absolute inset-0 z-0 hidden md:block"><GlowingCursor /></div>
         
         <div className="bg-gray-900/40 backdrop-blur-xl rounded-3xl shadow-2xl p-8 w-full max-w-md border border-white/10 relative z-10 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-500">
           
@@ -1035,6 +1056,7 @@ const App: React.FC = () => {
       case 'chat': return <GroupChatView messages={messages} setMessages={updateMessages} currentUser={currentUser} role={role} onNavigate={(view) => setActiveTab(view)} onUpdatePoints={handlePointUpdate} staffList={staffList} />;
       case 'attendance': return <AttendanceView staffList={staffList} attendanceList={attendanceList} setAttendanceList={updateAttendance} currentUser={currentUser} role={role} />;
       case 'live-location': return <LiveLocationView staffList={staffList} liveLocations={liveLocations} />;
+      case 'lucky-draw': return <LuckyDrawView staffList={staffList} currentUser={currentUser} onUpdatePoints={handlePointUpdate} onUpdateDrawTime={handleDrawTimeUpdate} role={role} />;
       case 'notices': return <NoticeBoardView notices={notices} setNotices={updateNotices} role={role} currentUser={currentUser || ''} />;
       case 'complaints': return <ComplaintBoxView complaints={complaints} setComplaints={updateComplaints} staffList={staffList} role={role} currentUser={currentUser} />;
       case 'funds': return <FundLedgerView funds={funds} setFunds={updateFunds} expenses={expenses} advances={advances} totalFund={totalFund} cashOnHand={cashOnHand} role={role} />;
@@ -1054,7 +1076,8 @@ const App: React.FC = () => {
       {isDarkMode && (
         <>
           <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-black to-gray-800 -z-20"></div>
-          <div className="absolute inset-0 z-0"><GlowingCursor /></div>
+          {/* Hide heavy animation on mobile */}
+          <div className="absolute inset-0 z-0 hidden md:block"><GlowingCursor /></div>
         </>
       )}
 
@@ -1083,23 +1106,68 @@ const App: React.FC = () => {
          ))}
       </div>
 
-      <aside className={`hidden md:flex flex-col w-64 h-full border-r ${isDarkMode ? 'bg-gray-900/80 backdrop-blur-md border-white/10 text-white' : 'bg-indigo-900 text-white'}`}>
-        <div className={`p-6 text-center shrink-0 ${isDarkMode ? 'border-b border-white/10' : 'border-b border-indigo-800'}`}>
-          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3 ${isDarkMode ? 'bg-white/10 ring-1 ring-white/20' : 'bg-indigo-400/20'}`}>
-            <Wallet className={`w-7 h-7 ${isDarkMode ? 'text-indigo-400' : 'text-indigo-400'}`} />
+      {/* --- NEW GLASSMORPHISM SIDEBAR --- */}
+      <aside className={`hidden md:flex flex-col w-72 h-full relative overflow-hidden bg-[#0f172a] text-white border-r border-white/5`}>
+        {/* Background Blobs for Glass Effect */}
+        <div className="absolute top-[-100px] left-[-100px] w-64 h-64 bg-indigo-600/20 rounded-full blur-[80px] pointer-events-none"></div>
+        <div className="absolute bottom-[-50px] right-[-50px] w-48 h-48 bg-purple-600/10 rounded-full blur-[60px] pointer-events-none"></div>
+
+        <div className="p-6 text-center shrink-0 relative z-10 border-b border-white/5">
+          <div className="flex items-center gap-3 mb-2 px-2">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+              <Wallet className="w-6 h-6 text-white" />
+            </div>
+            <div className="text-left">
+                <h2 className="text-xl font-black tracking-tight leading-none text-white">বিলিং<span className="text-cyan-400">সেন্টার</span></h2>
+                <p className="text-[9px] text-indigo-300 font-bold tracking-[0.2em] uppercase mt-1">Control Panel</p>
+            </div>
           </div>
-          <h2 className="text-xl font-bold tracking-tight">বিলিং সেন্টার</h2>
         </div>
-        <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto custom-scrollbar">
-          {allowedNavItems.map((item) => (
-            <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === item.id ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/50' : 'text-indigo-200 hover:bg-indigo-800'}`}>
-              <item.icon className="w-5 h-5" /> {item.label}
-            </button>
-          ))}
+
+        <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto custom-scrollbar relative z-10">
+          {allowedNavItems.map((item) => {
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                className={`relative w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm transition-all duration-300 group overflow-hidden ${
+                  isActive
+                    ? 'bg-white/10 text-white shadow-lg font-bold ring-1 ring-white/10 backdrop-blur-sm'
+                    : 'text-slate-400 hover:bg-white/5 hover:text-white font-medium'
+                }`}
+              >
+                {/* Active Glow Effect */}
+                {isActive && (
+                  <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/20 via-purple-500/10 to-transparent opacity-100" />
+                )}
+
+                {/* Left Active Indicator Line */}
+                <div className={`absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full transition-all duration-300 ${isActive ? 'bg-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.8)]' : 'bg-transparent w-0'}`} />
+
+                {/* Icon with scaling effect */}
+                <item.icon
+                  className={`w-5 h-5 relative z-10 transition-all duration-300 ${
+                    isActive ? 'text-cyan-300 scale-110 drop-shadow-md' : 'group-hover:text-white group-hover:scale-110'
+                  }`}
+                />
+
+                {/* Label */}
+                <span className="relative z-10 flex-1 text-left tracking-wide">{item.label}</span>
+
+                {/* Right Arrow for Active Item */}
+                {isActive && (
+                  <ChevronRight className="w-4 h-4 text-cyan-400/70 relative z-10 animate-pulse" />
+                )}
+              </button>
+            );
+          })}
         </nav>
-        <div className={`p-4 border-t shrink-0 ${isDarkMode ? 'border-white/10' : 'border-indigo-800'}`}>
-           <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-red-300 hover:bg-red-900/30 transition-colors">
-            <LogOut className="w-5 h-5" /> লগআউট
+
+        <div className="p-4 border-t border-white/5 shrink-0 relative z-10">
+           <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-bold text-red-400 hover:text-white hover:bg-red-500/10 hover:ring-1 hover:ring-red-500/20 transition-all group">
+            <LogOut className="w-5 h-5 transition-transform group-hover:-translate-x-1" /> 
+            <span>লগআউট</span>
           </button>
         </div>
       </aside>
