@@ -9,9 +9,10 @@ interface NoticeBoardProps {
   role: UserRole;
   currentUser: string;
   staffList: Staff[];
+  onOpenProfile?: (staffId: string) => void;
 }
 
-const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices = [], setNotices, role, currentUser, staffList = [] }) => {
+const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices = [], setNotices, role, currentUser, staffList = [], onOpenProfile }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({ title: '', content: '', type: 'NORMAL' as 'NORMAL' | 'URGENT' });
   const [seenListNoticeId, setSeenListNoticeId] = useState<string | null>(null);
@@ -90,6 +91,23 @@ const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices = [], setNotices,
     const name = postedByString.split(' (')[0];
     const staff = staffList.find(s => s.name === name);
     return staff?.photo;
+  };
+
+  const handleProfileClick = (postedByString: string) => {
+    if (!onOpenProfile) return;
+    const name = postedByString.split(' (')[0];
+    const staff = staffList.find(s => s.name === name);
+    if (staff) {
+      onOpenProfile(staff.id);
+    }
+  };
+
+  const handleViewerClick = (name: string) => {
+    if (!onOpenProfile) return;
+    const staff = staffList.find(s => s.name === name);
+    if (staff) {
+      onOpenProfile(staff.id);
+    }
   };
 
   return (
@@ -173,7 +191,10 @@ const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices = [], setNotices,
 
                {/* Footer Info */}
                <div className="flex items-center gap-2 mb-4 pb-4 border-b border-gray-200/50">
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs overflow-hidden border border-white/50 shadow-sm ${isUrgent ? 'bg-red-100 text-red-700' : 'bg-indigo-100 text-indigo-700'}`}>
+                  <div 
+                    onClick={() => handleProfileClick(notice.postedBy)}
+                    className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs overflow-hidden border border-white/50 shadow-sm cursor-pointer hover:scale-105 transition-transform ${isUrgent ? 'bg-red-100 text-red-700' : 'bg-indigo-100 text-indigo-700'}`}
+                  >
                      {publisherPhoto ? (
                        <img src={publisherPhoto} alt="Publisher" className="w-full h-full object-cover" />
                      ) : (
@@ -182,7 +203,7 @@ const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices = [], setNotices,
                   </div>
                   <div>
                      <p className="text-[10px] uppercase font-bold text-gray-400">প্রকাশক</p>
-                     <p className="text-xs font-bold text-gray-700">{notice.postedBy.split('(')[0]}</p>
+                     <p className="text-xs font-bold text-gray-700 hover:text-indigo-600 hover:underline cursor-pointer" onClick={() => handleProfileClick(notice.postedBy)}>{notice.postedBy.split('(')[0]}</p>
                   </div>
                   <div className="ml-auto text-right">
                      <p className="text-[10px] uppercase font-bold text-gray-400">তারিখ</p>
@@ -257,15 +278,15 @@ const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices = [], setNotices,
                  {getNoticeReactions(seenListNoticeId).map((r, idx) => {
                     const viewer = staffList.find(s => s.name === r.userName);
                     return (
-                    <div key={idx} className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-xl transition-colors border-b border-gray-50 last:border-0">
-                       <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xs uppercase overflow-hidden">
+                    <div key={idx} className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-xl transition-colors border-b border-gray-50 last:border-0" onClick={() => handleViewerClick(r.userName)}>
+                       <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xs uppercase overflow-hidden cursor-pointer">
                           {viewer && viewer.photo ? (
                              <img src={viewer.photo} alt={r.userName} className="w-full h-full object-cover" />
                           ) : (
                              r.userName.charAt(0)
                           )}
                        </div>
-                       <p className="text-sm font-bold text-gray-700">{r.userName}</p>
+                       <p className="text-sm font-bold text-gray-700 hover:text-indigo-600 hover:underline cursor-pointer">{r.userName}</p>
                     </div>
                  )})}
                  {getNoticeReactions(seenListNoticeId).length === 0 && (
@@ -355,7 +376,7 @@ const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices = [], setNotices,
               </div>
               <h3 className="text-xl font-black text-gray-800 mb-2">আপনি কি নিশ্চিত?</h3>
               <p className="text-sm text-gray-500 mb-6">
-                আপনি এই নোটিশটি ডিলিট করতে যাচ্ছেন। এটি রিসাইকেল বিনে জমা হবে।
+                আপনি এই নোটিশটি ডিলিট করতে যাচ্ছেন। এটি রিসাইকেল বিনে জমা হবে.
               </p>
               <div className="flex gap-3">
                 <button 

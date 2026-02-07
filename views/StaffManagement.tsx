@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useRef } from 'react';
-import { Plus, Search, Edit3, Trash2, UserPlus, X, Calendar, FilterX, Phone, Banknote, Users, UserCheck, UserX, ArrowUpDown, ShieldCheck, ShieldAlert, Eye, EyeOff, Lock, Camera, Image as ImageIcon, Briefcase, Wallet, ArrowRight, Coins, Crown, UserCog, History, CalendarClock, MapPin, LocateFixed, Globe, ToggleLeft, ToggleRight, Map, MonitorSmartphone, Gift, Star, MoreVertical, WalletCards, AlertTriangle, CheckCircle, RotateCcw, TrendingDown, Maximize2, Minimize2, ChevronDown, Sparkles, CreditCard } from 'lucide-react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { Plus, Search, Edit3, Trash2, UserPlus, X, Calendar, FilterX, Phone, Banknote, Users, UserCheck, UserX, ArrowUpDown, ShieldCheck, ShieldAlert, Eye, EyeOff, Lock, Camera, Image as ImageIcon, Briefcase, Wallet, ArrowRight, Coins, Crown, UserCog, History, CalendarClock, MapPin, LocateFixed, Globe, ToggleLeft, ToggleRight, Map, MonitorSmartphone, Gift, Star, MoreVertical, WalletCards, AlertTriangle, CheckCircle, RotateCcw, TrendingDown, Maximize2, Minimize2, ChevronDown, Sparkles, CreditCard, ExternalLink } from 'lucide-react';
 import { Staff, UserRole, Expense, AdvanceLog } from '../types';
 import { ROLE_LABELS } from '../constants';
 
@@ -12,9 +12,11 @@ interface StaffProps {
   setAdvances: React.Dispatch<React.SetStateAction<AdvanceLog[]>>;
   currentUser: string | null;
   onUpdatePoints?: (staffId: string, points: number, reason: string) => void;
+  highlightStaffId?: string | null;
+  setHighlightStaffId?: React.Dispatch<React.SetStateAction<string | null>>;
 }
 
-const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffList, role, expenses = [], advances = [], setAdvances, currentUser, onUpdatePoints }) => {
+const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffList, role, expenses = [], advances = [], setAdvances, currentUser, onUpdatePoints, highlightStaffId, setHighlightStaffId }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -106,6 +108,25 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
 
   const isStaff = role === UserRole.STAFF;
   const canManageMoney = role === UserRole.ADMIN || role === UserRole.MD;
+
+  // Handle Highlight/Auto-Scroll
+  useEffect(() => {
+    if (highlightStaffId) {
+        setExpandedStaffId(highlightStaffId);
+        // Timeout to allow expansion animation to start/render before scrolling
+        setTimeout(() => {
+            const element = document.getElementById(`staff-card-${highlightStaffId}`);
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }, 300);
+        
+        if (setHighlightStaffId) {
+            // Reset after a short delay to ensure effect runs
+            setTimeout(() => setHighlightStaffId(null), 1000);
+        }
+    }
+  }, [highlightStaffId, setHighlightStaffId]);
 
   // Helper to format large numbers
   const formatPoints = (num: number) => {
@@ -614,6 +635,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
 
           return (
             <div 
+               id={`staff-card-${staff.id}`}
                key={staff.id} 
                className={`group relative transition-all duration-500 ease-in-out z-0 ${isExpanded ? 'col-span-2 md:col-span-3 lg:col-span-3 row-span-2 z-10' : 'col-span-1 z-0'}`}
             >
@@ -678,11 +700,20 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
                       {/* Main Body */}
                       <div className="p-6 flex-1 flex flex-col gap-6 overflow-y-auto custom-scrollbar">
                           
-                          {/* Financial "Credit Card" Widget */}
-                          <div className="w-full bg-gradient-to-br from-gray-900 via-slate-800 to-gray-900 rounded-2xl p-5 text-white shadow-xl relative overflow-hidden group/card border border-white/5">
+                          {/* Financial "Credit Card" Widget - NOW CLICKABLE */}
+                          <div 
+                            onClick={(e) => { e.stopPropagation(); setHistoryStaff(staff); }}
+                            className="w-full bg-gradient-to-br from-gray-900 via-slate-800 to-gray-900 rounded-2xl p-5 text-white shadow-xl relative overflow-hidden group/card border border-white/5 cursor-pointer hover:scale-[1.01] transition-transform duration-300 hover:shadow-2xl"
+                            title="Click to view full history"
+                          >
                               <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none group-hover/card:bg-white/10 transition-all duration-500"></div>
                               <div className="absolute bottom-0 left-0 w-40 h-40 bg-indigo-500/20 rounded-full blur-2xl -ml-10 -mb-10 pointer-events-none"></div>
                               
+                              {/* Hover Hint */}
+                              <div className="absolute top-3 right-3 opacity-0 group-hover/card:opacity-100 transition-opacity bg-white/20 p-1.5 rounded-lg backdrop-blur-sm">
+                                 <ExternalLink className="w-4 h-4 text-white" />
+                              </div>
+
                               <div className="flex justify-between items-start mb-8 relative z-10">
                                   <div className="flex items-center gap-2 opacity-80">
                                       <div className="p-2 bg-white/10 rounded-lg backdrop-blur-md">
@@ -690,7 +721,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
                                       </div>
                                       <div>
                                           <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-200 block">Current Balance</span>
-                                          <span className="text-[8px] font-bold text-gray-400">Real-time Data</span>
+                                          <span className="text-[8px] font-bold text-gray-400">Real-time Data • Click for History</span>
                                       </div>
                                   </div>
                                   <div className="text-right">

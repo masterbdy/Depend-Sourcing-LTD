@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { TrendingDown, AlertCircle, Clock, ShieldAlert, Landmark, Wallet, Trophy, Crown, ArrowUpRight, Coins, Banknote, WalletCards, Calendar, Sparkles } from 'lucide-react';
 import { Expense, UserRole, Staff, AdvanceLog } from '../types';
@@ -14,9 +13,10 @@ interface DashboardProps {
   staffList: Staff[];
   advances: AdvanceLog[];
   currentUser: string | null;
+  onOpenProfile?: (staffId: string) => void;
 }
 
-const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApprovals, expenses = [], cloudError, totalFund, cashOnHand, role, staffList = [], advances = [], currentUser }) => {
+const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApprovals, expenses = [], cloudError, totalFund, cashOnHand, role, staffList = [], advances = [], currentUser, onOpenProfile }) => {
   const recentActivities = useMemo(() => {
     return [...(expenses || [])].filter(e => !e.isDeleted).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 6);
   }, [expenses]);
@@ -364,7 +364,9 @@ const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApproval
                 {recentActivities.length > 0 ? recentActivities.map((expense) => (
                   <div key={expense.id} className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
                     <div className="flex items-center gap-4">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold border-2 ${
+                      <div 
+                        onClick={() => onOpenProfile && onOpenProfile(expense.staffId)}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold border-2 cursor-pointer hover:scale-105 transition-transform ${
                         expense.status === 'APPROVED' ? 'bg-green-50 dark:bg-green-900/20 border-green-100 dark:border-green-800 text-green-600 dark:text-green-400' : 
                         expense.status === 'REJECTED' ? 'bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-800 text-red-600 dark:text-red-400' :
                         'bg-orange-50 dark:bg-orange-900/20 border-orange-100 dark:border-orange-800 text-orange-600 dark:text-orange-400'
@@ -410,7 +412,7 @@ const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApproval
                    {champions.map((champ, idx) => (
                       <div key={champ.id} className={`flex items-center gap-3 p-2 rounded-lg ${idx === 0 ? 'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-100 dark:border-yellow-900/40' : 'bg-gray-50 dark:bg-gray-700/30'}`}>
                          <div className="font-bold text-gray-400 w-4 text-center">{idx + 1}</div>
-                         <div className="relative">
+                         <div className="relative cursor-pointer hover:scale-105 transition-transform" onClick={() => onOpenProfile && onOpenProfile(champ.id)}>
                             {champ.photo ? (
                                <img src={champ.photo} className="w-8 h-8 rounded-full object-cover" />
                             ) : (

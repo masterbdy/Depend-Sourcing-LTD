@@ -12,9 +12,10 @@ interface ExpenseProps {
   currentUser: string | null;
   onNotify?: (title: string, message: string, type: AppNotification['type']) => void;
   advances: AdvanceLog[];
+  onOpenProfile?: (staffId: string) => void;
 }
 
-const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpenses, staffList = [], role, currentUser, advances = [] }) => {
+const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpenses, staffList = [], role, currentUser, advances = [], onOpenProfile }) => {
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [formData, setFormData] = useState({ 
     staffId: '', 
@@ -157,7 +158,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
     processedText = processedText.replace(unitRegex, "SKIP_UNIT");
     
     // G. Locations & Addresses
-    const locPrefixes = ['road', 'rd', 'রোড', 'house', 'h', 'bas', 'basa', 'বাসা', 'বাড়ি', 'flat', 'apt', 'ফ্ল্যাট', 'sector', 'sec', 'সেক্টর', 'block', 'blk', 'ব্লক', 'lane', 'goli', 'গলি', 'level', 'lvl', 'লেভেল', 'ward', 'word', 'ওয়ার্ড', 'room', 'rm', 'রুম', 'কক্ষ', 'platfrom', 'platform', 'প্লাটফর্ম', 'counter', 'কাউন্টার', 'shop', 'dokan', 'দোকান', 'bus', 'গাড়ি', 'বাস'];
+    const locPrefixes = ['road', 'rd', 'রোড', 'house', 'h', 'bas', 'basa', 'বাসা', 'বাড়ি', 'flat', 'apt', 'ফ্ল্যাট', 'sector', 'sec', 'সেক্টর', 'block', 'blk', 'lane', 'goli', 'গলি', 'level', 'lvl', 'লেভেল', 'ward', 'word', 'ওয়ার্ড', 'room', 'rm', 'রুম', 'কক্ষ', 'platfrom', 'platform', 'প্লাটফর্ম', 'counter', 'কাউন্টার', 'shop', 'dokan', 'দোকান', 'bus', 'গাড়ি', 'বাস'];
     const locRegexPrefix = new RegExp(`(${locPrefixes.join('|')})[\\s\\-\\.]*(\\d+)`, 'gi');
     processedText = processedText.replace(locRegexPrefix, "SKIP_LOC");
     
@@ -685,12 +686,15 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
               <div className="h-px w-full bg-gray-100/50 mb-4"></div>
 
               <div className="flex justify-between items-end">
-                 <div className="flex items-center gap-2.5">
+                 <div 
+                   className="flex items-center gap-2.5 cursor-pointer hover:scale-105 transition-transform" 
+                   onClick={() => onOpenProfile && onOpenProfile(expense.staffId)}
+                 >
                     <div className="w-9 h-9 rounded-full bg-white border border-gray-100 flex items-center justify-center text-indigo-700 font-bold text-xs shadow-sm overflow-hidden shrink-0">
                        {staffMember && staffMember.photo ? <img src={staffMember.photo} alt={expense.staffName} className="w-full h-full object-cover" /> : (expense.staffName || '?')[0]}
                     </div>
                     <div>
-                       <p className="text-xs font-bold text-gray-700 line-clamp-1">{expense.staffName}</p>
+                       <p className="text-xs font-bold text-gray-700 line-clamp-1 hover:text-indigo-600 hover:underline">{expense.staffName}</p>
                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">{getStaffDisplayId(expense.staffId)}</p>
                     </div>
                  </div>

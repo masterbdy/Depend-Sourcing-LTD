@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, Users, User, Crown, UserCog, Car, ArrowRightCircle, MessageCircle, SmilePlus, X, Paperclip, Smile, Trash2, EyeOff } from 'lucide-react';
 import { ChatMessage, UserRole, Staff, Reaction } from '../types';
@@ -11,13 +10,14 @@ interface GroupChatProps {
   onNavigate: (view: string) => void; 
   onUpdatePoints: (staffId: string, points: number, reason: string) => void;
   staffList: Staff[];
+  onOpenProfile?: (staffId: string) => void;
 }
 
 const AVAILABLE_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 const QUICK_EMOJIS = ["👍", "👋", "✅", "❌", "🎉", "🔥", "❤️", "😂", "😮", "😢", "🙏", "🤝"];
 const QUICK_REPLIES = ["👍 ঠিক আছে", "✅ কাজ শেষ", "🚗 অন দ্য ওয়ে", "🙏 ধন্যবাদ", "👀 দেখছি", "❌ হবে না"];
 
-const GroupChatView: React.FC<GroupChatProps> = ({ messages = [], setMessages, currentUser, role, onNavigate, onUpdatePoints, staffList = [] }) => {
+const GroupChatView: React.FC<GroupChatProps> = ({ messages = [], setMessages, currentUser, role, onNavigate, onUpdatePoints, staffList = [], onOpenProfile }) => {
   const [inputText, setInputText] = useState('');
   const [activeReactionId, setActiveReactionId] = useState<string | null>(null);
   const [viewingReactionMsgId, setViewingReactionMsgId] = useState<string | null>(null);
@@ -178,6 +178,14 @@ const GroupChatView: React.FC<GroupChatProps> = ({ messages = [], setMessages, c
      return msg?.reactions || [];
   };
 
+  const handleProfileClick = (name: string) => {
+    if (!onOpenProfile) return;
+    const staff = staffList.find(s => s.name === name);
+    if (staff) {
+      onOpenProfile(staff.id);
+    }
+  };
+
   return (
     <div className="flex flex-col h-[calc(100vh-140px)] bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden relative" onClick={() => { setActiveReactionId(null); setShowEmojiPicker(false); }}>
       {/* Chat Header */}
@@ -215,6 +223,7 @@ const GroupChatView: React.FC<GroupChatProps> = ({ messages = [], setMessages, c
           const isMe = msg.sender === currentUser;
           const reactions = msg.reactions || [];
           const canDelete = isMe; 
+          const senderStaff = staffList.find(s => s.name === msg.sender);
 
           if (msg.type === 'SYSTEM_MOVEMENT') {
             return (
@@ -232,12 +241,28 @@ const GroupChatView: React.FC<GroupChatProps> = ({ messages = [], setMessages, c
           }
 
           return (
-            <div key={msg.id} className={`flex w-full group ${isMe ? 'justify-end' : 'justify-start'}`}>
+            <div key={msg.id} className={`flex w-full group ${isMe ? 'justify-end' : 'justify-start items-end'}`}>
+              
+              {!isMe && (
+                 <div 
+                   onClick={() => handleProfileClick(msg.sender)} 
+                   className="mr-2 mb-1 cursor-pointer hover:scale-110 transition-transform hidden sm:block"
+                 >
+                    {senderStaff && senderStaff.photo ? (
+                       <img src={senderStaff.photo} className="w-8 h-8 rounded-full object-cover border border-gray-200" />
+                    ) : (
+                       <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-500 border border-gray-300">
+                          {msg.sender[0]}
+                       </div>
+                    )}
+                 </div>
+              )}
+
               <div className={`max-w-[85%] md:max-w-[65%] flex flex-col ${isMe ? 'items-end' : 'items-start'} relative`}>
                 
                 {!isMe && (
-                  <div className="flex items-center gap-1 mb-1 ml-1">
-                    <span className="text-xs font-bold text-gray-600 dark:text-gray-400">{msg.sender}</span>
+                  <div className="flex items-center gap-1 mb-1 ml-1 cursor-pointer" onClick={() => handleProfileClick(msg.sender)}>
+                    <span className="text-xs font-bold text-gray-600 dark:text-gray-400 hover:underline">{msg.sender}</span>
                     {msg.role !== UserRole.STAFF && (
                       <span className={`text-[9px] px-1.5 py-0.5 rounded-full flex items-center gap-0.5 font-black uppercase ${msg.role === UserRole.MD ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300' : 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'}`}>
                         {getRoleIcon(msg.role)}
@@ -393,13 +418,13 @@ const GroupChatView: React.FC<GroupChatProps> = ({ messages = [], setMessages, c
               </div>
               <div className="flex-1 overflow-y-auto p-2 space-y-1">
                  {getReactionsForModal().map((r, idx) => (
-                    <div key={idx} className="flex items-center gap-3 p-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-xl transition-colors border-b border-gray-50 dark:border-gray-700 last:border-0">
+                    <div key={idx} className="flex items-center gap-3 p-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-xl transition-colors border-b border-gray-50 dark:border-gray-700 last:border-0" onClick={() => handleProfileClick(r.userName)}>
                        <div className="text-2xl">{r.emoji}</div>
-                       <div className="flex items-center gap-3">
+                       <div className="flex items-center gap-3 cursor-pointer">
                           <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-700 dark:text-indigo-300 font-bold text-xs uppercase">
                              {r.userName.charAt(0)}
                           </div>
-                          <p className="text-sm font-bold text-gray-700 dark:text-gray-200">{r.userName}</p>
+                          <p className="text-sm font-bold text-gray-700 dark:text-gray-200 hover:underline">{r.userName}</p>
                        </div>
                     </div>
                  ))}

@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { MessageSquareWarning, Search, FilterX, Send, ShieldAlert, CheckCircle2, XCircle, Clock, ChevronDown, ChevronUp, User, Lightbulb, Sparkles, Trash2, AlertTriangle } from 'lucide-react';
 import { Complaint, Staff, UserRole } from '../types';
@@ -9,9 +8,10 @@ interface ComplaintProps {
   staffList: Staff[];
   role: UserRole;
   currentUser: string | null;
+  onOpenProfile?: (staffId: string) => void;
 }
 
-const ComplaintBoxView: React.FC<ComplaintProps> = ({ complaints = [], setComplaints, staffList = [], role, currentUser }) => {
+const ComplaintBoxView: React.FC<ComplaintProps> = ({ complaints = [], setComplaints, staffList = [], role, currentUser, onOpenProfile }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({ 
     againstStaffId: '', 
@@ -20,21 +20,14 @@ const ComplaintBoxView: React.FC<ComplaintProps> = ({ complaints = [], setCompla
     type: 'COMPLAINT' as 'COMPLAINT' | 'SUGGESTION' 
   });
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  
-  // Delete Confirmation State
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-
-  // Filter States
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
 
-  const activeStaff = staffList.filter(s => !s.deletedAt && s.status === 'ACTIVE');
+  const activeStaff = (staffList || []).filter(s => !s.deletedAt && s.status === 'ACTIVE');
   const isManagement = role === UserRole.ADMIN || role === UserRole.MD;
 
-  // Filter Logic: 
-  // - Management sees ALL complaints.
-  // - Staff sees ONLY their own submitted complaints.
   const visibleComplaints = useMemo(() => {
-    let list = complaints.filter(c => !c.isDeleted);
+    let list = (complaints || []).filter(c => !c.isDeleted);
     
     if (!isManagement) {
       list = list.filter(c => c.submittedBy === currentUser);
@@ -54,9 +47,8 @@ const ComplaintBoxView: React.FC<ComplaintProps> = ({ complaints = [], setCompla
     let accusedStaffId = 'GENERAL';
     let accusedStaffName = 'General / System';
 
-    // Validation & Data Prep based on Type
     if (formData.type === 'COMPLAINT') {
-        const accusedStaff = staffList.find(s => s.id === formData.againstStaffId);
+        const accusedStaff = activeStaff.find(s => s.id === formData.againstStaffId);
         if (!accusedStaff) return alert('যার বিরুদ্ধে অভিযোগ তাকে নির্বাচন করুন');
         accusedStaffId = accusedStaff.id;
         accusedStaffName = accusedStaff.name;
@@ -64,8 +56,7 @@ const ComplaintBoxView: React.FC<ComplaintProps> = ({ complaints = [], setCompla
         accusedStaffName = 'পরামর্শ (Suggestion)';
     }
 
-    // Find submitter ID if possible
-    const submitter = staffList.find(s => s.name === currentUser);
+    const submitter = (staffList || []).find(s => s.name === currentUser);
 
     const newComplaint: Complaint = {
       id: Math.random().toString(36).substr(2, 9),
@@ -100,6 +91,14 @@ const ComplaintBoxView: React.FC<ComplaintProps> = ({ complaints = [], setCompla
     }
   };
 
+  const handleProfileClick = (name: string) => {
+    if (!onOpenProfile) return;
+    const staff = (staffList || []).find(s => s.name === name);
+    if (staff) {
+      onOpenProfile(staff.id);
+    }
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -126,7 +125,6 @@ const ComplaintBoxView: React.FC<ComplaintProps> = ({ complaints = [], setCompla
         </button>
       </div>
 
-      {/* Filters (Management Only) */}
       {isManagement && (
         <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
           {['ALL', 'PENDING', 'INVESTIGATING', 'RESOLVED', 'DISMISSED'].map((status) => (
@@ -145,7 +143,6 @@ const ComplaintBoxView: React.FC<ComplaintProps> = ({ complaints = [], setCompla
         </div>
       )}
 
-      {/* List */}
       <div className="grid grid-cols-1 gap-4">
         {visibleComplaints.map((item) => {
           const isSuggestion = item.type === 'SUGGESTION';
@@ -174,13 +171,20 @@ const ComplaintBoxView: React.FC<ComplaintProps> = ({ complaints = [], setCompla
                       {!isSuggestion && (
                         <div className="flex items-center gap-2 text-xs mt-1">
                            <span className="font-bold text-gray-500">Against:</span>
-                           <span className="font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded">{item.againstStaffName}</span>
+                           <span 
+                             className="font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded cursor-pointer hover:underline"
+                             onClick={() => handleProfileClick(item.againstStaffName)}
+                           >
+                             {item.againstStaffName}
+                           </span>
                         </div>
                       )}
                       
-                      {/* Only Management sees who submitted it */}
                       {isManagement && (
-                        <p className="text-xs text-indigo-600 mt-2 font-bold flex items-center gap-1 bg-indigo-50 w-fit px-2 py-1 rounded-lg">
+                        <p 
+                          className="text-xs text-indigo-600 mt-2 font-bold flex items-center gap-1 bg-indigo-50 w-fit px-2 py-1 rounded-lg cursor-pointer hover:bg-indigo-100"
+                          onClick={() => handleProfileClick(item.submittedBy)}
+                        >
                           <User className="w-3 h-3" /> প্রেরক: {item.submittedBy}
                         </p>
                       )}
@@ -206,14 +210,12 @@ const ComplaintBoxView: React.FC<ComplaintProps> = ({ complaints = [], setCompla
                 </div>
              </div>
 
-             {/* Expanded Content */}
              {expandedId === item.id && (
                <div className="mt-4 pt-4 border-t border-gray-50 animate-in fade-in slide-in-from-top-2 duration-200">
                   <div className={`p-5 rounded-2xl text-sm leading-relaxed whitespace-pre-line mb-4 border ${isSuggestion ? 'bg-teal-50/50 border-teal-100 text-teal-900' : 'bg-red-50/50 border-red-100 text-gray-800'}`}>
                      {item.description}
                   </div>
 
-                  {/* Management Actions */}
                   {isManagement && (
                     <div className="flex flex-wrap gap-2 justify-end">
                        {item.status !== 'INVESTIGATING' && item.status !== 'RESOLVED' && (
@@ -231,7 +233,6 @@ const ComplaintBoxView: React.FC<ComplaintProps> = ({ complaints = [], setCompla
                            Dismiss
                          </button>
                        )}
-                       {/* Delete Button */}
                        <button 
                          onClick={() => handleDeleteRequest(item.id)} 
                          className="px-4 py-2 bg-white text-red-500 rounded-xl text-xs font-bold hover:bg-red-50 transition-colors border border-red-200 flex items-center gap-1"
@@ -256,7 +257,6 @@ const ComplaintBoxView: React.FC<ComplaintProps> = ({ complaints = [], setCompla
         )}
       </div>
 
-      {/* Submit Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in duration-200">
           <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -271,7 +271,6 @@ const ComplaintBoxView: React.FC<ComplaintProps> = ({ complaints = [], setCompla
              </div>
 
              <div className="overflow-y-auto p-6 space-y-5">
-                {/* Type Toggle */}
                 <div className="flex p-1 bg-gray-100 rounded-xl">
                    <button 
                      type="button"
@@ -355,7 +354,6 @@ const ComplaintBoxView: React.FC<ComplaintProps> = ({ complaints = [], setCompla
         </div>
       )}
 
-      {/* DELETE CONFIRMATION MODAL */}
       {deleteConfirmId && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
