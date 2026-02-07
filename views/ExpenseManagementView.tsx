@@ -101,7 +101,9 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
       const matchesDate = (!start || expenseDate >= start) && (!end || expenseDate <= end);
 
       return matchesSearch && matchesDate;
-    });
+    })
+    // Sort by Date Descending (Newest First)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [expenses, searchTerm, selectedStaffFilter, startDate, endDate, role, currentUser]);
 
   const handleReasonChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -397,218 +399,127 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
         <script src="https://cdn.tailwindcss.com"></script>
         <style>
           @page { size: A4; margin: 0; }
-          body { 
-            font-family: 'Hind Siliguri', sans-serif; 
-            -webkit-print-color-adjust: exact; 
-            margin: 0;
-            padding: 0;
-            background: #fff;
-            display: flex;
-            justify-content: center;
-            align-items: flex-start; /* Start from top for simple cutting */
-            min-height: 100vh;
-          }
-          .voucher-container {
-            width: 210mm; /* A4 Width */
-            padding: 40px;
-            box-sizing: border-box;
-          }
-          .voucher-box {
-            border: 2px solid #000;
-            padding: 0;
-            position: relative;
-            background: white;
-            margin-bottom: 20px;
-          }
-          .header {
-            border-bottom: 2px solid #000;
-            padding: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: #f8fafc;
-          }
-          .content {
-            padding: 30px;
-            position: relative;
-          }
-          .row {
-            display: flex;
-            margin-bottom: 15px;
-            align-items: baseline;
-          }
-          .label {
-            width: 120px;
-            font-weight: 700;
-            text-transform: uppercase;
-            font-size: 12px;
-            color: #4b5563;
-          }
-          .value {
-            flex: 1;
-            border-bottom: 1px dotted #9ca3af;
-            padding-bottom: 2px;
-            font-weight: 600;
-            font-size: 14px;
-            color: #111827;
-            padding-left: 10px;
-          }
-          .amount-box {
-            border: 2px solid #000;
-            padding: 10px 20px;
-            font-size: 24px;
-            font-weight: 900;
-            display: inline-block;
-            margin-top: 10px;
-            background: #f3f4f6;
-          }
-          .footer-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-            border: 1px solid #e5e7eb;
-          }
-          .footer-table th, .footer-table td {
-            border: 1px solid #e5e7eb;
-            padding: 8px;
-            font-size: 11px;
-            text-align: center;
-          }
-          .footer-table th {
-            background: #f9fafb;
-            font-weight: 800;
-            text-transform: uppercase;
-          }
-          .signatures {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 60px;
-            padding-top: 20px;
-          }
-          .sig-box {
-            text-align: center;
-            width: 150px;
-          }
-          .sig-line {
-            border-top: 1px solid #000;
-            margin-bottom: 5px;
-          }
-          .sig-title {
-            font-size: 10px;
-            font-weight: 700;
-            text-transform: uppercase;
-            color: #6b7280;
-          }
-          .watermark {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%) rotate(-30deg);
-            font-size: 100px;
-            font-weight: 900;
-            color: rgba(0, 0, 0, 0.04);
-            pointer-events: none;
-            z-index: 0;
-            white-space: nowrap;
-          }
-          .status-stamp {
-             position: absolute;
-             top: 20px;
-             right: 20px;
-             border: 3px solid #166534;
-             color: #166534;
-             padding: 5px 15px;
-             font-weight: 900;
-             text-transform: uppercase;
-             font-size: 14px;
-             border-radius: 4px;
-             transform: rotate(-5deg);
-             opacity: 0.8;
-          }
+          body { font-family: 'Hind Siliguri', sans-serif; -webkit-print-color-adjust: exact; margin: 0; padding: 0; background: white; }
+          .a4-container { width: 210mm; min-height: 297mm; padding: 40px; margin: 0 auto; background: white; position: relative; box-sizing: border-box; }
+          .voucher-border { border: 3px double #1f2937; height: 100%; padding: 30px; position: relative; display: flex; flex-direction: column; }
+          .watermark { position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%) rotate(-30deg); font-size: 10rem; font-weight: 900; color: rgba(22, 163, 74, 0.05); pointer-events: none; z-index: 0; white-space: nowrap; border: 10px solid rgba(22, 163, 74, 0.05); padding: 20px 50px; border-radius: 40px; }
+          .stamp { position: absolute; bottom: 150px; right: 80px; border: 4px solid #166534; color: #166534; padding: 10px 20px; font-weight: 900; text-transform: uppercase; font-size: 1.2rem; transform: rotate(-10deg); opacity: 0.8; mask-image: url('https://www.transparenttextures.com/patterns/grunge-wall.png'); }
         </style>
       </head>
       <body>
-        <div class="voucher-container">
-          
-          <div class="voucher-box">
-             <div class="watermark">APPROVED</div>
-             <div class="status-stamp">MD APPROVED</div>
+        <div class="a4-container">
+           <div class="voucher-border">
+              <div class="watermark">APPROVED</div>
+              
+              <!-- Header -->
+              <div class="flex justify-between items-start border-b-2 border-gray-800 pb-6 mb-8 relative z-10">
+                 <div class="flex gap-4">
+                    <!-- Logo Placeholder -->
+                    <div class="w-16 h-16 bg-gray-900 text-white flex items-center justify-center font-black text-2xl rounded-lg">DS</div>
+                    <div>
+                       <h1 class="text-4xl font-black uppercase tracking-tight text-gray-900">Depend Sourcing Ltd.</h1>
+                       <p class="text-sm font-bold text-gray-500 tracking-[0.3em] uppercase mt-1">Promise Beyond Business</p>
+                       <p class="text-xs text-gray-600 mt-2 max-w-sm">Head Office: A-14/8, Johir Complex, Savar, Dhaka.</p>
+                    </div>
+                 </div>
+                 <div class="text-right">
+                    <h2 class="text-3xl font-black text-gray-200 uppercase">Payment Voucher</h2>
+                    <div class="mt-2">
+                       <p class="text-sm font-bold text-gray-600">Voucher No: <span class="font-mono text-black text-lg">#${expense.id}</span></p>
+                       <p class="text-sm font-bold text-gray-600">Date: <span class="font-mono text-black">${new Date(expense.createdAt).toLocaleDateString('en-GB')}</span></p>
+                    </div>
+                 </div>
+              </div>
 
-             <!-- Header -->
-             <div class="header">
-                <div>
-                   <h1 class="text-3xl font-black uppercase tracking-tight text-gray-900">Depend Sourcing Ltd.</h1>
-                   <p class="text-xs font-bold text-gray-500 tracking-[0.3em] uppercase mt-1">Promise Beyond Business</p>
-                   <p class="text-xs text-gray-600 mt-1">Head Office: A-14/8, Johir Complex, Savar, Dhaka.</p>
-                </div>
-                <div class="text-right">
-                   <div class="bg-black text-white px-4 py-1 text-sm font-bold uppercase inline-block mb-2">Expense Voucher</div>
-                   <p class="text-sm font-bold">Voucher #: <span class="font-mono">${expense.id}</span></p>
-                   <p class="text-sm">Date: <span class="font-mono">${new Date(expense.createdAt).toLocaleDateString('en-GB')}</span></p>
-                </div>
-             </div>
+              <!-- Main Content -->
+              <div class="flex-1 relative z-10">
+                 
+                 <!-- Payee Info -->
+                 <div class="bg-gray-50 border border-gray-200 rounded-xl p-6 mb-8">
+                    <div class="flex justify-between items-center mb-4">
+                       <div>
+                          <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Paid To</p>
+                          <h3 class="text-2xl font-bold text-gray-900">${expense.staffName}</h3>
+                          <p class="text-sm text-gray-600 font-medium">${staff?.designation || 'Staff'} • ID: ${staff?.staffId || 'N/A'}</p>
+                       </div>
+                       <div class="text-right">
+                          <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Payment Method</p>
+                          <p class="text-lg font-bold text-gray-800">Cash / Adjustment</p>
+                       </div>
+                    </div>
+                 </div>
 
-             <!-- Content -->
-             <div class="content">
-                
-                <div class="row">
-                   <span class="label">Pay To:</span>
-                   <span class="value">${expense.staffName} <span class="text-xs font-normal text-gray-500 ml-2">(${staff?.staffId || 'N/A'} - ${staff?.designation || 'Staff'})</span></span>
-                </div>
+                 <!-- Payment Details -->
+                 <div class="mb-8">
+                    <h4 class="text-sm font-black text-gray-800 uppercase border-b border-gray-300 pb-2 mb-4">Payment Details</h4>
+                    <div class="flex justify-between items-start mb-4">
+                       <div class="w-2/3 pr-8">
+                          <p class="text-xs font-bold text-gray-500 uppercase mb-1">Description / Particulars</p>
+                          <p class="text-lg font-medium text-gray-900 leading-relaxed">${expense.reason}</p>
+                       </div>
+                       <div class="w-1/3 bg-gray-900 text-white p-4 rounded-xl text-center shadow-lg">
+                          <p class="text-xs font-bold text-gray-400 uppercase mb-1">Total Amount</p>
+                          <p class="text-3xl font-black">৳ ${expense.amount.toLocaleString()}</p>
+                       </div>
+                    </div>
+                 </div>
 
-                <div class="row">
-                   <span class="label">Particulars:</span>
-                   <span class="value">${expense.reason}</span>
-                </div>
+                 <!-- Ledger Summary -->
+                 <div class="mt-8 mb-12">
+                    <h4 class="text-sm font-black text-gray-800 uppercase border-b border-gray-300 pb-2 mb-4">Account Ledger Status (Regular)</h4>
+                    <table class="w-full text-sm border border-gray-300">
+                       <thead>
+                          <tr class="bg-gray-100 text-gray-700">
+                             <th class="p-3 border-r border-gray-300 text-left w-1/3">Total Approved Expenses</th>
+                             <th class="p-3 border-r border-gray-300 text-left w-1/3">Total Regular Advances</th>
+                             <th class="p-3 text-right w-1/3">Net Balance</th>
+                          </tr>
+                       </thead>
+                       <tbody>
+                          <tr>
+                             <td class="p-3 border-r border-gray-300 font-mono font-bold text-gray-600">৳ ${staffApprovedExpenses.toLocaleString()}</td>
+                             <td class="p-3 border-r border-gray-300 font-mono font-bold text-gray-600">৳ ${staffRegularAdvances.toLocaleString()}</td>
+                             <td class="p-3 text-right font-black text-lg" style="color: ${balanceColor}">
+                                ${balanceText}
+                             </td>
+                          </tr>
+                       </tbody>
+                    </table>
+                    <p class="text-[10px] text-gray-400 mt-2 italic">* This balance reflects the current financial standing of the staff member after this transaction.</p>
+                 </div>
 
-                <div class="row items-center">
-                   <span class="label">Amount (BDT):</span>
-                   <div class="amount-box">৳ ${expense.amount.toLocaleString()}</div>
-                </div>
+              </div>
 
-                <!-- Ledger Summary Table -->
-                <div class="mt-8">
-                   <p class="text-[10px] font-bold text-gray-500 uppercase mb-1">Account Ledger Summary (Regular):</p>
-                   <table class="footer-table">
-                      <thead>
-                         <tr>
-                            <th>Total Approved Exp</th>
-                            <th>Total Regular Adv</th>
-                            <th>Current Balance Status</th>
-                         </tr>
-                      </thead>
-                      <tbody>
-                         <tr>
-                            <td class="font-mono">৳ ${staffApprovedExpenses.toLocaleString()}</td>
-                            <td class="font-mono">৳ ${staffRegularAdvances.toLocaleString()}</td>
-                            <td class="font-black" style="color: ${balanceColor}">${balanceText}</td>
-                         </tr>
-                      </tbody>
-                   </table>
-                </div>
+              <!-- Footer Signatures -->
+              <div class="mt-auto relative z-10">
+                 
+                 <!-- Stamp -->
+                 <div class="stamp">MD APPROVED</div>
 
-                <!-- Signatures -->
-                <div class="signatures">
-                   <div class="sig-box">
-                      <div class="sig-line"></div>
-                      <div class="sig-title">Receiver's Signature</div>
-                   </div>
-                   <div class="sig-box">
-                      <div class="sig-line"></div>
-                      <div class="sig-title">Accounts / Admin</div>
-                   </div>
-                   <div class="sig-box">
-                      <div class="sig-line"></div>
-                      <div class="sig-title">Managing Director</div>
-                   </div>
-                </div>
+                 <div class="flex justify-between items-end pt-8 pb-4">
+                    <div class="text-center">
+                       <div class="border-t-2 border-gray-400 w-48 mb-2"></div>
+                       <p class="text-xs font-bold text-gray-500 uppercase tracking-wider">Receiver's Signature</p>
+                    </div>
 
-                <div class="mt-6 text-center text-[8px] text-gray-400">
-                   This is a computer-generated document. Printed on ${new Date().toLocaleString('en-GB')}
-                </div>
-             </div>
-          </div>
+                    <div class="text-center">
+                       <div class="border-t-2 border-gray-400 w-48 mb-2"></div>
+                       <p class="text-xs font-bold text-gray-500 uppercase tracking-wider">Accounts / Admin</p>
+                    </div>
 
+                    <div class="text-center">
+                       <div class="border-t-2 border-gray-900 w-48 mb-2"></div>
+                       <p class="text-sm font-bold text-gray-900">Shariful Islam</p>
+                       <p class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Managing Director</p>
+                    </div>
+                 </div>
+
+                 <div class="border-t border-gray-200 pt-4 flex justify-between items-center text-[10px] text-gray-400">
+                    <p>System Generated Voucher via Billing Center App.</p>
+                    <p>Printed On: ${new Date().toLocaleString()}</p>
+                 </div>
+              </div>
+           </div>
         </div>
         <script>window.onload = () => { setTimeout(() => { window.print(); }, 500); }</script>
       </body>
