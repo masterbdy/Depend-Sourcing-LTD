@@ -250,7 +250,11 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
 
           <div class="footer">
              <div><p>System Generated Report.</p></div>
-             <div class="text-right"><div class="h-8 border-b border-gray-400 w-32 mb-1"></div><p class="font-bold uppercase">Managing Director Signature</p></div>
+             <div class="text-center" style="width: 200px; margin-left: auto;">
+                <div class="h-px bg-gray-800 w-full mb-1"></div>
+                <p class="font-bold text-sm text-gray-800">Shariful Islam</p>
+                <p class="text-[10px] font-bold text-gray-500 uppercase">Managing Director</p>
+             </div>
           </div>
         </div>
         <script>window.onload = () => { setTimeout(() => { window.print(); }, 500); }</script>
@@ -386,7 +390,10 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
 
           <div class="footer">
              <div><p>Depend Sourcing Ltd. Internal Document.</p></div>
-             <div class="text-right"><div class="h-8 border-b border-gray-400 w-32 mb-1"></div><p class="font-bold uppercase">Authorized Signature</p></div>
+             <div class="text-center" style="width: 200px; margin-left: auto;">
+                <div class="h-px bg-gray-800 w-full mb-1"></div>
+                <p class="font-bold text-sm text-gray-800">Authorized Signature</p>
+             </div>
           </div>
         </div>
         <script>window.onload = () => { setTimeout(() => { window.print(); }, 500); }</script>
@@ -529,7 +536,11 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
           </table>
           <div class="footer">
              <div><p>Depend Sourcing Ltd. Confidential.</p></div>
-             <div class="text-right"><div class="h-8 border-b border-gray-400 w-32 mb-1"></div><p class="font-bold uppercase">Managing Director Signature</p></div>
+             <div class="text-center" style="width: 200px; margin-left: auto;">
+                <div class="h-px bg-gray-800 w-full mb-1"></div>
+                <p class="font-bold text-sm text-gray-800">Shariful Islam</p>
+                <p class="text-[10px] font-bold text-gray-500 uppercase">Managing Director</p>
+             </div>
           </div>
         </div>
         <script>window.onload = () => { setTimeout(() => { window.print(); }, 500); }</script>

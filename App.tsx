@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
-  LayoutGrid, UsersRound, Route, Banknote, PieChart, Settings2, Recycle, 
+  LayoutGrid, UsersRound, Footprints, Banknote, PieChart, Settings2, Recycle, 
   LogOut, Wallet, User, Cloud, WifiOff, AlertTriangle, Menu, X, RefreshCw, Lock, ArrowRightLeft, XCircle, Landmark, Bell, Phone, Briefcase, Crown, UserCog, ShieldCheck, Camera, Save, KeyRound, CreditCard, MessageSquareWarning, MapPin, MonitorSmartphone, Satellite, Trophy, Gift, Shield, CheckCircle, LogIn, Sparkles, ClipboardList, Check, Eye, EyeOff, Moon, Sun, Loader2, Grid, Info, BellRing, ChevronRight, Fingerprint, Megaphone, Radar, ShieldAlert, MessageCircleMore, Download, UserCheck
 } from 'lucide-react';
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
@@ -920,7 +921,7 @@ const App: React.FC = () => {
     { id: 'complaints', label: 'অভিযোগ বক্স', icon: ShieldAlert, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-red-600', bgColor: 'bg-red-50' },
     { id: 'funds', label: 'ফান্ড লেজার', icon: Landmark, roles: [UserRole.ADMIN, UserRole.MD], color: 'text-emerald-600', bgColor: 'bg-emerald-50' },
     { id: 'staff', label: 'স্টাফ ম্যানেজমেন্ট', icon: UsersRound, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-indigo-600', bgColor: 'bg-indigo-50' },
-    { id: 'movements', label: 'মুভমেন্ট লগ', icon: Route, roles: [UserRole.ADMIN, UserRole.STAFF], color: 'text-amber-600', bgColor: 'bg-amber-50' },
+    { id: 'movements', label: 'মুভমেন্ট লগ', icon: Footprints, roles: [UserRole.ADMIN, UserRole.STAFF], color: 'text-amber-600', bgColor: 'bg-amber-50' },
     { id: 'reports', label: 'রিপোর্ট ও ফাইল', icon: PieChart, roles: [UserRole.ADMIN, UserRole.MD], color: 'text-slate-600', bgColor: 'bg-slate-50' },
     { id: 'settings', label: 'সেটিংস', icon: Settings2, roles: [UserRole.ADMIN], color: 'text-gray-600', bgColor: 'bg-gray-50' },
     { id: 'trash', label: 'রিসাইকেল বিন', icon: Recycle, roles: [UserRole.ADMIN], color: 'text-red-500', bgColor: 'bg-red-50' },

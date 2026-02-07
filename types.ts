@@ -47,6 +47,10 @@ export interface MovementLog {
   checkIn?: string;
   checkOut?: string;
   location?: string;
+  purpose?: string; // New: Reason for movement
+  transportMode?: string; // New: Bus, Rickshaw, etc.
+  transportCost?: number; // New: Actual Transport Cost
+  authorizedBy?: string; // New: Who authorized/sent the staff
   allowanceType?: 'LUNCH' | 'DINNER' | 'NIGHT' | 'HOLIDAY' | 'NONE'; // Added HOLIDAY
   amount?: number;
   isDeleted?: boolean;

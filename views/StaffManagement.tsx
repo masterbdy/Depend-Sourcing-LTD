@@ -1,6 +1,5 @@
-
 import React, { useState, useMemo, useRef } from 'react';
-import { Plus, Search, Edit2, Trash2, UserPlus, X, Calendar, FilterX, Phone, Banknote, Users, UserCheck, UserX, ArrowUpDown, ShieldCheck, ShieldAlert, Eye, EyeOff, Lock, Camera, Image as ImageIcon, Briefcase, Wallet, ArrowRight, Coins, Crown, UserCog, History, CalendarClock, MapPin, LocateFixed, Globe, ToggleLeft, ToggleRight, Map, MonitorSmartphone, Gift, Star, MoreVertical, WalletCards, AlertTriangle, CheckCircle, RotateCcw, TrendingDown } from 'lucide-react';
+import { Plus, Search, Edit3, Trash2, UserPlus, X, Calendar, FilterX, Phone, Banknote, Users, UserCheck, UserX, ArrowUpDown, ShieldCheck, ShieldAlert, Eye, EyeOff, Lock, Camera, Image as ImageIcon, Briefcase, Wallet, ArrowRight, Coins, Crown, UserCog, History, CalendarClock, MapPin, LocateFixed, Globe, ToggleLeft, ToggleRight, Map, MonitorSmartphone, Gift, Star, MoreVertical, WalletCards, AlertTriangle, CheckCircle, RotateCcw, TrendingDown, Maximize2, Minimize2, ChevronDown, Sparkles, CreditCard } from 'lucide-react';
 import { Staff, UserRole, Expense, AdvanceLog } from '../types';
 import { ROLE_LABELS } from '../constants';
 
@@ -21,6 +20,9 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
   const [endDate, setEndDate] = useState('');
   const [sortBy, setSortBy] = useState('newest'); 
   
+  // Expanded Card State
+  const [expandedStaffId, setExpandedStaffId] = useState<string | null>(null);
+
   // Profile/Edit Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
@@ -187,6 +189,10 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
       customLat: 0, customLng: 0, customRadius: 200, customLocName: '',
       hasSecondLoc: false, customLat2: 0, customLng2: 0, customRadius2: 200, customLocName2: ''
     });
+  };
+
+  const toggleExpand = (staffId: string) => {
+    setExpandedStaffId(prev => prev === staffId ? null : staffId);
   };
 
   const openEdit = (staff: Staff) => {
@@ -567,126 +573,245 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
         </button>
       </div>
 
-      {/* BOX/CARD GRID VIEW */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      {/* ULTRA PREMIUM GRID VIEW */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
         {filteredStaff.map((staff) => {
           if (!staff) return null;
-          const { balance, totalSalaryAdv } = getStaffFinancials(staff.id);
+          const { balance, totalSalaryAdv, totalRegularAdv, approved } = getStaffFinancials(staff.id);
           const safeName = staff.name || 'Unknown';
           const safeId = staff.staffId || 'N/A';
           const isActive = staff.status === 'ACTIVE';
+          const joinDate = new Date(staff.createdAt).toLocaleDateString('bn-BD', { month: 'short', year: 'numeric' });
+          const isExpanded = expandedStaffId === staff.id;
 
           return (
-            <div key={staff.id} className="group relative bg-white dark:bg-gray-800/60 dark:backdrop-blur-md rounded-2xl shadow-sm hover:shadow-xl border border-gray-200 dark:border-white/10 overflow-hidden transition-all duration-300 hover:-translate-y-1">
-              <div className={`h-24 w-full absolute top-0 left-0 ${isActive ? 'bg-gradient-to-r from-indigo-500 to-purple-600' : 'bg-gradient-to-r from-gray-400 to-gray-500'}`}></div>
-              <div className="relative pt-12 px-5 pb-5 flex flex-col h-full">
-                  
-                  {/* Points Badge (Moved to top-left corner) */}
-                  <div className="absolute top-3 left-3 bg-yellow-400 text-yellow-900 text-[10px] font-black px-2 py-1 rounded-full shadow-sm flex items-center gap-1 z-10 border border-yellow-200">
-                     <Star className="w-3 h-3 fill-yellow-900" /> {formatPoints(staff.points || 0)}
-                  </div>
+            <div 
+               key={staff.id} 
+               className={`group relative transition-all duration-500 ease-in-out z-0 ${isExpanded ? 'col-span-2 md:col-span-3 lg:col-span-3 row-span-2 z-10' : 'col-span-1 z-0'}`}
+            >
+                {/* --- EXPANDED VIEW (Dashboard Style) --- */}
+                {isExpanded ? (
+                   <div className="relative bg-white dark:bg-gray-800 rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden h-full animate-in fade-in zoom-in duration-300 flex flex-col">
+                      
+                      {/* Premium Header */}
+                      <div className={`h-28 w-full relative shrink-0 ${isActive ? 'bg-gradient-to-r from-violet-600 to-indigo-600' : 'bg-gray-700'}`}>
+                          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
+                          
+                          <button 
+                             onClick={(e) => { e.stopPropagation(); toggleExpand(staff.id); }} 
+                             className="absolute top-3 right-3 bg-black/30 hover:bg-white/20 text-white p-1.5 rounded-full transition-all backdrop-blur-md z-20 border border-white/20"
+                             title="Minimize"
+                          >
+                             <Minimize2 className="w-5 h-5" />
+                          </button>
 
-                  <div className="flex flex-col items-center">
-                      <div className="relative">
-                          {staff.photo ? (
-                              <img src={staff.photo} alt={safeName} className="w-24 h-24 rounded-full object-cover border-4 border-white dark:border-gray-800 shadow-md bg-white" />
-                          ) : (
-                              <div className={`w-24 h-24 rounded-full flex items-center justify-center text-3xl font-black text-white border-4 border-white dark:border-gray-800 shadow-md ${isActive ? 'bg-indigo-400' : 'bg-gray-400'}`}>
-                                  {safeName.charAt(0)}
-                              </div>
-                          )}
-                          <div className={`absolute bottom-1 right-1 w-5 h-5 rounded-full border-2 border-white dark:border-gray-800 ${isActive ? 'bg-green-500' : 'bg-red-500'}`} title={isActive ? 'Active' : 'Inactive'}></div>
-                      </div>
-                      <div className="mt-3 text-center">
-                          <h3 className="text-lg font-bold text-gray-800 dark:text-white leading-tight">{safeName}</h3>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mt-1">{staff.designation}</p>
-                          <div className="flex items-center justify-center gap-2 mt-2">
-                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600">{safeId}</span>
-                              {staff.role !== UserRole.STAFF && (
-                                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                                      staff.role === UserRole.MD ? 'bg-purple-100 text-purple-700' : 
-                                      staff.role === UserRole.ADMIN ? 'bg-blue-100 text-blue-700' : 
-                                      'bg-orange-100 text-orange-700'
-                                  }`}>
-                                      {staff.role === UserRole.KIOSK ? 'KIOSK' : staff.role}
-                                  </span>
-                              )}
+                          <div className="absolute top-4 left-5 flex items-center gap-2">
+                              <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-white/20 text-white backdrop-blur-md border border-white/30 shadow-sm flex items-center gap-1`}>
+                                  {staff.role === UserRole.MD ? <Crown className="w-3 h-3 text-yellow-300" /> : <Users className="w-3 h-3" />}
+                                  {staff.role === UserRole.KIOSK ? 'KIOSK' : staff.role}
+                              </span>
+                              {staff.workLocation === 'FIELD' && <span className="text-[10px] font-bold text-white bg-orange-500/80 px-2 py-0.5 rounded border border-white/20">FIELD</span>}
                           </div>
                       </div>
-                  </div>
-                  
-                  {/* Updated Info Section with deeper backgrounds */}
-                  <div className="mt-6 space-y-3 flex-1">
-                      <div className="flex items-center gap-3 p-2.5 rounded-xl bg-gray-100 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600">
-                          <Phone className="w-4 h-4 text-gray-500" />
-                          <span className="text-sm font-bold text-gray-800 dark:text-gray-200">{staff.mobile || 'N/A'}</span>
-                      </div>
-                      <div className="flex items-center gap-3 p-2.5 rounded-xl bg-gray-100 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600">
-                          <MapPin className="w-4 h-4 text-gray-500" />
-                          <span className="text-xs font-bold text-gray-800 dark:text-gray-200 truncate" title={staff.workLocation}>
-                              {staff.workLocation === 'CUSTOM' ? staff.customLocation?.name || 'Custom Loc' : staff.workLocation}
-                          </span>
-                      </div>
-                  </div>
-                  
-                  {/* Updated Grid: Balance vs Salary Advance with deeper backgrounds */}
-                  <div className="grid grid-cols-2 gap-3 mt-4">
-                      {/* Operational Balance */}
-                      <div className={`rounded-xl p-3 text-center border ${balance < 0 ? 'bg-red-100 border-red-200 dark:bg-red-900/40 dark:border-red-800' : 'bg-indigo-100 border-indigo-200 dark:bg-indigo-900/40 dark:border-indigo-800'}`}>
-                          <p className={`text-[9px] uppercase font-black ${balance < 0 ? 'text-red-700' : 'text-gray-600 dark:text-gray-400'}`}>
-                            {balance < 0 ? 'পাবে (Payable)' : 'হাতে আছে (Cash)'}
-                          </p>
-                          <p className={`text-sm font-black ${balance < 0 ? 'text-red-800 dark:text-red-400' : 'text-indigo-800 dark:text-indigo-400'}`}>
-                             {balance < 0 ? '- ' : ''}৳ {Math.abs(balance).toLocaleString()}
-                          </p>
-                      </div>
-                      {/* Salary Advance */}
-                      <div className="bg-purple-100 dark:bg-purple-900/40 rounded-xl p-3 text-center border border-purple-200 dark:border-purple-800">
-                          <p className="text-[9px] uppercase font-black text-purple-700">বেতন অগ্রিম</p>
-                          <p className="text-sm font-black text-purple-800 dark:text-purple-400">
-                              ৳ {totalSalaryAdv.toLocaleString()}
-                          </p>
-                      </div>
-                  </div>
 
-                  <div className="flex items-center justify-center gap-2 mt-5 pt-4 border-t border-gray-100 dark:border-white/10">
-                       <button onClick={() => openEdit(staff)} className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300 hover:bg-indigo-600 hover:text-white transition-colors" title="এডিট করুন">
-                          <Edit2 className="w-3.5 h-3.5" />
-                       </button>
-                       {canManageMoney && (
-                          <>
-                              <button onClick={() => openGiftModal(staff.id)} className="w-8 h-8 flex items-center justify-center rounded-full bg-yellow-50 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 hover:bg-yellow-500 hover:text-white transition-colors" title="পয়েন্ট ম্যানেজ করুন (গিফট/পেনাল্টি)">
-                                  <Gift className="w-3.5 h-3.5" />
-                              </button>
-                              <button onClick={() => openAdvanceModal(staff.id)} className="w-8 h-8 flex items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white transition-colors" title="টাকা দিন (Advance)">
-                                  <Banknote className="w-3.5 h-3.5" />
-                              </button>
-                              <button onClick={() => openRepayModal(staff.id)} className="w-8 h-8 flex items-center justify-center rounded-full bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-600 hover:text-white transition-colors" title="বেতন সমন্বয় (Adjustment)">
-                                  <WalletCards className="w-3.5 h-3.5" />
-                              </button>
-                          </>
-                       )}
-                       
-                       {/* History Button - Visible to everyone for their own card */}
-                       <button onClick={() => setHistoryStaff(staff)} className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-800 hover:text-white transition-colors" title="লেনদেন হিস্ট্রি দেখুন">
-                          <History className="w-3.5 h-3.5" />
-                       </button>
+                      {/* Overlapping Content */}
+                      <div className="px-6 flex flex-col md:flex-row gap-5 -mt-10 relative z-10">
+                          {/* Avatar */}
+                          <div className="relative shrink-0 group/avatar">
+                              <div className={`w-28 h-28 rounded-2xl border-[4px] border-white dark:border-gray-800 shadow-2xl overflow-hidden bg-white relative ${isActive ? '' : 'grayscale'}`}>
+                                  {staff.photo ? (
+                                      <img src={staff.photo} alt={safeName} className="w-full h-full object-cover" />
+                                  ) : (
+                                      <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400 text-4xl font-black">
+                                          {safeName.charAt(0)}
+                                      </div>
+                                  )}
+                              </div>
+                              <div className={`absolute bottom-2 right-2 w-5 h-5 rounded-full border-2 border-white dark:border-gray-800 shadow-sm ${isActive ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+                          </div>
 
-                       {!isStaff && (
-                          <>
-                            <button onClick={() => requestStatusChange(staff.id, staff.status)} className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${isActive ? 'bg-orange-50 dark:bg-orange-900/30 text-orange-500 hover:bg-orange-500 hover:text-white' : 'bg-green-50 dark:bg-green-900/30 text-green-500 hover:bg-green-500 hover:text-white'}`} title={isActive ? 'Deactivate' : 'Activate'}>
-                                {isActive ? <UserX className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
-                            </button>
-                            {/* CHANGED: Only Admin can delete */}
-                            {role === UserRole.ADMIN && (
-                                <button onClick={() => handleDeleteRequest(staff.id)} className="w-8 h-8 flex items-center justify-center rounded-full bg-red-50 dark:bg-red-900/30 text-red-500 hover:bg-red-500 hover:text-white transition-colors" title="মুছে ফেলুন">
-                                    <Trash2 className="w-3.5 h-3.5" />
+                          {/* Name & Quick Info */}
+                          <div className="pt-12 md:pt-11 flex-1">
+                              <h2 className="text-2xl font-black text-gray-900 dark:text-white leading-none mb-1">{safeName}</h2>
+                              <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wide mb-3">{staff.designation}</p>
+                              
+                              <div className="flex flex-wrap gap-2">
+                                 <span className="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2.5 py-1 rounded-lg text-xs font-mono font-bold border border-gray-200 dark:border-gray-600">
+                                     {safeId}
+                                 </span>
+                                 <span className="bg-yellow-50 text-yellow-700 border border-yellow-200 px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1">
+                                    <Star className="w-3 h-3 fill-yellow-500 text-yellow-600" /> {formatPoints(staff.points || 0)} pts
+                                 </span>
+                              </div>
+                          </div>
+                      </div>
+
+                      {/* Main Body */}
+                      <div className="p-6 flex-1 flex flex-col gap-6 overflow-y-auto custom-scrollbar">
+                          
+                          {/* Financial "Credit Card" Widget */}
+                          <div className="w-full bg-gradient-to-br from-gray-900 via-slate-800 to-gray-900 rounded-2xl p-5 text-white shadow-xl relative overflow-hidden group/card border border-white/5">
+                              <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none group-hover/card:bg-white/10 transition-all duration-500"></div>
+                              <div className="absolute bottom-0 left-0 w-40 h-40 bg-indigo-500/20 rounded-full blur-2xl -ml-10 -mb-10 pointer-events-none"></div>
+                              
+                              <div className="flex justify-between items-start mb-8 relative z-10">
+                                  <div className="flex items-center gap-2 opacity-80">
+                                      <div className="p-2 bg-white/10 rounded-lg backdrop-blur-md">
+                                          <CreditCard className="w-5 h-5 text-indigo-300" />
+                                      </div>
+                                      <div>
+                                          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-200 block">Current Balance</span>
+                                          <span className="text-[8px] font-bold text-gray-400">Real-time Data</span>
+                                      </div>
+                                  </div>
+                                  <div className="text-right">
+                                      <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest mb-0.5">Status</p>
+                                      <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${balance < 0 ? 'bg-red-500/20 text-red-300 border-red-500/30' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'}`}>
+                                          {balance < 0 ? 'PAYABLE' : 'CASH IN HAND'}
+                                      </span>
+                                  </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-6 relative z-10">
+                                  <div className="flex flex-col">
+                                      <p className="text-[9px] font-extrabold text-gray-500 uppercase tracking-[0.1em] mb-1">Total Balance</p>
+                                      <p className={`text-2xl font-black tracking-tighter ${balance < 0 ? 'text-red-400 drop-shadow-[0_0_15px_rgba(248,113,113,0.4)]' : 'text-white drop-shadow-md'}`}>
+                                          <span className="text-sm font-bold mr-0.5 opacity-60 font-sans">৳</span>
+                                          {balance.toLocaleString('en-US')}
+                                      </p>
+                                  </div>
+                                  <div className="flex flex-col">
+                                      <p className="text-[9px] font-extrabold text-gray-500 uppercase tracking-[0.1em] mb-1">Salary Adv</p>
+                                      <p className="text-2xl font-black tracking-tighter text-purple-300 drop-shadow-[0_0_15px_rgba(216,180,254,0.3)]">
+                                          <span className="text-sm font-bold mr-0.5 opacity-60 font-sans">৳</span>
+                                          {totalSalaryAdv.toLocaleString('en-US')}
+                                      </p>
+                                  </div>
+                                  <div className="flex flex-col">
+                                      <p className="text-[9px] font-extrabold text-gray-500 uppercase tracking-[0.1em] mb-1">Total Expense</p>
+                                      <p className="text-xl font-black tracking-tighter text-indigo-300 drop-shadow-md">
+                                          <span className="text-xs font-bold mr-0.5 opacity-60 font-sans">৳</span>
+                                          {approved.toLocaleString('en-US')}
+                                      </p>
+                                  </div>
+                                  <div className="flex flex-col">
+                                      <p className="text-[9px] font-extrabold text-gray-500 uppercase tracking-[0.1em] mb-1">Regular Adv</p>
+                                      <p className="text-xl font-black tracking-tighter text-blue-300 drop-shadow-md">
+                                          <span className="text-xs font-bold mr-0.5 opacity-60 font-sans">৳</span>
+                                          {totalRegularAdv.toLocaleString('en-US')}
+                                      </p>
+                                  </div>
+                              </div>
+                          </div>
+
+                          {/* Info Grid */}
+                          <div className="grid grid-cols-2 gap-4">
+                              <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-100 dark:border-gray-600 flex items-center gap-3">
+                                  <div className="bg-white dark:bg-gray-600 p-2 rounded-lg text-indigo-500 shadow-sm"><Phone className="w-4 h-4"/></div>
+                                  <div>
+                                      <p className="text-[9px] text-gray-400 font-bold uppercase">Contact</p>
+                                      <p className="text-xs font-bold text-gray-800 dark:text-gray-200">{staff.mobile || 'N/A'}</p>
+                                  </div>
+                              </div>
+                              <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-100 dark:border-gray-600 flex items-center gap-3">
+                                  <div className="bg-white dark:bg-gray-600 p-2 rounded-lg text-pink-500 shadow-sm"><MapPin className="w-4 h-4"/></div>
+                                  <div>
+                                      <p className="text-[9px] text-gray-400 font-bold uppercase">Location</p>
+                                      <p className="text-xs font-bold text-gray-800 dark:text-gray-200 truncate">{staff.workLocation === 'CUSTOM' ? 'Custom' : staff.workLocation}</p>
+                                  </div>
+                              </div>
+                              <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-100 dark:border-gray-600 flex items-center gap-3">
+                                  <div className="bg-white dark:bg-gray-600 p-2 rounded-lg text-blue-500 shadow-sm"><Calendar className="w-4 h-4"/></div>
+                                  <div>
+                                      <p className="text-[9px] text-gray-400 font-bold uppercase">Joined</p>
+                                      <p className="text-xs font-bold text-gray-800 dark:text-gray-200">{joinDate}</p>
+                                  </div>
+                              </div>
+                              {(role === UserRole.ADMIN || role === UserRole.MD) && (
+                                  <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-100 dark:border-gray-600 flex items-center gap-3">
+                                      <div className="bg-white dark:bg-gray-600 p-2 rounded-lg text-green-500 shadow-sm"><Wallet className="w-4 h-4"/></div>
+                                      <div>
+                                          <p className="text-[9px] text-gray-400 font-bold uppercase">Salary</p>
+                                          <p className="text-xs font-bold text-gray-800 dark:text-gray-200">৳ {staff.basicSalary?.toLocaleString() || 0}</p>
+                                      </div>
+                                  </div>
+                              )}
+                          </div>
+
+                          {/* Control Dock */}
+                          <div className="mt-auto pt-4 border-t border-gray-100 dark:border-gray-700">
+                             <div className="flex gap-2 justify-between">
+                                <button onClick={(e) => { e.stopPropagation(); openEdit(staff); }} className="flex-1 bg-gray-50 dark:bg-gray-700 hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-600 text-gray-600 dark:text-gray-300 py-3 rounded-xl flex flex-col items-center justify-center gap-1 transition-all group">
+                                   <Edit3 className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                                   <span className="text-[9px] font-bold">EDIT</span>
                                 </button>
+                                <button onClick={(e) => { e.stopPropagation(); setHistoryStaff(staff); }} className="flex-1 bg-gray-50 dark:bg-gray-700 hover:bg-gray-800 hover:text-white text-gray-600 dark:text-gray-300 py-3 rounded-xl flex flex-col items-center justify-center gap-1 transition-all group">
+                                   <History className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                                   <span className="text-[9px] font-bold">HISTORY</span>
+                                </button>
+                                {canManageMoney && (
+                                   <>
+                                      <button onClick={(e) => { e.stopPropagation(); openAdvanceModal(staff.id); }} className="flex-1 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-600 hover:text-white text-blue-600 dark:text-blue-400 py-3 rounded-xl flex flex-col items-center justify-center gap-1 transition-all group">
+                                         <Banknote className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                                         <span className="text-[9px] font-bold">ADVANCE</span>
+                                      </button>
+                                      <button onClick={(e) => { e.stopPropagation(); openRepayModal(staff.id); }} className="flex-1 bg-green-50 dark:bg-green-900/20 hover:bg-green-600 hover:text-white text-green-600 dark:text-green-400 py-3 rounded-xl flex flex-col items-center justify-center gap-1 transition-all group">
+                                         <WalletCards className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                                         <span className="text-[9px] font-bold">ADJUST</span>
+                                      </button>
+                                      <button onClick={(e) => { e.stopPropagation(); openGiftModal(staff.id); }} className="flex-1 bg-yellow-50 dark:bg-yellow-900/20 hover:bg-yellow-500 hover:text-white text-yellow-600 dark:text-yellow-400 py-3 rounded-xl flex flex-col items-center justify-center gap-1 transition-all group">
+                                         <Gift className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                                         <span className="text-[9px] font-bold">POINTS</span>
+                                      </button>
+                                   </>
+                                )}
+                                {!isStaff && role === UserRole.ADMIN && (
+                                   <button onClick={(e) => { e.stopPropagation(); handleDeleteRequest(staff.id); }} className="flex-1 bg-red-50 dark:bg-red-900/20 hover:bg-red-600 hover:text-white text-red-500 dark:text-red-400 py-3 rounded-xl flex flex-col items-center justify-center gap-1 transition-all group">
+                                      <Trash2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                                      <span className="text-[9px] font-bold">DELETE</span>
+                                   </button>
+                                )}
+                             </div>
+                          </div>
+                      </div>
+                   </div>
+                ) : (
+                   /* --- COMPACT VIEW (Premium ID Card) --- */
+                   <div 
+                     onClick={() => toggleExpand(staff.id)} 
+                     className={`h-full bg-white dark:bg-gray-800 rounded-2xl p-4 cursor-pointer relative overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-xl border ${isActive ? 'border-gray-100 dark:border-gray-700' : 'border-gray-100 dark:border-gray-700 opacity-80'}`}
+                   >
+                      {/* Active Glow for Active Staff */}
+                      {isActive && <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-green-400 to-emerald-500"></div>}
+                      
+                      <div className="flex flex-col items-center text-center h-full justify-center gap-3 relative z-10">
+                         <div className="relative">
+                            {staff.photo ? (
+                               <img src={staff.photo} alt={safeName} className={`w-16 h-16 rounded-full object-cover border-2 shadow-md ${isActive ? 'border-white ring-2 ring-green-100 dark:ring-green-900' : 'border-gray-200 grayscale'}`} />
+                            ) : (
+                               <div className={`w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold text-white shadow-md ${isActive ? 'bg-gradient-to-br from-indigo-400 to-violet-500' : 'bg-gray-400'}`}>
+                                  {safeName.charAt(0)}
+                               </div>
                             )}
-                          </>
-                       )}
-                  </div>
-              </div>
+                            <div className={`absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-white dark:border-gray-800 shadow-sm ${isActive ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                         </div>
+                         
+                         <div>
+                            <h4 className="text-sm font-black text-gray-800 dark:text-white truncate max-w-[140px] leading-tight">{safeName}</h4>
+                            <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 mt-0.5 truncate max-w-[140px]">{staff.designation}</p>
+                            <span className="text-[9px] text-gray-400 font-mono mt-1 block">{safeId}</span>
+                         </div>
+
+                         {/* Mini Badge for Role */}
+                         {staff.role !== UserRole.STAFF && (
+                            <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${staff.role === UserRole.MD ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                               {staff.role}
+                            </span>
+                         )}
+                      </div>
+                   </div>
+                )}
             </div>
           );
         })}

@@ -1,6 +1,6 @@
 
-import React, { useState, useMemo } from 'react';
-import { LogIn, LogOut, Clock, Info, Search, Calendar, FilterX, CalendarDays } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { LogIn, LogOut, Clock, Info, Search, Calendar, FilterX, CalendarDays, MapPin, User, Bus, Banknote, X } from 'lucide-react';
 import { MovementLog, Staff, BillingRule, UserRole, ChatMessage } from '../types';
 
 interface MovementProps {
@@ -15,8 +15,16 @@ interface MovementProps {
 }
 
 const MovementLogView: React.FC<MovementProps> = ({ movements = [], setMovements, staffList = [], billingRules = [], role, setMessages, currentUser, onUpdatePoints }) => {
+  // Checkout Form State
   const [selectedStaff, setSelectedStaff] = useState('');
+  const [authorizedBy, setAuthorizedBy] = useState('');
   const [location, setLocation] = useState('');
+  const [purpose, setPurpose] = useState('');
+  const [transportMode, setTransportMode] = useState('');
+
+  // Check-in Modal State
+  const [checkInModalId, setCheckInModalId] = useState<string | null>(null);
+  const [transportCost, setTransportCost] = useState<string>('');
 
   // Filtering States
   const [searchTerm, setSearchTerm] = useState('');
@@ -25,6 +33,32 @@ const MovementLogView: React.FC<MovementProps> = ({ movements = [], setMovements
 
   const activeStaff = (staffList || []).filter(s => !s.deletedAt && s.status === 'ACTIVE');
 
+  // Auto-select Staff for Non-Admin
+  useEffect(() => {
+    if (role === UserRole.STAFF && currentUser) {
+      const myself = activeStaff.find(s => s.name === currentUser);
+      if (myself) {
+        setSelectedStaff(myself.id);
+      }
+    }
+  }, [role, currentUser, staffList]);
+
+  // Predefined Options
+  const PURPOSE_OPTIONS = ['Client Visit', 'Bank Work', 'Purchase', 'Delivery', 'Personal', 'Lunch/Dinner', 'Other'];
+  
+  // Updated Transport Options with Icons & New Items
+  const TRANSPORT_OPTIONS = [
+    'Walking 🚶', 
+    'Rickshaw 🛺', 
+    'Bus 🚌', 
+    'CNG 🛺', 
+    'Motorbike 🏍️', 
+    'Company Car 🚘', 
+    'Uber/Pathao 🚗', 
+    'Metrorail 🚊', 
+    'Pickup 🚚'
+  ];
+
   // Filter Logic
   const filteredMovements = useMemo(() => {
     return (movements || [])
@@ -32,7 +66,8 @@ const MovementLogView: React.FC<MovementProps> = ({ movements = [], setMovements
       .filter(m => {
         const matchesSearch = 
           m.staffName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-          (m.location || '').toLowerCase().includes(searchTerm.toLowerCase());
+          (m.location || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (m.purpose || '').toLowerCase().includes(searchTerm.toLowerCase());
         
         const moveDate = new Date(m.checkOut || m.checkIn || new Date()).setHours(0, 0, 0, 0);
         const start = startDate ? new Date(startDate).setHours(0, 0, 0, 0) : null;
@@ -47,13 +82,20 @@ const MovementLogView: React.FC<MovementProps> = ({ movements = [], setMovements
 
   const handleCheckOut = () => {
     if (!selectedStaff) return alert('স্টাফ নির্বাচন করুন');
+    if (!authorizedBy) return alert('অনুমোদনকারী (কে পাঠিয়েছে) নির্বাচন করুন');
+    if (!location) return alert('গন্তব্য লিখুন');
+
     const staff = activeStaff.find(s => s.id === selectedStaff);
     const newMovement: MovementLog = {
       id: Math.random().toString(36).substr(2, 9),
       staffId: selectedStaff,
       staffName: staff?.name || '',
       checkOut: new Date().toISOString(),
-      location: location
+      location: location,
+      purpose: purpose || 'Official',
+      transportMode: transportMode || 'N/A',
+      authorizedBy: authorizedBy,
+      transportCost: 0
     };
     setMovements(prev => [newMovement, ...prev]);
     
@@ -64,9 +106,9 @@ const MovementLogView: React.FC<MovementProps> = ({ movements = [], setMovements
     if (staff) {
       const systemMsg: ChatMessage = {
         id: Math.random().toString(36).substr(2, 9),
-        text: `🚗 ${staff.name} (${staff.staffId}) এখন "${location}" এর উদ্দেশ্যে অফিস থেকে বের হলেন।`,
+        text: `🚗 ${staff.name} (${staff.staffId}) এখন "${location}" এর উদ্দেশ্যে বের হলেন।\nকারণ: ${purpose || 'Not specified'}\nঅনুমোদনে: ${authorizedBy}`,
         sender: 'System Bot',
-        role: UserRole.ADMIN, // Or a generic system role
+        role: UserRole.ADMIN,
         timestamp: new Date().toISOString(),
         type: 'SYSTEM_MOVEMENT',
         targetView: 'movements'
@@ -75,14 +117,29 @@ const MovementLogView: React.FC<MovementProps> = ({ movements = [], setMovements
     }
     // -------------------------------
 
-    setSelectedStaff('');
+    // Reset Form
+    if (role !== UserRole.STAFF) {
+        setSelectedStaff('');
+    }
     setLocation('');
+    setPurpose('');
+    setTransportMode('');
+    setAuthorizedBy(''); // Reset authorizedBy or keep it if admin prefers? Resetting is safer.
   };
 
-  const handleCheckIn = (id: string) => {
+  const openCheckInModal = (id: string) => {
+    setCheckInModalId(id);
+    setTransportCost('');
+  };
+
+  const confirmCheckIn = () => {
+    if (!checkInModalId) return;
+
     const checkInTime = new Date().toISOString();
+    const cost = Number(transportCost) || 0;
+
     setMovements(prev => prev.map(m => {
-      if (m.id === id) {
+      if (m.id === checkInModalId) {
         const checkOutDate = new Date(m.checkOut!);
         const checkInDate = new Date(checkInTime);
         
@@ -114,7 +171,6 @@ const MovementLogView: React.FC<MovementProps> = ({ movements = [], setMovements
              allowanceType = 'DINNER';
              amount = (billingRules || []).find(r => r.type === 'DINNER')?.amount || 0;
            } else if (hour > 21 || (hour === 21 && min >= 15)) {
-             // Only apply Night if not Dinner
              allowanceType = 'NIGHT';
              amount = (billingRules || []).find(r => r.type === 'NIGHT')?.amount || 0;
            }
@@ -123,7 +179,7 @@ const MovementLogView: React.FC<MovementProps> = ({ movements = [], setMovements
         // --- AUTO CHAT MESSAGE (RETURN) ---
         const returnMsg: ChatMessage = {
           id: Math.random().toString(36).substr(2, 9),
-          text: `✅ ${m.staffName} অফিসে ফিরে এসেছেন।${allowanceType === 'HOLIDAY' ? ' (Holiday Duty)' : ''}`,
+          text: `✅ ${m.staffName} অফিসে ফিরে এসেছেন।${cost > 0 ? ` (ভাড়া: ৳${cost})` : ''}`,
           sender: 'System Bot',
           role: UserRole.ADMIN,
           timestamp: new Date().toISOString(),
@@ -133,10 +189,13 @@ const MovementLogView: React.FC<MovementProps> = ({ movements = [], setMovements
         setMessages(prev => [...prev, returnMsg]);
         // ----------------------------------
 
-        return { ...m, checkIn: checkInTime, allowanceType, amount };
+        return { ...m, checkIn: checkInTime, allowanceType, amount, transportCost: cost };
       }
       return m;
     }));
+
+    setCheckInModalId(null);
+    setTransportCost('');
   };
 
   const clearFilters = () => {
@@ -157,47 +216,106 @@ const MovementLogView: React.FC<MovementProps> = ({ movements = [], setMovements
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
           <h3 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">
             <LogOut className="w-6 h-6 text-orange-500" />
-            মুভমেন্ট চেক-আউট
+            মুভমেন্ট চেক-আউট (অফিস থেকে বের হওয়া)
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            {/* 1. Who is going */}
             <div>
-              <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">স্টাফ মেম্বার</label>
+              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">স্টাফ মেম্বার</label>
+              <div className="relative">
+                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                 <select 
+                   className={`w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-gray-700 text-sm ${role === UserRole.STAFF ? 'opacity-80 cursor-not-allowed bg-gray-100' : ''}`}
+                   value={selectedStaff}
+                   onChange={(e) => setSelectedStaff(e.target.value)}
+                   disabled={role === UserRole.STAFF}
+                 >
+                   <option value="">কে যাচ্ছেন?</option>
+                   {activeStaff.map(s => (
+                     <option key={s.id} value={s.id}>{s.name}</option>
+                   ))}
+                 </select>
+              </div>
+            </div>
+
+            {/* 2. Sent By (Who authorized) */}
+            <div>
+              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">অনুমোদনকারী (কে পাঠিয়েছে?)</label>
+              <div className="relative">
+                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-400" />
+                 <select 
+                   className="w-full pl-9 pr-4 py-2.5 bg-indigo-50 border border-indigo-100 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-indigo-700 text-sm"
+                   value={authorizedBy}
+                   onChange={(e) => setAuthorizedBy(e.target.value)}
+                 >
+                   <option value="">কার নির্দেশে?</option>
+                   {activeStaff.map(s => (
+                     <option key={s.id} value={s.name}>{s.name}</option>
+                   ))}
+                 </select>
+              </div>
+            </div>
+
+            {/* 3. Destination */}
+            <div>
+              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">গন্তব্য</label>
+              <div className="relative">
+                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                 <input 
+                   type="text" 
+                   placeholder="কোথায় যাচ্ছেন?" 
+                   className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm font-semibold"
+                   value={location}
+                   onChange={(e) => setLocation(e.target.value)}
+                 />
+              </div>
+            </div>
+
+            {/* 4. Purpose */}
+            <div>
+              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">উদ্দেশ্য/কারণ</label>
               <select 
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-medium"
-                value={selectedStaff}
-                onChange={(e) => setSelectedStaff(e.target.value)}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm"
+                value={purpose}
+                onChange={(e) => setPurpose(e.target.value)}
               >
-                <option value="">নির্বাচন করুন...</option>
-                {activeStaff.map(s => (
-                  <option key={s.id} value={s.id}>{s.name} ({s.staffId})</option>
-                ))}
+                <option value="">কাজের ধরণ...</option>
+                {PURPOSE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
               </select>
             </div>
+
+            {/* 5. Transport */}
             <div>
-              <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">গন্তব্য/কারণ</label>
-              <input 
-                type="text" 
-                placeholder="কোথায় যাচ্ছেন?" 
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-              />
-            </div>
-            <div className="flex items-end">
-              <button 
-                onClick={handleCheckOut}
-                className="w-full bg-orange-500 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-orange-600 transition-colors shadow-lg shadow-orange-100 flex items-center justify-center gap-2 active:scale-95"
-              >
-                <LogOut className="w-5 h-5" />
-                বাইরে যান
-              </button>
+              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">বাহন</label>
+              <div className="relative">
+                 <Bus className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                 <select 
+                   className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm"
+                   value={transportMode}
+                   onChange={(e) => setTransportMode(e.target.value)}
+                 >
+                   <option value="">কিসে যাচ্ছেন? (ঐচ্ছিক)</option>
+                   {TRANSPORT_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                 </select>
+              </div>
             </div>
           </div>
+          
+          <div className="mt-4 flex justify-end">
+             <button 
+                onClick={handleCheckOut}
+                className="bg-orange-500 text-white px-8 py-3 rounded-xl font-bold hover:bg-orange-600 transition-colors shadow-lg shadow-orange-100 flex items-center justify-center gap-2 active:scale-95"
+              >
+                <LogOut className="w-5 h-5" />
+                চেক-আউট (Confirm)
+              </button>
+          </div>
+
           <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-lg flex items-start gap-3">
              <Info className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
              <div className="text-xs text-blue-700">
-               <p>অটোমেটেড বিলিং লজিক অনুযায়ী সময়মতো ফিরলে সিস্টেমে আপনার অ্যালাউন্স অটো যোগ হয়ে যাবে।</p>
-               <p className="mt-1 font-bold text-purple-600 flex items-center gap-1"><CalendarDays className="w-3 h-3"/> শুক্রবার বা ছুটির দিনে ডিউটি করলে অটোমেটিক ওভারটাইম/হলিডে বিল যুক্ত হবে।</p>
+               <p>সঠিক অনুমোদনকারী নির্বাচন করুন। ফিরে আসার সময় যাতায়াত ভাড়া এন্ট্রি করতে ভুলবেন না।</p>
+               <p className="mt-1 font-bold text-purple-600 flex items-center gap-1"><CalendarDays className="w-3 h-3"/> শুক্রবার বা ছুটির দিনে ডিউটি করলে অটোমেটিক হলিডে বিল যুক্ত হবে।</p>
              </div>
           </div>
         </div>
@@ -205,14 +323,13 @@ const MovementLogView: React.FC<MovementProps> = ({ movements = [], setMovements
 
       {/* Filter Bar */}
       <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-wrap items-end gap-4">
-        {/* ... (Previous Filter UI) ... */}
         <div className="flex-1 min-w-[200px]">
           <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">লগ খুঁজুন</label>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input 
               type="text" 
-              placeholder="নাম বা গন্তব্য..." 
+              placeholder="নাম, গন্তব্য বা কারণ..." 
               className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -261,9 +378,9 @@ const MovementLogView: React.FC<MovementProps> = ({ movements = [], setMovements
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
                 <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">নাম ও গন্তব্য</th>
-                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">চেক-আউট</th>
-                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">চেক-ইন</th>
-                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">অ্যালাউন্স</th>
+                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">বিবরণ (Purpose & Auth)</th>
+                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">সময়কাল</th>
+                <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">খরচ ও অ্যালাউন্স</th>
                 <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">অ্যাকশন</th>
               </tr>
             </thead>
@@ -275,37 +392,64 @@ const MovementLogView: React.FC<MovementProps> = ({ movements = [], setMovements
                     <td className="px-6 py-4">
                       <p className="font-bold text-gray-800">{move.staffName}</p>
                       {displayId && <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 rounded mr-1">{displayId}</span>}
-                      <span className="text-xs text-gray-400">{move.location}</span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      <p className="font-medium">{move.checkOut ? new Date(move.checkOut).toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }) : '--'}</p>
-                      <p className="text-[10px] text-gray-400">{move.checkOut ? new Date(move.checkOut).toLocaleDateString('bn-BD') : ''}</p>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {move.checkIn ? (
-                        <>
-                          <p className="font-medium">{new Date(move.checkIn).toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' })}</p>
-                          <p className="text-[10px] text-gray-400">{new Date(move.checkIn).toLocaleDateString('bn-BD')}</p>
-                        </>
-                      ) : (
-                        <span className="text-orange-500 font-bold text-xs animate-pulse">বাইরে আছেন</span>
-                      )}
+                      <div className="flex items-center gap-1 mt-1 text-xs text-gray-500">
+                         <MapPin className="w-3 h-3" /> {move.location}
+                      </div>
                     </td>
                     <td className="px-6 py-4">
-                      {move.allowanceType && move.allowanceType !== 'NONE' ? (
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-tight ${
-                          move.allowanceType === 'HOLIDAY' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'
-                        }`}>
-                          {move.allowanceType}: ৳{move.amount}
-                        </span>
+                       <div className="space-y-1">
+                          <span className="inline-block px-2 py-0.5 bg-gray-100 rounded text-[10px] font-bold text-gray-600 uppercase">{move.purpose || 'N/A'}</span>
+                          <div className="flex items-center gap-1 text-[10px] text-gray-500">
+                             <Bus className="w-3 h-3" /> {move.transportMode || 'N/A'}
+                          </div>
+                          {move.authorizedBy && (
+                             <div className="text-[10px] text-indigo-600 font-medium">
+                                By: {move.authorizedBy}
+                             </div>
+                          )}
+                       </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      <div className="flex flex-col gap-1">
+                         <div className="flex items-center gap-2">
+                            <span className="w-12 text-[10px] uppercase font-bold text-gray-400">Out:</span>
+                            <span className="font-mono font-bold text-orange-600">{move.checkOut ? new Date(move.checkOut).toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }) : '--'}</span>
+                         </div>
+                         <div className="flex items-center gap-2">
+                            <span className="w-12 text-[10px] uppercase font-bold text-gray-400">In:</span>
+                            <span className={`font-mono font-bold ${move.checkIn ? 'text-green-600' : 'text-gray-300'}`}>
+                               {move.checkIn ? new Date(move.checkIn).toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }) : '---'}
+                            </span>
+                         </div>
+                         <div className="text-[10px] text-gray-400 mt-1">{new Date(move.checkOut || '').toLocaleDateString('bn-BD')}</div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-right space-y-1">
+                      {move.checkIn ? (
+                         <>
+                           {move.transportCost ? (
+                              <p className="text-xs font-bold text-gray-700 flex items-center justify-end gap-1">
+                                 <Banknote className="w-3 h-3 text-gray-400"/> ভাড়া: ৳{move.transportCost}
+                              </p>
+                           ) : null}
+                           {move.allowanceType && move.allowanceType !== 'NONE' ? (
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tight ${
+                                 move.allowanceType === 'HOLIDAY' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'
+                              }`}>
+                                 {move.allowanceType}: ৳{move.amount}
+                              </span>
+                           ) : (
+                              <span className="text-gray-300 text-[10px] font-bold uppercase block">No Allowance</span>
+                           )}
+                         </>
                       ) : (
-                        <span className="text-gray-300 text-[10px] font-bold uppercase">N/A</span>
+                         <span className="text-orange-400 text-xs italic">Waiting for return...</span>
                       )}
                     </td>
                     <td className="px-6 py-4 text-right">
                       {!move.checkIn && (
                         <button 
-                          onClick={() => handleCheckIn(move.id)}
+                          onClick={() => openCheckInModal(move.id)}
                           className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2 ml-auto shadow-md shadow-indigo-100 active:scale-95"
                         >
                           <LogIn className="w-3.5 h-3.5" />
@@ -330,6 +474,46 @@ const MovementLogView: React.FC<MovementProps> = ({ movements = [], setMovements
           </table>
         </div>
       </div>
+
+      {/* CHECK-IN MODAL */}
+      {checkInModalId && (
+         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden p-6 text-center">
+               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Banknote className="w-8 h-8 text-green-600" />
+               </div>
+               <h3 className="text-xl font-black text-gray-800 mb-2">ফিরে এসেছেন?</h3>
+               <p className="text-sm text-gray-500 mb-6">যাতায়াত খরচ (ভাড়া) কত হয়েছে?</p>
+               
+               <div className="relative mb-6">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-gray-400">৳</span>
+                  <input 
+                     type="number" 
+                     className="w-full pl-8 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none text-xl font-bold text-center"
+                     placeholder="0"
+                     value={transportCost}
+                     onChange={(e) => setTransportCost(e.target.value)}
+                     autoFocus
+                  />
+               </div>
+
+               <div className="flex gap-3">
+                  <button 
+                     onClick={() => setCheckInModalId(null)}
+                     className="flex-1 py-3 border border-gray-200 text-gray-500 font-bold rounded-xl hover:bg-gray-50 transition-colors"
+                  >
+                     বাতিল
+                  </button>
+                  <button 
+                     onClick={confirmCheckIn}
+                     className="flex-1 py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-lg shadow-green-200 transition-colors"
+                  >
+                     কনফার্ম করুন
+                  </button>
+               </div>
+            </div>
+         </div>
+      )}
     </div>
   );
 };
