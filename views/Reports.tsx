@@ -119,7 +119,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
       <html lang="bn">
       <head>
         <meta charset="UTF-8">
-        <title>Monthly Report - ${monthName}</title>
+        <title>Monthly Account Statement - ${monthName}</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&display=swap" rel="stylesheet">
         <style>
@@ -140,7 +140,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
                 <p class="tagline">Promise Beyond Business</p>
              </div>
              <div class="address-block">
-                <p>Monthly Financial Statement</p>
+                <p>Monthly Account Statement</p>
                 <p>Report Month: <strong>${monthName}</strong></p>
              </div>
           </div>
@@ -462,7 +462,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
       <html lang="bn">
       <head>
         <meta charset="UTF-8">
-        <title>Ledger Report</title>
+        <title>Account Statement</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&display=swap" rel="stylesheet">
         <style>
@@ -475,7 +475,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
         </style>
       </head>
       <body>
-        <div class="watermark">DEPEND FINANCIAL</div>
+        <div class="watermark">ACCOUNT STATEMENT</div>
         <div class="max-w-[210mm] mx-auto">
           <div class="header-section theme-border flex justify-between items-end">
              <div><h1 class="company-name theme-color">Depend Sourcing Ltd.</h1><p class="tagline">Promise Beyond Business</p></div>
@@ -637,7 +637,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
             className="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-bold hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 active:scale-95"
           >
             <Printer className="w-5 h-5" />
-            ফিনান্সিয়াল রিপোর্ট
+            অ্যাকাউন্ট স্টেটমেন্ট
           </button>
           <button 
             onClick={generateAttendanceReport}

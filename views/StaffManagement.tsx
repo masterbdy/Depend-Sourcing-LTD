@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useRef } from 'react';
 import { Plus, Search, Edit2, Trash2, UserPlus, X, Calendar, FilterX, Phone, Banknote, Users, UserCheck, UserX, ArrowUpDown, ShieldCheck, ShieldAlert, Eye, EyeOff, Lock, Camera, Image as ImageIcon, Briefcase, Wallet, ArrowRight, Coins, Crown, UserCog, History, CalendarClock, MapPin, LocateFixed, Globe, ToggleLeft, ToggleRight, Map, MonitorSmartphone, Gift, Star, MoreVertical, WalletCards, AlertTriangle, CheckCircle, RotateCcw, TrendingDown } from 'lucide-react';
 import { Staff, UserRole, Expense, AdvanceLog } from '../types';
@@ -663,11 +664,14 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
                               <button onClick={() => openRepayModal(staff.id)} className="w-8 h-8 flex items-center justify-center rounded-full bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-600 hover:text-white transition-colors" title="বেতন সমন্বয় (Adjustment)">
                                   <WalletCards className="w-3.5 h-3.5" />
                               </button>
-                              <button onClick={() => setHistoryStaff(staff)} className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-800 hover:text-white transition-colors" title="হিস্ট্রি">
-                                  <History className="w-3.5 h-3.5" />
-                              </button>
                           </>
                        )}
+                       
+                       {/* History Button - Visible to everyone for their own card */}
+                       <button onClick={() => setHistoryStaff(staff)} className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-800 hover:text-white transition-colors" title="লেনদেন হিস্ট্রি দেখুন">
+                          <History className="w-3.5 h-3.5" />
+                       </button>
+
                        {!isStaff && (
                           <>
                             <button onClick={() => requestStatusChange(staff.id, staff.status)} className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${isActive ? 'bg-orange-50 dark:bg-orange-900/30 text-orange-500 hover:bg-orange-500 hover:text-white' : 'bg-green-50 dark:bg-green-900/30 text-green-500 hover:bg-green-500 hover:text-white'}`} title={isActive ? 'Deactivate' : 'Activate'}>
@@ -688,6 +692,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
         })}
       </div>
       
+      {/* ... (Rest of the modals remain unchanged) ... */}
       {filteredStaff.length === 0 && (
          <div className="py-20 text-center text-gray-400 bg-white dark:bg-gray-800/60 dark:backdrop-blur-md rounded-3xl border border-dashed border-gray-200 dark:border-gray-700">
             <div className="flex flex-col items-center gap-2 opacity-50">
@@ -753,7 +758,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
         </div>
       )}
 
-      {/* PENALTY CONFIRMATION MODAL - ENSURING TOP Z-INDEX */}
+      {/* PENALTY CONFIRMATION MODAL */}
       {showPenaltyConfirm && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
             <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden p-6 text-center transform scale-100 transition-transform">
@@ -768,7 +773,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
                     <button 
                         onClick={() => {
                            setShowPenaltyConfirm(false);
-                           setTimeout(() => setIsGiftPointModalOpen(true), 200); // Re-open input modal
+                           setTimeout(() => setIsGiftPointModalOpen(true), 200); 
                         }}
                         className="flex-1 py-3.5 border-2 border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-50 transition-colors"
                     >

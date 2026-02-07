@@ -79,6 +79,14 @@ const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApproval
     return (advances || []).filter(a => a.staffName === currentUser && !a.isDeleted).reduce((sum, a) => sum + Number(a.amount), 0);
   }, [advances, currentUser]);
 
+  const myRecentAdvances = useMemo(() => {
+    if (!isStaff) return [];
+    return (advances || [])
+      .filter(a => a.staffName === currentUser && !a.isDeleted)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 5);
+  }, [advances, currentUser, isStaff]);
+
   // --- CHAMPIONS LOGIC ---
   const { champions, monthName } = useMemo(() => {
     const now = new Date();
@@ -313,10 +321,38 @@ const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApproval
                    <h3 className="text-2xl font-black text-gray-800 dark:text-gray-100">{myPendingCount} টি</h3>
                    <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">অনুমোদনের অপেক্ষায় আছে</p>
                 </div>
+                
+                {/* 4. Recent Advances (NEW) */}
+                <div className="sm:col-span-2 bg-white dark:bg-gray-800/60 rounded-2xl border border-gray-100 dark:border-white/10 shadow-sm overflow-hidden">
+                   <div className="p-4 bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-white/5 flex items-center gap-2">
+                      <WalletCards className="w-4 h-4 text-indigo-500" />
+                      <h4 className="text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">আমার লেনদেনের বিবরন (Last 5)</h4>
+                   </div>
+                   <div className="divide-y divide-gray-50 dark:divide-gray-700/50">
+                      {myRecentAdvances.length > 0 ? myRecentAdvances.map(adv => (
+                         <div key={adv.id} className="p-3 flex justify-between items-center hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                            <div>
+                               <div className="flex items-center gap-2 mb-1">
+                                  <span className={`text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider ${adv.type === 'SALARY' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                                    {adv.type === 'SALARY' ? 'Salary Adv' : 'Regular Adv'}
+                                  </span>
+                                  <p className="text-xs text-gray-400 font-bold">{new Date(adv.date).toLocaleDateString('bn-BD')}</p>
+                               </div>
+                               <p className="font-bold text-gray-700 dark:text-gray-200 text-sm">{adv.note || 'No description'}</p>
+                            </div>
+                            <span className={`font-black text-sm ${adv.amount > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-green-600 dark:text-green-400'}`}>
+                               {adv.amount > 0 ? `+ ৳${adv.amount}` : `- ৳${Math.abs(adv.amount)}`}
+                            </span>
+                         </div>
+                      )) : (
+                         <p className="text-center text-gray-400 text-xs py-4">কোনো লেনদেন পাওয়া যায়নি।</p>
+                      )}
+                   </div>
+                </div>
              </div>
           )}
 
-          {/* Recent Transactions List */}
+          {/* Recent Transactions List (MANAGEMENT/ADMIN VIEW - Unchanged) */}
           {!isStaff && (
             <div className="bg-white dark:bg-gray-800/60 rounded-2xl border border-gray-100 dark:border-white/10 shadow-sm overflow-hidden">
               <div className="p-5 border-b border-gray-50 dark:border-gray-700/50 flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/50">
