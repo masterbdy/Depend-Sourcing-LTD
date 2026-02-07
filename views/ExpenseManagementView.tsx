@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { Receipt, Camera, CheckCircle, XCircle, Clock, Eye, Trash2, Search, Calendar, FilterX, RotateCcw, CheckCheck, Sparkles, X, Edit3, User, AlertTriangle, Eraser, FileText, ShieldAlert } from 'lucide-react';
-import { Expense, Staff, UserRole, AppNotification } from '../types';
+import { Receipt, Camera, CheckCircle, XCircle, Clock, Eye, Trash2, Search, Calendar, FilterX, RotateCcw, CheckCheck, Sparkles, X, Edit3, User, AlertTriangle, Eraser, FileText, ShieldAlert, Printer, Download, ImageIcon } from 'lucide-react';
+import { Expense, Staff, UserRole, AppNotification, AdvanceLog } from '../types';
+// @ts-ignore
+import html2canvas from 'html2canvas';
 
 interface ExpenseProps {
   expenses: Expense[];
@@ -9,9 +11,10 @@ interface ExpenseProps {
   role: UserRole;
   currentUser: string | null;
   onNotify?: (title: string, message: string, type: AppNotification['type']) => void;
+  advances: AdvanceLog[];
 }
 
-const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpenses, staffList = [], role, currentUser }) => {
+const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpenses, staffList = [], role, currentUser, advances = [] }) => {
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [formData, setFormData] = useState({ 
     staffId: '', 
@@ -31,6 +34,10 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
 
   // Status Update Confirmation State
   const [statusConfirmData, setStatusConfirmData] = useState<{id: string, status: Expense['status']} | null>(null);
+
+  // Voucher Generator State
+  const [voucherPreviewData, setVoucherPreviewData] = useState<Expense | null>(null);
+  const voucherRef = useRef<HTMLDivElement>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -101,41 +108,61 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
     const text = e.target.value;
     
     // 1. Convert Bengali digits to English
-    const banglaToEng = (str: string) => str.replace(/[০-৯]/g, d => "0123456789"["০১২৩৪৫৬৭৮৯".indexOf(d)]);
-    let processedText = banglaToEng(text);
+    let processedText = text.replace(/[০-৯]/g, d => "0123456789"["০১২৩৪৫৬৭৮৯".indexOf(d)]);
 
-    // --- STEP 0: PROTECT CURRENCY WORDS ---
-    // We replace words like "Taka", "Tk", "টাকা" with a safe placeholder so they are NOT treated as units later.
+    // 2. Normalize Separators (Unicode dashes -> standard hyphen)
+    processedText = processedText.replace(/[\u2013\u2014]/g, '-');
+
+    // --- STEP 3: EXPLICIT DATE RANGES (PRIORITY 1) ---
+    // Remove date ranges BEFORE other logic to prevent misinterpretation
+    // Matches: 03-02-26 to 07-02-26, 03/02/2026 - 07/02/2026
+    const explicitDateRangeRegex = /(?:\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})\s*(?:to|থেকে|\-|–|—)\s*(?:\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})/gi;
+    processedText = processedText.replace(explicitDateRangeRegex, 'SKIP_DATE_RANGE');
+
+    // --- STEP 4: PRE-PROCESSING (Item-Amount) ---
+    // Fix: "Lunch-400", "Food=150", "Lunch - 400" -> "Lunch 400"
+    // This allows extracting 400 properly
+    processedText = processedText.replace(/([a-zA-Z\u0980-\u09FF]+)[\s\-:=]+(\d+)/g, '$1 $2');
+
+    // Protect currency words
     processedText = processedText.replace(/(taka|tk|bdt|টাকা)/gi, 'CURRENCY_SYMBOL');
 
-    // --- SMART EXCLUSION LOGIC (Advanced) ---
-    // ... (Regex logic same as before) ...
-    // A. Dates (ISO, Common formats)
+    // --- STEP 5: OTHER EXCLUSIONS ---
+    
+    // A. Dates (ISO, Common formats) - Standalone dates not in ranges
     processedText = processedText.replace(/\d{4}-\d{2}-\d{2}/g, 'SKIP_DATE'); 
     processedText = processedText.replace(/\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}/g, 'SKIP_DATE');
-    // B. Phone Numbers (01xxxxxxxxx)
+    
+    // B. Phone Numbers
     processedText = processedText.replace(/01\d{9}/g, 'SKIP_PHONE');
+    
     // C. Time 
     processedText = processedText.replace(/\d{1,2}:\d{2}/g, 'SKIP_TIME_COLON'); 
     processedText = processedText.replace(/\d{1,2}[:\.]\d{2}\s*(am|pm|a\.m|p\.m)/gi, 'SKIP_TIME');
     processedText = processedText.replace(/\d{1,2}\s*(am|pm|a\.m|p\.m|টা|বাজে|বাজা)/gi, 'SKIP_TIME');
-    // D. Date Ranges
+    
+    // D. Text-based Date Ranges (legacy keywords)
     const dateRangeRegex = /(\d+)[\s\-]*(?:থেকে|theke|to|untill|পর্যন্ত|হতে|[\-])[\s]*(\d+)[\s]*(?:তারিখ|date|tarikh|tarik)/gi;
     processedText = processedText.replace(dateRangeRegex, "SKIP_DATE_RANGE");
+    
     // E. Single Date with Keyword
     const specificDateRegex = /(\d+)[\s]*(?:তারিখ|date|tarikh|sal|sale|সাল|সালে|st|nd|rd|th)/gi;
     processedText = processedText.replace(specificDateRegex, "SKIP_SINGLE_DATE");
+    
     // F. Units/Measurements
     const units = ['pc', 'pcs', 'pice', 'pices', 'pitch', 'pic', 'pis', 'pich', 'p', 't', 'ta', 'ti', 'khana', 'gulo', 'got', 'pisa', 'pich', 'পিস', 'টি', 'টা', 'খানা', 'গুলো', 'dz', 'doz', 'dozen', 'dozon', 'ডজন', 'goj', 'gaz', 'yard', 'yrd', 'গজ', 'kg', 'kilo', 'keji', 'কেজি', 'gm', 'gram', 'g', 'গ্রাম', 'ltr', 'liter', 'litre', 'l', 'লিটার', 'pkt', 'packet', 'pack', 'pket', 'প্যাকেট', 'bosta', 'bosta', 'বস্তা', 'set', 'সেট', 'jo', 'jora', 'pair', 'জোড়া', 'inch', 'in', 'ইঞ্চি', 'ft', 'feet', 'ফুট', 'm', 'meter', 'মিটার', 'jon', 'জন', 'min', 'minute', 'mnt', 'মিনিট', 'hr', 'hour', 'ghonta', 'ঘন্টা', 'sec', 'second', 'সেকেন্ড'];
     const unitRegex = new RegExp(`(\\d+[\\.]?\\d*)\\s*(${units.join('|')})(?![a-zA-Z\u0980-\u09FF])`, 'gi');
     processedText = processedText.replace(unitRegex, "SKIP_UNIT");
+    
     // G. Locations & Addresses
     const locPrefixes = ['road', 'rd', 'রোড', 'house', 'h', 'bas', 'basa', 'বাসা', 'বাড়ি', 'flat', 'apt', 'ফ্ল্যাট', 'sector', 'sec', 'সেক্টর', 'block', 'blk', 'ব্লক', 'lane', 'goli', 'গলি', 'level', 'lvl', 'লেভেল', 'ward', 'word', 'ওয়ার্ড', 'room', 'rm', 'রুম', 'কক্ষ', 'platfrom', 'platform', 'প্লাটফর্ম', 'counter', 'কাউন্টার', 'shop', 'dokan', 'দোকান', 'bus', 'গাড়ি', 'বাস'];
     const locRegexPrefix = new RegExp(`(${locPrefixes.join('|')})[\\s\\-\\.]*(\\d+)`, 'gi');
     processedText = processedText.replace(locRegexPrefix, "SKIP_LOC");
+    
     const locSuffixes = ['floor', 'tala', 'তলা', 'level', 'no', 'nong', 'number', 'num', 'নং', 'নম্বর', 'th', 'nd', 'rd', 'st'];
     const locRegexSuffix = new RegExp(`(\\d+)[\\s\\-\\.]*(${locSuffixes.join('|')})`, 'gi');
     processedText = processedText.replace(locRegexSuffix, "SKIP_LOC");
+    
     // H. Specific Place Names with numbers
     const places = ['mirpur', ' মিরপুর', 'uttara', 'উত্তরা', 'dhanmondi', 'ধানমন্ডি', 'farmgate', 'ফার্মগেট', 'mohakhali', 'মহাখালী', 'banani', 'বনানী', 'gulshan', 'গুলশান', 'badda', 'বাড্ডা', 'savar', 'সাভার', 'gazipur', 'গাজীপুর'];
     const placeRegex = new RegExp(`(${places.join('|')})\\s*(\\d+)`, 'gi');
@@ -226,10 +253,6 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
         if (diffDays > 1) return alert(`স্টাফরা সর্বোচ্চ ১ দিন আগের বিল দিতে পারবে।`);
         if (diffDays < 0) return alert("ভবিষ্যতের তারিখ দেওয়া যাবে না।");
     }
-
-    // DUPLICATE CONFIRMATION - REMOVED
-    // The "Submit Anyway" button already acts as the confirmation trigger.
-    // No need for a second popup which might be blocking or confusing.
 
     const submitDate = new Date(formData.date);
     const now = new Date();
@@ -337,6 +360,265 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
     return staff ? staff.staffId : '';
   };
 
+  const generateApprovalVoucher = (expense: Expense) => {
+    const staff = (staffList || []).find(s => s.id === expense.staffId);
+    
+    // --- LEDGER CALCULATION ---
+    const staffApprovedExpenses = (expenses || [])
+      .filter(e => !e.isDeleted && e.status === 'APPROVED' && e.staffId === expense.staffId)
+      .reduce((sum, e) => sum + Number(e.amount), 0);
+
+    const staffRegularAdvances = (advances || [])
+      .filter(a => !a.isDeleted && a.type !== 'SALARY' && a.staffId === expense.staffId)
+      .reduce((sum, a) => sum + Number(a.amount), 0);
+
+    const balance = staffRegularAdvances - staffApprovedExpenses;
+    let balanceText = '';
+    let balanceColor = '#1e293b';
+
+    if (balance < 0) {
+       balanceText = `PAYABLE: ৳ ${Math.abs(balance).toLocaleString()}`;
+       balanceColor = '#dc2626'; // Red
+    } else {
+       balanceText = `CASH IN HAND: ৳ ${balance.toLocaleString()}`;
+       balanceColor = '#166534'; // Green
+    }
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const voucherHtml = `
+      <!DOCTYPE html>
+      <html lang="bn">
+      <head>
+        <meta charset="UTF-8">
+        <title>Payment Voucher - ${expense.id}</title>
+        <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+        <script src="https://cdn.tailwindcss.com"></script>
+        <style>
+          @page { size: A4; margin: 0; }
+          body { 
+            font-family: 'Hind Siliguri', sans-serif; 
+            -webkit-print-color-adjust: exact; 
+            margin: 0;
+            padding: 0;
+            background: #fff;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start; /* Start from top for simple cutting */
+            min-height: 100vh;
+          }
+          .voucher-container {
+            width: 210mm; /* A4 Width */
+            padding: 40px;
+            box-sizing: border-box;
+          }
+          .voucher-box {
+            border: 2px solid #000;
+            padding: 0;
+            position: relative;
+            background: white;
+            margin-bottom: 20px;
+          }
+          .header {
+            border-bottom: 2px solid #000;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f8fafc;
+          }
+          .content {
+            padding: 30px;
+            position: relative;
+          }
+          .row {
+            display: flex;
+            margin-bottom: 15px;
+            align-items: baseline;
+          }
+          .label {
+            width: 120px;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 12px;
+            color: #4b5563;
+          }
+          .value {
+            flex: 1;
+            border-bottom: 1px dotted #9ca3af;
+            padding-bottom: 2px;
+            font-weight: 600;
+            font-size: 14px;
+            color: #111827;
+            padding-left: 10px;
+          }
+          .amount-box {
+            border: 2px solid #000;
+            padding: 10px 20px;
+            font-size: 24px;
+            font-weight: 900;
+            display: inline-block;
+            margin-top: 10px;
+            background: #f3f4f6;
+          }
+          .footer-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            border: 1px solid #e5e7eb;
+          }
+          .footer-table th, .footer-table td {
+            border: 1px solid #e5e7eb;
+            padding: 8px;
+            font-size: 11px;
+            text-align: center;
+          }
+          .footer-table th {
+            background: #f9fafb;
+            font-weight: 800;
+            text-transform: uppercase;
+          }
+          .signatures {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 60px;
+            padding-top: 20px;
+          }
+          .sig-box {
+            text-align: center;
+            width: 150px;
+          }
+          .sig-line {
+            border-top: 1px solid #000;
+            margin-bottom: 5px;
+          }
+          .sig-title {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #6b7280;
+          }
+          .watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-30deg);
+            font-size: 100px;
+            font-weight: 900;
+            color: rgba(0, 0, 0, 0.04);
+            pointer-events: none;
+            z-index: 0;
+            white-space: nowrap;
+          }
+          .status-stamp {
+             position: absolute;
+             top: 20px;
+             right: 20px;
+             border: 3px solid #166534;
+             color: #166534;
+             padding: 5px 15px;
+             font-weight: 900;
+             text-transform: uppercase;
+             font-size: 14px;
+             border-radius: 4px;
+             transform: rotate(-5deg);
+             opacity: 0.8;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="voucher-container">
+          
+          <div class="voucher-box">
+             <div class="watermark">APPROVED</div>
+             <div class="status-stamp">MD APPROVED</div>
+
+             <!-- Header -->
+             <div class="header">
+                <div>
+                   <h1 class="text-3xl font-black uppercase tracking-tight text-gray-900">Depend Sourcing Ltd.</h1>
+                   <p class="text-xs font-bold text-gray-500 tracking-[0.3em] uppercase mt-1">Promise Beyond Business</p>
+                   <p class="text-xs text-gray-600 mt-1">Head Office: A-14/8, Johir Complex, Savar, Dhaka.</p>
+                </div>
+                <div class="text-right">
+                   <div class="bg-black text-white px-4 py-1 text-sm font-bold uppercase inline-block mb-2">Expense Voucher</div>
+                   <p class="text-sm font-bold">Voucher #: <span class="font-mono">${expense.id}</span></p>
+                   <p class="text-sm">Date: <span class="font-mono">${new Date(expense.createdAt).toLocaleDateString('en-GB')}</span></p>
+                </div>
+             </div>
+
+             <!-- Content -->
+             <div class="content">
+                
+                <div class="row">
+                   <span class="label">Pay To:</span>
+                   <span class="value">${expense.staffName} <span class="text-xs font-normal text-gray-500 ml-2">(${staff?.staffId || 'N/A'} - ${staff?.designation || 'Staff'})</span></span>
+                </div>
+
+                <div class="row">
+                   <span class="label">Particulars:</span>
+                   <span class="value">${expense.reason}</span>
+                </div>
+
+                <div class="row items-center">
+                   <span class="label">Amount (BDT):</span>
+                   <div class="amount-box">৳ ${expense.amount.toLocaleString()}</div>
+                </div>
+
+                <!-- Ledger Summary Table -->
+                <div class="mt-8">
+                   <p class="text-[10px] font-bold text-gray-500 uppercase mb-1">Account Ledger Summary (Regular):</p>
+                   <table class="footer-table">
+                      <thead>
+                         <tr>
+                            <th>Total Approved Exp</th>
+                            <th>Total Regular Adv</th>
+                            <th>Current Balance Status</th>
+                         </tr>
+                      </thead>
+                      <tbody>
+                         <tr>
+                            <td class="font-mono">৳ ${staffApprovedExpenses.toLocaleString()}</td>
+                            <td class="font-mono">৳ ${staffRegularAdvances.toLocaleString()}</td>
+                            <td class="font-black" style="color: ${balanceColor}">${balanceText}</td>
+                         </tr>
+                      </tbody>
+                   </table>
+                </div>
+
+                <!-- Signatures -->
+                <div class="signatures">
+                   <div class="sig-box">
+                      <div class="sig-line"></div>
+                      <div class="sig-title">Receiver's Signature</div>
+                   </div>
+                   <div class="sig-box">
+                      <div class="sig-line"></div>
+                      <div class="sig-title">Accounts / Admin</div>
+                   </div>
+                   <div class="sig-box">
+                      <div class="sig-line"></div>
+                      <div class="sig-title">Managing Director</div>
+                   </div>
+                </div>
+
+                <div class="mt-6 text-center text-[8px] text-gray-400">
+                   This is a computer-generated document. Printed on ${new Date().toLocaleString('en-GB')}
+                </div>
+             </div>
+          </div>
+
+        </div>
+        <script>window.onload = () => { setTimeout(() => { window.print(); }, 500); }</script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(voucherHtml);
+    printWindow.document.close();
+  };
+
   const getStatusStyles = (status: Expense['status']) => {
     switch(status) {
       case 'APPROVED': return { 
@@ -372,119 +654,108 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
     }
   };
 
+  // --- NEW VOUCHER LOGIC (Image Download) ---
+  const downloadVoucherImage = async () => {
+    if (voucherRef.current) {
+      const canvas = await html2canvas(voucherRef.current, {
+        scale: 2, // High resolution
+        backgroundColor: '#ffffff'
+      });
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = `Voucher_${voucherPreviewData?.id}.jpg`;
+      link.click();
+    }
+  };
+
+  const getVoucherData = () => {
+    if (!voucherPreviewData) return null;
+    
+    // Calculate ledger for the preview
+    const staffApprovedExpenses = (expenses || [])
+      .filter(e => !e.isDeleted && e.status === 'APPROVED' && e.staffId === voucherPreviewData.staffId)
+      .reduce((sum, e) => sum + Number(e.amount), 0);
+
+    const staffRegularAdvances = (advances || [])
+      .filter(a => !a.isDeleted && a.type !== 'SALARY' && a.staffId === voucherPreviewData.staffId)
+      .reduce((sum, a) => sum + Number(a.amount), 0);
+
+    const balance = staffRegularAdvances - staffApprovedExpenses;
+    const staffInfo = (staffList || []).find(s => s.id === voucherPreviewData.staffId);
+
+    return {
+       ...voucherPreviewData,
+       designation: staffInfo?.designation || 'Staff',
+       staffDisplayId: staffInfo?.staffId || 'N/A',
+       balance,
+       totalExp: staffApprovedExpenses,
+       totalAdv: staffRegularAdvances
+    };
+  };
+
   return (
     <div className="space-y-6">
+      {/* ... (Header and Filters omitted for brevity, keeping existing logic) ... */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <h2 className="text-xl font-bold text-gray-800">খরচ ও ভাউচার ম্যানেজমেন্ট</h2>
         <div className="flex flex-wrap gap-3">
           {(role === UserRole.ADMIN || role === UserRole.MD) && (
-             <button
-               onClick={handleClearHistory}
-               className="bg-red-50 text-red-600 px-4 py-2 rounded-xl font-bold hover:bg-red-100 hover:text-red-700 border border-red-200 transition-colors flex items-center gap-2 shadow-sm whitespace-nowrap"
-             >
-               <Eraser className="w-5 h-5" /> হিস্ট্রি ক্লিন
-             </button>
+             <button onClick={handleClearHistory} className="bg-red-50 text-red-600 px-4 py-2 rounded-xl font-bold hover:bg-red-100 hover:text-red-700 border border-red-200 transition-colors flex items-center gap-2 shadow-sm whitespace-nowrap"><Eraser className="w-5 h-5" /> হিস্ট্রি ক্লিন</button>
           )}
           {(role === UserRole.ADMIN || role === UserRole.STAFF) && (
-            <button 
-              onClick={handleOpenSubmitModal}
-              className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-lg shadow-indigo-100"
-            >
-              <Receipt className="w-5 h-5" /> নতুন বিল
-            </button>
+            <button onClick={handleOpenSubmitModal} className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-lg shadow-indigo-100"><Receipt className="w-5 h-5" /> নতুন বিল</button>
           )}
-          
           {role === UserRole.MD && (
-            <button 
-              onClick={handleApproveAll}
-              className="bg-green-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-green-700 transition-colors flex items-center gap-2 shadow-lg shadow-green-100"
-            >
-              <CheckCheck className="w-5 h-5" /> সব অ্যাপ্রুভ
-            </button>
+            <button onClick={handleApproveAll} className="bg-green-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-green-700 transition-colors flex items-center gap-2 shadow-lg shadow-green-100"><CheckCheck className="w-5 h-5" /> সব অ্যাপ্রুভ</button>
           )}
         </div>
       </div>
 
-      {/* Filter Bar */}
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-wrap items-end gap-4">
         <div className="flex-1 min-w-[200px]">
           <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">খুঁজুন</label>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input 
-              type="text" 
-              placeholder="Search..." 
-              className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+            <input type="text" placeholder="Search..." className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
           </div>
         </div>
-
         {(role === UserRole.ADMIN || role === UserRole.MD) && (
           <div className="w-full sm:w-auto min-w-[150px]">
             <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">স্টাফ</label>
             <div className="relative">
               <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <select 
-                className="w-full pl-9 pr-8 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-gray-700 appearance-none"
-                value={selectedStaffFilter}
-                onChange={(e) => setSelectedStaffFilter(e.target.value)}
-              >
+              <select className="w-full pl-9 pr-8 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-gray-700 appearance-none" value={selectedStaffFilter} onChange={(e) => setSelectedStaffFilter(e.target.value)}>
                 <option value="">All Staff</option>
                 {allStaffForFilter.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
           </div>
         )}
-
-        <div className="w-full sm:w-auto">
-          <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">শুরু</label>
-          <input type="date" className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm outline-none" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-        </div>
-        <div className="w-full sm:w-auto">
-          <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">শেষ</label>
-          <input type="date" className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm outline-none" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-        </div>
-        <button onClick={() => { setSearchTerm(''); setSelectedStaffFilter(''); setStartDate(''); setEndDate(''); }} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl">
-          <FilterX className="w-5 h-5" />
-        </button>
+        <div className="w-full sm:w-auto"><label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">শুরু</label><input type="date" className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm outline-none" value={startDate} onChange={(e) => setStartDate(e.target.value)} /></div>
+        <div className="w-full sm:w-auto"><label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">শেষ</label><input type="date" className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm outline-none" value={endDate} onChange={(e) => setEndDate(e.target.value)} /></div>
+        <button onClick={() => { setSearchTerm(''); setSelectedStaffFilter(''); setStartDate(''); setEndDate(''); }} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl"><FilterX className="w-5 h-5" /></button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredExpenses.map((expense) => {
           const expenseDateStr = getSafeDateStr(expense.createdAt);
-          const isDuplicate = expenses.filter(e => 
-             !e.isDeleted && 
-             e.staffId === expense.staffId && 
-             getSafeDateStr(e.createdAt) === expenseDateStr
-          ).length > 1;
+          const isDuplicate = expenses.filter(e => !e.isDeleted && e.staffId === expense.staffId && getSafeDateStr(e.createdAt) === expenseDateStr).length > 1;
           const styles = getStatusStyles(expense.status);
           const staffMember = (staffList || []).find(s => s.id === expense.staffId);
 
           return (
           <div key={expense.id} className={`group relative rounded-2xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 transition-all duration-300 flex flex-col overflow-hidden ${styles.cardBg} ${styles.border} ${styles.shadow}`}>
             
-            {/* Decorative Watermark Icon */}
             <div className="absolute top-0 right-0 p-4 opacity-[0.03] transform group-hover:scale-110 transition-transform duration-500 pointer-events-none">
                <Receipt className="w-32 h-32" />
             </div>
 
             <div className="p-5 flex-1 relative z-10">
-              {/* Enhanced Duplicate Warning Badge - In Card */}
               {isDuplicate && (role === UserRole.ADMIN || role === UserRole.MD) && (
-                 <div className="mb-3 bg-red-50 border-l-4 border-red-500 p-3 rounded-r-lg animate-pulse">
-                    <div className="flex items-center gap-2">
-                       <ShieldAlert className="w-5 h-5 text-red-600" />
-                       <h4 className="text-xs font-black text-red-700 uppercase">ডুপ্লিকেট বিল ডিটেক্টেড!</h4>
-                    </div>
-                    <p className="text-[10px] text-red-600 mt-1 font-medium leading-tight">
-                       এই তারিখে এই স্টাফের আরও একটি বিল আছে। দয়া করে চেক করুন।
-                    </p>
-                 </div>
+                 <div className="mb-3 bg-red-50 border-l-4 border-red-500 p-3 rounded-r-lg animate-pulse"><div className="flex items-center gap-2"><ShieldAlert className="w-5 h-5 text-red-600" /><h4 className="text-xs font-black text-red-700 uppercase">ডুপ্লিকেট বিল ডিটেক্টেড!</h4></div><p className="text-[10px] text-red-600 mt-1 font-medium leading-tight">এই তারিখে এই স্টাফের আরও একটি বিল আছে। দয়া করে চেক করুন।</p></div>
               )}
 
-              {/* Status & Date Row */}
               <div className="flex justify-between items-center mb-3">
                 <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${styles.bg} ${styles.text}`}>
                   {expense.status === 'PENDING' ? 'Waiting' : expense.status}
@@ -494,30 +765,18 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
                 </span>
               </div>
               
-              {/* Amount Display - Hero */}
               <div className="mb-2">
-                 <h4 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-gray-900 to-gray-600 group-hover:from-indigo-600 group-hover:to-purple-600 transition-all">
-                    ৳ {expense.amount.toLocaleString()}
-                 </h4>
+                 <h4 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-gray-900 to-gray-600 group-hover:from-indigo-600 group-hover:to-purple-600 transition-all">৳ {expense.amount.toLocaleString()}</h4>
               </div>
 
-              {/* Reason */}
-              <p className="text-sm text-gray-600 font-medium line-clamp-2 leading-relaxed h-10 mb-4">
-                 {expense.reason}
-              </p>
+              <p className="text-sm text-gray-600 font-medium line-clamp-2 leading-relaxed h-10 mb-4">{expense.reason}</p>
               
-              {/* Divider */}
               <div className="h-px w-full bg-gray-100/50 mb-4"></div>
 
-              {/* Staff Info & Controls */}
               <div className="flex justify-between items-end">
                  <div className="flex items-center gap-2.5">
                     <div className="w-9 h-9 rounded-full bg-white border border-gray-100 flex items-center justify-center text-indigo-700 font-bold text-xs shadow-sm overflow-hidden shrink-0">
-                       {staffMember && staffMember.photo ? (
-                          <img src={staffMember.photo} alt={expense.staffName} className="w-full h-full object-cover" />
-                       ) : (
-                          (expense.staffName || '?')[0]
-                       )}
+                       {staffMember && staffMember.photo ? <img src={staffMember.photo} alt={expense.staffName} className="w-full h-full object-cover" /> : (expense.staffName || '?')[0]}
                     </div>
                     <div>
                        <p className="text-xs font-bold text-gray-700 line-clamp-1">{expense.staffName}</p>
@@ -525,17 +784,33 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
                     </div>
                  </div>
 
-                 {/* Top Action Icons */}
                  <div className="flex gap-1 bg-white/50 rounded-lg p-0.5 backdrop-blur-sm">
+                    {/* APPROVED VOUCHER DOWNLOAD - AVAILABLE TO ALL */}
+                    {expense.status === 'APPROVED' && (
+                        <button 
+                           onClick={() => setVoucherPreviewData(expense)}
+                           className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors" 
+                           title="ভাউচার ছবি ডাউনলোড"
+                        >
+                           <ImageIcon className="w-4 h-4" />
+                        </button>
+                    )}
+                    {/* PDF Print Button */}
+                    {expense.status === 'APPROVED' && (
+                        <button 
+                           onClick={() => generateApprovalVoucher(expense)}
+                           className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" 
+                           title="ভাউচার প্রিন্ট করুন"
+                        >
+                           <Printer className="w-4 h-4" />
+                        </button>
+                    )}
+
                     {((role === UserRole.ADMIN || role === UserRole.MD) && (expense.status === 'PENDING' || expense.status === 'VERIFIED')) && (
-                       <button onClick={() => openCorrectionModal(expense)} className="p-1.5 text-orange-500 hover:bg-orange-50 rounded-lg transition-colors" title="Edit">
-                          <Edit3 className="w-4 h-4" />
-                       </button>
+                       <button onClick={() => openCorrectionModal(expense)} className="p-1.5 text-orange-500 hover:bg-orange-50 rounded-lg transition-colors" title="Edit"><Edit3 className="w-4 h-4" /></button>
                     )}
                     {expense.voucherImage ? (
-                       <button onClick={() => setViewingVoucher(expense.voucherImage!)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="View Voucher">
-                          <FileText className="w-4 h-4" />
-                       </button>
+                       <button onClick={() => setViewingVoucher(expense.voucherImage!)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="View Voucher"><FileText className="w-4 h-4" /></button>
                     ) : (
                        <div className="p-1.5 text-gray-300" title="No Voucher"><FileText className="w-4 h-4" /></div>
                     )}
@@ -543,9 +818,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
               </div>
             </div>
 
-            {/* Action Footer - Grid Layout */}
             <div className="bg-white/50 p-2 grid grid-cols-2 gap-2 border-t border-gray-100 backdrop-blur-sm">
-               {/* ADMIN ACTIONS */}
                {role === UserRole.ADMIN && expense.status === 'PENDING' && (
                  <>
                     <button onClick={() => updateStatus(expense.id, 'VERIFIED')} className="col-span-2 bg-indigo-600 text-white py-2 rounded-lg text-xs font-bold hover:bg-indigo-700 shadow-sm transition-colors">MD-র কাছে পাঠান</button>
@@ -553,8 +826,6 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
                     <button onClick={() => softDelete(expense.id)} className="bg-white text-gray-400 border border-gray-200 py-1.5 rounded-lg text-xs font-bold hover:text-red-500 hover:border-red-200 transition-colors"><Trash2 className="w-4 h-4 mx-auto" /></button>
                  </>
                )}
-               
-               {/* MD ACTIONS */}
                {role === UserRole.MD && (expense.status === 'VERIFIED' || expense.status === 'PENDING') && (
                  <>
                    <button onClick={() => updateStatus(expense.id, 'APPROVED')} className="col-span-2 bg-green-600 text-white py-2 rounded-lg text-xs font-bold hover:bg-green-700 shadow-sm transition-colors flex items-center justify-center gap-1"><CheckCircle className="w-3.5 h-3.5"/> অ্যাপ্রুভ করুন</button>
@@ -562,16 +833,10 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
                    <button onClick={() => softDelete(expense.id)} className="bg-white text-gray-400 border border-gray-200 py-1.5 rounded-lg text-xs font-bold hover:text-red-500 hover:border-red-200 transition-colors"><Trash2 className="w-4 h-4 mx-auto" /></button>
                  </>
                )}
-
-               {/* REVERT / DELETE ACTIONS */}
                {((role === UserRole.ADMIN && (expense.status === 'VERIFIED' || expense.status === 'APPROVED' || expense.status === 'REJECTED')) || (role === UserRole.STAFF && (expense.status === 'PENDING' || expense.status === 'REJECTED'))) && (
                   <div className="col-span-2 flex gap-2">
-                     {role === UserRole.ADMIN && expense.status === 'VERIFIED' && (
-                        <button onClick={() => updateStatus(expense.id, 'PENDING')} className="flex-1 bg-orange-50 text-orange-700 border border-orange-200 py-1.5 rounded-lg text-xs font-bold hover:bg-orange-100 flex items-center justify-center gap-1"><RotateCcw className="w-3 h-3" /> ফেরত</button>
-                     )}
-                     <button onClick={() => softDelete(expense.id)} className="flex-1 bg-white text-gray-400 border border-gray-200 hover:border-red-200 hover:text-red-500 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1">
-                       <Trash2 className="w-3.5 h-3.5" /> ডিলিট
-                     </button>
+                     {role === UserRole.ADMIN && expense.status === 'VERIFIED' && <button onClick={() => updateStatus(expense.id, 'PENDING')} className="flex-1 bg-orange-50 text-orange-700 border border-orange-200 py-1.5 rounded-lg text-xs font-bold hover:bg-orange-100 flex items-center justify-center gap-1"><RotateCcw className="w-3 h-3" /> ফেরত</button>}
+                     <button onClick={() => softDelete(expense.id)} className="flex-1 bg-white text-gray-400 border border-gray-200 hover:border-red-200 hover:text-red-500 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1"><Trash2 className="w-3.5 h-3.5" /> ডিলিট</button>
                   </div>
                )}
             </div>
@@ -579,16 +844,106 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
         )})}
       </div>
       
-      {filteredExpenses.length === 0 && (
-          <div className="py-16 text-center bg-white rounded-2xl border border-dashed border-gray-200 text-gray-400">
-             <div className="flex flex-col items-center gap-2 opacity-50">
-               <Receipt className="w-10 h-10" />
-               <p className="text-sm font-medium">কোনো বিল পাওয়া যায়নি</p>
-             </div>
-          </div>
+      {filteredExpenses.length === 0 && <div className="py-16 text-center bg-white rounded-2xl border border-dashed border-gray-200 text-gray-400"><div className="flex flex-col items-center gap-2 opacity-50"><Receipt className="w-10 h-10" /><p className="text-sm font-medium">কোনো বিল পাওয়া যায়নি</p></div></div>}
+
+      {/* --- VOUCHER PREVIEW & DOWNLOAD MODAL --- */}
+      {voucherPreviewData && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+           <div className="bg-white w-full max-w-lg rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+              {/* Toolbar */}
+              <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                 <h3 className="font-bold text-gray-800">ভাউচার ডাউনলোড</h3>
+                 <button onClick={() => setVoucherPreviewData(null)} className="p-2 hover:bg-gray-200 rounded-full transition-colors"><X className="w-5 h-5 text-gray-600"/></button>
+              </div>
+              
+              {/* SCROLLABLE AREA */}
+              <div className="overflow-y-auto p-6 bg-gray-100 flex-1 flex justify-center">
+                 {/* ACTUAL VOUCHER TO CAPTURE */}
+                 <div ref={voucherRef} id="voucher-content" className="bg-white p-8 w-full max-w-[400px] shadow-lg relative text-gray-800 border-4 border-double border-gray-800">
+                    {/* Watermark */}
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transform -rotate-45 opacity-5 pointer-events-none select-none">
+                       <span className="text-6xl font-black uppercase text-black">APPROVED</span>
+                    </div>
+
+                    {/* Header */}
+                    <div className="border-b-2 border-black pb-4 mb-6">
+                       <h1 className="text-2xl font-black uppercase tracking-tight text-center">Depend Sourcing Ltd.</h1>
+                       <p className="text-[10px] text-center uppercase tracking-[0.2em] font-bold text-gray-500 mt-1">Promise Beyond Business</p>
+                    </div>
+
+                    {/* Body */}
+                    <div className="space-y-4">
+                       <div className="flex justify-between items-end border-b border-dotted border-gray-300 pb-1">
+                          <span className="text-xs font-bold uppercase text-gray-500">Voucher No</span>
+                          <span className="font-mono font-bold text-sm">#{voucherPreviewData.id}</span>
+                       </div>
+                       <div className="flex justify-between items-end border-b border-dotted border-gray-300 pb-1">
+                          <span className="text-xs font-bold uppercase text-gray-500">Date</span>
+                          <span className="font-bold text-sm">{new Date(voucherPreviewData.createdAt).toLocaleDateString('en-GB')}</span>
+                       </div>
+                       
+                       <div className="py-2">
+                          <p className="text-xs font-bold uppercase text-gray-500 mb-1">Pay To</p>
+                          <p className="font-bold text-lg">{voucherPreviewData.staffName}</p>
+                          <p className="text-xs text-gray-500">ID: {getVoucherData()?.staffDisplayId} • {getVoucherData()?.designation}</p>
+                       </div>
+
+                       <div className="bg-gray-50 p-3 border border-gray-200">
+                          <p className="text-[10px] font-bold uppercase text-gray-500 mb-1">The Sum Of</p>
+                          <p className="text-2xl font-black">৳ {voucherPreviewData.amount.toLocaleString()}</p>
+                          <p className="text-xs italic text-gray-600 mt-1">On Account of: {voucherPreviewData.reason}</p>
+                       </div>
+
+                       {/* Status Section */}
+                       <div className="border-t-2 border-dashed border-gray-300 pt-3 mt-4">
+                          <div className="flex justify-between text-xs font-bold text-gray-600 mb-1">
+                             <span>Total Approved Exp:</span>
+                             <span>৳ {getVoucherData()?.totalExp.toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between text-xs font-bold text-gray-600 mb-1">
+                             <span>Total Regular Adv:</span>
+                             <span>৳ {getVoucherData()?.totalAdv.toLocaleString()}</span>
+                          </div>
+                          <div className={`flex justify-between text-sm font-black border-t border-gray-300 pt-1 mt-1 ${(getVoucherData()?.balance || 0) < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                             <span>Net Status:</span>
+                             <span>{(getVoucherData()?.balance || 0) < 0 ? 'Payable' : 'Cash In Hand'} ৳ {Math.abs(getVoucherData()?.balance || 0).toLocaleString()}</span>
+                          </div>
+                       </div>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="mt-12 pt-4 border-t border-black flex justify-between items-end">
+                       <div className="text-center">
+                          <p className="text-[8px] font-bold uppercase text-gray-400">Receiver's Signature</p>
+                       </div>
+                       <div className="text-center relative">
+                          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-24 h-10 flex items-center justify-center opacity-80 pointer-events-none">
+                             <div className="border-2 border-green-600 text-green-700 font-black text-[8px] uppercase px-1 py-0.5 rounded rotate-[-10deg] bg-white">
+                                MD APPROVED
+                             </div>
+                          </div>
+                          <p className="text-[8px] font-bold uppercase text-gray-400">Authorized Signature</p>
+                       </div>
+                    </div>
+                    
+                    <div className="mt-4 text-center">
+                       <p className="text-[8px] text-gray-400 italic">Bill Approval Proof • System Generated</p>
+                    </div>
+                 </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="p-4 border-t border-gray-100 bg-white flex gap-3">
+                 <button onClick={downloadVoucherImage} className="flex-1 bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 flex items-center justify-center gap-2 shadow-lg active:scale-95">
+                    <Download className="w-5 h-5" /> Download JPG
+                 </button>
+              </div>
+           </div>
+        </div>
       )}
 
-      {/* Modals omitted for brevity but logic is same as before, just rendering carefully */}
+      {/* ... (Other modals like Submit, Status Confirm, Delete Confirm, Correction remain unchanged) ... */}
+      {/* Keeping previous modals rendered logic exactly as is to avoid breaking functionality */}
       {isSubmitModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in zoom-in duration-200">
           <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -597,179 +952,23 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
               <button onClick={() => setIsSubmitModalOpen(false)} className="text-indigo-200 hover:text-white">×</button>
             </div>
             <div className="overflow-y-auto p-6 flex-1">
-              {/* Live Duplicate Warning Banner */}
-              {isSubmissionDuplicate && (
-                 <div className="mb-4 bg-red-50 border border-red-200 p-4 rounded-xl flex items-start gap-3 animate-pulse">
-                    <AlertTriangle className="w-6 h-6 text-red-500 shrink-0" />
-                    <div>
-                       <h4 className="font-bold text-red-700 text-sm">সতর্কতা: ডুপ্লিকেট বিল!</h4>
-                       <p className="text-xs text-red-600 mt-1">নির্বাচিত তারিখে এই স্টাফের ইতিমধ্যে একটি বিল সিস্টেমে আছে।</p>
-                    </div>
-                 </div>
-              )}
-
+              {isSubmissionDuplicate && <div className="mb-4 bg-red-50 border border-red-200 p-4 rounded-xl flex items-start gap-3 animate-pulse"><AlertTriangle className="w-6 h-6 text-red-500 shrink-0" /><div><h4 className="font-bold text-red-700 text-sm">সতর্কতা: ডুপ্লিকেট বিল!</h4><p className="text-xs text-red-600 mt-1">নির্বাচিত তারিখে এই স্টাফের ইতিমধ্যে একটি বিল সিস্টেমে আছে।</p></div></div>}
               <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Simplified form */}
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 ml-1">স্টাফ মেম্বার</label>
-                  <select 
-                    required 
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-100 text-slate-700 font-bold rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all shadow-sm appearance-none text-sm" 
-                    value={formData.staffId} 
-                    onChange={(e) => setFormData({...formData, staffId: e.target.value})}
-                  >
-                     <option value="">স্টাফ নির্বাচন করুন</option>
-                     {activeStaff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 ml-1">তারিখ</label>
-                  <input 
-                    type="date" 
-                    required 
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-100 text-slate-700 font-bold rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all shadow-sm text-sm" 
-                    value={formData.date} 
-                    onChange={(e) => setFormData({...formData, date: e.target.value})} 
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1 flex justify-between">
-                    <span>খরচের কারণ ও বিবরণ</span>
-                    <span className="text-xs text-indigo-600 font-bold flex items-center gap-1"><Sparkles className="w-3 h-3"/> Auto Calculator</span>
-                  </label>
-                  <textarea 
-                    required 
-                    rows={3} 
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-gray-900 bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm" 
-                    placeholder="কারণ..." 
-                    value={formData.reason} 
-                    onChange={handleReasonChange} 
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 ml-1">টাকার পরিমাণ</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">৳</span>
-                    <input 
-                      required 
-                      type="number" 
-                      className="w-full pl-7 pr-3 py-2.5 bg-slate-50 border border-slate-100 text-slate-800 font-black text-base rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all shadow-sm placeholder:text-slate-300" 
-                      placeholder="0.00" 
-                      value={formData.amount || ''} 
-                      onChange={(e) => setFormData({...formData, amount: Number(e.target.value)})} 
-                    />
-                  </div>
-                </div>
-
-                <div onClick={() => fileInputRef.current?.click()} className="group py-2 px-3 border-2 border-dashed border-indigo-100 hover:border-indigo-300 rounded-lg bg-indigo-50/30 hover:bg-indigo-50 cursor-pointer transition-all flex items-center justify-center gap-2 relative overflow-hidden">
-                   <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={handleImageUpload} />
-                   {formData.voucherImage ? (
-                      <span className="text-xs font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded flex items-center gap-1">
-                         <CheckCircle className="w-3 h-3"/> ছবি যুক্ত হয়েছে <span className="text-[9px] text-gray-400 font-normal">(পরিবর্তন)</span>
-                      </span>
-                   ) : (
-                      <>
-                         <Camera className="w-4 h-4 text-indigo-400 group-hover:text-indigo-600 transition-colors"/>
-                         <span className="text-xs font-bold text-indigo-400 group-hover:text-indigo-600">ভাউচার ছবি দিন</span>
-                      </>
-                   )}
-                </div>
-
-                <button type="submit" className={`w-full text-white py-3 rounded-xl font-bold text-sm transition-all active:scale-95 flex items-center justify-center gap-2 shadow-xl ${isSubmissionDuplicate ? 'bg-red-500 hover:bg-red-600 shadow-red-200' : 'bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 shadow-indigo-200'}`}>
-                   {isSubmissionDuplicate ? <><AlertTriangle className="w-5 h-5"/> তবুও সাবমিট করুন</> : 'বিল সাবমিট করুন'}
-                </button>
+                <div><label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 ml-1">স্টাফ মেম্বার</label><select required className="w-full px-3 py-2.5 bg-slate-50 border border-slate-100 text-slate-700 font-bold rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all shadow-sm appearance-none text-sm" value={formData.staffId} onChange={(e) => setFormData({...formData, staffId: e.target.value})}><option value="">স্টাফ নির্বাচন করুন</option>{activeStaff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
+                <div><label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 ml-1">তারিখ</label><input type="date" required className="w-full px-3 py-2.5 bg-slate-50 border border-slate-100 text-slate-700 font-bold rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all shadow-sm text-sm" value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} /></div>
+                <div><label className="block text-sm font-medium text-gray-700 mb-1 flex justify-between"><span>খরচের কারণ ও বিবরণ</span><span className="text-xs text-indigo-600 font-bold flex items-center gap-1"><Sparkles className="w-3 h-3"/> Auto Calculator</span></label><textarea required rows={3} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-gray-900 bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm" placeholder="কারণ..." value={formData.reason} onChange={handleReasonChange} /></div>
+                <div><label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 ml-1">টাকার পরিমাণ</label><div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">৳</span><input required type="number" className="w-full pl-7 pr-3 py-2.5 bg-slate-50 border border-slate-100 text-slate-800 font-black text-base rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all shadow-sm placeholder:text-slate-300" placeholder="0.00" value={formData.amount || ''} onChange={(e) => setFormData({...formData, amount: Number(e.target.value)})} /></div></div>
+                <div onClick={() => fileInputRef.current?.click()} className="group py-2 px-3 border-2 border-dashed border-indigo-100 hover:border-indigo-300 rounded-lg bg-indigo-50/30 hover:bg-indigo-50 cursor-pointer transition-all flex items-center justify-center gap-2 relative overflow-hidden"><input ref={fileInputRef} type="file" accept="image/*" hidden onChange={handleImageUpload} />{formData.voucherImage ? <span className="text-xs font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded flex items-center gap-1"><CheckCircle className="w-3 h-3"/> ছবি যুক্ত হয়েছে <span className="text-[9px] text-gray-400 font-normal">(পরিবর্তন)</span></span> : <><Camera className="w-4 h-4 text-indigo-400 group-hover:text-indigo-600 transition-colors"/><span className="text-xs font-bold text-indigo-400 group-hover:text-indigo-600">ভাউচার ছবি দিন</span></>}</div>
+                <button type="submit" className={`w-full text-white py-3 rounded-xl font-bold text-sm transition-all active:scale-95 flex items-center justify-center gap-2 shadow-xl ${isSubmissionDuplicate ? 'bg-red-500 hover:bg-red-600 shadow-red-200' : 'bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 shadow-indigo-200'}`}>{isSubmissionDuplicate ? <><AlertTriangle className="w-5 h-5"/> তবুও সাবমিট করুন</> : 'বিল সাবমিট করুন'}</button>
               </form>
             </div>
           </div>
         </div>
       )}
-
-      {statusConfirmData && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in duration-200">
-          <div className="bg-white w-full max-w-sm rounded-2xl p-6 text-center shadow-2xl">
-             <h3 className="font-bold text-lg mb-2">নিশ্চিত করুন</h3>
-             <p className="text-sm text-gray-500 mb-4">স্ট্যাটাস পরিবর্তন করতে চান?</p>
-             <div className="flex gap-3">
-                <button onClick={() => setStatusConfirmData(null)} className="flex-1 py-2 border rounded-lg font-bold text-gray-600">না</button>
-                <button onClick={confirmStatusUpdate} className="flex-1 py-2 bg-indigo-600 text-white rounded-lg font-bold">হ্যাঁ</button>
-             </div>
-          </div>
-        </div>
-      )}
-
-      {deleteConfirmId && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in duration-200">
-          <div className="bg-white w-full max-w-sm rounded-2xl p-6 text-center shadow-2xl">
-             <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600"><Trash2 className="w-6 h-6" /></div>
-             <h3 className="font-bold text-lg mb-2">ডিলিট করবেন?</h3>
-             <div className="flex gap-3 mt-4">
-                <button onClick={() => setDeleteConfirmId(null)} className="flex-1 py-2 border rounded-lg font-bold text-gray-600">না</button>
-                <button onClick={confirmDelete} className="flex-1 py-2 bg-red-600 text-white rounded-lg font-bold">হ্যাঁ</button>
-             </div>
-          </div>
-        </div>
-      )}
-
-      {isCorrectionModalOpen && correctionData && (
-         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in zoom-in duration-200">
-            <div className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl relative overflow-hidden">
-               {/* Header with Title and Date input in corner/top-right */}
-               <div className="flex justify-between items-start mb-4">
-                  <h3 className="font-bold text-lg text-gray-800">বিল সংশোধন</h3>
-                  
-                  {/* Date Input - Small in corner */}
-                  <div className="flex flex-col items-end">
-                     <label className="text-[9px] font-bold text-gray-600 uppercase tracking-wider mb-0.5">তারিখ</label>
-                     <input 
-                       type="date" 
-                       className="text-xs border border-gray-200 rounded-lg px-2 py-1 font-bold text-gray-900 bg-white focus:outline-none focus:border-orange-400 shadow-sm"
-                       value={correctionData.date} 
-                       onChange={(e) => setCorrectionData({...correctionData, date: e.target.value})} 
-                     />
-                  </div>
-               </div>
-
-               <form onSubmit={saveCorrection} className="space-y-4">
-                  <div>
-                     <label className="block text-xs font-bold text-gray-600 mb-1">টাকার পরিমাণ</label>
-                     <input 
-                        type="number" 
-                        className="w-full border border-gray-200 p-3 rounded-xl font-black text-2xl text-gray-900 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-orange-100 outline-none transition-colors" 
-                        value={correctionData.amount} 
-                        onChange={e => setCorrectionData({...correctionData, amount: Number(e.target.value)})} 
-                     />
-                  </div>
-                  
-                  <div>
-                     <label className="block text-xs font-bold text-gray-600 mb-1">কারণ</label>
-                     <textarea 
-                        rows={3} 
-                        className="w-full border border-gray-200 p-3 rounded-xl text-sm font-medium text-gray-900 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-orange-100 outline-none resize-none transition-colors" 
-                        value={correctionData.reason} 
-                        onChange={e => setCorrectionData({...correctionData, reason: e.target.value})} 
-                     />
-                  </div>
-
-                  <div className="flex gap-3 mt-2">
-                    <button type="button" onClick={() => setIsCorrectionModalOpen(false)} className="flex-1 border border-gray-200 py-3 rounded-xl font-bold text-gray-500 hover:bg-gray-50 transition-colors">বাতিল</button>
-                    <button type="submit" className="flex-[2] bg-orange-500 text-white py-3 rounded-xl font-bold hover:bg-orange-600 shadow-lg shadow-orange-200 transition-colors">আপডেট করুন</button>
-                  </div>
-               </form>
-            </div>
-         </div>
-      )}
-
-      {viewingVoucher && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/90 animate-in fade-in duration-200" onClick={() => setViewingVoucher(null)}>
-           <div className="relative max-w-3xl w-full max-h-screen p-2">
-             <button onClick={() => setViewingVoucher(null)} className="absolute -top-10 right-0 text-white hover:text-red-400 transition-colors"><X className="w-8 h-8" /></button>
-             <img src={viewingVoucher} alt="Voucher" className="w-full h-auto max-h-[85vh] object-contain rounded-lg shadow-2xl bg-white" />
-           </div>
-        </div>
-      )}
+      {statusConfirmData && <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in duration-200"><div className="bg-white w-full max-w-sm rounded-2xl p-6 text-center shadow-2xl"><h3 className="font-bold text-lg mb-2">নিশ্চিত করুন</h3><p className="text-sm text-gray-500 mb-4">স্ট্যাটাস পরিবর্তন করতে চান?</p><div className="flex gap-3"><button onClick={() => setStatusConfirmData(null)} className="flex-1 py-2 border rounded-lg font-bold text-gray-600">না</button><button onClick={confirmStatusUpdate} className="flex-1 py-2 bg-indigo-600 text-white rounded-lg font-bold">হ্যাঁ</button></div></div></div>}
+      {deleteConfirmId && <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in duration-200"><div className="bg-white w-full max-w-sm rounded-2xl p-6 text-center shadow-2xl"><div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600"><Trash2 className="w-6 h-6" /></div><h3 className="font-bold text-lg mb-2">ডিলিট করবেন?</h3><div className="flex gap-3 mt-4"><button onClick={() => setDeleteConfirmId(null)} className="flex-1 py-2 border rounded-lg font-bold text-gray-600">না</button><button onClick={confirmDelete} className="flex-1 py-2 bg-red-600 text-white rounded-lg font-bold">হ্যাঁ</button></div></div></div>}
+      {isCorrectionModalOpen && correctionData && <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in zoom-in duration-200"><div className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl relative overflow-hidden"><div className="flex justify-between items-start mb-4"><h3 className="font-bold text-lg text-gray-800">বিল সংশোধন</h3><div className="flex flex-col items-end"><label className="text-[9px] font-bold text-gray-600 uppercase tracking-wider mb-0.5">তারিখ</label><input type="date" className="text-xs border border-gray-200 rounded-lg px-2 py-1 font-bold text-gray-900 bg-white focus:outline-none focus:border-orange-400 shadow-sm" value={correctionData.date} onChange={(e) => setCorrectionData({...correctionData, date: e.target.value})} /></div></div><form onSubmit={saveCorrection} className="space-y-4"><div><label className="block text-xs font-bold text-gray-600 mb-1">টাকার পরিমাণ</label><input type="number" className="w-full border border-gray-200 p-3 rounded-xl font-black text-2xl text-gray-900 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-orange-100 outline-none transition-colors" value={correctionData.amount} onChange={e => setCorrectionData({...correctionData, amount: Number(e.target.value)})} /></div><div><label className="block text-xs font-bold text-gray-600 mb-1">কারণ</label><textarea rows={3} className="w-full border border-gray-200 p-3 rounded-xl text-sm font-medium text-gray-900 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-orange-100 outline-none resize-none transition-colors" value={correctionData.reason} onChange={e => setCorrectionData({...correctionData, reason: e.target.value})} /></div><div className="flex gap-3 mt-2"><button type="button" onClick={() => setIsCorrectionModalOpen(false)} className="flex-1 border border-gray-200 py-3 rounded-xl font-bold text-gray-500 hover:bg-gray-50 transition-colors">বাতিল</button><button type="submit" className="flex-[2] bg-orange-500 text-white py-3 rounded-xl font-bold hover:bg-orange-600 shadow-lg shadow-orange-200 transition-colors">আপডেট করুন</button></div></form></div></div>}
+      {viewingVoucher && <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/90 animate-in fade-in duration-200" onClick={() => setViewingVoucher(null)}><div className="relative max-w-3xl w-full max-h-screen p-2"><button onClick={() => setViewingVoucher(null)} className="absolute -top-10 right-0 text-white hover:text-red-400 transition-colors"><X className="w-8 h-8" /></button><img src={viewingVoucher} alt="Voucher" className="w-full h-auto max-h-[85vh] object-contain rounded-lg shadow-2xl bg-white" /></div></div>}
     </div>
   );
 };

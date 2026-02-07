@@ -114,6 +114,34 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
     return num;
   };
 
+  // Helper for Premium Currency Formatting
+  const formatCurrency = (amount: number, isLarge: boolean = false) => {
+    const isNegative = amount < 0;
+    const absAmount = Math.abs(amount).toLocaleString('en-US');
+    const textSize = isLarge ? 'text-2xl' : 'text-xl';
+    
+    return (
+      <span className={`font-mono font-black tracking-tight ${textSize} ${isNegative ? 'text-red-400' : 'text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-300'}`}>
+        {isNegative && <span className="mr-1 text-red-400">-</span>}
+        <span className={`font-sans font-bold opacity-70 mr-1 ${isLarge ? 'text-sm' : 'text-xs'} ${isNegative ? 'text-red-400' : 'text-indigo-200'}`}>৳</span>
+        {absAmount}
+      </span>
+    );
+  };
+
+  const formatCurrencyLight = (amount: number, colorClass: string) => {
+    const isNegative = amount < 0;
+    const absAmount = Math.abs(amount).toLocaleString('en-US');
+    
+    return (
+      <span className={`font-mono font-black text-xl tracking-tight ${colorClass}`}>
+        {isNegative && <span className="mr-1">-</span>}
+        <span className="font-sans font-bold opacity-60 mr-1 text-xs">৳</span>
+        {absAmount}
+      </span>
+    );
+  };
+
   // --- STAFF FORM HANDLERS ---
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -676,31 +704,19 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
                               <div className="grid grid-cols-2 gap-6 relative z-10">
                                   <div className="flex flex-col">
                                       <p className="text-[9px] font-extrabold text-gray-500 uppercase tracking-[0.1em] mb-1">Total Balance</p>
-                                      <p className={`text-2xl font-black tracking-tighter ${balance < 0 ? 'text-red-400 drop-shadow-[0_0_15px_rgba(248,113,113,0.4)]' : 'text-white drop-shadow-md'}`}>
-                                          <span className="text-sm font-bold mr-0.5 opacity-60 font-sans">৳</span>
-                                          {balance.toLocaleString('en-US')}
-                                      </p>
+                                      {formatCurrency(balance, true)}
                                   </div>
                                   <div className="flex flex-col">
                                       <p className="text-[9px] font-extrabold text-gray-500 uppercase tracking-[0.1em] mb-1">Salary Adv</p>
-                                      <p className="text-2xl font-black tracking-tighter text-purple-300 drop-shadow-[0_0_15px_rgba(216,180,254,0.3)]">
-                                          <span className="text-sm font-bold mr-0.5 opacity-60 font-sans">৳</span>
-                                          {totalSalaryAdv.toLocaleString('en-US')}
-                                      </p>
+                                      {formatCurrencyLight(totalSalaryAdv, 'text-purple-300')}
                                   </div>
                                   <div className="flex flex-col">
                                       <p className="text-[9px] font-extrabold text-gray-500 uppercase tracking-[0.1em] mb-1">Total Expense</p>
-                                      <p className="text-xl font-black tracking-tighter text-indigo-300 drop-shadow-md">
-                                          <span className="text-xs font-bold mr-0.5 opacity-60 font-sans">৳</span>
-                                          {approved.toLocaleString('en-US')}
-                                      </p>
+                                      {formatCurrencyLight(approved, 'text-indigo-300')}
                                   </div>
                                   <div className="flex flex-col">
                                       <p className="text-[9px] font-extrabold text-gray-500 uppercase tracking-[0.1em] mb-1">Regular Adv</p>
-                                      <p className="text-xl font-black tracking-tighter text-blue-300 drop-shadow-md">
-                                          <span className="text-xs font-bold mr-0.5 opacity-60 font-sans">৳</span>
-                                          {totalRegularAdv.toLocaleString('en-US')}
-                                      </p>
+                                      {formatCurrencyLight(totalRegularAdv, 'text-blue-300')}
                                   </div>
                               </div>
                           </div>
