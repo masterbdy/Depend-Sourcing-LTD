@@ -227,13 +227,9 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
         if (diffDays < 0) return alert("ভবিষ্যতের তারিখ দেওয়া যাবে না।");
     }
 
-    // DUPLICATE CONFIRMATION
-    if (isSubmissionDuplicate) {
-      const confirmMsg = `⚠️ সতর্কতা: ${staff.name}-এর জন্য ${new Date(formData.date).toLocaleDateString('bn-BD')} তারিখে ইতিমধ্যে একটি বিল সিস্টেমে আছে।\n\nআপনি কি নিশ্চিত যে এটি একটি নতুন/আলাদা বিল?`;
-      if (!window.confirm(confirmMsg)) {
-        return; // Stop Submission
-      }
-    }
+    // DUPLICATE CONFIRMATION - REMOVED
+    // The "Submit Anyway" button already acts as the confirmation trigger.
+    // No need for a second popup which might be blocking or confusing.
 
     const submitDate = new Date(formData.date);
     const now = new Date();

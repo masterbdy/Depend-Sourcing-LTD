@@ -322,10 +322,10 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
     }
     
     // Logic: Gift sends positive value, Penalty sends negative value
-    // This uses the central logic in App.tsx which handles monthly resets correctly.
     
     if (pointMode === 'PENALTY') {
-        setShowPenaltyConfirm(true); // Trigger Custom Modal
+        setIsGiftPointModalOpen(false); // Close the input modal
+        setTimeout(() => setShowPenaltyConfirm(true), 200); // Open confirmation modal with delay
         return; // Important: Return to stop immediate execution
     }
 
@@ -345,7 +345,6 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
       onUpdatePoints(giftPointData.staffId, -points, 'ADMIN_PENALTY');
       
       setShowPenaltyConfirm(false);
-      setIsGiftPointModalOpen(false);
       // Small delay to ensure modal closes before alert
       setTimeout(() => alert('পয়েন্ট পেনাল্টি কার্যকর হয়েছে (পয়েন্ট কাটা হয়েছে)।'), 100);
   };
@@ -756,7 +755,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
 
       {/* PENALTY CONFIRMATION MODAL - ENSURING TOP Z-INDEX */}
       {showPenaltyConfirm && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
             <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden p-6 text-center transform scale-100 transition-transform">
                 <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-white shadow-lg">
                     <AlertTriangle className="w-10 h-10 text-red-600" />
@@ -767,7 +766,10 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
                 </p>
                 <div className="flex gap-3">
                     <button 
-                        onClick={() => setShowPenaltyConfirm(false)}
+                        onClick={() => {
+                           setShowPenaltyConfirm(false);
+                           setTimeout(() => setIsGiftPointModalOpen(true), 200); // Re-open input modal
+                        }}
                         className="flex-1 py-3.5 border-2 border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-50 transition-colors"
                     >
                         না, বাতিল

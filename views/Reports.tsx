@@ -483,7 +483,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
           </div>
           <div class="report-title-box theme-light-bg border border-indigo-200">
              <div>
-               <h2 class="report-title theme-color">${selectedStaffId ? 'INDIVIDUAL LEDGER REPORT' : 'FINANCIAL LEDGER'}</h2>
+               <h2 class="report-title theme-color">${selectedStaffId ? 'INDIVIDUAL ACCOUNT STATEMENT' : 'ACCOUNT STATEMENT'}</h2>
                <p class="meta-text text-gray-600">${selectedStaffId ? 'Staff Name: ' + selectedStaffName : 'Consolidated Expense & Advance Statement'}</p>
              </div>
              <div class="text-right meta-text"><p><strong>Period:</strong> ${reportStartDate ? new Date(reportStartDate).toLocaleDateString('en-GB') : 'Start'} — ${reportEndDate ? new Date(reportEndDate).toLocaleDateString('en-GB') : 'Today'}</p></div>
