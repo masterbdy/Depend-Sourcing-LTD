@@ -1,7 +1,6 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Bell, Plus, Trash2, Megaphone, Info, AlertCircle, X, Check, Pin, Eye, CalendarDays, AlertTriangle } from 'lucide-react';
-import { Notice, UserRole } from '../types';
+import { Notice, UserRole, Staff } from '../types';
 import { ROLE_LABELS } from '../constants';
 
 interface NoticeBoardProps {
@@ -9,9 +8,10 @@ interface NoticeBoardProps {
   setNotices: React.Dispatch<React.SetStateAction<Notice[]>>;
   role: UserRole;
   currentUser: string;
+  staffList: Staff[];
 }
 
-const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices = [], setNotices, role, currentUser }) => {
+const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices = [], setNotices, role, currentUser, staffList = [] }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({ title: '', content: '', type: 'NORMAL' as 'NORMAL' | 'URGENT' });
   const [seenListNoticeId, setSeenListNoticeId] = useState<string | null>(null);
@@ -23,6 +23,32 @@ const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices = [], setNotices,
   const activeNotices = (notices || []).filter(n => !n.isDeleted).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   
   const canPost = role === UserRole.ADMIN || role === UserRole.MD;
+
+  // Auto-Seen Logic: Automatically mark notices as seen when viewing this page
+  useEffect(() => {
+    if (!currentUser) return;
+
+    // Check if there are any active notices that haven't been seen by the current user
+    const hasUnseen = notices.some(n => 
+      !n.isDeleted && 
+      !(n.reactions || []).some(r => r.userId === currentUser)
+    );
+
+    if (hasUnseen) {
+      setNotices(prev => prev.map(n => {
+        const reactions = n.reactions || [];
+        const alreadySeen = reactions.some(r => r.userId === currentUser);
+        
+        if (!n.isDeleted && !alreadySeen) {
+           return {
+             ...n,
+             reactions: [...reactions, { userId: currentUser, userName: currentUser, emoji: 'seen' }]
+           };
+        }
+        return n;
+      }));
+    }
+  }, [notices, currentUser, setNotices]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,27 +80,16 @@ const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices = [], setNotices,
     }
   };
 
-  const toggleReaction = (noticeId: string) => {
-    setNotices(prev => prev.map(n => {
-      if (n.id === noticeId) {
-        const reactions = n.reactions || [];
-        const existingIdx = reactions.findIndex(r => r.userId === currentUser);
-        
-        let newReactions = [...reactions];
-        if (existingIdx > -1) {
-           newReactions.splice(existingIdx, 1); // Remove seen
-        } else {
-           newReactions.push({ userId: currentUser, userName: currentUser, emoji: 'seen' }); // Add seen
-        }
-        return { ...n, reactions: newReactions };
-      }
-      return n;
-    }));
-  };
-
   const getNoticeReactions = (noticeId: string) => {
      const notice = notices.find(n => n.id === noticeId);
      return notice?.reactions || [];
+  };
+
+  const getPublisherPhoto = (postedByString: string) => {
+    // Extract name from "Name (Role)" string
+    const name = postedByString.split(' (')[0];
+    const staff = staffList.find(s => s.name === name);
+    return staff?.photo;
   };
 
   return (
@@ -106,6 +121,7 @@ const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices = [], setNotices,
             const reactions = notice.reactions || [];
             const hasSeen = reactions.some(r => r.userId === currentUser);
             const isUrgent = notice.type === 'URGENT';
+            const publisherPhoto = getPublisherPhoto(notice.postedBy);
 
             return (
             <div 
@@ -157,8 +173,12 @@ const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices = [], setNotices,
 
                {/* Footer Info */}
                <div className="flex items-center gap-2 mb-4 pb-4 border-b border-gray-200/50">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${isUrgent ? 'bg-red-100 text-red-700' : 'bg-indigo-100 text-indigo-700'}`}>
-                     {notice.postedBy.charAt(0)}
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs overflow-hidden border border-white/50 shadow-sm ${isUrgent ? 'bg-red-100 text-red-700' : 'bg-indigo-100 text-indigo-700'}`}>
+                     {publisherPhoto ? (
+                       <img src={publisherPhoto} alt="Publisher" className="w-full h-full object-cover" />
+                     ) : (
+                       notice.postedBy.charAt(0)
+                     )}
                   </div>
                   <div>
                      <p className="text-[10px] uppercase font-bold text-gray-400">প্রকাশক</p>
@@ -175,14 +195,11 @@ const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices = [], setNotices,
 
                {/* Action Bar */}
                <div className="flex justify-between items-center">
-                  {/* Reaction Button */}
-                  <button 
-                    onClick={() => toggleReaction(notice.id)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 shadow-sm border ${hasSeen ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}
-                  >
+                  {/* Seen Status Indicator (Read Only) */}
+                  <div className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold shadow-sm border ${hasSeen ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-400 border-gray-200'}`}>
                      {hasSeen ? <Check className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                     {hasSeen ? 'দেখেছি (Seen)' : 'মার্ক করুন (Seen)'}
-                  </button>
+                     {hasSeen ? 'দেখেছি (Seen)' : 'Auto Marking...'}
+                  </div>
 
                   {/* Seen Count & List Trigger */}
                   {reactions.length > 0 && (
@@ -191,11 +208,18 @@ const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices = [], setNotices,
                       className="flex items-center -space-x-2 overflow-hidden hover:scale-105 transition-transform p-1"
                       title="কারা দেখেছে?"
                     >
-                       {reactions.slice(0, 3).map((r, i) => (
-                          <div key={i} className="w-8 h-8 rounded-full bg-white border-2 border-indigo-50 flex items-center justify-center text-[10px] font-bold text-indigo-600 shadow-sm" title={r.userName}>
-                             {r.userName.charAt(0)}
-                          </div>
-                       ))}
+                       {reactions.slice(0, 3).map((r, i) => {
+                          const viewer = staffList.find(s => s.name === r.userName);
+                          return (
+                            <div key={i} className="w-8 h-8 rounded-full bg-white border-2 border-indigo-50 flex items-center justify-center text-[10px] font-bold text-indigo-600 shadow-sm overflow-hidden" title={r.userName}>
+                               {viewer && viewer.photo ? (
+                                 <img src={viewer.photo} alt={r.userName} className="w-full h-full object-cover" />
+                               ) : (
+                                 r.userName.charAt(0)
+                               )}
+                            </div>
+                          );
+                       })}
                        {reactions.length > 3 && (
                           <div className="w-8 h-8 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center text-[9px] font-bold text-gray-500 shadow-sm">
                              +{reactions.length - 3}
@@ -230,14 +254,20 @@ const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices = [], setNotices,
                  <button onClick={() => setSeenListNoticeId(null)} className="p-1 hover:bg-gray-200 rounded-full transition-colors"><X className="w-4 h-4 text-gray-500"/></button>
               </div>
               <div className="flex-1 overflow-y-auto p-2 space-y-1">
-                 {getNoticeReactions(seenListNoticeId).map((r, idx) => (
+                 {getNoticeReactions(seenListNoticeId).map((r, idx) => {
+                    const viewer = staffList.find(s => s.name === r.userName);
+                    return (
                     <div key={idx} className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-xl transition-colors border-b border-gray-50 last:border-0">
-                       <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xs uppercase">
-                          {r.userName.charAt(0)}
+                       <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xs uppercase overflow-hidden">
+                          {viewer && viewer.photo ? (
+                             <img src={viewer.photo} alt={r.userName} className="w-full h-full object-cover" />
+                          ) : (
+                             r.userName.charAt(0)
+                          )}
                        </div>
                        <p className="text-sm font-bold text-gray-700">{r.userName}</p>
                     </div>
-                 ))}
+                 )})}
                  {getNoticeReactions(seenListNoticeId).length === 0 && (
                     <div className="text-center py-8 text-gray-400 text-xs">কেউ এখনো দেখেনি।</div>
                  )}

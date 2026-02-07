@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   LayoutGrid, UsersRound, Route, Banknote, PieChart, Settings2, Recycle, 
-  LogOut, Wallet, User, Cloud, WifiOff, AlertTriangle, Menu, X, RefreshCw, Lock, ArrowRightLeft, XCircle, Landmark, Bell, Phone, Briefcase, Crown, UserCog, ShieldCheck, Camera, Save, KeyRound, CreditCard, MessageSquareWarning, MapPin, MonitorSmartphone, Satellite, Trophy, Gift, Shield, CheckCircle, LogIn, Sparkles, ClipboardList, Check, Eye, EyeOff, Moon, Sun, Loader2, Grid, Info, BellRing, ChevronRight, Fingerprint, Megaphone, Radar, ShieldAlert, MessageCircleMore
+  LogOut, Wallet, User, Cloud, WifiOff, AlertTriangle, Menu, X, RefreshCw, Lock, ArrowRightLeft, XCircle, Landmark, Bell, Phone, Briefcase, Crown, UserCog, ShieldCheck, Camera, Save, KeyRound, CreditCard, MessageSquareWarning, MapPin, MonitorSmartphone, Satellite, Trophy, Gift, Shield, CheckCircle, LogIn, Sparkles, ClipboardList, Check, Eye, EyeOff, Moon, Sun, Loader2, Grid, Info, BellRing, ChevronRight, Fingerprint, Megaphone, Radar, ShieldAlert, MessageCircleMore, Download, UserCheck
 } from 'lucide-react';
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { getDatabase, ref, onValue, set } from "firebase/database";
@@ -24,6 +24,24 @@ import AttendanceView from './views/Attendance';
 import LiveLocationView from './views/LiveLocation';
 import LuckyDrawView from './views/LuckyDraw';
 
+// Safe LocalStorage Helper
+const safeGetItem = (key: string, defaultValue: string | null = null) => {
+  try {
+    return localStorage.getItem(key) || defaultValue;
+  } catch (e) {
+    console.warn(`LocalStorage access denied for key: ${key}`);
+    return defaultValue;
+  }
+};
+
+const safeSetItem = (key: string, value: string) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch (e) {
+    console.warn(`LocalStorage write failed for key: ${key}`);
+  }
+};
+
 const App: React.FC = () => {
   const [role, setRole] = useState<UserRole | null>(null);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
@@ -31,13 +49,36 @@ const App: React.FC = () => {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false); 
   
+  // PWA Install State
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, []);
+
+  const handleInstallClick = () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then((choiceResult: any) => {
+        if (choiceResult.outcome === 'accepted') {
+          setDeferredPrompt(null);
+        }
+      });
+    }
+  };
+  
   const [isDarkMode, setIsDarkMode] = useState(() => {
-    return localStorage.getItem('app_theme') === 'dark';
+    return safeGetItem('app_theme') === 'dark';
   });
 
   const [appNotifications, setAppNotifications] = useState<AppNotification[]>(() => {
     try {
-      const saved = localStorage.getItem('app_notifications');
+      const saved = safeGetItem('app_notifications');
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
@@ -48,11 +89,11 @@ const App: React.FC = () => {
   const [isNotifDropdownOpen, setIsNotifDropdownOpen] = useState(false);
   
   useEffect(() => {
-    localStorage.setItem('app_notifications', JSON.stringify(appNotifications));
+    safeSetItem('app_notifications', JSON.stringify(appNotifications));
   }, [appNotifications]);
   
   const [permissionsGranted, setPermissionsGranted] = useState(() => {
-     return localStorage.getItem('app_permissions_granted') === 'true';
+     return safeGetItem('app_permissions_granted') === 'true';
   });
 
   const [profileForm, setProfileForm] = useState({
@@ -96,7 +137,7 @@ const App: React.FC = () => {
   };
 
   const [firebaseConfig] = useState<any>(() => {
-    const saved = localStorage.getItem('fb_config');
+    const saved = safeGetItem('fb_config');
     let config;
     try {
       config = saved && saved !== 'null' ? JSON.parse(saved) : DEFAULT_FIREBASE_CONFIG;
@@ -112,7 +153,7 @@ const App: React.FC = () => {
   const loadLocalData = () => {
     const getLocal = (key: string, def: string) => {
       try {
-        const val = JSON.parse(localStorage.getItem(key) || def);
+        const val = JSON.parse(safeGetItem(key) || def);
         return cleanArray(val);
       } catch {
         return cleanArray(JSON.parse(def));
@@ -131,7 +172,7 @@ const App: React.FC = () => {
     setAttendanceList(getLocal('attendanceList', '[]') as Attendance[]);
     
     try {
-      const savedAcc = localStorage.getItem('saved_accounts');
+      const savedAcc = safeGetItem('saved_accounts');
       if (savedAcc) setSavedAccounts(JSON.parse(savedAcc));
     } catch (e) {
       console.error(e);
@@ -166,7 +207,7 @@ const App: React.FC = () => {
               const arrayData = node === 'staff_locations' ? data : cleanArray(data); 
               setter(arrayData);
               if (node !== 'staff_locations') {
-                localStorage.setItem(node, JSON.stringify(arrayData));
+                safeSetItem(node, JSON.stringify(arrayData));
               }
               setIsCloudEnabled(true);
             } else {
@@ -213,7 +254,7 @@ const App: React.FC = () => {
           const geoResult = await navigator.permissions.query({ name: 'geolocation' });
           if (geoResult.state === 'granted') {
              setPermissionsGranted(true);
-             localStorage.setItem('app_permissions_granted', 'true');
+             safeSetItem('app_permissions_granted', 'true');
           }
         }
       } catch (e) {
@@ -226,13 +267,13 @@ const App: React.FC = () => {
   const toggleTheme = () => {
     const newTheme = !isDarkMode;
     setIsDarkMode(newTheme);
-    localStorage.setItem('app_theme', newTheme ? 'dark' : 'light');
+    safeSetItem('app_theme', newTheme ? 'dark' : 'light');
   };
 
   const syncData = async (node: string, data: any) => {
     const cleaned = cleanArray(data);
     const jsonString = JSON.stringify(cleaned);
-    localStorage.setItem(node, jsonString);
+    safeSetItem(node, jsonString);
 
     if (firebaseConfig && firebaseConfig.databaseURL) {
       try {
@@ -270,7 +311,7 @@ const App: React.FC = () => {
     if (currentUser && staffList.length > 0) {
       const myData = staffList.find(s => s.name === currentUser);
       if (myData) {
-        const saved = localStorage.getItem('saved_accounts');
+        const saved = safeGetItem('saved_accounts');
         if (saved) {
           const accounts = JSON.parse(saved);
           const updatedAccounts = accounts.map((acc: any) => {
@@ -279,7 +320,7 @@ const App: React.FC = () => {
             }
             return acc;
           });
-          localStorage.setItem('saved_accounts', JSON.stringify(updatedAccounts));
+          safeSetItem('saved_accounts', JSON.stringify(updatedAccounts));
           setSavedAccounts(updatedAccounts);
         }
       }
@@ -447,7 +488,7 @@ const App: React.FC = () => {
           async (position) => {
             if (!permissionsGranted) {
                setPermissionsGranted(true);
-               localStorage.setItem('app_permissions_granted', 'true');
+               safeSetItem('app_permissions_granted', 'true');
             }
             
             try {
@@ -689,7 +730,7 @@ const App: React.FC = () => {
              
              const updatedAccounts = [newAccount, ...savedAccounts.filter(a => a.username !== authenticatedUser!.name)];
              setSavedAccounts(updatedAccounts);
-             localStorage.setItem('saved_accounts', JSON.stringify(updatedAccounts));
+             safeSetItem('saved_accounts', JSON.stringify(updatedAccounts));
           }
       };
 
@@ -730,7 +771,7 @@ const App: React.FC = () => {
   const removeSavedAccount = (username: string) => {
     const updated = savedAccounts.filter(a => a.username !== username);
     setSavedAccounts(updated);
-    localStorage.setItem('saved_accounts', JSON.stringify(updated));
+    safeSetItem('saved_accounts', JSON.stringify(updated));
   };
 
   const handleLogout = () => {
@@ -878,7 +919,7 @@ const App: React.FC = () => {
     { id: 'lucky-draw', label: 'লাকি ড্র & গেম', icon: Gift, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-purple-600', bgColor: 'bg-purple-50' },
     { id: 'complaints', label: 'অভিযোগ বক্স', icon: ShieldAlert, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-red-600', bgColor: 'bg-red-50' },
     { id: 'funds', label: 'ফান্ড লেজার', icon: Landmark, roles: [UserRole.ADMIN, UserRole.MD], color: 'text-emerald-600', bgColor: 'bg-emerald-50' },
-    { id: 'staff', label: 'স্টাফ লিস্ট', icon: UsersRound, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-indigo-600', bgColor: 'bg-indigo-50' },
+    { id: 'staff', label: 'স্টাফ ম্যানেজমেন্ট', icon: UsersRound, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-indigo-600', bgColor: 'bg-indigo-50' },
     { id: 'movements', label: 'মুভমেন্ট লগ', icon: Route, roles: [UserRole.ADMIN, UserRole.STAFF], color: 'text-amber-600', bgColor: 'bg-amber-50' },
     { id: 'reports', label: 'রিপোর্ট ও ফাইল', icon: PieChart, roles: [UserRole.ADMIN, UserRole.MD], color: 'text-slate-600', bgColor: 'bg-slate-50' },
     { id: 'settings', label: 'সেটিংস', icon: Settings2, roles: [UserRole.ADMIN], color: 'text-gray-600', bgColor: 'bg-gray-50' },
@@ -889,6 +930,13 @@ const App: React.FC = () => {
 
   const bottomNavItems = allowedNavItems.slice(0, 4); 
   const mobileSidebarItems = allowedNavItems; 
+
+  // Helper to format large numbers
+  const formatPoints = (num: number) => {
+    if (num >= 100000) return (num / 100000).toFixed(1).replace(/\.0$/, '') + 'L';
+    if (num >= 1000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+    return num;
+  };
 
   if (!role) {
     return (
@@ -973,7 +1021,7 @@ const App: React.FC = () => {
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-indigo-400 transition-colors duration-300" />
                 <input 
                   required 
-                  type={showLoginPassword ? "text" : "password"} 
+                  type="text" 
                   disabled={isLoggingIn}
                   className="w-full pl-10 pr-12 py-3 bg-white/10 border border-white/10 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all font-bold text-gray-100 text-sm placeholder:text-gray-500 hover:bg-white/20 focus:bg-white/20 backdrop-blur-md disabled:opacity-50"
                   placeholder="Password..."
@@ -1057,14 +1105,14 @@ const App: React.FC = () => {
       case 'attendance': return <AttendanceView staffList={staffList} attendanceList={attendanceList} setAttendanceList={updateAttendance} currentUser={currentUser} role={role} />;
       case 'live-location': return <LiveLocationView staffList={staffList} liveLocations={liveLocations} />;
       case 'lucky-draw': return <LuckyDrawView staffList={staffList} currentUser={currentUser} onUpdatePoints={handlePointUpdate} onUpdateDrawTime={handleDrawTimeUpdate} role={role} />;
-      case 'notices': return <NoticeBoardView notices={notices} setNotices={updateNotices} role={role} currentUser={currentUser || ''} />;
+      case 'notices': return <NoticeBoardView notices={notices} setNotices={updateNotices} role={role} currentUser={currentUser || ''} staffList={staffList} />;
       case 'complaints': return <ComplaintBoxView complaints={complaints} setComplaints={updateComplaints} staffList={staffList} role={role} currentUser={currentUser} />;
       case 'funds': return <FundLedgerView funds={funds} setFunds={updateFunds} expenses={expenses} advances={advances} totalFund={totalFund} cashOnHand={cashOnHand} role={role} />;
-      case 'staff': return <StaffManagementView staffList={staffList} setStaffList={updateStaffList} role={role} expenses={expenses} advances={advances} setAdvances={updateAdvances} currentUser={currentUser} />;
+      case 'staff': return <StaffManagementView staffList={staffList} setStaffList={updateStaffList} role={role} expenses={expenses} advances={advances} setAdvances={updateAdvances} currentUser={currentUser} onUpdatePoints={handlePointUpdate} />;
       case 'movements': return <MovementLogView movements={movements} setMovements={updateMovements} staffList={staffList} billingRules={billingRules} role={role} setMessages={updateMessages} currentUser={currentUser} onUpdatePoints={handlePointUpdate} />;
       case 'expenses': return <ExpenseManagementView expenses={expenses} setExpenses={updateExpenses} staffList={staffList} role={role} currentUser={currentUser} />;
       case 'reports': return <ReportsView expenses={expenses} staffList={staffList} advances={advances} attendanceList={attendanceList} funds={funds} />;
-      case 'settings': return <SettingsView billingRules={billingRules} setBillingRules={updateBillingRules} role={role} exportData={handleExport} importData={handleImport} cloudConfig={firebaseConfig} saveCloudConfig={(config) => { localStorage.setItem('fb_config', JSON.stringify(config)); alert('Settings saved! Reloading...'); window.location.reload(); }} />;
+      case 'settings': return <SettingsView billingRules={billingRules} setBillingRules={updateBillingRules} role={role} exportData={handleExport} importData={handleImport} cloudConfig={firebaseConfig} saveCloudConfig={(config) => { safeSetItem('fb_config', JSON.stringify(config)); alert('Settings saved! Reloading...'); window.location.reload(); }} />;
       case 'trash': return <TrashView staffList={staffList} setStaffList={updateStaffList} movements={movements} setMovements={updateMovements} expenses={expenses} setExpenses={updateExpenses} funds={funds} setFunds={updateFunds} notices={notices} setNotices={updateNotices} role={role} />;
       default: return <DashboardView totalExpense={totalExpense} pendingApprovals={pendingApprovals} expenses={expenses} cloudError={cloudError} totalFund={totalFund} cashOnHand={cashOnHand} role={role} staffList={staffList} advances={advances} currentUser={currentUser} />;
     }
@@ -1165,6 +1213,14 @@ const App: React.FC = () => {
         </nav>
 
         <div className="p-4 border-t border-white/5 shrink-0 relative z-10">
+           {deferredPrompt && (
+              <div className="px-4 mb-2 relative z-10">
+                 <button onClick={handleInstallClick} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-bold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 ring-1 ring-emerald-500/20 transition-all group">
+                  <Download className="w-5 h-5 transition-transform group-hover:scale-110" /> 
+                  <span>অ্যাপ ইন্সটল করুন</span>
+                </button>
+              </div>
+           )}
            <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-bold text-red-400 hover:text-white hover:bg-red-500/10 hover:ring-1 hover:ring-red-500/20 transition-all group">
             <LogOut className="w-5 h-5 transition-transform group-hover:-translate-x-1" /> 
             <span>লগআউট</span>
@@ -1190,7 +1246,7 @@ const App: React.FC = () => {
                   <Trophy className="w-4 h-4 text-yellow-500" />
                   <span className="text-xs font-black text-yellow-700">
                     {(myProfile.pointsMonth === `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`) 
-                      ? (myProfile.points || 0) 
+                      ? formatPoints(myProfile.points || 0) 
                       : 0} pts
                   </span>
                </div>
@@ -1375,6 +1431,14 @@ const App: React.FC = () => {
                   >
                      <UserCog className="w-4 h-4" /> প্রোফাইল সেটিংস
                   </button>
+                  {deferredPrompt && (
+                    <button 
+                       onClick={handleInstallClick} 
+                       className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400 hover:bg-emerald-100 transition-colors mb-2"
+                    >
+                       <Download className="w-4 h-4" /> অ্যাপ ইন্সটল করুন
+                    </button>
+                  )}
                   <button 
                      onClick={handleLogout} 
                      className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400 hover:bg-red-100 transition-colors"

@@ -1,6 +1,5 @@
-
 import React, { useState, useMemo, useRef } from 'react';
-import { Receipt, Camera, CheckCircle, XCircle, Clock, Eye, Trash2, Search, Calendar, FilterX, RotateCcw, CheckCheck, Sparkles, X, Edit3, User, AlertTriangle, Eraser } from 'lucide-react';
+import { Receipt, Camera, CheckCircle, XCircle, Clock, Eye, Trash2, Search, Calendar, FilterX, RotateCcw, CheckCheck, Sparkles, X, Edit3, User, AlertTriangle, Eraser, FileText, ShieldAlert } from 'lucide-react';
 import { Expense, Staff, UserRole, AppNotification } from '../types';
 
 interface ExpenseProps {
@@ -56,6 +55,16 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
     }
   };
 
+  // Real-time Duplicate Check for Modal
+  const isSubmissionDuplicate = useMemo(() => {
+    if (!formData.staffId || !formData.date) return false;
+    return (expenses || []).some(e => 
+      !e.isDeleted && 
+      e.staffId === formData.staffId && 
+      getSafeDateStr(e.createdAt) === formData.date
+    );
+  }, [formData.staffId, formData.date, expenses]);
+
   const filteredExpenses = useMemo(() => {
     return (expenses || []).filter(e => {
       if (!e || e.isDeleted) return false;
@@ -100,85 +109,33 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
     processedText = processedText.replace(/(taka|tk|bdt|টাকা)/gi, 'CURRENCY_SYMBOL');
 
     // --- SMART EXCLUSION LOGIC (Advanced) ---
-    
+    // ... (Regex logic same as before) ...
     // A. Dates (ISO, Common formats)
     processedText = processedText.replace(/\d{4}-\d{2}-\d{2}/g, 'SKIP_DATE'); 
     processedText = processedText.replace(/\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}/g, 'SKIP_DATE');
-
     // B. Phone Numbers (01xxxxxxxxx)
     processedText = processedText.replace(/01\d{9}/g, 'SKIP_PHONE');
-
     // C. Time 
-    // 1. Colon separated (e.g. 08:30, 10:45) - Treat as time
     processedText = processedText.replace(/\d{1,2}:\d{2}/g, 'SKIP_TIME_COLON'); 
-    
-    // 2. Time with suffix (10.30 am, 5 pm, 10 ta)
     processedText = processedText.replace(/\d{1,2}[:\.]\d{2}\s*(am|pm|a\.m|p\.m)/gi, 'SKIP_TIME');
     processedText = processedText.replace(/\d{1,2}\s*(am|pm|a\.m|p\.m|টা|বাজে|বাজা)/gi, 'SKIP_TIME');
-
-    // D. Date Ranges ("22 theke 28 tarikh", "22-28 tarikh", "22 হতে 28 তারিখ")
+    // D. Date Ranges
     const dateRangeRegex = /(\d+)[\s\-]*(?:থেকে|theke|to|untill|পর্যন্ত|হতে|[\-])[\s]*(\d+)[\s]*(?:তারিখ|date|tarikh|tarik)/gi;
     processedText = processedText.replace(dateRangeRegex, "SKIP_DATE_RANGE");
-
-    // E. Single Date with Keyword ("5 tarikh", "10 date", "2023 sale")
+    // E. Single Date with Keyword
     const specificDateRegex = /(\d+)[\s]*(?:তারিখ|date|tarikh|sal|sale|সাল|সালে|st|nd|rd|th)/gi;
     processedText = processedText.replace(specificDateRegex, "SKIP_SINGLE_DATE");
-
-    // F. Units/Measurements (Piece, Dozen, Yard, KG, Minute, Hour etc.)
-    const units = [
-        'pc', 'pcs', 'pice', 'pices', 'pitch', 'pic', 'pis', 'pich', // Piece
-        'p', 't', 'ta', 'ti', 'khana', 'gulo', 'got', // Bengali count
-        'pisa', 'pich', 'পিস', 'টি', 'টা', 'খানা', 'গুলো',
-        'dz', 'doz', 'dozen', 'dozon', 'ডজন',
-        'goj', 'gaz', 'yard', 'yrd', 'গজ',
-        'kg', 'kilo', 'keji', 'কেজি',
-        'gm', 'gram', 'g', 'গ্রাম',
-        'ltr', 'liter', 'litre', 'l', 'লিটার',
-        'pkt', 'packet', 'pack', 'pket', 'প্যাকেট',
-        'bosta', 'bosta', 'বস্তা',
-        'set', 'সেট',
-        'jo', 'jora', 'pair', 'জোড়া',
-        'inch', 'in', 'ইঞ্চি',
-        'ft', 'feet', 'ফুট',
-        'm', 'meter', 'মিটার',
-        'jon', 'জন', // People count
-        // Time Units
-        'min', 'minute', 'mnt', 'মিনিট',
-        'hr', 'hour', 'ghonta', 'ঘন্টা',
-        'sec', 'second', 'সেকেন্ড'
-    ];
-    
-    // Regex Update: Added boundary check `(?![a-zA-Z\u0980-\u09FF])`
+    // F. Units/Measurements
+    const units = ['pc', 'pcs', 'pice', 'pices', 'pitch', 'pic', 'pis', 'pich', 'p', 't', 'ta', 'ti', 'khana', 'gulo', 'got', 'pisa', 'pich', 'পিস', 'টি', 'টা', 'খানা', 'গুলো', 'dz', 'doz', 'dozen', 'dozon', 'ডজন', 'goj', 'gaz', 'yard', 'yrd', 'গজ', 'kg', 'kilo', 'keji', 'কেজি', 'gm', 'gram', 'g', 'গ্রাম', 'ltr', 'liter', 'litre', 'l', 'লিটার', 'pkt', 'packet', 'pack', 'pket', 'প্যাকেট', 'bosta', 'bosta', 'বস্তা', 'set', 'সেট', 'jo', 'jora', 'pair', 'জোড়া', 'inch', 'in', 'ইঞ্চি', 'ft', 'feet', 'ফুট', 'm', 'meter', 'মিটার', 'jon', 'জন', 'min', 'minute', 'mnt', 'মিনিট', 'hr', 'hour', 'ghonta', 'ঘন্টা', 'sec', 'second', 'সেকেন্ড'];
     const unitRegex = new RegExp(`(\\d+[\\.]?\\d*)\\s*(${units.join('|')})(?![a-zA-Z\u0980-\u09FF])`, 'gi');
     processedText = processedText.replace(unitRegex, "SKIP_UNIT");
-
     // G. Locations & Addresses
-    const locPrefixes = [
-        'road', 'rd', 'রোড',
-        'house', 'h', 'bas', 'basa', 'বাসা', 'বাড়ি',
-        'flat', 'apt', 'ফ্ল্যাট',
-        'sector', 'sec', 'সেক্টর',
-        'block', 'blk', 'ব্লক',
-        'lane', 'goli', 'গলি',
-        'level', 'lvl', 'লেভেল',
-        'ward', 'word', 'ওয়ার্ড',
-        'room', 'rm', 'রুম', 'কক্ষ',
-        'platfrom', 'platform', 'প্লাটফর্ম',
-        'counter', 'কাউন্টার',
-        'shop', 'dokan', 'দোকান',
-        'bus', 'গাড়ি', 'বাস'
-    ];
+    const locPrefixes = ['road', 'rd', 'রোড', 'house', 'h', 'bas', 'basa', 'বাসা', 'বাড়ি', 'flat', 'apt', 'ফ্ল্যাট', 'sector', 'sec', 'সেক্টর', 'block', 'blk', 'ব্লক', 'lane', 'goli', 'গলি', 'level', 'lvl', 'লেভেল', 'ward', 'word', 'ওয়ার্ড', 'room', 'rm', 'রুম', 'কক্ষ', 'platfrom', 'platform', 'প্লাটফর্ম', 'counter', 'কাউন্টার', 'shop', 'dokan', 'দোকান', 'bus', 'গাড়ি', 'বাস'];
     const locRegexPrefix = new RegExp(`(${locPrefixes.join('|')})[\\s\\-\\.]*(\\d+)`, 'gi');
     processedText = processedText.replace(locRegexPrefix, "SKIP_LOC");
-
-    const locSuffixes = [
-        'floor', 'tala', 'তলা',
-        'level', 'no', 'nong', 'number', 'num', 'নং', 'নম্বর',
-        'th', 'nd', 'rd', 'st'
-    ];
+    const locSuffixes = ['floor', 'tala', 'তলা', 'level', 'no', 'nong', 'number', 'num', 'নং', 'নম্বর', 'th', 'nd', 'rd', 'st'];
     const locRegexSuffix = new RegExp(`(\\d+)[\\s\\-\\.]*(${locSuffixes.join('|')})`, 'gi');
     processedText = processedText.replace(locRegexSuffix, "SKIP_LOC");
-
     // H. Specific Place Names with numbers
     const places = ['mirpur', ' মিরপুর', 'uttara', 'উত্তরা', 'dhanmondi', 'ধানমন্ডি', 'farmgate', 'ফার্মগেট', 'mohakhali', 'মহাখালী', 'banani', 'বনানী', 'gulshan', 'গুলশান', 'badda', 'বাড্ডা', 'savar', 'সাভার', 'gazipur', 'গাজীপুর'];
     const placeRegex = new RegExp(`(${places.join('|')})\\s*(\\d+)`, 'gi');
@@ -268,6 +225,14 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
 
         if (diffDays > 1) return alert(`স্টাফরা সর্বোচ্চ ১ দিন আগের বিল দিতে পারবে।`);
         if (diffDays < 0) return alert("ভবিষ্যতের তারিখ দেওয়া যাবে না।");
+    }
+
+    // DUPLICATE CONFIRMATION
+    if (isSubmissionDuplicate) {
+      const confirmMsg = `⚠️ সতর্কতা: ${staff.name}-এর জন্য ${new Date(formData.date).toLocaleDateString('bn-BD')} তারিখে ইতিমধ্যে একটি বিল সিস্টেমে আছে।\n\nআপনি কি নিশ্চিত যে এটি একটি নতুন/আলাদা বিল?`;
+      if (!window.confirm(confirmMsg)) {
+        return; // Stop Submission
+      }
     }
 
     const submitDate = new Date(formData.date);
@@ -376,6 +341,41 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
     return staff ? staff.staffId : '';
   };
 
+  const getStatusStyles = (status: Expense['status']) => {
+    switch(status) {
+      case 'APPROVED': return { 
+        bg: 'bg-green-100', text: 'text-green-700', 
+        cardBg: 'bg-gradient-to-br from-white to-green-50/50',
+        border: 'border-green-100 hover:border-green-200',
+        shadow: 'hover:shadow-green-100'
+      };
+      case 'PENDING': return { 
+        bg: 'bg-orange-100', text: 'text-orange-700',
+        cardBg: 'bg-gradient-to-br from-white to-orange-50/50',
+        border: 'border-orange-100 hover:border-orange-200',
+        shadow: 'hover:shadow-orange-100'
+      };
+      case 'VERIFIED': return { 
+        bg: 'bg-blue-100', text: 'text-blue-700',
+        cardBg: 'bg-gradient-to-br from-white to-blue-50/50',
+        border: 'border-blue-100 hover:border-blue-200',
+        shadow: 'hover:shadow-blue-100'
+      };
+      case 'REJECTED': return { 
+        bg: 'bg-red-100', text: 'text-red-700',
+        cardBg: 'bg-gradient-to-br from-white to-red-50/50',
+        border: 'border-red-100 hover:border-red-200',
+        shadow: 'hover:shadow-red-100'
+      };
+      default: return { 
+        bg: 'bg-gray-100', text: 'text-gray-700',
+        cardBg: 'bg-white',
+        border: 'border-gray-100',
+        shadow: 'hover:shadow-gray-100'
+      };
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -386,7 +386,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
                onClick={handleClearHistory}
                className="bg-red-50 text-red-600 px-4 py-2 rounded-xl font-bold hover:bg-red-100 hover:text-red-700 border border-red-200 transition-colors flex items-center gap-2 shadow-sm whitespace-nowrap"
              >
-               <Trash2 className="w-5 h-5" /> হিস্ট্রি ক্লিন
+               <Eraser className="w-5 h-5" /> হিস্ট্রি ক্লিন
              </button>
           )}
           {(role === UserRole.ADMIN || role === UserRole.STAFF) && (
@@ -456,110 +456,235 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredExpenses.map((expense) => (
-          <div key={expense.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col hover:shadow-md transition-all">
-            <div className="p-5 flex-1">
-              <div className="flex justify-between items-start mb-4">
-                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
-                  expense.status === 'APPROVED' ? 'bg-green-100 text-green-700' : 
-                  expense.status === 'REJECTED' ? 'bg-red-100 text-red-700' :
-                  expense.status === 'VERIFIED' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'
-                }`}>
-                  {expense.status}
+        {filteredExpenses.map((expense) => {
+          const expenseDateStr = getSafeDateStr(expense.createdAt);
+          const isDuplicate = expenses.filter(e => 
+             !e.isDeleted && 
+             e.staffId === expense.staffId && 
+             getSafeDateStr(e.createdAt) === expenseDateStr
+          ).length > 1;
+          const styles = getStatusStyles(expense.status);
+          const staffMember = (staffList || []).find(s => s.id === expense.staffId);
+
+          return (
+          <div key={expense.id} className={`group relative rounded-2xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 transition-all duration-300 flex flex-col overflow-hidden ${styles.cardBg} ${styles.border} ${styles.shadow}`}>
+            
+            {/* Decorative Watermark Icon */}
+            <div className="absolute top-0 right-0 p-4 opacity-[0.03] transform group-hover:scale-110 transition-transform duration-500 pointer-events-none">
+               <Receipt className="w-32 h-32" />
+            </div>
+
+            <div className="p-5 flex-1 relative z-10">
+              {/* Enhanced Duplicate Warning Badge - In Card */}
+              {isDuplicate && (role === UserRole.ADMIN || role === UserRole.MD) && (
+                 <div className="mb-3 bg-red-50 border-l-4 border-red-500 p-3 rounded-r-lg animate-pulse">
+                    <div className="flex items-center gap-2">
+                       <ShieldAlert className="w-5 h-5 text-red-600" />
+                       <h4 className="text-xs font-black text-red-700 uppercase">ডুপ্লিকেট বিল ডিটেক্টেড!</h4>
+                    </div>
+                    <p className="text-[10px] text-red-600 mt-1 font-medium leading-tight">
+                       এই তারিখে এই স্টাফের আরও একটি বিল আছে। দয়া করে চেক করুন।
+                    </p>
+                 </div>
+              )}
+
+              {/* Status & Date Row */}
+              <div className="flex justify-between items-center mb-3">
+                <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${styles.bg} ${styles.text}`}>
+                  {expense.status === 'PENDING' ? 'Waiting' : expense.status}
                 </span>
-                
-                <div className="flex items-center gap-2">
-                  {((role === UserRole.ADMIN || role === UserRole.MD) && (expense.status === 'PENDING' || expense.status === 'VERIFIED')) && (
-                    <button onClick={() => openCorrectionModal(expense)} className="text-orange-500 hover:bg-orange-50 p-1 rounded-full"><Edit3 className="w-4 h-4" /></button>
-                  )}
-                  {expense.voucherImage && (
-                    <button onClick={() => setViewingVoucher(expense.voucherImage!)} className="text-indigo-600 hover:bg-indigo-50 p-1 rounded-full"><Eye className="w-4 h-4" /></button>
-                  )}
-                  <p className="text-xs text-gray-400">{new Date(expense.createdAt).toLocaleDateString('bn-BD')}</p>
-                </div>
+                <span className="text-[10px] font-bold text-gray-400 bg-white/50 backdrop-blur-sm px-2 py-1 rounded-md border border-gray-100">
+                   {new Date(expense.createdAt).toLocaleDateString('bn-BD', { day: 'numeric', month: 'short' })}
+                </span>
               </div>
               
-              <h4 className="text-lg font-bold text-gray-800 mb-1">৳ {expense.amount.toLocaleString()}</h4>
-              <p className="text-sm text-gray-600 mb-4 font-medium h-10 line-clamp-2">{expense.reason}</p>
+              {/* Amount Display - Hero */}
+              <div className="mb-2">
+                 <h4 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-gray-900 to-gray-600 group-hover:from-indigo-600 group-hover:to-purple-600 transition-all">
+                    ৳ {expense.amount.toLocaleString()}
+                 </h4>
+              </div>
+
+              {/* Reason */}
+              <p className="text-sm text-gray-600 font-medium line-clamp-2 leading-relaxed h-10 mb-4">
+                 {expense.reason}
+              </p>
               
-              <div className="flex items-center gap-3 py-3 border-t border-gray-50">
-                <div className="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-xs">
-                  {(expense.staffName || '?')[0]}
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-gray-700">{expense.staffName}</p>
-                  <p className="text-[10px] text-gray-400">ID: {getStaffDisplayId(expense.staffId)}</p>
-                </div>
+              {/* Divider */}
+              <div className="h-px w-full bg-gray-100/50 mb-4"></div>
+
+              {/* Staff Info & Controls */}
+              <div className="flex justify-between items-end">
+                 <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-full bg-white border border-gray-100 flex items-center justify-center text-indigo-700 font-bold text-xs shadow-sm overflow-hidden shrink-0">
+                       {staffMember && staffMember.photo ? (
+                          <img src={staffMember.photo} alt={expense.staffName} className="w-full h-full object-cover" />
+                       ) : (
+                          (expense.staffName || '?')[0]
+                       )}
+                    </div>
+                    <div>
+                       <p className="text-xs font-bold text-gray-700 line-clamp-1">{expense.staffName}</p>
+                       <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">{getStaffDisplayId(expense.staffId)}</p>
+                    </div>
+                 </div>
+
+                 {/* Top Action Icons */}
+                 <div className="flex gap-1 bg-white/50 rounded-lg p-0.5 backdrop-blur-sm">
+                    {((role === UserRole.ADMIN || role === UserRole.MD) && (expense.status === 'PENDING' || expense.status === 'VERIFIED')) && (
+                       <button onClick={() => openCorrectionModal(expense)} className="p-1.5 text-orange-500 hover:bg-orange-50 rounded-lg transition-colors" title="Edit">
+                          <Edit3 className="w-4 h-4" />
+                       </button>
+                    )}
+                    {expense.voucherImage ? (
+                       <button onClick={() => setViewingVoucher(expense.voucherImage!)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="View Voucher">
+                          <FileText className="w-4 h-4" />
+                       </button>
+                    ) : (
+                       <div className="p-1.5 text-gray-300" title="No Voucher"><FileText className="w-4 h-4" /></div>
+                    )}
+                 </div>
               </div>
             </div>
 
-            <div className="bg-gray-50 p-3 flex gap-2 border-t border-gray-100">
-               {role === UserRole.ADMIN && (
+            {/* Action Footer - Grid Layout */}
+            <div className="bg-white/50 p-2 grid grid-cols-2 gap-2 border-t border-gray-100 backdrop-blur-sm">
+               {/* ADMIN ACTIONS */}
+               {role === UserRole.ADMIN && expense.status === 'PENDING' && (
                  <>
-                   {expense.status === 'PENDING' && (
-                     <>
-                        <button onClick={() => updateStatus(expense.id, 'VERIFIED')} className="flex-[2] bg-indigo-600 text-white py-2 rounded-lg text-xs font-bold hover:bg-indigo-700 shadow-sm">MD-র কাছে পাঠান</button>
-                        <button onClick={() => updateStatus(expense.id, 'REJECTED')} className="flex-1 bg-white text-red-600 border border-red-200 py-2 rounded-lg text-xs font-bold hover:bg-red-50">বাতিল</button>
-                        <button onClick={() => softDelete(expense.id)} className="px-3 bg-white text-gray-400 border border-gray-200 py-2 rounded-lg hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
-                     </>
-                   )}
-                   {expense.status === 'VERIFIED' && (
-                     <>
-                        <button onClick={() => updateStatus(expense.id, 'PENDING')} className="flex-1 bg-orange-50 text-orange-700 border border-orange-200 py-2 rounded-lg text-xs font-bold hover:bg-orange-100 flex items-center justify-center gap-1"><RotateCcw className="w-3.5 h-3.5" /> ফেরত</button>
-                        <button onClick={() => softDelete(expense.id)} className="flex-1 bg-red-50 text-red-700 border border-red-200 py-2 rounded-lg text-xs font-bold hover:bg-red-100 flex items-center justify-center gap-1"><Trash2 className="w-3.5 h-3.5" /> ডিলিট</button>
-                     </>
-                   )}
+                    <button onClick={() => updateStatus(expense.id, 'VERIFIED')} className="col-span-2 bg-indigo-600 text-white py-2 rounded-lg text-xs font-bold hover:bg-indigo-700 shadow-sm transition-colors">MD-র কাছে পাঠান</button>
+                    <button onClick={() => updateStatus(expense.id, 'REJECTED')} className="bg-white text-red-600 border border-gray-200 py-1.5 rounded-lg text-xs font-bold hover:bg-red-50 hover:border-red-200 transition-colors">বাতিল</button>
+                    <button onClick={() => softDelete(expense.id)} className="bg-white text-gray-400 border border-gray-200 py-1.5 rounded-lg text-xs font-bold hover:text-red-500 hover:border-red-200 transition-colors"><Trash2 className="w-4 h-4 mx-auto" /></button>
                  </>
                )}
-
+               
+               {/* MD ACTIONS */}
                {role === UserRole.MD && (expense.status === 'VERIFIED' || expense.status === 'PENDING') && (
                  <>
-                   <button onClick={() => updateStatus(expense.id, 'APPROVED')} className="flex-[2] bg-indigo-600 text-white py-2 rounded-lg text-xs font-bold hover:bg-indigo-700 shadow-sm"><CheckCircle className="w-4 h-4 inline mr-1"/> অ্যাপ্রুভ</button>
-                   <button onClick={() => updateStatus(expense.id, 'REJECTED')} className="flex-1 bg-white text-red-600 border border-red-200 py-2 rounded-lg text-xs font-bold hover:bg-red-50">বাতিল</button>
+                   <button onClick={() => updateStatus(expense.id, 'APPROVED')} className="col-span-2 bg-green-600 text-white py-2 rounded-lg text-xs font-bold hover:bg-green-700 shadow-sm transition-colors flex items-center justify-center gap-1"><CheckCircle className="w-3.5 h-3.5"/> অ্যাপ্রুভ করুন</button>
+                   <button onClick={() => updateStatus(expense.id, 'REJECTED')} className="bg-white text-red-600 border border-gray-200 py-1.5 rounded-lg text-xs font-bold hover:bg-red-50 hover:border-red-200 transition-colors">বাতিল</button>
+                   <button onClick={() => softDelete(expense.id)} className="bg-white text-gray-400 border border-gray-200 py-1.5 rounded-lg text-xs font-bold hover:text-red-500 hover:border-red-200 transition-colors"><Trash2 className="w-4 h-4 mx-auto" /></button>
                  </>
                )}
 
-               {((role === UserRole.ADMIN && (expense.status === 'APPROVED' || expense.status === 'REJECTED')) || (role === UserRole.STAFF && (expense.status === 'PENDING' || expense.status === 'REJECTED'))) && (
-                  <button onClick={() => softDelete(expense.id)} className="w-full bg-white text-gray-400 border border-gray-200 hover:border-red-200 hover:text-red-500 py-2 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-2">
-                    <Trash2 className="w-4 h-4" /> ডিলিট করুন
-                  </button>
+               {/* REVERT / DELETE ACTIONS */}
+               {((role === UserRole.ADMIN && (expense.status === 'VERIFIED' || expense.status === 'APPROVED' || expense.status === 'REJECTED')) || (role === UserRole.STAFF && (expense.status === 'PENDING' || expense.status === 'REJECTED'))) && (
+                  <div className="col-span-2 flex gap-2">
+                     {role === UserRole.ADMIN && expense.status === 'VERIFIED' && (
+                        <button onClick={() => updateStatus(expense.id, 'PENDING')} className="flex-1 bg-orange-50 text-orange-700 border border-orange-200 py-1.5 rounded-lg text-xs font-bold hover:bg-orange-100 flex items-center justify-center gap-1"><RotateCcw className="w-3 h-3" /> ফেরত</button>
+                     )}
+                     <button onClick={() => softDelete(expense.id)} className="flex-1 bg-white text-gray-400 border border-gray-200 hover:border-red-200 hover:text-red-500 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1">
+                       <Trash2 className="w-3.5 h-3.5" /> ডিলিট
+                     </button>
+                  </div>
                )}
             </div>
           </div>
-        ))}
+        )})}
       </div>
+      
+      {filteredExpenses.length === 0 && (
+          <div className="py-16 text-center bg-white rounded-2xl border border-dashed border-gray-200 text-gray-400">
+             <div className="flex flex-col items-center gap-2 opacity-50">
+               <Receipt className="w-10 h-10" />
+               <p className="text-sm font-medium">কোনো বিল পাওয়া যায়নি</p>
+             </div>
+          </div>
+      )}
 
       {/* Modals omitted for brevity but logic is same as before, just rendering carefully */}
       {isSubmitModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in zoom-in duration-200">
           <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-indigo-600 text-white shrink-0">
               <h3 className="font-bold text-xl">নতুন বিল</h3>
               <button onClick={() => setIsSubmitModalOpen(false)} className="text-indigo-200 hover:text-white">×</button>
             </div>
             <div className="overflow-y-auto p-6 flex-1">
+              {/* Live Duplicate Warning Banner */}
+              {isSubmissionDuplicate && (
+                 <div className="mb-4 bg-red-50 border border-red-200 p-4 rounded-xl flex items-start gap-3 animate-pulse">
+                    <AlertTriangle className="w-6 h-6 text-red-500 shrink-0" />
+                    <div>
+                       <h4 className="font-bold text-red-700 text-sm">সতর্কতা: ডুপ্লিকেট বিল!</h4>
+                       <p className="text-xs text-red-600 mt-1">নির্বাচিত তারিখে এই স্টাফের ইতিমধ্যে একটি বিল সিস্টেমে আছে।</p>
+                    </div>
+                 </div>
+              )}
+
               <form onSubmit={handleSubmit} className="space-y-4">
                 {/* Simplified form */}
-                <select required className="w-full px-4 py-2 border rounded-lg" value={formData.staffId} onChange={(e) => setFormData({...formData, staffId: e.target.value})}>
-                   <option value="">স্টাফ নির্বাচন করুন</option>
-                   {activeStaff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-                <input type="date" required className="w-full px-4 py-2 border rounded-lg" value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} />
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 ml-1">স্টাফ মেম্বার</label>
+                  <select 
+                    required 
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-100 text-slate-700 font-bold rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all shadow-sm appearance-none text-sm" 
+                    value={formData.staffId} 
+                    onChange={(e) => setFormData({...formData, staffId: e.target.value})}
+                  >
+                     <option value="">স্টাফ নির্বাচন করুন</option>
+                     {activeStaff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 ml-1">তারিখ</label>
+                  <input 
+                    type="date" 
+                    required 
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-100 text-slate-700 font-bold rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all shadow-sm text-sm" 
+                    value={formData.date} 
+                    onChange={(e) => setFormData({...formData, date: e.target.value})} 
+                  />
+                </div>
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1 flex justify-between">
                     <span>খরচের কারণ ও বিবরণ</span>
                     <span className="text-xs text-indigo-600 font-bold flex items-center gap-1"><Sparkles className="w-3 h-3"/> Auto Calculator</span>
                   </label>
-                  <textarea required rows={3} className="w-full px-4 py-2 border rounded-lg" placeholder="কারণ..." value={formData.reason} onChange={handleReasonChange} />
+                  <textarea 
+                    required 
+                    rows={3} 
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-gray-900 bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm" 
+                    placeholder="কারণ..." 
+                    value={formData.reason} 
+                    onChange={handleReasonChange} 
+                  />
                 </div>
 
-                <input required type="number" className="w-full px-4 py-2 border rounded-lg font-bold" placeholder="টাকা" value={formData.amount || ''} onChange={(e) => setFormData({...formData, amount: Number(e.target.value)})} />
-                <div onClick={() => fileInputRef.current?.click()} className="p-2 border border-dashed rounded-lg bg-gray-50 text-center cursor-pointer">
-                   {formData.voucherImage ? <span className="text-green-600 font-bold">ছবি যুক্ত হয়েছে</span> : <span className="text-gray-500">ভাউচার ছবি দিন</span>}
-                   <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={handleImageUpload} />
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 ml-1">টাকার পরিমাণ</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">৳</span>
+                    <input 
+                      required 
+                      type="number" 
+                      className="w-full pl-7 pr-3 py-2.5 bg-slate-50 border border-slate-100 text-slate-800 font-black text-base rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all shadow-sm placeholder:text-slate-300" 
+                      placeholder="0.00" 
+                      value={formData.amount || ''} 
+                      onChange={(e) => setFormData({...formData, amount: Number(e.target.value)})} 
+                    />
+                  </div>
                 </div>
-                <button type="submit" className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold">সাবমিট</button>
+
+                <div onClick={() => fileInputRef.current?.click()} className="group py-2 px-3 border-2 border-dashed border-indigo-100 hover:border-indigo-300 rounded-lg bg-indigo-50/30 hover:bg-indigo-50 cursor-pointer transition-all flex items-center justify-center gap-2 relative overflow-hidden">
+                   <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={handleImageUpload} />
+                   {formData.voucherImage ? (
+                      <span className="text-xs font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded flex items-center gap-1">
+                         <CheckCircle className="w-3 h-3"/> ছবি যুক্ত হয়েছে <span className="text-[9px] text-gray-400 font-normal">(পরিবর্তন)</span>
+                      </span>
+                   ) : (
+                      <>
+                         <Camera className="w-4 h-4 text-indigo-400 group-hover:text-indigo-600 transition-colors"/>
+                         <span className="text-xs font-bold text-indigo-400 group-hover:text-indigo-600">ভাউচার ছবি দিন</span>
+                      </>
+                   )}
+                </div>
+
+                <button type="submit" className={`w-full text-white py-3 rounded-xl font-bold text-sm transition-all active:scale-95 flex items-center justify-center gap-2 shadow-xl ${isSubmissionDuplicate ? 'bg-red-500 hover:bg-red-600 shadow-red-200' : 'bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 shadow-indigo-200'}`}>
+                   {isSubmissionDuplicate ? <><AlertTriangle className="w-5 h-5"/> তবুও সাবমিট করুন</> : 'বিল সাবমিট করুন'}
+                </button>
               </form>
             </div>
           </div>
@@ -567,48 +692,86 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
       )}
 
       {statusConfirmData && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-sm rounded-2xl p-6 text-center">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in duration-200">
+          <div className="bg-white w-full max-w-sm rounded-2xl p-6 text-center shadow-2xl">
              <h3 className="font-bold text-lg mb-2">নিশ্চিত করুন</h3>
              <p className="text-sm text-gray-500 mb-4">স্ট্যাটাস পরিবর্তন করতে চান?</p>
              <div className="flex gap-3">
-                <button onClick={() => setStatusConfirmData(null)} className="flex-1 py-2 border rounded-lg">না</button>
-                <button onClick={confirmStatusUpdate} className="flex-1 py-2 bg-indigo-600 text-white rounded-lg">হ্যাঁ</button>
+                <button onClick={() => setStatusConfirmData(null)} className="flex-1 py-2 border rounded-lg font-bold text-gray-600">না</button>
+                <button onClick={confirmStatusUpdate} className="flex-1 py-2 bg-indigo-600 text-white rounded-lg font-bold">হ্যাঁ</button>
              </div>
           </div>
         </div>
       )}
 
       {deleteConfirmId && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-sm rounded-2xl p-6 text-center">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in duration-200">
+          <div className="bg-white w-full max-w-sm rounded-2xl p-6 text-center shadow-2xl">
+             <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600"><Trash2 className="w-6 h-6" /></div>
              <h3 className="font-bold text-lg mb-2">ডিলিট করবেন?</h3>
              <div className="flex gap-3 mt-4">
-                <button onClick={() => setDeleteConfirmId(null)} className="flex-1 py-2 border rounded-lg">না</button>
-                <button onClick={confirmDelete} className="flex-1 py-2 bg-red-600 text-white rounded-lg">হ্যাঁ</button>
+                <button onClick={() => setDeleteConfirmId(null)} className="flex-1 py-2 border rounded-lg font-bold text-gray-600">না</button>
+                <button onClick={confirmDelete} className="flex-1 py-2 bg-red-600 text-white rounded-lg font-bold">হ্যাঁ</button>
              </div>
           </div>
         </div>
       )}
 
       {isCorrectionModalOpen && correctionData && (
-         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <div className="bg-white p-6 rounded-2xl w-full max-w-sm">
-               <h3 className="font-bold mb-4">সংশোধন</h3>
-               <form onSubmit={saveCorrection} className="space-y-3">
-                  <input type="number" className="w-full border p-2 rounded" value={correctionData.amount} onChange={e => setCorrectionData({...correctionData, amount: Number(e.target.value)})} />
-                  <textarea className="w-full border p-2 rounded" value={correctionData.reason} onChange={e => setCorrectionData({...correctionData, reason: e.target.value})} />
-                  <button type="submit" className="w-full bg-orange-500 text-white py-2 rounded font-bold">আপডেট</button>
-                  <button type="button" onClick={() => setIsCorrectionModalOpen(false)} className="w-full border py-2 rounded font-bold">বাতিল</button>
+         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in zoom-in duration-200">
+            <div className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl relative overflow-hidden">
+               {/* Header with Title and Date input in corner/top-right */}
+               <div className="flex justify-between items-start mb-4">
+                  <h3 className="font-bold text-lg text-gray-800">বিল সংশোধন</h3>
+                  
+                  {/* Date Input - Small in corner */}
+                  <div className="flex flex-col items-end">
+                     <label className="text-[9px] font-bold text-gray-600 uppercase tracking-wider mb-0.5">তারিখ</label>
+                     <input 
+                       type="date" 
+                       className="text-xs border border-gray-200 rounded-lg px-2 py-1 font-bold text-gray-900 bg-white focus:outline-none focus:border-orange-400 shadow-sm"
+                       value={correctionData.date} 
+                       onChange={(e) => setCorrectionData({...correctionData, date: e.target.value})} 
+                     />
+                  </div>
+               </div>
+
+               <form onSubmit={saveCorrection} className="space-y-4">
+                  <div>
+                     <label className="block text-xs font-bold text-gray-600 mb-1">টাকার পরিমাণ</label>
+                     <input 
+                        type="number" 
+                        className="w-full border border-gray-200 p-3 rounded-xl font-black text-2xl text-gray-900 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-orange-100 outline-none transition-colors" 
+                        value={correctionData.amount} 
+                        onChange={e => setCorrectionData({...correctionData, amount: Number(e.target.value)})} 
+                     />
+                  </div>
+                  
+                  <div>
+                     <label className="block text-xs font-bold text-gray-600 mb-1">কারণ</label>
+                     <textarea 
+                        rows={3} 
+                        className="w-full border border-gray-200 p-3 rounded-xl text-sm font-medium text-gray-900 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-orange-100 outline-none resize-none transition-colors" 
+                        value={correctionData.reason} 
+                        onChange={e => setCorrectionData({...correctionData, reason: e.target.value})} 
+                     />
+                  </div>
+
+                  <div className="flex gap-3 mt-2">
+                    <button type="button" onClick={() => setIsCorrectionModalOpen(false)} className="flex-1 border border-gray-200 py-3 rounded-xl font-bold text-gray-500 hover:bg-gray-50 transition-colors">বাতিল</button>
+                    <button type="submit" className="flex-[2] bg-orange-500 text-white py-3 rounded-xl font-bold hover:bg-orange-600 shadow-lg shadow-orange-200 transition-colors">আপডেট করুন</button>
+                  </div>
                </form>
             </div>
          </div>
       )}
 
       {viewingVoucher && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/90" onClick={() => setViewingVoucher(null)}>
-           <img src={viewingVoucher} className="max-w-full max-h-[85vh] rounded" />
-           <button onClick={() => setViewingVoucher(null)} className="absolute top-4 right-4 text-white text-xl">X</button>
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/90 animate-in fade-in duration-200" onClick={() => setViewingVoucher(null)}>
+           <div className="relative max-w-3xl w-full max-h-screen p-2">
+             <button onClick={() => setViewingVoucher(null)} className="absolute -top-10 right-0 text-white hover:text-red-400 transition-colors"><X className="w-8 h-8" /></button>
+             <img src={viewingVoucher} alt="Voucher" className="w-full h-auto max-h-[85vh] object-contain rounded-lg shadow-2xl bg-white" />
+           </div>
         </div>
       )}
     </div>

@@ -42,6 +42,13 @@ const LuckyDrawView: React.FC<LuckyDrawProps> = ({ staffList = [], currentUser, 
   .filter(s => s.effectivePoints > 0) // Only show staff who have activity this month
   .sort((a, b) => b.effectivePoints - a.effectivePoints);
 
+  // Helper to format large numbers
+  const formatPoints = (num: number) => {
+    if (num >= 100000) return (num / 100000).toFixed(1).replace(/\.0$/, '') + 'L';
+    if (num >= 1000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+    return num;
+  };
+
   // Timer Logic for Next Draw
   useEffect(() => {
     if (!myProfile?.lastLuckyDrawTime) return;
@@ -144,7 +151,7 @@ const LuckyDrawView: React.FC<LuckyDrawProps> = ({ staffList = [], currentUser, 
                 <div className="mb-8">
                    <div className="inline-block bg-purple-50 rounded-full px-6 py-2 border border-purple-100">
                       <span className="text-xs text-purple-600 font-bold uppercase tracking-widest">আপনার মাসিক পয়েন্ট ({currentMonthName})</span>
-                      <p className="text-4xl font-black text-purple-700">{myEffectivePoints}</p>
+                      <p className="text-4xl font-black text-purple-700">{formatPoints(myEffectivePoints)}</p>
                    </div>
                 </div>
 
@@ -230,7 +237,7 @@ const LuckyDrawView: React.FC<LuckyDrawProps> = ({ staffList = [], currentUser, 
                           <p className="text-[10px] text-gray-400">{staff.designation}</p>
                        </div>
                        <div className="text-right">
-                          <p className="text-sm font-black text-gray-800">{staff.effectivePoints}</p>
+                          <p className="text-sm font-black text-gray-800">{formatPoints(staff.effectivePoints)}</p>
                           <p className="text-[9px] text-gray-400">pts</p>
                        </div>
                     </div>

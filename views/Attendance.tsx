@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
-import { MapPin, Clock, Calendar, CheckCircle, XCircle, AlertTriangle, Fingerprint, UserCheck, ShieldCheck, Navigation, MonitorSmartphone, Search, FileText, X, RefreshCw } from 'lucide-react';
+import { MapPin, Clock, Calendar, CheckCircle, XCircle, AlertTriangle, Fingerprint, UserCheck, ShieldCheck, Navigation, MonitorSmartphone, Search, FileText, X, RefreshCw, History, Map } from 'lucide-react';
 import { Staff, Attendance, UserRole } from '../types';
 import { OFFICE_START_TIME, WORK_LOCATIONS } from '../constants';
 
@@ -18,6 +17,7 @@ const AttendanceView: React.FC<AttendanceProps> = ({ staffList = [], attendanceL
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [kioskSearchTerm, setKioskSearchTerm] = useState('');
+  const [currentTime, setCurrentTime] = useState(new Date());
   
   // Late Reason State
   const [isLateModalOpen, setIsLateModalOpen] = useState(false);
@@ -30,6 +30,12 @@ const AttendanceView: React.FC<AttendanceProps> = ({ staffList = [], attendanceL
   const currentUserStaff = useMemo(() => {
     return activeStaff.find(s => s.name === currentUser);
   }, [activeStaff, currentUser]);
+
+  // Clock Timer
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const targetLocations = useMemo(() => {
     const targets = [];
@@ -312,68 +318,136 @@ const AttendanceView: React.FC<AttendanceProps> = ({ staffList = [], attendanceL
       .filter(s => s.name.toLowerCase().includes(kioskSearchTerm.toLowerCase()) || s.staffId.toLowerCase().includes(kioskSearchTerm.toLowerCase()));
   }, [activeStaff, kioskSearchTerm]);
 
+  const stats = useMemo(() => {
+     const todayList = attendanceList.filter(a => a.date === today);
+     const totalPresent = todayList.length;
+     const late = todayList.filter(a => a.status === 'LATE').length;
+     const totalStaff = activeStaff.filter(s => s.role === UserRole.STAFF).length;
+     return { totalPresent, late, totalStaff };
+  }, [attendanceList, today, activeStaff]);
+
   return (
     <div className="space-y-8">
-      {/* Header Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-         <div className="bg-white dark:bg-gray-800/60 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-white/10">
-            <p className="text-[10px] uppercase font-bold text-gray-400">আজকের তারিখ</p>
-            <p className="text-lg font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-indigo-500" />
-              {new Date().toLocaleDateString('bn-BD', { day: 'numeric', month: 'long', year: 'numeric' })}
-            </p>
-         </div>
-         <div className="bg-white dark:bg-gray-800/60 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-white/10">
-            <p className="text-[10px] uppercase font-bold text-gray-400">অফিস সময়</p>
-            <p className="text-lg font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2">
-              <Clock className="w-4 h-4 text-orange-500" />
-              সকাল ৯:০০ টা
-            </p>
-         </div>
-         <div className="bg-white dark:bg-gray-800/60 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-white/10">
-            <p className="text-[10px] uppercase font-bold text-gray-400">মোট উপস্থিত</p>
-            <p className="text-2xl font-black text-green-600 dark:text-green-400">
-               {(attendanceList || []).filter(a => a.date === today).length} <span className="text-sm text-gray-400 font-medium">/ {activeStaff.filter(s => s.role === UserRole.STAFF).length}</span>
-            </p>
-         </div>
-         <div className="bg-white dark:bg-gray-800/60 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-white/10">
-            <p className="text-[10px] uppercase font-bold text-gray-400">লেট উপস্থিতি</p>
-            <p className="text-2xl font-black text-orange-500 dark:text-orange-400">
-               {(attendanceList || []).filter(a => a.date === today && a.status === 'LATE').length}
-            </p>
+      
+      {/* --- DASHBOARD HEADER & CLOCK --- */}
+      <div className="bg-gradient-to-r from-indigo-600 to-violet-600 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
+         <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-5 rounded-full -mt-10 -mr-10 blur-3xl"></div>
+         <div className="absolute bottom-0 left-0 w-32 h-32 bg-black opacity-10 rounded-full -mb-10 -ml-10 blur-xl"></div>
+         
+         <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-6">
+            <div className="text-center md:text-left">
+               <div className="flex items-center justify-center md:justify-start gap-2 mb-1 opacity-90">
+                  <Calendar className="w-4 h-4" />
+                  <p className="text-xs font-bold uppercase tracking-widest">{currentTime.toLocaleDateString('bn-BD', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+               </div>
+               <h1 className="text-3xl md:text-4xl font-black tracking-tight drop-shadow-md">
+                  {currentTime.toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+               </h1>
+               <p className="text-xs text-indigo-100 font-medium mt-1 tracking-wider uppercase">Real-time Attendance Monitor</p>
+            </div>
+
+            <div className="flex gap-4">
+               <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/20 text-center min-w-[100px]">
+                  <p className="text-[10px] uppercase font-bold text-indigo-200">উপস্থিত</p>
+                  <p className="text-2xl font-black">{stats.totalPresent} <span className="text-xs text-indigo-200">/ {stats.totalStaff}</span></p>
+               </div>
+               <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/20 text-center min-w-[100px]">
+                  <p className="text-[10px] uppercase font-bold text-orange-200">লেট (Late)</p>
+                  <p className="text-2xl font-black text-orange-300">{stats.late}</p>
+               </div>
+            </div>
          </div>
       </div>
 
       {/* --- GPS STATUS BAR (VISIBLE FOR STAFF & KIOSK) --- */}
       {(role === UserRole.STAFF || role === UserRole.KIOSK) && (
-        <div className={`p-4 rounded-xl flex flex-col md:flex-row items-start md:items-center justify-between shadow-sm border animate-in fade-in duration-300 ${distanceInfo?.isAllowed ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'}`}>
-           <div className="flex items-center gap-3 mb-3 md:mb-0">
-              <div className={`p-2 rounded-full ${distanceInfo?.isAllowed ? 'bg-green-200 dark:bg-green-800' : 'bg-orange-200 dark:bg-orange-800'} animate-pulse`}>
-                 <MapPin className={`w-6 h-6 ${distanceInfo?.isAllowed ? 'text-green-700 dark:text-green-300' : 'text-orange-700 dark:text-orange-300'}`} />
-              </div>
-              <div>
-                 <h3 className={`font-bold ${distanceInfo?.isAllowed ? 'text-green-800 dark:text-green-300' : 'text-orange-800 dark:text-orange-300'}`}>
-                    {isLoadingLocation ? 'লোকেশন যাচাই করা হচ্ছে...' : distanceInfo?.isAllowed ? 'লোকেশন ঠিক আছে - হাজিরা দিন ✅' : 'চেক-ইন লোকেশনের বাইরে ⚠️'}
-                 </h3>
-                 <p className="text-xs font-medium opacity-80 text-gray-600 dark:text-gray-300 flex items-center gap-1">
-                    {locationError ? (
-                       <span className="text-red-500">{locationError}</span>
-                    ) : distanceInfo ? (
-                       <>টার্গেট: {distanceInfo.targetName} | বর্তমান দূরত্ব: {Math.round(distanceInfo.distance)} মি.</>
-                    ) : (
-                       'জিপিএস সিগনালের জন্য অপেক্ষা করা হচ্ছে...'
+        <div className={`p-1 rounded-2xl bg-gradient-to-r shadow-lg transition-all duration-500 ${distanceInfo?.isAllowed ? 'from-green-400 to-emerald-500' : 'from-orange-400 to-red-500'}`}>
+           <div className="bg-white dark:bg-gray-900 rounded-xl p-4 flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                 <div className={`p-3 rounded-full shrink-0 ${distanceInfo?.isAllowed ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                    {isLoadingLocation ? <RefreshCw className="w-6 h-6 animate-spin" /> : (distanceInfo?.isAllowed ? <CheckCircle className="w-6 h-6" /> : <MapPin className="w-6 h-6" />)}
+                 </div>
+                 <div className="text-center md:text-left">
+                    <h3 className={`font-bold text-lg ${distanceInfo?.isAllowed ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
+                       {isLoadingLocation ? 'লোকেশন যাচাই হচ্ছে...' : distanceInfo?.isAllowed ? 'লোকেশন ঠিক আছে - হাজিরা দিন ✅' : 'লোকেশন এরিয়ার বাইরে ⚠️'}
+                    </h3>
+                    {!isLoadingLocation && distanceInfo && (
+                       <p className="text-xs font-semibold text-gray-500 flex items-center justify-center md:justify-start gap-1">
+                          <Navigation className="w-3 h-3" />
+                          টার্গেট: {distanceInfo.targetName} | দূরত্ব: {Math.round(distanceInfo.distance)} মি. (সর্বোচ্চ {distanceInfo.allowedRadius} মি.)
+                       </p>
                     )}
-                 </p>
+                    {locationError && <p className="text-xs text-red-500 font-bold mt-1">{locationError}</p>}
+                 </div>
               </div>
+              <button 
+                onClick={() => getLocation(false)} 
+                className="px-6 py-2.5 rounded-xl text-xs font-bold shadow-sm bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 flex items-center gap-2 transition-all active:scale-95 whitespace-nowrap"
+              >
+                 <RefreshCw className={`w-3.5 h-3.5 ${isLoadingLocation ? 'animate-spin' : ''}`} /> 
+                 রিফ্রেশ লোকেশন
+              </button>
            </div>
-           <button 
-             onClick={() => getLocation(false)} 
-             className="w-full md:w-auto bg-white dark:bg-gray-700 px-4 py-2 rounded-xl text-xs font-bold shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 flex items-center justify-center gap-2 transition-all active:scale-95"
-           >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingLocation ? 'animate-spin' : ''}`} /> 
-              রিফ্রেশ লোকেশন
-           </button>
         </div>
+      )}
+
+      {/* --- STAFF ACTION AREA (FINGERPRINT BUTTON) --- */}
+      {role !== UserRole.KIOSK && currentUserStaff && (
+         <div className="flex justify-center py-6">
+            {!myAttendance ? (
+               <button 
+                  onClick={() => handleCheckIn(currentUserStaff.id)}
+                  disabled={isLoadingLocation}
+                  className={`group relative w-48 h-48 rounded-full flex flex-col items-center justify-center transition-all duration-300 shadow-2xl active:scale-95 ${
+                     isLoadingLocation 
+                        ? 'bg-gray-200 cursor-not-allowed' 
+                        : distanceInfo?.isAllowed || currentUserStaff.role === UserRole.ADMIN // Allow Admin to check in anywhere theoretically or ignore loc
+                           ? 'bg-gradient-to-b from-indigo-500 to-indigo-700 hover:from-indigo-600 hover:to-indigo-800 shadow-indigo-200' 
+                           : 'bg-gray-300 cursor-not-allowed grayscale'
+                  }`}
+               >
+                  {/* Ripple Effect Rings */}
+                  <span className="absolute inset-0 rounded-full border-4 border-indigo-500/30 scale-110 animate-ping"></span>
+                  <span className="absolute inset-0 rounded-full border-2 border-white/20"></span>
+                  
+                  <Fingerprint className="w-20 h-20 text-white mb-2 group-hover:scale-110 transition-transform" />
+                  <span className="text-white font-black text-lg uppercase tracking-wider">Check In</span>
+                  <span className="text-[10px] text-indigo-200 font-medium mt-1">Tap to Record</span>
+               </button>
+            ) : !myAttendance.checkOutTime ? (
+               <div className="flex flex-col items-center gap-4 animate-in zoom-in duration-300">
+                  <div className="w-40 h-40 rounded-full bg-green-50 border-4 border-green-500 flex flex-col items-center justify-center shadow-xl">
+                     <CheckCircle className="w-16 h-16 text-green-600 mb-1" />
+                     <span className="text-green-800 font-bold text-sm">Checked In</span>
+                     <span className="text-xs text-green-600 font-mono">{new Date(myAttendance.checkInTime).toLocaleTimeString('bn-BD', {hour:'2-digit', minute:'2-digit'})}</span>
+                  </div>
+                  <button 
+                     onClick={() => handleCheckOut(myAttendance.id)}
+                     className="bg-orange-500 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-orange-600 transition-all flex items-center gap-2 active:scale-95"
+                  >
+                     <Clock className="w-5 h-5" /> চেক-আউট (Duty End)
+                  </button>
+               </div>
+            ) : (
+               <div className="w-full bg-green-50 border border-green-200 rounded-2xl p-8 text-center shadow-inner">
+                  <div className="inline-block p-4 bg-green-100 rounded-full mb-3">
+                     <UserCheck className="w-12 h-12 text-green-600" />
+                  </div>
+                  <h3 className="text-xl font-bold text-green-800">আজকের ডিউটি সম্পন্ন হয়েছে!</h3>
+                  <p className="text-sm text-green-600 mt-1">আগামীকাল দেখা হবে। ভালো থাকুন!</p>
+                  <div className="flex justify-center gap-8 mt-4 text-xs font-bold text-gray-500">
+                     <div>
+                        <p className="uppercase text-[9px] text-gray-400">ইন টাইম</p>
+                        <p>{new Date(myAttendance.checkInTime).toLocaleTimeString('bn-BD', {hour:'2-digit', minute:'2-digit'})}</p>
+                     </div>
+                     <div>
+                        <p className="uppercase text-[9px] text-gray-400">আউট টাইম</p>
+                        <p>{myAttendance.checkOutTime ? new Date(myAttendance.checkOutTime).toLocaleTimeString('bn-BD', {hour:'2-digit', minute:'2-digit'}) : '--'}</p>
+                     </div>
+                  </div>
+               </div>
+            )}
+         </div>
       )}
 
       {/* --- KIOSK MODE UI --- */}
@@ -384,7 +458,7 @@ const AttendanceView: React.FC<AttendanceProps> = ({ staffList = [], attendanceL
               <input 
                 type="text" 
                 placeholder="নাম অথবা আইডি দিয়ে খুঁজুন..." 
-                className="w-full pl-12 pr-4 py-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-sm text-lg font-bold outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-gray-800 dark:text-white"
+                className="w-full pl-12 pr-4 py-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-lg text-lg font-bold outline-none focus:ring-4 focus:ring-indigo-100 transition-all text-gray-800 dark:text-white"
                 value={kioskSearchTerm}
                 onChange={(e) => setKioskSearchTerm(e.target.value)}
               />
@@ -411,31 +485,31 @@ const AttendanceView: React.FC<AttendanceProps> = ({ staffList = [], attendanceL
                             handleCheckIn(staff.id);
                          }
                       }}
-                      className={`relative p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-3 cursor-pointer transition-all active:scale-95 shadow-sm hover:shadow-md ${
+                      className={`relative p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-3 cursor-pointer transition-all active:scale-95 shadow-sm hover:shadow-xl group ${
                          isCheckedIn 
                            ? record.checkOutTime 
-                              ? 'bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 opacity-60' 
-                              : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 ring-2 ring-green-100 dark:ring-green-900'
-                           : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 hover:border-indigo-200 dark:hover:border-indigo-700'
+                              ? 'bg-gray-50 border-gray-200 opacity-60' 
+                              : 'bg-green-50 border-green-200 ring-2 ring-green-100'
+                           : 'bg-white border-gray-100 hover:border-indigo-200'
                       }`}
                     >
                        <div className="relative">
                           {staff.photo ? (
-                             <img src={staff.photo} alt={staff.name} className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-sm" />
+                             <img src={staff.photo} alt={staff.name} className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-md group-hover:scale-105 transition-transform" />
                           ) : (
-                             <div className="w-16 h-16 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold text-xl">
+                             <div className="w-20 h-20 rounded-full bg-gradient-to-br from-indigo-100 to-blue-100 flex items-center justify-center text-indigo-600 font-bold text-2xl shadow-inner">
                                 {staff.name.charAt(0)}
                              </div>
                           )}
                           {isCheckedIn && (
-                             <div className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full border-2 border-white flex items-center justify-center ${record?.checkOutTime ? 'bg-gray-400' : 'bg-green-500 text-white'}`}>
-                                {record?.checkOutTime ? <X className="w-3 h-3 text-white" /> : <CheckCircle className="w-4 h-4" />}
+                             <div className={`absolute -bottom-1 -right-1 w-8 h-8 rounded-full border-4 border-white flex items-center justify-center shadow-sm ${record?.checkOutTime ? 'bg-gray-400' : 'bg-green-500 text-white'}`}>
+                                {record?.checkOutTime ? <X className="w-4 h-4 text-white" /> : <CheckCircle className="w-5 h-5" />}
                              </div>
                           )}
                        </div>
-                       <div className="text-center">
-                          <p className="font-bold text-sm text-gray-800 dark:text-gray-200 line-clamp-1">{staff.name}</p>
-                          <p className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">{staff.staffId}</p>
+                       <div className="text-center w-full">
+                          <p className="font-bold text-sm text-gray-800 dark:text-gray-200 truncate px-2">{staff.name}</p>
+                          <p className="text-[10px] text-gray-500 dark:text-gray-400 font-medium bg-gray-100 dark:bg-gray-800 rounded-full px-2 py-0.5 inline-block mt-1">{staff.staffId}</p>
                        </div>
                     </div>
                  );
@@ -447,19 +521,20 @@ const AttendanceView: React.FC<AttendanceProps> = ({ staffList = [], attendanceL
       {/* LATE REASON MODAL */}
       {isLateModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-           <div className="bg-white dark:bg-gray-800 w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden p-6">
-              <div className="text-center mb-4">
-                 <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center mx-auto mb-2 text-orange-600 dark:text-orange-400">
-                    <AlertTriangle className="w-6 h-6" />
+           <div className="bg-white dark:bg-gray-800 w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden p-6 relative">
+              <div className="absolute top-0 left-0 w-full h-1.5 bg-orange-500"></div>
+              <div className="text-center mb-6">
+                 <div className="w-16 h-16 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center mx-auto mb-3 text-orange-600 dark:text-orange-400 shadow-sm animate-pulse">
+                    <Clock className="w-8 h-8" />
                  </div>
-                 <h3 className="font-bold text-lg text-gray-800 dark:text-white">দেরি হয়েছে!</h3>
-                 <p className="text-xs text-gray-500 dark:text-gray-400">অফিস টাইম সকাল ৯:০০ টা। দেরি হওয়ার কারণ লিখুন।</p>
+                 <h3 className="font-black text-xl text-gray-800 dark:text-white">দেরি হয়েছে!</h3>
+                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">অফিস টাইম সকাল ৯:০০ টা। দেরি হওয়ার কারণ লিখুন।</p>
               </div>
               <form onSubmit={handleSubmitLateReason}>
                  <textarea 
                    required
-                   className="w-full p-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-900 text-sm focus:ring-2 focus:ring-orange-500 outline-none mb-4 text-gray-800 dark:text-gray-200"
-                   placeholder="দেরির কারণ..."
+                   className="w-full p-4 border border-gray-200 dark:border-gray-700 rounded-2xl bg-gray-50 dark:bg-gray-900 text-sm focus:ring-2 focus:ring-orange-500 outline-none mb-4 text-gray-800 dark:text-gray-200 resize-none font-medium"
+                   placeholder="দেরির কারণ বিস্তারিত লিখুন..."
                    rows={3}
                    value={lateReason}
                    onChange={(e) => setLateReason(e.target.value)}
@@ -468,13 +543,13 @@ const AttendanceView: React.FC<AttendanceProps> = ({ staffList = [], attendanceL
                     <button 
                       type="button" 
                       onClick={() => setIsLateModalOpen(false)}
-                      className="flex-1 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl text-xs font-bold text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
+                      className="flex-1 py-3 border border-gray-200 dark:border-gray-700 rounded-xl text-xs font-bold text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                     >
                        বাতিল
                     </button>
                     <button 
                       type="submit" 
-                      className="flex-1 py-2.5 bg-orange-500 text-white rounded-xl text-xs font-bold hover:bg-orange-600 shadow-lg shadow-orange-200 dark:shadow-none"
+                      className="flex-1 py-3 bg-orange-500 text-white rounded-xl text-xs font-bold hover:bg-orange-600 shadow-lg shadow-orange-200 dark:shadow-none transition-colors"
                     >
                        জমা দিন
                     </button>
@@ -486,87 +561,76 @@ const AttendanceView: React.FC<AttendanceProps> = ({ staffList = [], attendanceL
 
       {/* --- NORMAL STAFF VIEW (LIST) --- */}
       {role !== UserRole.KIOSK && (
-        <div className="bg-white dark:bg-gray-800/60 rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 overflow-hidden">
-           <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
+        <div className="bg-white dark:bg-gray-800/60 rounded-3xl shadow-sm border border-gray-100 dark:border-white/10 overflow-hidden">
+           <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50/50 dark:bg-gray-800">
               <h3 className="font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                 <Fingerprint className="w-5 h-5 text-indigo-500" /> আজকের উপস্থিতি তালিকা
+                 <History className="w-5 h-5 text-indigo-500" /> আজকের উপস্থিতি তালিকা
               </h3>
-              {currentUserStaff && (
-                 <div className="flex items-center gap-3">
-                    {/* Manual Check-in Button if enabled/needed or just status */}
-                    {!myAttendance ? (
-                       <>
-                         <button 
-                           onClick={() => handleCheckIn(currentUserStaff.id)}
-                           className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg hover:bg-indigo-700 active:scale-95 shadow-indigo-200 dark:shadow-none flex items-center gap-2 transition-all"
-                         >
-                            <UserCheck className="w-4 h-4" /> চেক-ইন দিন
-                         </button>
-                         {/* Manual Refresh Button for mobile convenience */}
-                         <button onClick={() => getLocation(false)} className="md:hidden bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 p-2 rounded-xl active:scale-95">
-                            <RefreshCw className={`w-4 h-4 ${isLoadingLocation ? 'animate-spin' : ''}`} />
-                         </button>
-                       </>
-                    ) : !myAttendance.checkOutTime ? (
-                       <button 
-                         onClick={() => handleCheckOut(myAttendance.id)}
-                         className="bg-orange-500 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg shadow-orange-200 dark:shadow-none hover:bg-orange-600 active:scale-95 transition-all flex items-center gap-2"
-                       >
-                          <Clock className="w-4 h-4" /> চেক-আউট
-                       </button>
-                    ) : (
-                       <span className="text-xs font-bold text-green-600 bg-green-50 px-3 py-1.5 rounded-lg border border-green-200">
-                          আজকের ডিউটি শেষ ✅
-                       </span>
-                    )}
-                 </div>
-              )}
+              <span className="text-xs font-bold text-gray-400 bg-white dark:bg-gray-700 px-3 py-1 rounded-full border border-gray-100 dark:border-gray-600">
+                 Live Feed
+              </span>
            </div>
            
            <div className="overflow-x-auto">
               <table className="w-full text-left">
                  <thead className="bg-gray-50 dark:bg-gray-700/50">
                     <tr>
-                       <th className="px-5 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">স্টাফ মেম্বার</th>
-                       <th className="px-5 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">চেক-ইন</th>
-                       <th className="px-5 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">চেক-আউট</th>
-                       <th className="px-5 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">স্ট্যাটাস</th>
-                       <th className="px-5 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">লোকেশন</th>
+                       <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">স্টাফ মেম্বার</th>
+                       <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">চেক-ইন</th>
+                       <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">চেক-আউট</th>
+                       <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">স্ট্যাটাস</th>
+                       <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">লোকেশন</th>
                     </tr>
                  </thead>
                  <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
                     {(attendanceList || []).filter(a => a.date === today).map((record) => (
-                       <tr key={record.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
-                          <td className="px-5 py-3">
-                             <p className="text-sm font-bold text-gray-800 dark:text-gray-200">{record.staffName}</p>
-                             {record.note && <p className="text-[10px] text-red-400 italic mt-0.5">Note: {record.note}</p>}
+                       <tr key={record.id} className="hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition-colors group">
+                          <td className="px-6 py-4">
+                             <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs">
+                                   {record.staffName.charAt(0)}
+                                </div>
+                                <div>
+                                   <p className="text-sm font-bold text-gray-800 dark:text-gray-200">{record.staffName}</p>
+                                   {record.note && <p className="text-[10px] text-red-500 italic mt-0.5 flex items-center gap-1"><AlertTriangle className="w-3 h-3"/> {record.note}</p>}
+                                </div>
+                             </div>
                           </td>
-                          <td className="px-5 py-3 text-center">
-                             <p className="text-sm font-bold text-gray-700 dark:text-gray-300">{new Date(record.checkInTime).toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' })}</p>
+                          <td className="px-6 py-4 text-center">
+                             <span className="inline-block bg-green-50 text-green-700 px-2 py-1 rounded text-xs font-mono font-bold border border-green-100">
+                                {new Date(record.checkInTime).toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' })}
+                             </span>
                           </td>
-                          <td className="px-5 py-3 text-center">
+                          <td className="px-6 py-4 text-center">
                              {record.checkOutTime ? (
-                                <p className="text-sm font-bold text-gray-700 dark:text-gray-300">{new Date(record.checkOutTime).toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' })}</p>
+                                <span className="inline-block bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs font-mono font-bold border border-gray-200">
+                                   {new Date(record.checkOutTime).toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' })}
+                                </span>
                              ) : (
-                                <span className="text-[10px] text-gray-400">---</span>
+                                <span className="text-gray-300 text-xl">--</span>
                              )}
                           </td>
-                          <td className="px-5 py-3 text-center">
-                             <span className={`px-2 py-1 rounded text-[10px] font-black uppercase tracking-wider ${getStatusColor(record.status)}`}>
+                          <td className="px-6 py-4 text-center">
+                             <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm ${getStatusColor(record.status)}`}>
                                 {record.status}
                              </span>
                           </td>
-                          <td className="px-5 py-3 text-right">
-                             <div className="flex items-center justify-end gap-1 text-[10px] text-gray-500 dark:text-gray-400">
-                                <MapPin className="w-3 h-3" />
-                                {record.location?.address || 'Unknown'}
+                          <td className="px-6 py-4 text-right">
+                             <div className="flex items-center justify-end gap-1 text-[10px] text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded-lg w-fit ml-auto">
+                                <MapPin className="w-3 h-3 text-indigo-400" />
+                                <span className="truncate max-w-[100px]" title={record.location?.address}>{record.location?.address || 'GPS Location'}</span>
                              </div>
                           </td>
                        </tr>
                     ))}
                     {(attendanceList || []).filter(a => a.date === today).length === 0 && (
                        <tr>
-                          <td colSpan={5} className="px-5 py-8 text-center text-gray-400 text-xs">আজকের কোনো হাজিরা পাওয়া যায়নি</td>
+                          <td colSpan={5} className="px-6 py-16 text-center text-gray-400">
+                             <div className="flex flex-col items-center gap-2 opacity-50">
+                                <History className="w-12 h-12" />
+                                <p className="text-sm font-medium">আজকের কোনো হাজিরা ডাটা পাওয়া যায়নি</p>
+                             </div>
+                          </td>
                        </tr>
                     )}
                  </tbody>

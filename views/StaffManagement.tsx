@@ -1,6 +1,5 @@
-
 import React, { useState, useMemo, useRef } from 'react';
-import { Plus, Search, Edit2, Trash2, UserPlus, X, Calendar, FilterX, Phone, Banknote, Users, UserCheck, UserX, ArrowUpDown, ShieldCheck, ShieldAlert, Eye, EyeOff, Lock, Camera, Image as ImageIcon, Briefcase, Wallet, ArrowRight, Coins, Crown, UserCog, History, CalendarClock, MapPin, LocateFixed, Globe, ToggleLeft, ToggleRight, Map, MonitorSmartphone, Gift, Star, MoreVertical, WalletCards, AlertTriangle, CheckCircle, RotateCcw } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, UserPlus, X, Calendar, FilterX, Phone, Banknote, Users, UserCheck, UserX, ArrowUpDown, ShieldCheck, ShieldAlert, Eye, EyeOff, Lock, Camera, Image as ImageIcon, Briefcase, Wallet, ArrowRight, Coins, Crown, UserCog, History, CalendarClock, MapPin, LocateFixed, Globe, ToggleLeft, ToggleRight, Map, MonitorSmartphone, Gift, Star, MoreVertical, WalletCards, AlertTriangle, CheckCircle, RotateCcw, TrendingDown } from 'lucide-react';
 import { Staff, UserRole, Expense, AdvanceLog } from '../types';
 import { ROLE_LABELS } from '../constants';
 
@@ -12,9 +11,10 @@ interface StaffProps {
   advances: AdvanceLog[];
   setAdvances: React.Dispatch<React.SetStateAction<AdvanceLog[]>>;
   currentUser: string | null;
+  onUpdatePoints?: (staffId: string, points: number, reason: string) => void;
 }
 
-const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffList, role, expenses = [], advances = [], setAdvances, currentUser }) => {
+const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffList, role, expenses = [], advances = [], setAdvances, currentUser, onUpdatePoints }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -30,6 +30,9 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
 
   // Status Change Confirmation State
   const [statusConfirmData, setStatusConfirmData] = useState<{id: string, newStatus: 'ACTIVE' | 'DEACTIVATED'} | null>(null);
+
+  // Penalty Confirmation State
+  const [showPenaltyConfirm, setShowPenaltyConfirm] = useState(false);
 
   // Form Data
   const [formData, setFormData] = useState({ 
@@ -88,9 +91,10 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
     type: 'SALARY' // Default to salary
   });
 
-  // Gift Points Modal State
+  // Gift/Penalty Points Modal State
   const [isGiftPointModalOpen, setIsGiftPointModalOpen] = useState(false);
   const [giftPointData, setGiftPointData] = useState<{staffId: string, points: number}>({ staffId: '', points: 5 });
+  const [pointMode, setPointMode] = useState<'GIFT' | 'PENALTY'>('GIFT');
 
   // History Modal State
   const [historyStaff, setHistoryStaff] = useState<Staff | null>(null);
@@ -99,6 +103,13 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
 
   const isStaff = role === UserRole.STAFF;
   const canManageMoney = role === UserRole.ADMIN || role === UserRole.MD;
+
+  // Helper to format large numbers
+  const formatPoints = (num: number) => {
+    if (num >= 100000) return (num / 100000).toFixed(1).replace(/\.0$/, '') + 'L';
+    if (num >= 1000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+    return num;
+  };
 
   // --- STAFF FORM HANDLERS ---
   const handleSave = (e: React.FormEvent) => {
@@ -299,25 +310,48 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
   const handleGivePoints = (e: React.FormEvent) => {
     e.preventDefault();
     if (!canManageMoney) return;
-    if (giftPointData.points < 1 || giftPointData.points > 20) {
-      alert("পয়েন্ট ১ থেকে ২০ এর মধ্যে হতে হবে।");
+    if (!onUpdatePoints) {
+       alert("System Error: Points function missing.");
+       return;
+    }
+
+    const points = Number(giftPointData.points);
+    if (points < 1) {
+      alert("পয়েন্ট ১ এর বেশি হতে হবে।");
       return;
     }
-    setStaffList(prev => prev.map(s => {
-      if (s.id === giftPointData.staffId) {
-        return {
-          ...s,
-          points: (s.points || 0) + Number(giftPointData.points),
-          updatedAt: new Date().toISOString()
-        };
-      }
-      return s;
-    }));
+    
+    // Logic: Gift sends positive value, Penalty sends negative value
+    // This uses the central logic in App.tsx which handles monthly resets correctly.
+    
+    if (pointMode === 'PENALTY') {
+        setShowPenaltyConfirm(true); // Trigger Custom Modal
+        return; // Important: Return to stop immediate execution
+    }
+
+    const pointsToApply = points;
+    const reason = 'ADMIN_REWARD';
+
+    onUpdatePoints(giftPointData.staffId, pointsToApply, reason);
+    
     setIsGiftPointModalOpen(false);
     alert('পয়েন্ট প্রদান সফল হয়েছে! 🎉');
   };
 
+  const executePenalty = () => {
+      if (!onUpdatePoints) return;
+      const points = Number(giftPointData.points);
+      // Send negative points for penalty
+      onUpdatePoints(giftPointData.staffId, -points, 'ADMIN_PENALTY');
+      
+      setShowPenaltyConfirm(false);
+      setIsGiftPointModalOpen(false);
+      // Small delay to ensure modal closes before alert
+      setTimeout(() => alert('পয়েন্ট পেনাল্টি কার্যকর হয়েছে (পয়েন্ট কাটা হয়েছে)।'), 100);
+  };
+
   const openGiftModal = (staffId: string) => {
+    setPointMode('GIFT'); // Default to Gift
     setGiftPointData({ staffId, points: 5 });
     setIsGiftPointModalOpen(true);
   };
@@ -466,7 +500,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
     <div className="space-y-6">
       {/* ... (Header, Stats, Filters remain same) ... */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <h2 className="text-2xl font-black text-gray-800 dark:text-white tracking-tight">স্টাফ প্রোফাইল ও কন্ট্রোল</h2>
+        <h2 className="text-2xl font-black text-gray-800 dark:text-white tracking-tight">স্টাফ কন্ট্রোল সেন্টার (Staff Control Center)</h2>
         {!isStaff && (
           <button onClick={() => setIsModalOpen(true)} className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 dark:shadow-none active:scale-95">
             <UserPlus className="w-5 h-5" /> নতুন স্টাফ যোগ করুন
@@ -549,7 +583,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
                   
                   {/* Points Badge (Moved to top-left corner) */}
                   <div className="absolute top-3 left-3 bg-yellow-400 text-yellow-900 text-[10px] font-black px-2 py-1 rounded-full shadow-sm flex items-center gap-1 z-10 border border-yellow-200">
-                     <Star className="w-3 h-3 fill-yellow-900" /> {staff.points || 0}
+                     <Star className="w-3 h-3 fill-yellow-900" /> {formatPoints(staff.points || 0)}
                   </div>
 
                   <div className="flex flex-col items-center">
@@ -621,7 +655,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
                        </button>
                        {canManageMoney && (
                           <>
-                              <button onClick={() => openGiftModal(staff.id)} className="w-8 h-8 flex items-center justify-center rounded-full bg-yellow-50 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 hover:bg-yellow-500 hover:text-white transition-colors" title="গিফট দিন">
+                              <button onClick={() => openGiftModal(staff.id)} className="w-8 h-8 flex items-center justify-center rounded-full bg-yellow-50 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 hover:bg-yellow-500 hover:text-white transition-colors" title="পয়েন্ট ম্যানেজ করুন (গিফট/পেনাল্টি)">
                                   <Gift className="w-3.5 h-3.5" />
                               </button>
                               <button onClick={() => openAdvanceModal(staff.id)} className="w-8 h-8 flex items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white transition-colors" title="টাকা দিন (Advance)">
@@ -668,29 +702,84 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
       {isGiftPointModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
-            <div className="p-6 bg-yellow-400 text-yellow-900 flex justify-between items-center">
-              <h3 className="font-black text-xl flex items-center gap-2"><Gift className="w-6 h-6"/> গিফট পয়েন্ট</h3>
-              <button onClick={() => setIsGiftPointModalOpen(false)} className="p-1 hover:bg-yellow-500/20 rounded-full"><X className="w-6 h-6"/></button>
+            <div className={`p-6 text-white flex justify-between items-center transition-colors ${pointMode === 'GIFT' ? 'bg-yellow-400 text-yellow-900' : 'bg-red-600 text-white'}`}>
+              <h3 className={`font-black text-xl flex items-center gap-2 ${pointMode === 'GIFT' ? 'text-yellow-900' : 'text-white'}`}>
+                 {pointMode === 'GIFT' ? <><Gift className="w-6 h-6"/> গিফট পয়েন্ট</> : <><TrendingDown className="w-6 h-6"/> পেনাল্টি</>}
+              </h3>
+              <button onClick={() => setIsGiftPointModalOpen(false)} className={`p-1 rounded-full ${pointMode === 'GIFT' ? 'hover:bg-yellow-500/20 text-yellow-900' : 'hover:bg-red-700 text-white'}`}><X className="w-6 h-6"/></button>
             </div>
-            <form onSubmit={handleGivePoints} className="p-6 space-y-4">
+            
+            <form onSubmit={handleGivePoints} className="p-6 space-y-5">
+               {/* Mode Toggle */}
+               <div className="flex bg-gray-100 rounded-xl p-1">
+                  <button 
+                    type="button" 
+                    onClick={() => setPointMode('GIFT')} 
+                    className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${pointMode === 'GIFT' ? 'bg-white shadow-sm text-yellow-700' : 'text-gray-500 hover:text-gray-700'}`}
+                  >
+                     <Gift className="w-4 h-4"/> Reward (Gift)
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => setPointMode('PENALTY')} 
+                    className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${pointMode === 'PENALTY' ? 'bg-white shadow-sm text-red-600' : 'text-gray-500 hover:text-gray-700'}`}
+                  >
+                     <TrendingDown className="w-4 h-4"/> Penalty (Cut)
+                  </button>
+               </div>
+
                <div>
-                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">পয়েন্ট পরিমাণ (১-২০)</label>
+                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">পয়েন্ট পরিমাণ</label>
                  <input 
                    type="number" 
                    min="1" 
-                   max="20" 
                    required
-                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-yellow-400 outline-none text-center text-2xl font-black text-gray-800"
+                   className={`w-full px-4 py-3 border rounded-xl outline-none text-center text-3xl font-black ${pointMode === 'GIFT' ? 'border-yellow-200 focus:ring-2 focus:ring-yellow-400 text-gray-800' : 'border-red-200 focus:ring-2 focus:ring-red-500 text-red-600'}`}
                    value={giftPointData.points}
                    onChange={(e) => setGiftPointData({...giftPointData, points: Number(e.target.value)})}
                  />
+                 <p className={`text-xs text-center mt-2 ${pointMode === 'GIFT' ? 'text-gray-400' : 'text-red-400'}`}>
+                    {pointMode === 'GIFT' ? 'এই স্টাফের পয়েন্ট যোগ হবে (+)' : 'এই স্টাফের পয়েন্ট কেটে নেওয়া হবে (-)'}
+                 </p>
                </div>
-               <p className="text-xs text-center text-gray-400">এই স্টাফকে কাজের স্বীকৃতি হিসেবে পয়েন্ট দিন।</p>
-               <button type="submit" className="w-full bg-yellow-400 text-yellow-900 py-3 rounded-xl font-bold hover:bg-yellow-500 transition-colors shadow-lg shadow-yellow-100">
-                 কনফার্ম করুন
+               
+               <button 
+                 type="submit" 
+                 className={`w-full py-3.5 rounded-xl font-bold transition-all shadow-lg active:scale-95 ${pointMode === 'GIFT' ? 'bg-yellow-400 text-yellow-900 hover:bg-yellow-500 shadow-yellow-100' : 'bg-red-600 text-white hover:bg-red-700 shadow-red-200'}`}
+               >
+                 {pointMode === 'GIFT' ? 'পয়েন্ট প্রদান করুন' : 'পেনাল্টি প্রসেস করুন'}
                </button>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* PENALTY CONFIRMATION MODAL - ENSURING TOP Z-INDEX */}
+      {showPenaltyConfirm && (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
+            <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden p-6 text-center transform scale-100 transition-transform">
+                <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-white shadow-lg">
+                    <AlertTriangle className="w-10 h-10 text-red-600" />
+                </div>
+                <h3 className="text-2xl font-black text-gray-800 mb-2">পেনাল্টি নিশ্চিত করুন</h3>
+                <p className="text-sm text-gray-500 mb-8 px-4">
+                    সতর্কতা: আপনি কি নিশ্চিত যে এই স্টাফের <strong className="text-red-600 text-lg">{giftPointData.points} পয়েন্ট</strong> পেনাল্টি হিসেবে কেটে নিতে চান?
+                </p>
+                <div className="flex gap-3">
+                    <button 
+                        onClick={() => setShowPenaltyConfirm(false)}
+                        className="flex-1 py-3.5 border-2 border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-50 transition-colors"
+                    >
+                        না, বাতিল
+                    </button>
+                    <button 
+                        onClick={executePenalty}
+                        className="flex-1 py-3.5 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 shadow-xl shadow-red-200 transition-all active:scale-95"
+                    >
+                        হ্যাঁ, নিশ্চিত
+                    </button>
+                </div>
+            </div>
         </div>
       )}
 

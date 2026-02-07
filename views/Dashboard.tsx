@@ -58,6 +58,13 @@ const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApproval
   const isStaff = role === UserRole.STAFF;
   const isManagement = role === UserRole.ADMIN || role === UserRole.MD;
 
+  // Helper to format large numbers
+  const formatPoints = (num: number) => {
+    if (num >= 100000) return (num / 100000).toFixed(1).replace(/\.0$/, '') + 'L';
+    if (num >= 1000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+    return num;
+  };
+
   // --- STAFF SPECIFIC STATS ---
   const { myApprovedTotal, myPendingCount } = useMemo(() => {
     const safeExpenses = expenses || [];
@@ -377,7 +384,7 @@ const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApproval
                          <div className="flex-1 min-w-0">
                             <p className="text-sm font-bold text-gray-800 dark:text-gray-200 truncate">{champ.name}</p>
                             <div className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400">
-                               <Trophy className="w-3 h-3" /> {champ.score} Points
+                               <Trophy className="w-3 h-3" /> {formatPoints(champ.score)} Points
                             </div>
                          </div>
                       </div>
