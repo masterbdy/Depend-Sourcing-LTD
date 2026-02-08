@@ -3,6 +3,7 @@ import React, { ReactNode } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 
 interface ErrorBoundaryProps {
   children?: ReactNode;
@@ -62,6 +63,7 @@ root.render(
   <React.StrictMode>
     <ErrorBoundary>
       <App />
+      <SpeedInsights />
     </ErrorBoundary>
   </React.StrictMode>
 );
