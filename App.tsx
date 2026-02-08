@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   LayoutGrid, UsersRound, Footprints, Banknote, PieChart, Settings2, Recycle, 
-  LogOut, Wallet, User, Cloud, WifiOff, AlertTriangle, Menu, X, RefreshCw, Lock, ArrowRightLeft, XCircle, Landmark, Bell, Phone, Briefcase, Crown, UserCog, ShieldCheck, Camera, Save, KeyRound, CreditCard, MessageSquareWarning, MapPin, MonitorSmartphone, Satellite, Trophy, Gift, Shield, CheckCircle, LogIn, Sparkles, ClipboardList, Check, Eye, EyeOff, Moon, Sun, Loader2, Grid, Info, BellRing, ChevronRight, Fingerprint, Megaphone, Radar, ShieldAlert, MessageCircleMore, Download, UserCheck, IdCard
+  LogOut, Wallet, User, Cloud, WifiOff, AlertTriangle, Menu, X, RefreshCw, Lock, ArrowRightLeft, XCircle, Landmark, Bell, Phone, Briefcase, Crown, UserCog, ShieldCheck, Camera, Save, KeyRound, CreditCard, MessageSquareWarning, MapPin, MonitorSmartphone, Satellite, Trophy, Gift, Shield, CheckCircle, LogIn, Sparkles, ClipboardList, Check, Eye, EyeOff, Moon, Sun, Loader2, Grid, Info, BellRing, ChevronRight, Fingerprint, Megaphone, Radar, ShieldAlert, MessageCircleMore, Download, UserCheck
 } from 'lucide-react';
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { getDatabase, ref, onValue, set } from "firebase/database";
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import { UserRole, Staff, MovementLog, Expense, BillingRule, FundEntry, Notice, AdvanceLog, Complaint, ChatMessage, Attendance, StaffLocation, AppNotification } from './types';
 import { INITIAL_STAFF, INITIAL_BILLING_RULES, ROLE_LABELS, DEFAULT_FIREBASE_CONFIG } from './constants';
 import GlowingCursor from './GlowingCursor';
@@ -805,7 +806,7 @@ const App: React.FC = () => {
       return;
     }
 
-    setLoginError('ভুল ইউজারনেম অথবা পাসওয়ার্ড!');
+    setLoginError('ভুল ইউজারনেম অথবা পাসওয়ার���ড!');
     setIsLoggingIn(false);
   };
 
@@ -1455,7 +1456,7 @@ const App: React.FC = () => {
                 className="absolute top-4 left-4 text-white/80 hover:text-white z-10 p-1.5 bg-black/20 rounded-full transition-colors flex items-center justify-center shadow-lg active:scale-95"
                 title="Go to Staff Card"
             >
-                <IdCard className="w-5 h-5" />
+                <CreditCard className="w-5 h-5" />
             </button>
 
             <button onClick={() => { setIsProfileModalOpen(false); setEditingProfileId(null); }} className="absolute top-4 right-4 text-white/80 hover:text-white z-10 p-1 bg-black/20 rounded-full transition-colors"><X className="w-5 h-5" /></button>
@@ -1559,6 +1560,7 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
+      <SpeedInsights />
     </div>
   );
 };
