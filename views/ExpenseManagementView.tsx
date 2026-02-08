@@ -109,69 +109,25 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
 
   const handleReasonChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const text = e.target.value;
-    
     // 1. Convert Bengali digits to English
     let processedText = text.replace(/[০-৯]/g, d => "0123456789"["০১২৩৪৫৬৭৮৯".indexOf(d)]);
-
-    // 2. Normalize Separators (Unicode dashes -> standard hyphen)
+    // 2. Normalize Separators
     processedText = processedText.replace(/[\u2013\u2014]/g, '-');
-
-    // --- STEP 3: EXPLICIT DATE RANGES (PRIORITY 1) ---
-    // Remove date ranges BEFORE other logic to prevent misinterpretation
-    // Matches: 03-02-26 to 07-02-26, 03/02/2026 - 07/02/2026
+    // 3. Remove Explicit Date Ranges
     const explicitDateRangeRegex = /(?:\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})\s*(?:to|থেকে|\-|–|—)\s*(?:\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})/gi;
     processedText = processedText.replace(explicitDateRangeRegex, 'SKIP_DATE_RANGE');
-
-    // --- STEP 4: PRE-PROCESSING (Item-Amount) ---
-    // Fix: "Lunch-400", "Food=150", "Lunch - 400" -> "Lunch 400"
-    // This allows extracting 400 properly
+    // 4. Pre-processing
     processedText = processedText.replace(/([a-zA-Z\u0980-\u09FF]+)[\s\-:=]+(\d+)/g, '$1 $2');
-
-    // Protect currency words
     processedText = processedText.replace(/(taka|tk|bdt|টাকা)/gi, 'CURRENCY_SYMBOL');
-
-    // --- STEP 5: OTHER EXCLUSIONS ---
-    
-    // A. Dates (ISO, Common formats) - Standalone dates not in ranges
+    // 5. Exclusions
     processedText = processedText.replace(/\d{4}-\d{2}-\d{2}/g, 'SKIP_DATE'); 
     processedText = processedText.replace(/\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}/g, 'SKIP_DATE');
-    
-    // B. Phone Numbers
     processedText = processedText.replace(/01\d{9}/g, 'SKIP_PHONE');
-    
-    // C. Time 
     processedText = processedText.replace(/\d{1,2}:\d{2}/g, 'SKIP_TIME_COLON'); 
     processedText = processedText.replace(/\d{1,2}[:\.]\d{2}\s*(am|pm|a\.m|p\.m)/gi, 'SKIP_TIME');
     processedText = processedText.replace(/\d{1,2}\s*(am|pm|a\.m|p\.m|টা|বাজে|বাজা)/gi, 'SKIP_TIME');
     
-    // D. Text-based Date Ranges (legacy keywords)
-    const dateRangeRegex = /(\d+)[\s\-]*(?:থেকে|theke|to|untill|পর্যন্ত|হতে|[\-])[\s]*(\d+)[\s]*(?:তারিখ|date|tarikh|tarik)/gi;
-    processedText = processedText.replace(dateRangeRegex, "SKIP_DATE_RANGE");
-    
-    // E. Single Date with Keyword
-    const specificDateRegex = /(\d+)[\s]*(?:তারিখ|date|tarikh|sal|sale|সাল|সালে|st|nd|rd|th)/gi;
-    processedText = processedText.replace(specificDateRegex, "SKIP_SINGLE_DATE");
-    
-    // F. Units/Measurements
-    const units = ['pc', 'pcs', 'pice', 'pices', 'pitch', 'pic', 'pis', 'pich', 'p', 't', 'ta', 'ti', 'khana', 'gulo', 'got', 'pisa', 'pich', 'পিস', 'টি', 'টা', 'খানা', 'গুলো', 'dz', 'doz', 'dozen', 'dozon', 'ডজন', 'goj', 'gaz', 'yard', 'yrd', 'গজ', 'kg', 'kilo', 'keji', 'কেজি', 'gm', 'gram', 'g', 'গ্রাম', 'ltr', 'liter', 'litre', 'l', 'লিটার', 'pkt', 'packet', 'pack', 'pket', 'প্যাকেট', 'bosta', 'bosta', 'বস্তা', 'set', 'সেট', 'jo', 'jora', 'pair', 'জোড়া', 'inch', 'in', 'ইঞ্চি', 'ft', 'feet', 'ফুট', 'm', 'meter', 'মিটার', 'jon', 'জন', 'min', 'minute', 'mnt', 'মিনিট', 'hr', 'hour', 'ghonta', 'ঘন্টা', 'sec', 'second', 'সেকেন্ড'];
-    const unitRegex = new RegExp(`(\\d+[\\.]?\\d*)\\s*(${units.join('|')})(?![a-zA-Z\u0980-\u09FF])`, 'gi');
-    processedText = processedText.replace(unitRegex, "SKIP_UNIT");
-    
-    // G. Locations & Addresses
-    const locPrefixes = ['road', 'rd', 'রোড', 'house', 'h', 'bas', 'basa', 'বাসা', 'বাড়ি', 'flat', 'apt', 'ফ্ল্যাট', 'sector', 'sec', 'সেক্টর', 'block', 'blk', 'lane', 'goli', 'গলি', 'level', 'lvl', 'লেভেল', 'ward', 'word', 'ওয়ার্ড', 'room', 'rm', 'রুম', 'কক্ষ', 'platfrom', 'platform', 'প্লাটফর্ম', 'counter', 'কাউন্টার', 'shop', 'dokan', 'দোকান', 'bus', 'গাড়ি', 'বাস'];
-    const locRegexPrefix = new RegExp(`(${locPrefixes.join('|')})[\\s\\-\\.]*(\\d+)`, 'gi');
-    processedText = processedText.replace(locRegexPrefix, "SKIP_LOC");
-    
-    const locSuffixes = ['floor', 'tala', 'তলা', 'level', 'no', 'nong', 'number', 'num', 'নং', 'নম্বর', 'th', 'nd', 'rd', 'st'];
-    const locRegexSuffix = new RegExp(`(\\d+)[\\s\\-\\.]*(${locSuffixes.join('|')})`, 'gi');
-    processedText = processedText.replace(locRegexSuffix, "SKIP_LOC");
-    
-    // H. Specific Place Names with numbers
-    const places = ['mirpur', ' মিরপুর', 'uttara', 'উত্তরা', 'dhanmondi', 'ধানমন্ডি', 'farmgate', 'ফার্মগেট', 'mohakhali', 'মহাখালী', 'banani', 'বনানী', 'gulshan', 'গুলশান', 'badda', 'বাড্ডা', 'savar', 'সাভার', 'gazipur', 'গাজীপুর'];
-    const placeRegex = new RegExp(`(${places.join('|')})\\s*(\\d+)`, 'gi');
-    processedText = processedText.replace(placeRegex, "SKIP_PLACE");
-
-    // --- SUMMATION ---
+    // Summation
     const matches = processedText.match(/(\d+(\.\d+)?)/g);
     let total = 0;
     if (matches) {
@@ -363,10 +319,17 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
     return staff ? staff.staffId : '';
   };
 
+  // Helper to convert number to words (Simple version for demo)
+  const numberToWords = (num: number) => {
+     // A full implementation would be complex, this is a placeholder
+     return `${num} Taka Only`;
+  };
+
+  // --- CORPORATE VOUCHER GENERATION ---
   const generateApprovalVoucher = (expense: Expense) => {
     const staff = (staffList || []).find(s => s.id === expense.staffId);
     
-    // --- LEDGER CALCULATION ---
+    // Ledger Calculation
     const staffApprovedExpenses = (expenses || [])
       .filter(e => !e.isDeleted && e.status === 'APPROVED' && e.staffId === expense.staffId)
       .reduce((sum, e) => sum + Number(e.amount), 0);
@@ -377,14 +340,13 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
 
     const balance = staffRegularAdvances - staffApprovedExpenses;
     let balanceText = '';
-    let balanceColor = '#1e293b';
+    let balanceColor = '#16a34a'; // Green
 
     if (balance < 0) {
-       balanceText = `PAYABLE: ৳ ${Math.abs(balance).toLocaleString()}`;
+       balanceText = `Payable: ${Math.abs(balance).toLocaleString()} BDT`;
        balanceColor = '#dc2626'; // Red
     } else {
-       balanceText = `CASH IN HAND: ৳ ${balance.toLocaleString()}`;
-       balanceColor = '#166534'; // Green
+       balanceText = `Cash In Hand: ${balance.toLocaleString()} BDT`;
     }
 
     const printWindow = window.open('', '_blank');
@@ -392,137 +354,347 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
 
     const voucherHtml = `
       <!DOCTYPE html>
-      <html lang="bn">
+      <html lang="en">
       <head>
         <meta charset="UTF-8">
-        <title>Payment Voucher - ${expense.id}</title>
-        <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-        <script src="https://cdn.tailwindcss.com"></script>
+        <title>Payment Voucher #${expense.id}</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
         <style>
           @page { size: A4; margin: 0; }
-          body { font-family: 'Hind Siliguri', sans-serif; -webkit-print-color-adjust: exact; margin: 0; padding: 0; background: white; }
-          .a4-container { width: 210mm; min-height: 297mm; padding: 40px; margin: 0 auto; background: white; position: relative; box-sizing: border-box; }
-          .voucher-border { border: 3px double #1f2937; height: 100%; padding: 30px; position: relative; display: flex; flex-direction: column; }
-          .watermark { position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%) rotate(-30deg); font-size: 10rem; font-weight: 900; color: rgba(22, 163, 74, 0.05); pointer-events: none; z-index: 0; white-space: nowrap; border: 10px solid rgba(22, 163, 74, 0.05); padding: 20px 50px; border-radius: 40px; }
-          .stamp { position: absolute; bottom: 150px; right: 80px; border: 4px solid #166534; color: #166534; padding: 10px 20px; font-weight: 900; text-transform: uppercase; font-size: 1.2rem; transform: rotate(-10deg); opacity: 0.8; mask-image: url('https://www.transparenttextures.com/patterns/grunge-wall.png'); }
+          body { 
+            font-family: 'Inter', sans-serif; 
+            background: #fff;
+            color: #1e293b; /* Slate 800 */
+            margin: 0;
+            padding: 40px;
+            -webkit-print-color-adjust: exact; 
+            print-color-adjust: exact;
+          }
+          
+          .voucher-box {
+            border: 1px solid #e2e8f0; /* Very light border */
+            padding: 40px;
+            max-width: 210mm;
+            margin: 0 auto;
+            position: relative;
+            background: white;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); /* Soft shadow for screen */
+          }
+
+          /* Header */
+          .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #f1f5f9; /* Light divider */
+          }
+
+          .company-logo {
+             width: 40px; 
+             height: 40px; 
+             background: #0f172a; 
+             border-radius: 8px;
+             display: flex;
+             align-items: center;
+             justify-content: center;
+             color: white;
+             font-weight: bold;
+             font-size: 20px;
+             margin-right: 12px;
+          }
+
+          .company-info h1 {
+            font-size: 24px;
+            font-weight: 800;
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: -0.5px;
+            color: #0f172a;
+          }
+          .company-info p {
+            font-size: 11px;
+            margin: 4px 0 0;
+            color: #64748b;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+          }
+
+          .voucher-meta {
+            text-align: right;
+          }
+          .voucher-badge {
+            background-color: #f8fafc;
+            color: #64748b;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            display: inline-block;
+            margin-bottom: 8px;
+            border: 1px solid #e2e8f0;
+          }
+          .voucher-id {
+            font-size: 14px;
+            font-weight: 700;
+            color: #334155;
+            font-family: monospace;
+          }
+
+          /* Grid Layout for Info */
+          .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            margin-bottom: 40px;
+          }
+          
+          .info-group {
+            margin-bottom: 15px;
+          }
+          .info-label {
+            font-size: 10px;
+            color: #94a3b8;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+            display: block;
+          }
+          .info-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1e293b;
+            padding-bottom: 4px;
+            border-bottom: 1px solid #f1f5f9;
+            display: block;
+          }
+
+          /* Table Styling */
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+          }
+          th {
+            background-color: #f8fafc;
+            color: #475569;
+            font-size: 10px;
+            text-transform: uppercase;
+            font-weight: 700;
+            text-align: left;
+            padding: 12px 16px;
+            border-top: 1px solid #e2e8f0;
+            border-bottom: 1px solid #e2e8f0;
+          }
+          td {
+            padding: 16px;
+            font-size: 13px;
+            color: #334155;
+            border-bottom: 1px solid #f1f5f9;
+          }
+          .amount-cell {
+            text-align: right;
+            font-weight: 700;
+            font-family: monospace;
+            font-size: 14px;
+          }
+          .total-row td {
+            border-top: 2px solid #e2e8f0;
+            border-bottom: none;
+            font-weight: 800;
+            font-size: 16px;
+            color: #0f172a;
+            padding-top: 20px;
+          }
+
+          /* Ledger Box */
+          .ledger-summary {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 50px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          }
+          .ledger-item {
+            text-align: center;
+            flex: 1;
+          }
+          .ledger-label {
+            font-size: 9px;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            display: block;
+            margin-bottom: 6px;
+            letter-spacing: 0.5px;
+          }
+          .ledger-value {
+            font-size: 14px;
+            font-weight: 700;
+            color: #334155;
+          }
+
+          /* Footer Signatures */
+          .footer {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 80px;
+            padding-top: 20px;
+          }
+          .signature-box {
+            width: 22%;
+            text-align: center;
+          }
+          .signature-line {
+            border-top: 1px solid #cbd5e1;
+            margin-bottom: 10px;
+          }
+          .signature-text {
+            font-size: 10px;
+            font-weight: 700;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+          }
+
+          /* Watermark */
+          .watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-30deg);
+            font-size: 100px;
+            font-weight: 900;
+            color: rgba(241, 245, 249, 0.8); /* Very faint slate */
+            pointer-events: none;
+            z-index: 0;
+            white-space: nowrap;
+            user-select: none;
+          }
+
+          @media print {
+            body { background: white; padding: 0; margin: 0; }
+            .voucher-box { border: none; box-shadow: none; padding: 40px; }
+          }
         </style>
       </head>
       <body>
-        <div class="a4-container">
-           <div class="voucher-border">
-              <div class="watermark">APPROVED</div>
-              
-              <!-- Header -->
-              <div class="flex justify-between items-start border-b-2 border-gray-800 pb-6 mb-8 relative z-10">
-                 <div class="flex gap-4">
-                    <!-- Logo Placeholder -->
-                    <div class="w-16 h-16 bg-gray-900 text-white flex items-center justify-center font-black text-2xl rounded-lg">DS</div>
-                    <div>
-                       <h1 class="text-4xl font-black uppercase tracking-tight text-gray-900">Depend Sourcing Ltd.</h1>
-                       <p class="text-sm font-bold text-gray-500 tracking-[0.3em] uppercase mt-1">Promise Beyond Business</p>
-                       <p class="text-xs text-gray-600 mt-2 max-w-sm">Head Office: A-14/8, Johir Complex, Savar, Dhaka.</p>
-                    </div>
-                 </div>
-                 <div class="text-right">
-                    <h2 class="text-3xl font-black text-gray-200 uppercase">Payment Voucher</h2>
-                    <div class="mt-2">
-                       <p class="text-sm font-bold text-gray-600">Voucher No: <span class="font-mono text-black text-lg">#${expense.id}</span></p>
-                       <p class="text-sm font-bold text-gray-600">Date: <span class="font-mono text-black">${new Date(expense.createdAt).toLocaleDateString('en-GB')}</span></p>
-                    </div>
+        <div class="voucher-box">
+           <div class="watermark">OFFICE COPY</div>
+           
+           <div class="header">
+              <div style="display: flex; align-items: center;">
+                 <div class="company-logo">DS</div>
+                 <div class="company-info">
+                    <h1>Depend Sourcing Ltd.</h1>
+                    <p>Promise Beyond Business</p>
+                    <p>Head Office: A-14/8, Johir Complex, Savar, Dhaka.</p>
                  </div>
               </div>
-
-              <!-- Main Content -->
-              <div class="flex-1 relative z-10">
-                 
-                 <!-- Payee Info -->
-                 <div class="bg-gray-50 border border-gray-200 rounded-xl p-6 mb-8">
-                    <div class="flex justify-between items-center mb-4">
-                       <div>
-                          <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Paid To</p>
-                          <h3 class="text-2xl font-bold text-gray-900">${expense.staffName}</h3>
-                          <p class="text-sm text-gray-600 font-medium">${staff?.designation || 'Staff'} • ID: ${staff?.staffId || 'N/A'}</p>
-                       </div>
-                       <div class="text-right">
-                          <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Payment Method</p>
-                          <p class="text-lg font-bold text-gray-800">Cash / Adjustment</p>
-                       </div>
-                    </div>
-                 </div>
-
-                 <!-- Payment Details -->
-                 <div class="mb-8">
-                    <h4 class="text-sm font-black text-gray-800 uppercase border-b border-gray-300 pb-2 mb-4">Payment Details</h4>
-                    <div class="flex justify-between items-start mb-4">
-                       <div class="w-2/3 pr-8">
-                          <p class="text-xs font-bold text-gray-500 uppercase mb-1">Description / Particulars</p>
-                          <p class="text-lg font-medium text-gray-900 leading-relaxed">${expense.reason}</p>
-                       </div>
-                       <div class="w-1/3 bg-gray-900 text-white p-4 rounded-xl text-center shadow-lg">
-                          <p class="text-xs font-bold text-gray-400 uppercase mb-1">Total Amount</p>
-                          <p class="text-3xl font-black">৳ ${expense.amount.toLocaleString()}</p>
-                       </div>
-                    </div>
-                 </div>
-
-                 <!-- Ledger Summary -->
-                 <div class="mt-8 mb-12">
-                    <h4 class="text-sm font-black text-gray-800 uppercase border-b border-gray-300 pb-2 mb-4">Account Ledger Status (Regular)</h4>
-                    <table class="w-full text-sm border border-gray-300">
-                       <thead>
-                          <tr class="bg-gray-100 text-gray-700">
-                             <th class="p-3 border-r border-gray-300 text-left w-1/3">Total Approved Expenses</th>
-                             <th class="p-3 border-r border-gray-300 text-left w-1/3">Total Regular Advances</th>
-                             <th class="p-3 text-right w-1/3">Net Balance</th>
-                          </tr>
-                       </thead>
-                       <tbody>
-                          <tr>
-                             <td class="p-3 border-r border-gray-300 font-mono font-bold text-gray-600">৳ ${staffApprovedExpenses.toLocaleString()}</td>
-                             <td class="p-3 border-r border-gray-300 font-mono font-bold text-gray-600">৳ ${staffRegularAdvances.toLocaleString()}</td>
-                             <td class="p-3 text-right font-black text-lg" style="color: ${balanceColor}">
-                                ${balanceText}
-                             </td>
-                          </tr>
-                       </tbody>
-                    </table>
-                    <p class="text-[10px] text-gray-400 mt-2 italic">* This balance reflects the current financial standing of the staff member after this transaction.</p>
-                 </div>
-
+              <div class="voucher-meta">
+                 <div class="voucher-badge">Payment Voucher</div>
+                 <div class="voucher-id">#${expense.id.substring(0, 8).toUpperCase()}</div>
+                 <div style="font-size: 12px; color: #64748b; margin-top: 4px;">${new Date(expense.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
               </div>
+           </div>
 
-              <!-- Footer Signatures -->
-              <div class="mt-auto relative z-10">
-                 
-                 <!-- Stamp -->
-                 <div class="stamp">MD APPROVED</div>
-
-                 <div class="flex justify-between items-end pt-8 pb-4">
-                    <div class="text-center">
-                       <div class="border-t-2 border-gray-400 w-48 mb-2"></div>
-                       <p class="text-xs font-bold text-gray-500 uppercase tracking-wider">Receiver's Signature</p>
-                    </div>
-
-                    <div class="text-center">
-                       <div class="border-t-2 border-gray-400 w-48 mb-2"></div>
-                       <p class="text-xs font-bold text-gray-500 uppercase tracking-wider">Accounts / Admin</p>
-                    </div>
-
-                    <div class="text-center">
-                       <div class="border-t-2 border-gray-900 w-48 mb-2"></div>
-                       <p class="text-sm font-bold text-gray-900">Shariful Islam</p>
-                       <p class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Managing Director</p>
-                    </div>
+           <div class="info-grid">
+              <div class="left-col">
+                 <div class="info-group">
+                    <span class="info-label">Pay To</span>
+                    <span class="info-value">${expense.staffName}</span>
                  </div>
-
-                 <div class="border-t border-gray-200 pt-4 flex justify-between items-center text-[10px] text-gray-400">
-                    <p>System Generated Voucher via Billing Center App.</p>
-                    <p>Printed On: ${new Date().toLocaleString()}</p>
+                 <div class="info-group">
+                    <span class="info-label">Designation</span>
+                    <span class="info-value">${staff?.designation || 'Staff'}</span>
+                 </div>
+              </div>
+              <div class="right-col">
+                 <div class="info-group">
+                    <span class="info-label">Staff ID</span>
+                    <span class="info-value">${staff?.staffId || 'N/A'}</span>
+                 </div>
+                 <div class="info-group">
+                    <span class="info-label">Payment Mode</span>
+                    <span class="info-value">Cash / Adjustment</span>
                  </div>
               </div>
            </div>
+
+           <table>
+              <thead>
+                 <tr>
+                    <th style="width: 10%">SL</th>
+                    <th style="width: 70%">Description</th>
+                    <th style="width: 20%; text-align: right;">Amount</th>
+                 </tr>
+              </thead>
+              <tbody>
+                 <tr>
+                    <td>01</td>
+                    <td>
+                       <span style="font-weight: 600; display: block; margin-bottom: 4px; color: #1e293b;">Expense Reimbursement</span>
+                       <span style="color: #64748b; font-size: 12px;">${expense.reason}</span>
+                    </td>
+                    <td class="amount-cell">৳ ${expense.amount.toLocaleString()}</td>
+                 </tr>
+                 <!-- Spacer Row -->
+                 <tr style="height: 60px;"><td></td><td></td><td></td></tr>
+                 <tr class="total-row">
+                    <td colspan="2" style="text-align: right; padding-right: 20px;">TOTAL AMOUNT</td>
+                    <td class="amount-cell">৳ ${expense.amount.toLocaleString()}</td>
+                 </tr>
+              </tbody>
+           </table>
+
+           <div style="font-size: 11px; color: #64748b; margin-bottom: 30px; font-style: italic; padding-left: 10px;">
+              <strong>In Words:</strong> ${expense.amount} Taka Only (approx).
+           </div>
+
+           <div class="ledger-summary">
+              <div class="ledger-item">
+                 <span class="ledger-label">Total Expenses</span>
+                 <span class="ledger-value">৳ ${staffApprovedExpenses.toLocaleString()}</span>
+              </div>
+              <div style="width: 1px; height: 30px; background: #e2e8f0;"></div>
+              <div class="ledger-item">
+                 <span class="ledger-label">Total Advance</span>
+                 <span class="ledger-value">৳ ${staffRegularAdvances.toLocaleString()}</span>
+              </div>
+              <div style="width: 1px; height: 30px; background: #e2e8f0;"></div>
+              <div class="ledger-item">
+                 <span class="ledger-label">Net Balance</span>
+                 <span class="ledger-value" style="color: ${balanceColor}">${balanceText}</span>
+              </div>
+           </div>
+
+           <div class="footer">
+              <div class="signature-box">
+                 <div class="signature-line"></div>
+                 <div class="signature-text">Prepared By</div>
+              </div>
+              <div class="signature-box">
+                 <div class="signature-line"></div>
+                 <div class="signature-text">Verified By</div>
+              </div>
+              <div class="signature-box">
+                 <div class="signature-line"></div>
+                 <div class="signature-text">Authorized By</div>
+              </div>
+              <div class="signature-box">
+                 <div class="signature-line"></div>
+                 <div class="signature-text">Receiver</div>
+              </div>
+           </div>
         </div>
-        <script>window.onload = () => { setTimeout(() => { window.print(); }, 500); }</script>
+        <script>window.onload = () => { setTimeout(() => { window.print(); }, 800); };</script>
       </body>
       </html>
     `;
@@ -774,75 +946,87 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
               {/* SCROLLABLE AREA */}
               <div className="overflow-y-auto p-6 bg-gray-100 flex-1 flex justify-center">
                  {/* ACTUAL VOUCHER TO CAPTURE */}
-                 <div ref={voucherRef} id="voucher-content" className="bg-white p-8 w-full max-w-[400px] shadow-lg relative text-gray-800 border-4 border-double border-gray-800">
+                 <div ref={voucherRef} id="voucher-content" className="bg-white p-8 w-full max-w-[400px] shadow-lg relative text-gray-800 border border-gray-300">
                     {/* Watermark */}
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transform -rotate-45 opacity-5 pointer-events-none select-none">
-                       <span className="text-6xl font-black uppercase text-black">APPROVED</span>
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transform -rotate-30 opacity-[0.05] pointer-events-none select-none border-4 border-black p-4 text-center">
+                       <span className="text-4xl font-black uppercase text-black block">OFFICE</span>
+                       <span className="text-4xl font-black uppercase text-black block">COPY</span>
                     </div>
 
                     {/* Header */}
-                    <div className="border-b-2 border-black pb-4 mb-6">
-                       <h1 className="text-2xl font-black uppercase tracking-tight text-center">Depend Sourcing Ltd.</h1>
-                       <p className="text-[10px] text-center uppercase tracking-[0.2em] font-bold text-gray-500 mt-1">Promise Beyond Business</p>
+                    <div className="border-b-2 border-black pb-4 mb-4">
+                       <h1 className="text-xl font-black uppercase tracking-tight">Depend Sourcing Ltd.</h1>
+                       <p className="text-[10px] text-gray-500 mt-1">Head Office: A-14/8, Johir Complex, Savar, Dhaka.</p>
                     </div>
 
-                    {/* Body */}
-                    <div className="space-y-4">
-                       <div className="flex justify-between items-end border-b border-dotted border-gray-300 pb-1">
-                          <span className="text-xs font-bold uppercase text-gray-500">Voucher No</span>
-                          <span className="font-mono font-bold text-sm">#{voucherPreviewData.id}</span>
-                       </div>
-                       <div className="flex justify-between items-end border-b border-dotted border-gray-300 pb-1">
-                          <span className="text-xs font-bold uppercase text-gray-500">Date</span>
-                          <span className="font-bold text-sm">{new Date(voucherPreviewData.createdAt).toLocaleDateString('en-GB')}</span>
-                       </div>
-                       
-                       <div className="py-2">
-                          <p className="text-xs font-bold uppercase text-gray-500 mb-1">Pay To</p>
-                          <p className="font-bold text-lg">{voucherPreviewData.staffName}</p>
-                          <p className="text-xs text-gray-500">ID: {getVoucherData()?.staffDisplayId} • {getVoucherData()?.designation}</p>
-                       </div>
-
-                       <div className="bg-gray-50 p-3 border border-gray-200">
-                          <p className="text-[10px] font-bold uppercase text-gray-500 mb-1">The Sum Of</p>
-                          <p className="text-2xl font-black">৳ {voucherPreviewData.amount.toLocaleString()}</p>
-                          <p className="text-xs italic text-gray-600 mt-1">On Account of: {voucherPreviewData.reason}</p>
-                       </div>
-
-                       {/* Status Section */}
-                       <div className="border-t-2 border-dashed border-gray-300 pt-3 mt-4">
-                          <div className="flex justify-between text-xs font-bold text-gray-600 mb-1">
-                             <span>Total Approved Exp:</span>
-                             <span>৳ {getVoucherData()?.totalExp.toLocaleString()}</span>
-                          </div>
-                          <div className="flex justify-between text-xs font-bold text-gray-600 mb-1">
-                             <span>Total Regular Adv:</span>
-                             <span>৳ {getVoucherData()?.totalAdv.toLocaleString()}</span>
-                          </div>
-                          <div className={`flex justify-between text-sm font-black border-t border-gray-300 pt-1 mt-1 ${(getVoucherData()?.balance || 0) < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                             <span>Net Status:</span>
-                             <span>{(getVoucherData()?.balance || 0) < 0 ? 'Payable' : 'Cash In Hand'} ৳ {Math.abs(getVoucherData()?.balance || 0).toLocaleString()}</span>
-                          </div>
+                    <div className="flex justify-between items-center mb-6">
+                       <div className="bg-black text-white px-3 py-1 text-xs font-bold uppercase">Payment Voucher</div>
+                       <div className="text-right">
+                          <p className="text-[10px] font-bold">NO: #${voucherPreviewData.id.substring(0,8).toUpperCase()}</p>
+                          <p className="text-[10px]">Date: {new Date(voucherPreviewData.createdAt).toLocaleDateString('en-GB')}</p>
                        </div>
                     </div>
 
-                    {/* Footer */}
-                    <div className="mt-12 pt-4 border-t border-black flex justify-between items-end">
-                       <div className="text-center">
-                          <p className="text-[8px] font-bold uppercase text-gray-400">Receiver's Signature</p>
-                       </div>
-                       <div className="text-center relative">
-                          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-24 h-10 flex items-center justify-center opacity-80 pointer-events-none">
-                             <div className="border-2 border-green-600 text-green-700 font-black text-[8px] uppercase px-1 py-0.5 rounded rotate-[-10deg] bg-white">
-                                MD APPROVED
-                             </div>
-                          </div>
-                          <p className="text-[8px] font-bold uppercase text-gray-400">Authorized Signature</p>
+                    {/* Pay To Section */}
+                    <div className="mb-4 text-xs">
+                       <div className="flex mb-1"><span className="w-20 font-bold">Pay To:</span> <span className="border-b border-dotted border-gray-400 flex-1">{voucherPreviewData.staffName}</span></div>
+                       <div className="flex mb-1"><span className="w-20 font-bold">ID:</span> <span className="border-b border-dotted border-gray-400 flex-1">{getVoucherData()?.staffDisplayId}</span></div>
+                       <div className="flex"><span className="w-20 font-bold">Role:</span> <span className="border-b border-dotted border-gray-400 flex-1">{getVoucherData()?.designation}</span></div>
+                    </div>
+
+                    {/* Table */}
+                    <table className="w-full text-xs border-collapse border border-black mb-4">
+                       <thead>
+                          <tr className="bg-gray-100">
+                             <th className="border border-black p-2 text-left w-10">SL</th>
+                             <th className="border border-black p-2 text-left">Description</th>
+                             <th className="border border-black p-2 text-right w-20">Amount</th>
+                          </tr>
+                       </thead>
+                       <tbody>
+                          <tr>
+                             <td className="border border-black p-2 text-center align-top">01</td>
+                             <td className="border border-black p-2 align-top h-20">{voucherPreviewData.reason}</td>
+                             <td className="border border-black p-2 text-right align-top font-bold">{voucherPreviewData.amount.toLocaleString()}</td>
+                          </tr>
+                          <tr>
+                             <td className="border border-black p-2 text-right font-black" colSpan={2}>TOTAL</td>
+                             <td className="border border-black p-2 text-right font-black">{voucherPreviewData.amount.toLocaleString()}</td>
+                          </tr>
+                       </tbody>
+                    </table>
+
+                    <div className="text-[10px] italic text-gray-600 mb-6">
+                       <strong>In Words:</strong> {voucherPreviewData.amount} Taka Only (approx).
+                    </div>
+
+                    {/* Ledger Box */}
+                    <div className="border border-black p-2 mb-8 bg-gray-50 text-[10px]">
+                       <p className="font-bold border-b border-gray-300 pb-1 mb-1">Account Summary:</p>
+                       <div className="flex justify-between"><span>Total Exp:</span> <span>{getVoucherData()?.totalExp.toLocaleString()}</span></div>
+                       <div className="flex justify-between"><span>Total Adv:</span> <span>{getVoucherData()?.totalAdv.toLocaleString()}</span></div>
+                       <div className="flex justify-between font-bold border-top border-gray-300 pt-1 mt-1">
+                          <span>Balance:</span> 
+                          <span className={(getVoucherData()?.balance || 0) < 0 ? 'text-red-600' : 'text-green-600'}>
+                             {(getVoucherData()?.balance || 0) < 0 ? 'Payable' : 'Cash In Hand'} {Math.abs(getVoucherData()?.balance || 0).toLocaleString()}
+                          </span>
                        </div>
                     </div>
-                    
-                    <div className="mt-4 text-center">
-                       <p className="text-[8px] text-gray-400 italic">Bill Approval Proof • System Generated</p>
+
+                    {/* Signatures */}
+                    <div className="flex justify-between items-end pt-4">
+                       <div className="text-center w-20">
+                          <div className="border-t border-black mb-1"></div>
+                          <p className="text-[8px] font-bold uppercase">Prepared By</p>
+                       </div>
+                       <div className="text-center w-20">
+                          <div className="border-t border-black mb-1"></div>
+                          <p className="text-[8px] font-bold uppercase">Receiver</p>
+                       </div>
+                       <div className="text-center w-20">
+                          <div className="border-t border-black mb-1"></div>
+                          <p className="text-[8px] font-bold uppercase">Authorized By</p>
+                       </div>
                     </div>
                  </div>
               </div>
