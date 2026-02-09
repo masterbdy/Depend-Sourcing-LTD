@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { Receipt, Camera, CheckCircle, XCircle, Clock, Eye, Trash2, Search, Calendar, FilterX, RotateCcw, CheckCheck, Sparkles, X, Edit3, User, AlertTriangle, Eraser, FileText, ShieldAlert, Printer, Download, ImageIcon } from 'lucide-react';
+import { Receipt, Camera, CheckCircle, XCircle, Clock, Eye, Trash2, Search, Calendar, FilterX, RotateCcw, CheckCheck, Sparkles, X, Edit3, User, AlertTriangle, Eraser, FileText, ShieldAlert, Printer, Download, ImageIcon, Loader2 } from 'lucide-react';
 import { Expense, Staff, UserRole, AppNotification, AdvanceLog } from '../types';
 // @ts-ignore
 import html2canvas from 'html2canvas';
@@ -39,6 +39,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
   // Voucher Generator State
   const [voucherPreviewData, setVoucherPreviewData] = useState<Expense | null>(null);
   const voucherRef = useRef<HTMLDivElement>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -741,15 +742,29 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
   // --- NEW VOUCHER LOGIC (Image Download) ---
   const downloadVoucherImage = async () => {
     if (voucherRef.current) {
-      const canvas = await html2canvas(voucherRef.current, {
-        scale: 2, // High resolution
-        backgroundColor: '#ffffff'
-      });
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-      const link = document.createElement('a');
-      link.href = dataUrl;
-      link.download = `Voucher_${voucherPreviewData?.id}.jpg`;
-      link.click();
+      setIsDownloading(true);
+      try {
+        const canvas = await html2canvas(voucherRef.current, {
+          scale: 1.5, // Optimized scale for speed
+          backgroundColor: '#ffffff',
+          useCORS: true,
+          logging: false,
+          x: 0,
+          y: 0,
+          scrollX: 0,
+          scrollY: 0
+        });
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        const link = document.createElement('a');
+        link.href = dataUrl;
+        link.download = `Voucher_${voucherPreviewData?.id}.jpg`;
+        link.click();
+      } catch (e) {
+        console.error("Voucher download failed", e);
+        alert("ডাউনলোডে সমস্যা হয়েছে। আবার চেষ্টা করুন।");
+      } finally {
+        setIsDownloading(false);
+      }
     }
   };
 
@@ -935,8 +950,8 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
 
       {/* --- VOUCHER PREVIEW & DOWNLOAD MODAL --- */}
       {voucherPreviewData && (
-        <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-           <div className="bg-white w-full max-w-lg rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 pb-24 md:pb-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+           <div className="bg-white w-full max-w-lg rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh] md:max-h-[90vh]">
               {/* Toolbar */}
               <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                  <h3 className="font-bold text-gray-800">ভাউচার ডাউনলোড</h3>
@@ -944,9 +959,10 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
               </div>
               
               {/* SCROLLABLE AREA */}
-              <div className="overflow-y-auto p-6 bg-gray-100 flex-1 flex justify-center">
+              <div className="overflow-auto p-4 bg-gray-100 flex-1 flex justify-center items-start">
                  {/* ACTUAL VOUCHER TO CAPTURE */}
-                 <div ref={voucherRef} id="voucher-content" className="bg-white p-8 w-full max-w-[400px] shadow-lg relative text-gray-800 border border-gray-300">
+                 {/* Fixed width to ensure consistent layout capture */}
+                 <div ref={voucherRef} id="voucher-content" className="bg-white p-8 w-[450px] shadow-lg relative text-gray-800 border border-gray-300 shrink-0 mx-auto">
                     {/* Watermark */}
                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transform -rotate-30 opacity-[0.05] pointer-events-none select-none border-4 border-black p-4 text-center">
                        <span className="text-4xl font-black uppercase text-black block">OFFICE</span>
@@ -1033,8 +1049,17 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
 
               {/* Action Buttons */}
               <div className="p-4 border-t border-gray-100 bg-white flex gap-3">
-                 <button onClick={downloadVoucherImage} className="flex-1 bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 flex items-center justify-center gap-2 shadow-lg active:scale-95">
-                    <Download className="w-5 h-5" /> Download JPG
+                 <button 
+                   onClick={downloadVoucherImage} 
+                   disabled={isDownloading}
+                   className={`flex-1 bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 flex items-center justify-center gap-2 shadow-lg active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed`}
+                 >
+                    {isDownloading ? (
+                       <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                       <Download className="w-5 h-5" />
+                    )}
+                    {isDownloading ? 'Processing...' : 'Download JPG'}
                  </button>
               </div>
            </div>
