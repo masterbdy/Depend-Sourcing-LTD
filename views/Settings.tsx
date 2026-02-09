@@ -1,4 +1,3 @@
-
 import React, { useRef, useState } from 'react';
 import { Settings, Save, Clock, Download, Upload, Database, ShieldCheck, ExternalLink, HelpCircle, Code, Check, AlertTriangle } from 'lucide-react';
 import { BillingRule, UserRole } from '../types';
@@ -97,7 +96,7 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
                <div className="space-y-4 text-sm text-gray-600">
                  <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
                    <h5 className="font-bold text-indigo-700 mb-2">ধাপ ১: ডাটাবেস রুলস (জরুরী)</h5>
-                   <p className="text-xs mb-3">মাল্টি-ডিভাইস কাজ না করার প্রধান কারণ পারমিশন না থাকা। Firebase Console {'→'} Realtime Database {'→'} Rules-এ গিয়ে নিচের কোডটি পেস্ট করে Publish করুন:</p>
+                   <p className="text-xs mb-3">মাল্টি-ডিভাইস কাজ না করার প্রধান কারণ পারমিশন না থাকা। Firebase Console &gt; Realtime Database &gt; Rules-এ গিয়ে নিচের কোডটি পেস্ট করে Publish করুন:</p>
                    <div className="bg-gray-800 text-green-400 p-3 rounded-lg font-mono text-[10px] relative group select-all">
                       <pre>{`{
   "rules": {
@@ -111,7 +110,7 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
                  <div className="pl-2 border-l-2 border-gray-200">
                    <h5 className="font-bold text-gray-700">ধাপ ২: কনফিগারেশন</h5>
                    <ul className="list-disc list-inside text-xs space-y-1 mt-1 text-gray-500">
-                     <li>Firebase Project Settings {'→'} General {'→'} Your apps এ যান।</li>
+                     <li>Firebase Project Settings &gt; General &gt; Your apps এ যান।</li>
                      <li><strong>NPM</strong> বা <strong>CDN</strong> যেকোনো অপশন সিলেক্ট করুন।</li>
                      <li><code>const firebaseConfig = ...</code> কোডটি কপি করুন।</li>
                      <li>পাশের বক্সে পেস্ট করে সেভ করুন।</li>
