@@ -51,6 +51,8 @@
             background: #64748b; 
         }
     </style>
+    <!-- Add html2canvas via CDN to fix build errors -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script type="importmap">
 {
   "imports": {
@@ -62,8 +64,7 @@
     "recharts": "https://esm.sh/recharts@^3.7.0",
     "vite": "https://esm.sh/vite@^7.3.1",
     "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.3",
-    "vite-plugin-pwa": "https://esm.sh/vite-plugin-pwa@^1.2.0",
-    "html2canvas": "https://esm.sh/html2canvas@1.4.1"
+    "vite-plugin-pwa": "https://esm.sh/vite-plugin-pwa@^1.2.0"
   }
 }
 </script>

@@ -1,8 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { Receipt, Camera, CheckCircle, XCircle, Clock, Eye, Trash2, Search, Calendar, FilterX, RotateCcw, CheckCheck, Sparkles, X, Edit3, User, AlertTriangle, Eraser, FileText, ShieldAlert, Printer, Download, ImageIcon, Loader2 } from 'lucide-react';
 import { Expense, Staff, UserRole, AppNotification, AdvanceLog } from '../types';
-// @ts-ignore
-import html2canvas from 'html2canvas';
 
 interface ExpenseProps {
   expenses: Expense[];
@@ -322,7 +320,6 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
 
   // Helper to convert number to words (Simple version for demo)
   const numberToWords = (num: number) => {
-     // A full implementation would be complex, this is a placeholder
      return `${num} Taka Only`;
   };
 
@@ -744,6 +741,11 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
     if (voucherRef.current) {
       setIsDownloading(true);
       try {
+        const html2canvas = (window as any).html2canvas;
+        if (!html2canvas) {
+           alert("html2canvas library not loaded. Please check your internet connection.");
+           return;
+        }
         const canvas = await html2canvas(voucherRef.current, {
           scale: 1.5, // Optimized scale for speed
           backgroundColor: '#ffffff',
