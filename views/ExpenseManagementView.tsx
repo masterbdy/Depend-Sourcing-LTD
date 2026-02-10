@@ -618,7 +618,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
       </div>
 
       {/* Filter Bar */}
-      <div className="bg-white/80 backdrop-blur-xl p-1.5 rounded-[2rem] shadow-sm shadow-indigo-100/50 border border-white/50 flex flex-col lg:flex-row items-center gap-2 mb-6 transition-all">
+      <div className="bg-gradient-to-r from-indigo-50 to-blue-50 backdrop-blur-xl p-2 rounded-[2rem] shadow-sm shadow-indigo-100/50 border border-indigo-100/50 flex flex-col lg:flex-row items-center gap-2 mb-6 transition-all">
         <div className="relative flex-1 w-full lg:w-auto group">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Search className="h-3.5 w-3.5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
@@ -626,7 +626,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
             <input 
                 type="text" 
                 placeholder="Search..." 
-                className="block w-full pl-9 pr-4 py-2 bg-slate-50/50 border-none rounded-full text-xs font-bold text-slate-600 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all placeholder:text-slate-400 outline-none h-9 shadow-sm" 
+                className="block w-full pl-9 pr-4 py-2 bg-white border-none rounded-full text-xs font-bold text-slate-600 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all placeholder:text-slate-400 outline-none h-9 shadow-sm" 
                 value={searchTerm} 
                 onChange={(e) => setSearchTerm(e.target.value)} 
             />
@@ -638,7 +638,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                   <User className="h-3.5 w-3.5 text-slate-400 group-focus-within:text-purple-500 transition-colors" />
               </div>
               <select 
-                  className="block w-full pl-9 pr-8 py-2 bg-slate-50/50 border-none rounded-full text-xs font-bold text-slate-600 focus:bg-white focus:ring-2 focus:ring-purple-100 transition-all appearance-none cursor-pointer outline-none h-9" 
+                  className="block w-full pl-9 pr-8 py-2 bg-white border-none rounded-full text-xs font-bold text-slate-600 focus:bg-white focus:ring-2 focus:ring-purple-100 transition-all appearance-none cursor-pointer outline-none h-9 shadow-sm" 
                   value={selectedStaffFilter} 
                   onChange={(e) => setSelectedStaffFilter(e.target.value)}
               >
@@ -651,7 +651,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
           </div>
         )}
 
-        <div className="flex items-center bg-slate-50/50 rounded-full px-1 py-1 border border-slate-100/50 h-9 w-full lg:w-auto">
+        <div className="flex items-center bg-white rounded-full px-1 py-1 border border-indigo-50 h-9 w-full lg:w-auto shadow-sm">
             <div className="relative flex-1 min-w-[100px]">
                 <input 
                     type="date" 
