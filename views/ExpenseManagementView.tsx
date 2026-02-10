@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef } from 'react';
-import { Receipt, Camera, CheckCircle, XCircle, Clock, Eye, Trash2, Search, Calendar, FilterX, RotateCcw, CheckCheck, Sparkles, X, Edit3, User, AlertTriangle, Eraser, FileText, ShieldAlert, Printer, Download, ImageIcon, Loader2, Upload, Files } from 'lucide-react';
+import { Receipt, Camera, CheckCircle, XCircle, Clock, Eye, Trash2, Search, Calendar, FilterX, RotateCcw, CheckCheck, Sparkles, X, Edit3, User, AlertTriangle, Eraser, FileText, ShieldAlert, Printer, Download, ImageIcon, Loader2, Upload, Files, ChevronDown } from 'lucide-react';
 import { Expense, Staff, UserRole, AppNotification, AdvanceLog } from '../types';
 
 interface ExpenseProps {
@@ -1224,55 +1224,138 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
   };
 
   return (
-    <div className="space-y-6">
-      {/* ... (Header and Filters omitted for brevity, keeping existing logic) ... */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <h2 className="text-xl font-bold text-gray-800">খরচ ও ভাউচার ম্যানেজমেন্ট</h2>
+    <div className="space-y-8">
+      {/* Header Section with Modern Card Look */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+        <div>
+            <h2 className="text-2xl font-black text-gray-800 tracking-tight">
+                খরচ ও ভাউচার ম্যানেজমেন্ট
+            </h2>
+            <p className="text-sm text-gray-500 font-medium mt-1">
+                সকল বিল, খরচ এবং ভাউচার একজায়গায় নিয়ন্ত্রণ করুন
+            </p>
+        </div>
+        
         <div className="flex flex-wrap gap-3">
+          {/* Admin Buttons */}
           {(role === UserRole.ADMIN) && (
              <button
                onClick={handleBulkDownloadLastVouchers}
-               className="bg-purple-50 text-purple-700 px-4 py-2 rounded-xl font-bold hover:bg-purple-100 hover:text-purple-800 border border-purple-200 transition-colors flex items-center gap-2 shadow-sm whitespace-nowrap"
+               className="group relative overflow-hidden bg-white border border-purple-200 text-purple-700 px-5 py-2.5 rounded-xl font-bold hover:border-purple-300 hover:text-purple-800 transition-all shadow-sm hover:shadow-md flex items-center gap-2"
              >
-               <Files className="w-5 h-5" />
-               সকল সর্বশেষ ভাউচার
+               <span className="absolute inset-0 w-full h-full bg-purple-50/50 transform -translate-x-full group-hover:translate-x-0 transition-transform duration-300"></span>
+               <Files className="w-4 h-4 relative z-10" />
+               <span className="relative z-10">সকল ভাউচার</span>
              </button>
           )}
+          
           {(role === UserRole.ADMIN || role === UserRole.MD) && (
-             <button onClick={handleClearHistory} className="bg-red-50 text-red-600 px-4 py-2 rounded-xl font-bold hover:bg-red-100 hover:text-red-700 border border-red-200 transition-colors flex items-center gap-2 shadow-sm whitespace-nowrap"><Eraser className="w-5 h-5" /> হিস্ট্রি ক্লিন</button>
+             <button 
+               onClick={handleClearHistory} 
+               className="group relative overflow-hidden bg-white border border-red-200 text-red-600 px-5 py-2.5 rounded-xl font-bold hover:border-red-300 hover:text-red-700 transition-all shadow-sm hover:shadow-md flex items-center gap-2"
+             >
+                <span className="absolute inset-0 w-full h-full bg-red-50/50 transform -translate-x-full group-hover:translate-x-0 transition-transform duration-300"></span>
+                <Eraser className="w-4 h-4 relative z-10" /> 
+                <span className="relative z-10">হিস্ট্রি ক্লিন</span>
+             </button>
           )}
+
           {(role === UserRole.ADMIN || role === UserRole.STAFF) && (
-            <button onClick={handleOpenSubmitModal} className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-lg shadow-indigo-100"><Receipt className="w-5 h-5" /> নতুন বিল সাবমিট করুন</button>
+            <button 
+                onClick={handleOpenSubmitModal} 
+                className="bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-6 py-2.5 rounded-xl font-bold hover:shadow-lg hover:shadow-indigo-200 hover:-translate-y-0.5 transition-all flex items-center gap-2"
+            >
+                <Receipt className="w-5 h-5" /> 
+                নতুন বিল সাবমিট
+            </button>
           )}
+
           {role === UserRole.MD && (
-            <button onClick={handleApproveAll} className="bg-green-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-green-700 transition-colors flex items-center gap-2 shadow-lg shadow-green-100"><CheckCheck className="w-5 h-5" /> সব অ্যাপ্রুভ</button>
+            <button 
+                onClick={handleApproveAll} 
+                className="bg-gradient-to-r from-emerald-500 to-green-600 text-white px-6 py-2.5 rounded-xl font-bold hover:shadow-lg hover:shadow-green-200 hover:-translate-y-0.5 transition-all flex items-center gap-2"
+            >
+                <CheckCheck className="w-5 h-5" /> 
+                সব অ্যাপ্রুভ
+            </button>
           )}
         </div>
       </div>
 
-      <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-wrap items-end gap-4">
-        <div className="flex-1 min-w-[200px]">
-          <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">খুঁজুন</label>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input type="text" placeholder="Search..." className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-          </div>
+      {/* Compact Filter Bar - Ultra Premium Light Design */}
+      <div className="bg-white/80 backdrop-blur-xl p-3 rounded-[2rem] shadow-lg shadow-slate-200/50 border border-white/20 flex flex-col md:flex-row items-center gap-3 mb-8 sticky top-0 z-20">
+        
+        {/* Search */}
+        <div className="relative flex-1 w-full group">
+            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <Search className="h-4 w-4 text-indigo-300 group-focus-within:text-indigo-500 transition-colors duration-300" />
+            </div>
+            <input 
+                type="text" 
+                placeholder="নাম, কারণ বা টাকা..." 
+                className="block w-full pl-11 pr-4 py-3 bg-slate-50/50 border border-slate-100 rounded-full text-sm font-semibold text-slate-600 focus:bg-white focus:border-indigo-100 focus:ring-4 focus:ring-indigo-50/50 transition-all duration-300 placeholder:text-slate-400 outline-none hover:bg-slate-50 shadow-md shadow-indigo-100/20" 
+                value={searchTerm} 
+                onChange={(e) => setSearchTerm(e.target.value)} 
+            />
         </div>
+
+        {/* Staff Filter (Admin/MD) */}
         {(role === UserRole.ADMIN || role === UserRole.MD) && (
-          <div className="w-full sm:w-auto min-w-[150px]">
-            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">স্টাফ</label>
-            <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <select className="w-full pl-9 pr-8 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-gray-700 appearance-none" value={selectedStaffFilter} onChange={(e) => setSelectedStaffFilter(e.target.value)}>
-                <option value="">All Staff</option>
+          <div className="relative w-full md:w-48 group">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <User className="h-4 w-4 text-purple-300 group-focus-within:text-purple-500 transition-colors duration-300" />
+              </div>
+              <select 
+                  className="block w-full pl-10 pr-8 py-3 bg-slate-50/50 border border-slate-100 rounded-full text-sm font-semibold text-slate-600 focus:bg-white focus:border-purple-100 focus:ring-4 focus:ring-purple-50/50 transition-all duration-300 appearance-none cursor-pointer outline-none hover:bg-slate-50" 
+                  value={selectedStaffFilter} 
+                  onChange={(e) => setSelectedStaffFilter(e.target.value)}
+              >
+                <option value="">সকল স্টাফ</option>
                 {allStaffForFilter.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
-            </div>
+              <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
+                  <ChevronDown className="h-3 w-3 text-slate-400" />
+              </div>
           </div>
         )}
-        <div className="w-full sm:w-auto"><label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">শুরু</label><input type="date" className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm outline-none" value={startDate} onChange={(e) => setStartDate(e.target.value)} /></div>
-        <div className="w-full sm:w-auto"><label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">শেষ</label><input type="date" className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm outline-none" value={endDate} onChange={(e) => setEndDate(e.target.value)} /></div>
-        <button onClick={() => { setSearchTerm(''); setSelectedStaffFilter(''); setStartDate(''); setEndDate(''); }} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl"><FilterX className="w-5 h-5" /></button>
+
+        {/* Date Range Group */}
+        <div className="flex items-center gap-2 w-full md:w-auto bg-slate-50/50 p-1 rounded-full border border-slate-100 shadow-sm">
+            <div className="relative flex-1 md:w-auto group">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none gap-1">
+                    <Calendar className="h-3.5 w-3.5 text-blue-300 group-focus-within:text-blue-500 transition-colors duration-300" />
+                    <span className="text-[10px] font-bold text-slate-400 group-focus-within:text-blue-400">শুরু</span>
+                </div>
+                <input 
+                    type="date" 
+                    className="block w-full pl-14 pr-3 py-2 bg-transparent border-none rounded-full text-xs font-bold text-slate-600 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all outline-none cursor-pointer min-w-[130px]" 
+                    value={startDate} 
+                    onChange={(e) => setStartDate(e.target.value)} 
+                />
+            </div>
+            <span className="text-slate-300 font-bold text-xs">থেকে</span>
+            <div className="relative flex-1 md:w-auto group">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none gap-1">
+                    <Calendar className="h-3.5 w-3.5 text-blue-300 group-focus-within:text-blue-500 transition-colors duration-300" />
+                    <span className="text-[10px] font-bold text-slate-400 group-focus-within:text-blue-400">শেষ</span>
+                </div>
+                <input 
+                    type="date" 
+                    className="block w-full pl-14 pr-3 py-2 bg-transparent border-none rounded-full text-xs font-bold text-slate-600 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all outline-none cursor-pointer min-w-[130px]" 
+                    value={endDate} 
+                    onChange={(e) => setEndDate(e.target.value)} 
+                />
+            </div>
+        </div>
+
+        {/* Reset Button */}
+        <button 
+            onClick={() => { setSearchTerm(''); setSelectedStaffFilter(''); setStartDate(''); setEndDate(''); }} 
+            className="p-3 bg-white text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all active:scale-95 border border-slate-100 hover:border-red-100 shrink-0 shadow-sm"
+            title="রিসেট"
+        >
+            <FilterX className="w-4 h-4" />
+        </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

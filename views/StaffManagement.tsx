@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Plus, Search, Edit3, Trash2, UserPlus, X, Calendar, FilterX, Phone, Banknote, Users, UserCheck, UserX, ArrowUpDown, ShieldCheck, ShieldAlert, Eye, EyeOff, Lock, Camera, Image as ImageIcon, Briefcase, Wallet, ArrowRight, Coins, Crown, UserCog, History, CalendarClock, MapPin, LocateFixed, Globe, ToggleLeft, ToggleRight, Map, MonitorSmartphone, Gift, Star, MoreVertical, WalletCards, AlertTriangle, CheckCircle, RotateCcw, TrendingDown, Maximize2, Minimize2, ChevronDown, Sparkles, CreditCard, ExternalLink } from 'lucide-react';
 import { Staff, UserRole, Expense, AdvanceLog } from '../types';
@@ -438,7 +439,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
     if (!canManageMoney) { alert("আপনার এই অ্যাকশন করার অনুমতি নেই।"); return; }
     if (Number(advanceFormData.amount) <= 0) { alert("দয়া করে সঠিক টাকার পরিমাণ লিখুন (০ এর বেশি)।"); return; }
     const staff = (staffList || []).find(s => s.id === advanceFormData.staffId);
-    if (!staff) { alert("স্টাফ মেম্বার পাওয়া যাচ্ছে না। পেজটি রিফ্রেশ দিয়ে আবার চেষ্টা করুন।"); return; }
+    if (!staff) { alert("স্টাফ মেম্বার পাওয়া যাচ্ছে না। পেজটি রিফ্রেশ দিন।"); return; }
     const submitDate = new Date(advanceFormData.date);
     if (isNaN(submitDate.getTime())) { alert("তারিখ সঠিক নয়।"); return; }
     const now = new Date();
@@ -553,18 +554,27 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
 
   return (
     <div className="space-y-6">
-      {/* ... (Header, Stats, Filters remain same) ... */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <h2 className="text-2xl font-black text-gray-800 dark:text-white tracking-tight">স্টাফ কন্ট্রোল সেন্টার (Staff Control Center)</h2>
+      
+      {/* Header */}
+      <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm mb-6">
+        <div>
+          <h2 className="text-xl font-black text-gray-800 dark:text-white tracking-tight flex items-center gap-2">
+            <Users className="w-6 h-6 text-indigo-600" />
+            স্টাফ কন্ট্রোল সেন্টার
+          </h2>
+          <p className="text-xs text-gray-500 font-medium ml-8">ম্যানেজ করুন এবং মনিটর করুন</p>
+        </div>
         {!isStaff && (
-          <button onClick={() => setIsModalOpen(true)} className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 dark:shadow-none active:scale-95">
-            <UserPlus className="w-5 h-5" /> নতুন স্টাফ যোগ করুন
+          <button onClick={() => setIsModalOpen(true)} className="group relative overflow-hidden bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-5 py-2.5 rounded-xl font-bold shadow-lg shadow-indigo-200 hover:shadow-indigo-300 transition-all active:scale-95 flex items-center gap-2">
+            <span className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></span>
+            <UserPlus className="w-4 h-4 relative z-10" /> 
+            <span className="relative z-10 text-sm">নতুন স্টাফ</span>
           </button>
         )}
       </div>
 
       {!isStaff && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-white dark:bg-gray-800/60 dark:backdrop-blur-md p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 flex items-center gap-4">
             <div className="bg-blue-100 p-3 rounded-xl text-blue-600"><Users className="w-6 h-6" /></div>
             <div><p className="text-xs text-gray-400 font-bold uppercase tracking-wider">মোট স্টাফ</p><p className="text-2xl font-black text-gray-800 dark:text-white">{stats.total}</p></div>
@@ -580,46 +590,53 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
         </div>
       )}
 
-      {/* Filter Bar */}
-      <div className="bg-white dark:bg-gray-800/60 dark:backdrop-blur-md p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 flex flex-wrap items-end gap-4">
-        <div className="flex-1 min-w-[200px]">
-          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">খুঁজুন (নাম/আইডি/পদবী)</label>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input 
-              type="text" 
-              placeholder="Search..." 
-              className="w-full pl-9 pr-4 py-2.5 bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-600 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-semibold text-gray-800 dark:text-white"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+      {/* Compact Filter Bar */}
+      <div className="bg-white p-2 rounded-2xl shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07),0_10px_20px_-2px_rgba(0,0,0,0.04)] border border-gray-100 flex flex-col md:flex-row items-center gap-2 mb-6">
+        {/* Search Input */}
+        <div className="relative flex-1 w-full group">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <Search className="h-4 w-4 text-gray-400 group-focus-within:text-indigo-500 transition-colors" />
           </div>
+          <input 
+            type="text" 
+            placeholder="নাম, আইডি বা পদবী দিয়ে খুঁজুন..." 
+            className="block w-full pl-10 pr-3 py-2.5 bg-gray-50 border-none rounded-xl text-sm font-semibold text-gray-700 focus:ring-2 focus:ring-indigo-100 focus:bg-white transition-all placeholder:text-gray-400 outline-none" 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
         </div>
-        {!isStaff && (
-          <div className="w-full sm:w-auto">
-            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">সর্টিং (Sort By)</label>
-            <div className="relative">
-              <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+
+        {/* Sort & Action Group */}
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          {!isStaff && (
+            <div className="relative w-full md:w-48 group">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <ArrowUpDown className="h-4 w-4 text-gray-400 group-focus-within:text-indigo-500 transition-colors" />
+              </div>
               <select 
-                className="w-full pl-9 pr-8 py-2.5 bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-600 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold appearance-none cursor-pointer text-gray-700 dark:text-white"
+                className="block w-full pl-9 pr-8 py-2.5 bg-gray-50 border-none rounded-xl text-sm font-bold text-gray-600 focus:ring-2 focus:ring-indigo-100 focus:bg-white transition-all appearance-none cursor-pointer outline-none"
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
               >
-                <option value="newest">নতুন যোগ (Newest)</option>
-                <option value="oldest">পুরানো (Oldest)</option>
-                <option value="name">নাম (Name A-Z)</option>
+                <option value="newest">নতুন সর্ট (Newest)</option>
+                <option value="oldest">পুরানো সর্ট (Oldest)</option>
+                <option value="name">নাম (A-Z)</option>
                 <option value="salary">বেতন (High-Low)</option>
               </select>
+              <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                 <ChevronDown className="h-3 w-3 text-gray-400" />
+              </div>
             </div>
-          </div>
-        )}
-        <button 
-          onClick={clearFilters}
-          className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all border border-transparent hover:border-red-100 dark:hover:border-red-800"
-          title="Reset Filters"
-        >
-          <FilterX className="w-5 h-5" />
-        </button>
+          )}
+          
+          <button 
+            onClick={clearFilters}
+            className="p-2.5 bg-gray-50 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all active:scale-95 border border-transparent hover:border-red-100"
+            title="রিসেট"
+          >
+            <FilterX className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* ULTRA PREMIUM GRID VIEW */}
