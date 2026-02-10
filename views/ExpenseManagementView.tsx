@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef } from 'react';
-import { Receipt, Camera, CheckCircle, XCircle, Clock, Eye, Trash2, Search, Calendar, FilterX, RotateCcw, CheckCheck, Sparkles, X, Edit3, User, AlertTriangle, Eraser, FileText, ShieldAlert, Printer, Download, ImageIcon, Loader2, Upload } from 'lucide-react';
+import { Receipt, Camera, CheckCircle, XCircle, Clock, Eye, Trash2, Search, Calendar, FilterX, RotateCcw, CheckCheck, Sparkles, X, Edit3, User, AlertTriangle, Eraser, FileText, ShieldAlert, Printer, Download, ImageIcon, Loader2, Upload, Files } from 'lucide-react';
 import { Expense, Staff, UserRole, AppNotification, AdvanceLog } from '../types';
 
 interface ExpenseProps {
@@ -704,6 +704,423 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
     printWindow.document.close();
   };
 
+  const handleBulkDownloadLastVouchers = () => {
+    if (role !== UserRole.ADMIN) return;
+
+    const latestVouchers: Expense[] = [];
+    
+    // Iterate active staff to ensure we get one per staff
+    activeStaff.forEach(staff => {
+        const staffExpenses = expenses.filter(e => 
+            !e.isDeleted && 
+            e.status === 'APPROVED' && 
+            e.staffId === staff.id
+        ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+        if (staffExpenses.length > 0) {
+            latestVouchers.push(staffExpenses[0]);
+        }
+    });
+
+    if (latestVouchers.length === 0) {
+        alert("কোনো অনুমোদিত ভাউচার পাওয়া যায়নি।");
+        return;
+    }
+
+    // Generate HTML
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    let vouchersHtml = '';
+
+    latestVouchers.forEach((expense, index) => {
+        const staff = staffList.find(s => s.id === expense.staffId);
+        
+        // Ledger Calculation (Same as individual voucher)
+        const staffApprovedExpenses = expenses
+          .filter(e => !e.isDeleted && e.status === 'APPROVED' && e.staffId === expense.staffId)
+          .reduce((sum, e) => sum + Number(e.amount), 0);
+
+        const staffRegularAdvances = advances
+          .filter(a => !a.isDeleted && a.type !== 'SALARY' && a.staffId === expense.staffId)
+          .reduce((sum, a) => sum + Number(a.amount), 0);
+
+        const balance = staffRegularAdvances - staffApprovedExpenses;
+        let balanceText = '';
+        let balanceColor = '#16a34a'; 
+
+        if (balance < 0) {
+           balanceText = `Payable: ${Math.abs(balance).toLocaleString()} BDT`;
+           balanceColor = '#dc2626';
+        } else {
+           balanceText = `Cash In Hand: ${balance.toLocaleString()} BDT`;
+        }
+
+        vouchersHtml += `
+            <div class="voucher-wrapper" style="page-break-after: always; height: 100vh; display: flex; flex-direction: column; justify-content: center;">
+                <div class="voucher-box">
+                   <div class="watermark">OFFICE COPY</div>
+                   
+                   <div class="header">
+                      <div style="display: flex; align-items: center;">
+                         <div class="company-logo">DS</div>
+                         <div class="company-info">
+                            <h1>Depend Sourcing Ltd.</h1>
+                            <p>Promise Beyond Business</p>
+                            <p>Head Office: A-14/8, Johir Complex, Savar, Dhaka.</p>
+                         </div>
+                      </div>
+                      <div class="voucher-meta">
+                         <div class="voucher-badge">Payment Voucher</div>
+                         <div class="voucher-id">#${expense.id.substring(0, 8).toUpperCase()}</div>
+                         <div style="font-size: 12px; color: #64748b; margin-top: 4px;">${new Date(expense.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+                      </div>
+                   </div>
+
+                   <div class="info-grid">
+                      <div class="left-col">
+                         <div class="info-group">
+                            <span class="info-label">Pay To</span>
+                            <span class="info-value">${expense.staffName}</span>
+                         </div>
+                         <div class="info-group">
+                            <span class="info-label">Designation</span>
+                            <span class="info-value">${staff?.designation || 'Staff'}</span>
+                         </div>
+                      </div>
+                      <div class="right-col">
+                         <div class="info-group">
+                            <span class="info-label">Staff ID</span>
+                            <span class="info-value">${staff?.staffId || 'N/A'}</span>
+                         </div>
+                         <div class="info-group">
+                            <span class="info-label">Payment Mode</span>
+                            <span class="info-value">Cash / Adjustment</span>
+                         </div>
+                      </div>
+                   </div>
+
+                   <table>
+                      <thead>
+                         <tr>
+                            <th style="width: 10%">SL</th>
+                            <th style="width: 70%">Description</th>
+                            <th style="width: 20%; text-align: right;">Amount</th>
+                         </tr>
+                      </thead>
+                      <tbody>
+                         <tr>
+                            <td>01</td>
+                            <td>
+                               <span style="font-weight: 600; display: block; margin-bottom: 4px; color: #1e293b;">Expense Reimbursement</span>
+                               <span style="color: #64748b; font-size: 12px;">${expense.reason}</span>
+                            </td>
+                            <td class="amount-cell">৳ ${expense.amount.toLocaleString()}</td>
+                         </tr>
+                         <tr style="height: 60px;"><td></td><td></td><td></td></tr>
+                         <tr class="total-row">
+                            <td colspan="2" style="text-align: right; padding-right: 20px;">TOTAL AMOUNT</td>
+                            <td class="amount-cell">৳ ${expense.amount.toLocaleString()}</td>
+                         </tr>
+                      </tbody>
+                   </table>
+
+                   <div style="font-size: 11px; color: #64748b; margin-bottom: 30px; font-style: italic; padding-left: 10px;">
+                      <strong>In Words:</strong> ${expense.amount} Taka Only (approx).
+                   </div>
+
+                   <div class="ledger-summary">
+                      <div class="ledger-item">
+                         <span class="ledger-label">Total Expenses</span>
+                         <span class="ledger-value">৳ ${staffApprovedExpenses.toLocaleString()}</span>
+                      </div>
+                      <div style="width: 1px; height: 30px; background: #e2e8f0;"></div>
+                      <div class="ledger-item">
+                         <span class="ledger-label">Total Advance</span>
+                         <span class="ledger-value">৳ ${staffRegularAdvances.toLocaleString()}</span>
+                      </div>
+                      <div style="width: 1px; height: 30px; background: #e2e8f0;"></div>
+                      <div class="ledger-item">
+                         <span class="ledger-label">Net Balance</span>
+                         <span class="ledger-value" style="color: ${balanceColor}">${balanceText}</span>
+                      </div>
+                   </div>
+
+                   <div class="footer">
+                      <div class="signature-box">
+                         <div class="signature-line"></div>
+                         <div class="signature-text">Prepared By</div>
+                      </div>
+                      <div class="signature-box">
+                         <div class="signature-line"></div>
+                         <div class="signature-text">Verified By</div>
+                      </div>
+                      <div class="signature-box">
+                         <div class="signature-line"></div>
+                         <div class="signature-text">Authorized By</div>
+                      </div>
+                      <div class="signature-box">
+                         <div class="signature-line"></div>
+                         <div class="signature-text">Receiver</div>
+                      </div>
+                   </div>
+                </div>
+            </div>
+        `;
+    });
+
+    const finalHtml = `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <title>Bulk Vouchers - ${new Date().toLocaleDateString()}</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+        <style>
+          @page { size: A4; margin: 0; }
+          body { 
+            font-family: 'Inter', sans-serif; 
+            background: #fff;
+            color: #1e293b;
+            margin: 0;
+            padding: 0;
+            -webkit-print-color-adjust: exact; 
+            print-color-adjust: exact;
+          }
+          
+          .voucher-box {
+            border: 1px solid #e2e8f0; 
+            padding: 40px;
+            max-width: 210mm;
+            margin: 0 auto;
+            position: relative;
+            background: white;
+            /* box-shadow removed for print optimization */
+          }
+
+          /* Header */
+          .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #f1f5f9;
+          }
+
+          .company-logo {
+             width: 40px; 
+             height: 40px; 
+             background: #0f172a; 
+             border-radius: 8px;
+             display: flex;
+             align-items: center;
+             justify-content: center;
+             color: white;
+             font-weight: bold;
+             font-size: 20px;
+             margin-right: 12px;
+          }
+
+          .company-info h1 {
+            font-size: 24px;
+            font-weight: 800;
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: -0.5px;
+            color: #0f172a;
+          }
+          .company-info p {
+            font-size: 11px;
+            margin: 4px 0 0;
+            color: #64748b;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+          }
+
+          .voucher-meta {
+            text-align: right;
+          }
+          .voucher-badge {
+            background-color: #f8fafc;
+            color: #64748b;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            display: inline-block;
+            margin-bottom: 8px;
+            border: 1px solid #e2e8f0;
+          }
+          .voucher-id {
+            font-size: 14px;
+            font-weight: 700;
+            color: #334155;
+            font-family: monospace;
+          }
+
+          /* Grid Layout for Info */
+          .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            margin-bottom: 40px;
+          }
+          
+          .info-group {
+            margin-bottom: 15px;
+          }
+          .info-label {
+            font-size: 10px;
+            color: #94a3b8;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+            display: block;
+          }
+          .info-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1e293b;
+            padding-bottom: 4px;
+            border-bottom: 1px solid #f1f5f9;
+            display: block;
+          }
+
+          /* Table Styling */
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+          }
+          th {
+            background-color: #f8fafc;
+            color: #475569;
+            font-size: 10px;
+            text-transform: uppercase;
+            font-weight: 700;
+            text-align: left;
+            padding: 12px 16px;
+            border-top: 1px solid #e2e8f0;
+            border-bottom: 1px solid #e2e8f0;
+          }
+          td {
+            padding: 16px;
+            font-size: 13px;
+            color: #334155;
+            border-bottom: 1px solid #f1f5f9;
+          }
+          .amount-cell {
+            text-align: right;
+            font-weight: 700;
+            font-family: monospace;
+            font-size: 14px;
+          }
+          .total-row td {
+            border-top: 2px solid #e2e8f0;
+            border-bottom: none;
+            font-weight: 800;
+            font-size: 16px;
+            color: #0f172a;
+            padding-top: 20px;
+          }
+
+          /* Ledger Box */
+          .ledger-summary {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 50px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          }
+          .ledger-item {
+            text-align: center;
+            flex: 1;
+          }
+          .ledger-label {
+            font-size: 9px;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            display: block;
+            margin-bottom: 6px;
+            letter-spacing: 0.5px;
+          }
+          .ledger-value {
+            font-size: 14px;
+            font-weight: 700;
+            color: #334155;
+          }
+
+          /* Footer Signatures */
+          .footer {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 80px;
+            padding-top: 20px;
+          }
+          .signature-box {
+            width: 22%;
+            text-align: center;
+          }
+          .signature-line {
+            border-top: 1px solid #cbd5e1;
+            margin-bottom: 10px;
+          }
+          .signature-text {
+            font-size: 10px;
+            font-weight: 700;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+          }
+
+          /* Watermark */
+          .watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-30deg);
+            font-size: 100px;
+            font-weight: 900;
+            color: rgba(241, 245, 249, 0.5); /* Faint slate */
+            pointer-events: none;
+            z-index: 0;
+            white-space: nowrap;
+            user-select: none;
+          }
+
+          @media print {
+            body { background: white; padding: 0; margin: 0; }
+            .voucher-wrapper {
+               break-inside: avoid;
+               height: 100vh;
+               width: 100%;
+               display: flex;
+               flex-direction: column;
+               justify-content: center;
+            }
+            .voucher-box { border: none; padding: 40px; margin: 0 auto; width: 100%; max-width: 210mm; }
+          }
+        </style>
+      </head>
+      <body>
+        ${vouchersHtml}
+        <script>window.onload = () => { setTimeout(() => { window.print(); }, 1000); };</script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(finalHtml);
+    printWindow.document.close();
+  };
+
   const getStatusStyles = (status: Expense['status']) => {
     switch(status) {
       case 'APPROVED': return { 
@@ -812,6 +1229,15 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <h2 className="text-xl font-bold text-gray-800">খরচ ও ভাউচার ম্যানেজমেন্ট</h2>
         <div className="flex flex-wrap gap-3">
+          {(role === UserRole.ADMIN) && (
+             <button
+               onClick={handleBulkDownloadLastVouchers}
+               className="bg-purple-50 text-purple-700 px-4 py-2 rounded-xl font-bold hover:bg-purple-100 hover:text-purple-800 border border-purple-200 transition-colors flex items-center gap-2 shadow-sm whitespace-nowrap"
+             >
+               <Files className="w-5 h-5" />
+               সকল সর্বশেষ ভাউচার
+             </button>
+          )}
           {(role === UserRole.ADMIN || role === UserRole.MD) && (
              <button onClick={handleClearHistory} className="bg-red-50 text-red-600 px-4 py-2 rounded-xl font-bold hover:bg-red-100 hover:text-red-700 border border-red-200 transition-colors flex items-center gap-2 shadow-sm whitespace-nowrap"><Eraser className="w-5 h-5" /> হিস্ট্রি ক্লিন</button>
           )}
