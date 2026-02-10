@@ -58,6 +58,17 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
     }
   };
 
+  // Real-time duplicate check for the form
+  const duplicateCheck = useMemo(() => {
+    if (!formData.staffId || !formData.date) return [];
+    
+    return expenses.filter(e => 
+      !e.isDeleted && 
+      e.staffId === formData.staffId && 
+      getSafeDateStr(e.createdAt) === formData.date
+    );
+  }, [expenses, formData.staffId, formData.date]);
+
   // Helper: Get Financial Stats for a Staff (For Voucher)
   const getStaffFinancials = (staffId: string) => {
     const approvedExp = expenses
@@ -434,18 +445,19 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
     }
 
     // 4. Duplicate Check (Warning only)
-    let isDuplicate = false;
+    let duplicateCount = 0;
     try {
-        isDuplicate = expenses.some(e => {
+        duplicateCount = expenses.filter(e => {
             if (e.isDeleted || e.staffId !== targetStaffId) return false;
             return getSafeDateStr(e.createdAt) === formData.date;
-        });
+        }).length;
     } catch (err) {
         console.error("Duplicate check error", err);
     }
 
-    if (isDuplicate) {
-      const confirmMsg = `সতর্কতা: ${staff.name}-এর জন্য ${new Date(formData.date).toLocaleDateString('bn-BD')} তারিখে ইতিমধ্যে একটি বিল সিস্টেমে আছে।\n\nআপনি কি নিশ্চিত যে এটি একটি আলাদা বিল এবং সাবমিট করতে চান?`;
+    if (duplicateCount > 0) {
+      const dateStr = new Date(formData.date).toLocaleDateString('bn-BD', { day: 'numeric', month: 'long', year: 'numeric' });
+      const confirmMsg = `⚠️ ডুপ্লিকেট বিল সতর্কতা (Duplicate Bill Warning)!\n\nএই তারিখে (${dateStr}) ${staff.name}-এর ইতিমধ্যে ${duplicateCount}টি বিল সাবমিট করা আছে।\n\nআপনি কি নিশ্চিত যে এটি একটি আলাদা বিল? ভুল করে একই বিল দুইবার সাবমিট করছেন না তো?\n\nযদি নিশ্চিত হন তবেই 'OK' চাপুন।`;
       if (!window.confirm(confirmMsg)) {
         return; // User cancelled
       }
@@ -886,6 +898,27 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                 </div>
               </div>
               
+              {/* REAL-TIME DUPLICATE WARNING */}
+              {duplicateCheck.length > 0 && (
+                  <div className="p-3 bg-red-100 border border-red-200 rounded-xl flex flex-col gap-2 animate-in fade-in zoom-in duration-300">
+                      <div className="flex items-center gap-2 text-red-700 font-black text-xs uppercase tracking-widest">
+                          <AlertTriangle className="w-4 h-4" />
+                          সতর্কতা: ডুপ্লিকেট এন্ট্রি!
+                      </div>
+                      <p className="text-xs font-bold text-red-600 leading-relaxed">
+                          এই স্টাফের নামের সাথে <u>{new Date(formData.date).toLocaleDateString('bn-BD')}</u> তারিখে ইতিমধ্যে <span className="text-lg">{duplicateCheck.length}</span> টি বিল আছে।
+                      </p>
+                      <div className="bg-white/50 p-2 rounded-lg max-h-24 overflow-y-auto custom-scrollbar">
+                          {duplicateCheck.map(e => (
+                              <div key={e.id} className="flex justify-between text-[10px] font-bold text-red-500 border-b border-red-100 last:border-0 py-1">
+                                  <span>{e.reason.substring(0, 20)}...</span>
+                                  <span>৳ {e.amount}</span>
+                              </div>
+                          ))}
+                      </div>
+                  </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 flex justify-between">
                   <span>খরচের কারণ ও বিবরণ</span>
