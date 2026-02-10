@@ -1,5 +1,6 @@
+
 import React, { useState, useMemo, useRef } from 'react';
-import { Receipt, Camera, CheckCircle, XCircle, Clock, Eye, Trash2, Search, Calendar, FilterX, RotateCcw, CheckCheck, Sparkles, X, Edit3, User, AlertTriangle, Eraser, FileText, ShieldAlert, Printer, Download, ImageIcon, Loader2 } from 'lucide-react';
+import { Receipt, Camera, CheckCircle, XCircle, Clock, Eye, Trash2, Search, Calendar, FilterX, RotateCcw, CheckCheck, Sparkles, X, Edit3, User, AlertTriangle, Eraser, FileText, ShieldAlert, Printer, Download, ImageIcon, Loader2, Upload } from 'lucide-react';
 import { Expense, Staff, UserRole, AppNotification, AdvanceLog } from '../types';
 
 interface ExpenseProps {
@@ -40,6 +41,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
   const [isDownloading, setIsDownloading] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   
   // Filtering States
   const [searchTerm, setSearchTerm] = useState('');
@@ -175,6 +177,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
     if(window.confirm("ছবি মুছতে চান?")) {
       setFormData(prev => ({ ...prev, voucherImage: '' }));
       if (fileInputRef.current) fileInputRef.current.value = '';
+      if (cameraInputRef.current) cameraInputRef.current.value = '';
     }
   };
 
@@ -746,17 +749,25 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
            alert("html2canvas library not loaded. Please check your internet connection.");
            return;
         }
+        
+        // Optimization: Temporarily remove shadow for faster rendering
+        const originalShadow = voucherRef.current.style.boxShadow;
+        voucherRef.current.style.boxShadow = 'none';
+
         const canvas = await html2canvas(voucherRef.current, {
-          scale: 1.5, // Optimized scale for speed
+          scale: 1, // Reduced from 1.5 to 1 for speed
           backgroundColor: '#ffffff',
           useCORS: true,
           logging: false,
-          x: 0,
-          y: 0,
-          scrollX: 0,
-          scrollY: 0
+          allowTaint: true,
+          imageTimeout: 0,
+          removeContainer: true,
         });
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+
+        // Restore shadow
+        voucherRef.current.style.boxShadow = originalShadow;
+
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.7); // Slightly lower quality for speed
         const link = document.createElement('a');
         link.href = dataUrl;
         link.download = `Voucher_${voucherPreviewData?.id}.jpg`;
@@ -805,7 +816,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
              <button onClick={handleClearHistory} className="bg-red-50 text-red-600 px-4 py-2 rounded-xl font-bold hover:bg-red-100 hover:text-red-700 border border-red-200 transition-colors flex items-center gap-2 shadow-sm whitespace-nowrap"><Eraser className="w-5 h-5" /> হিস্ট্রি ক্লিন</button>
           )}
           {(role === UserRole.ADMIN || role === UserRole.STAFF) && (
-            <button onClick={handleOpenSubmitModal} className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-lg shadow-indigo-100"><Receipt className="w-5 h-5" /> নতুন বিল</button>
+            <button onClick={handleOpenSubmitModal} className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-lg shadow-indigo-100"><Receipt className="w-5 h-5" /> নতুন বিল সাবমিট করুন</button>
           )}
           {role === UserRole.MD && (
             <button onClick={handleApproveAll} className="bg-green-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-green-700 transition-colors flex items-center gap-2 shadow-lg shadow-green-100"><CheckCheck className="w-5 h-5" /> সব অ্যাপ্রুভ</button>
@@ -1077,17 +1088,56 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
               <h3 className="font-bold text-xl">নতুন বিল</h3>
               <button onClick={() => setIsSubmitModalOpen(false)} className="text-indigo-200 hover:text-white">×</button>
             </div>
-            <div className="overflow-y-auto p-6 flex-1">
-              {isSubmissionDuplicate && <div className="mb-4 bg-red-50 border border-red-200 p-4 rounded-xl flex items-start gap-3 animate-pulse"><AlertTriangle className="w-6 h-6 text-red-500 shrink-0" /><div><h4 className="font-bold text-red-700 text-sm">সতর্কতা: ডুপ্লিকেট বিল!</h4><p className="text-xs text-red-600 mt-1">নির্বাচিত তারিখে এই স্টাফের ইতিমধ্যে একটি বিল সিস্টেমে আছে।</p></div></div>}
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div><label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 ml-1">স্টাফ মেম্বার</label><select required className="w-full px-3 py-2.5 bg-slate-50 border border-slate-100 text-slate-700 font-bold rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all shadow-sm appearance-none text-sm" value={formData.staffId} onChange={(e) => setFormData({...formData, staffId: e.target.value})}><option value="">স্টাফ নির্বাচন করুন</option>{activeStaff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
-                <div><label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 ml-1">তারিখ</label><input type="date" required className="w-full px-3 py-2.5 bg-slate-50 border border-slate-100 text-slate-700 font-bold rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all shadow-sm text-sm" value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} /></div>
-                <div><label className="block text-sm font-medium text-gray-700 mb-1 flex justify-between"><span>খরচের কারণ ও বিবরণ</span><span className="text-xs text-indigo-600 font-bold flex items-center gap-1"><Sparkles className="w-3 h-3"/> Auto Calculator</span></label><textarea required rows={3} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-gray-900 bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm" placeholder="কারণ..." value={formData.reason} onChange={handleReasonChange} /></div>
-                <div><label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 ml-1">টাকার পরিমাণ</label><div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">৳</span><input required type="number" className="w-full pl-7 pr-3 py-2.5 bg-slate-50 border border-slate-100 text-slate-800 font-black text-base rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all shadow-sm placeholder:text-slate-300" placeholder="0.00" value={formData.amount || ''} onChange={(e) => setFormData({...formData, amount: Number(e.target.value)})} /></div></div>
-                <div onClick={() => fileInputRef.current?.click()} className="group py-2 px-3 border-2 border-dashed border-indigo-100 hover:border-indigo-300 rounded-lg bg-indigo-50/30 hover:bg-indigo-50 cursor-pointer transition-all flex items-center justify-center gap-2 relative overflow-hidden"><input ref={fileInputRef} type="file" accept="image/*" hidden onChange={handleImageUpload} />{formData.voucherImage ? <span className="text-xs font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded flex items-center gap-1"><CheckCircle className="w-3 h-3"/> ছবি যুক্ত হয়েছে <span className="text-[9px] text-gray-400 font-normal">(পরিবর্তন)</span></span> : <><Camera className="w-4 h-4 text-indigo-400 group-hover:text-indigo-600 transition-colors"/><span className="text-xs font-bold text-indigo-400 group-hover:text-indigo-600">ভাউচার ছবি দিন</span></>}</div>
-                <button type="submit" className={`w-full text-white py-3 rounded-xl font-bold text-sm transition-all active:scale-95 flex items-center justify-center gap-2 shadow-xl ${isSubmissionDuplicate ? 'bg-red-500 hover:bg-red-600 shadow-red-200' : 'bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 shadow-indigo-200'}`}>{isSubmissionDuplicate ? <><AlertTriangle className="w-5 h-5"/> তবুও সাবমিট করুন</> : 'বিল সাবমিট করুন'}</button>
-              </form>
-            </div>
+            <form onSubmit={handleSubmit} className="flex flex-col h-full" id="expense-form">
+                <div className="overflow-y-auto p-6 flex-1 space-y-4">
+                  {isSubmissionDuplicate && <div className="mb-4 bg-red-50 border border-red-200 p-4 rounded-xl flex items-start gap-3 animate-pulse"><AlertTriangle className="w-6 h-6 text-red-500 shrink-0" /><div><h4 className="font-bold text-red-700 text-sm">সতর্কতা: ডুপ্লিকেট বিল!</h4><p className="text-xs text-red-600 mt-1">নির্বাচিত তারিখে এই স্টাফের ইতিমধ্যে একটি বিল সিস্টেমে আছে।</p></div></div>}
+                  
+                  <div><label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 ml-1">স্টাফ মেম্বার</label><select required className="w-full px-3 py-2.5 bg-slate-50 border border-slate-100 text-slate-700 font-bold rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all shadow-sm appearance-none text-sm" value={formData.staffId} onChange={(e) => setFormData({...formData, staffId: e.target.value})}><option value="">স্টাফ নির্বাচন করুন</option>{activeStaff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
+                  <div><label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 ml-1">তারিখ</label><input type="date" required className="w-full px-3 py-2.5 bg-slate-50 border border-slate-100 text-slate-700 font-bold rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all shadow-sm text-sm" value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} /></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1 flex justify-between"><span>খরচের কারণ ও বিবরণ</span><span className="text-xs text-indigo-600 font-bold flex items-center gap-1"><Sparkles className="w-3 h-3"/> Auto Calculator</span></label><textarea required rows={3} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-gray-900 bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm" placeholder="কারণ..." value={formData.reason} onChange={handleReasonChange} /></div>
+                  <div><label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 ml-1">টাকার পরিমাণ</label><div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">৳</span><input required type="number" className="w-full pl-7 pr-3 py-2.5 bg-slate-50 border border-slate-100 text-slate-800 font-black text-base rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all shadow-sm placeholder:text-slate-300" placeholder="0.00" value={formData.amount || ''} onChange={(e) => setFormData({...formData, amount: Number(e.target.value)})} /></div></div>
+                  
+                  {/* Image Options Grid */}
+                  <div>
+                     <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 ml-1">ভাউচার ইমেজ (অপশনাল)</label>
+                     <div className="grid grid-cols-2 gap-2">
+                        <div 
+                           onClick={() => fileInputRef.current?.click()} 
+                           className="group py-2.5 px-2 border border-dashed border-indigo-200 hover:border-indigo-400 rounded-lg bg-indigo-50/30 hover:bg-indigo-50 cursor-pointer transition-all flex flex-row items-center justify-center gap-2 text-center"
+                        >
+                           <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={handleImageUpload} />
+                           <Upload className="w-4 h-4 text-indigo-500 group-hover:text-indigo-700 transition-colors"/>
+                           <span className="text-[11px] font-bold text-indigo-600 group-hover:text-indigo-800">গ্যালারি</span>
+                        </div>
+
+                        <div 
+                           onClick={() => cameraInputRef.current?.click()} 
+                           className="group py-2.5 px-2 border border-dashed border-purple-200 hover:border-purple-400 rounded-lg bg-purple-50/30 hover:bg-purple-50 cursor-pointer transition-all flex flex-row items-center justify-center gap-2 text-center"
+                        >
+                           <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" hidden onChange={handleImageUpload} />
+                           <Camera className="w-4 h-4 text-purple-500 group-hover:text-purple-700 transition-colors"/>
+                           <span className="text-[11px] font-bold text-purple-600 group-hover:text-purple-800">ক্যামেরা</span>
+                        </div>
+                     </div>
+                     {formData.voucherImage && (
+                        <div className="mt-2 relative rounded-lg overflow-hidden border border-gray-200 h-24 bg-gray-50">
+                           <img src={formData.voucherImage} alt="Voucher Preview" className="w-full h-full object-contain" />
+                           <button 
+                              type="button"
+                              onClick={removeImage}
+                              className="absolute top-1 right-1 bg-white/80 hover:bg-white text-red-500 p-1 rounded-full shadow-sm transition-colors"
+                           >
+                              <XCircle className="w-4 h-4" />
+                           </button>
+                        </div>
+                     )}
+                  </div>
+                </div>
+
+                <div className="p-4 border-t border-gray-100 bg-white shrink-0">
+                   <button type="submit" form="expense-form" className={`w-full text-white py-3.5 rounded-xl font-bold text-sm transition-all active:scale-95 flex items-center justify-center gap-2 shadow-xl ${isSubmissionDuplicate ? 'bg-red-500 hover:bg-red-600 shadow-red-200' : 'bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 shadow-indigo-200'}`}>{isSubmissionDuplicate ? <><AlertTriangle className="w-5 h-5"/> তবুও সাবমিট করুন</> : 'বিল সাবমিট করুন'}</button>
+                </div>
+            </form>
           </div>
         </div>
       )}
