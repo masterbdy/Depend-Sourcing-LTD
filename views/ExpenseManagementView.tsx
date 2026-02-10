@@ -1,6 +1,5 @@
-
 import React, { useState, useMemo, useRef } from 'react';
-import { Receipt, Camera, CheckCircle, XCircle, Clock, Eye, Trash2, Search, Calendar, FilterX, RotateCcw, CheckCheck, Sparkles, X, Edit3, User, AlertTriangle, Eraser, FileText, ShieldAlert, Printer, Download, ImageIcon, Loader2, Upload, Files, ChevronDown } from 'lucide-react';
+import { Receipt, Camera, CheckCircle, XCircle, Clock, Eye, Trash2, Search, Calendar, FilterX, RotateCcw, CheckCheck, Sparkles, Image as ImageIcon, X, Edit3, Eraser, AlertTriangle, User, ChevronDown, Printer, Loader2, Images } from 'lucide-react';
 import { Expense, Staff, UserRole, AppNotification, AdvanceLog } from '../types';
 
 interface ExpenseProps {
@@ -9,12 +8,12 @@ interface ExpenseProps {
   staffList: Staff[];
   role: UserRole;
   currentUser: string | null;
-  onNotify?: (title: string, message: string, type: AppNotification['type']) => void;
   advances: AdvanceLog[];
   onOpenProfile?: (staffId: string) => void;
+  onNotify?: (title: string, message: string, type: AppNotification['type']) => void;
 }
 
-const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpenses, staffList = [], role, currentUser, advances = [], onOpenProfile }) => {
+const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, staffList, role, currentUser, advances = [], onOpenProfile }) => {
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [formData, setFormData] = useState({ 
     staffId: '', 
@@ -30,28 +29,23 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
   const [correctionData, setCorrectionData] = useState<{id: string, amount: number, reason: string, date: string} | null>(null);
 
   // Delete Confirmation State
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [deleteConfirmExpense, setDeleteConfirmExpense] = useState<Expense | null>(null);
 
-  // Status Update Confirmation State
-  const [statusConfirmData, setStatusConfirmData] = useState<{id: string, status: Expense['status']} | null>(null);
-
-  // Voucher Generator State
-  const [voucherPreviewData, setVoucherPreviewData] = useState<Expense | null>(null);
-  const voucherRef = useRef<HTMLDivElement>(null);
-  const [isDownloading, setIsDownloading] = useState(false);
+  // Downloading State (Specific ID)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [isBulkDownloading, setIsBulkDownloading] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   
   // Filtering States
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedStaffFilter, setSelectedStaffFilter] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [selectedStaffFilter, setSelectedStaffFilter] = useState('');
 
-  // SAFE ARRAY ACCESS
-  const activeStaff = (staffList || []).filter(s => s && !s.deletedAt && s.status === 'ACTIVE');
-  const allStaffForFilter = (staffList || []).filter(s => s && !s.deletedAt);
+  const activeStaff = staffList.filter(s => !s.deletedAt && s.status === 'ACTIVE');
 
   // Helper for safe date comparison
   const getSafeDateStr = (dateStr: string) => {
@@ -64,37 +58,268 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
     }
   };
 
-  // Real-time Duplicate Check for Modal
-  const isSubmissionDuplicate = useMemo(() => {
-    if (!formData.staffId || !formData.date) return false;
-    return (expenses || []).some(e => 
-      !e.isDeleted && 
-      e.staffId === formData.staffId && 
-      getSafeDateStr(e.createdAt) === formData.date
-    );
-  }, [formData.staffId, formData.date, expenses]);
+  // Helper: Get Financial Stats for a Staff (For Voucher)
+  const getStaffFinancials = (staffId: string) => {
+    const approvedExp = expenses
+      .filter(e => !e.isDeleted && e.status === 'APPROVED' && e.staffId === staffId)
+      .reduce((sum, e) => sum + Number(e.amount), 0);
+    
+    const regularAdv = advances
+      .filter(a => !a.isDeleted && a.type !== 'SALARY' && a.staffId === staffId)
+      .reduce((sum, a) => sum + Number(a.amount), 0);
+    
+    // Balance: Regular Advance - Approved Exp
+    const balance = regularAdv - approvedExp;
+    return { approvedExp, regularAdv, balance };
+  };
+
+  // --- VOUCHER GENERATOR FUNCTION ---
+  const generateVoucherHTML = (expense: Expense) => {
+    const stats = getStaffFinancials(expense.staffId);
+    const dateStr = new Date(expense.createdAt).toLocaleDateString('bn-BD', { day: 'numeric', month: 'long', year: 'numeric' });
+    const staff = staffList.find(s => s.id === expense.staffId);
+    const designation = staff?.designation || 'N/A';
+    const staffId = staff?.staffId || 'N/A';
+    
+    // Staff Photo
+    const photoHTML = staff?.photo 
+      ? `<img src="${staff.photo}" style="width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 2px solid #e5e7eb;" crossorigin="anonymous" />`
+      : `<div style="width: 45px; height: 45px; border-radius: 50%; background: #f3f4f6; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #6b7280; font-size: 18px; border: 2px solid #e5e7eb;">${expense.staffName[0]}</div>`;
+
+    return `
+      <div style="width: 650px; padding: 40px; background: white; border: 1px solid #d1d5db; font-family: 'Hind Siliguri', sans-serif; color: #1f2937; position: relative; margin: auto; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+         
+         <!-- Top Banner -->
+         <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #111827; padding-bottom: 20px; margin-bottom: 30px;">
+            <div>
+               <h1 style="font-size: 28px; font-weight: 900; margin: 0; color: #111827; text-transform: uppercase; letter-spacing: -0.5px; line-height: 1;">Depend Sourcing Ltd.</h1>
+               <p style="font-size: 11px; margin: 6px 0 0; letter-spacing: 3px; text-transform: uppercase; color: #6b7280; font-weight: 600;">Promise Beyond Business</p>
+            </div>
+            <div style="text-align: right;">
+               <div style="background: #111827; color: white; padding: 6px 16px; font-weight: bold; font-size: 12px; border-radius: 4px; text-transform: uppercase; display: inline-block;">Payment Voucher</div>
+               <p style="margin-top: 5px; font-size: 10px; font-weight: bold; color: #9ca3af;">#${expense.id.substring(0, 8).toUpperCase()}</p>
+            </div>
+         </div>
+
+         <!-- Payee Info Box -->
+         <div style="display: flex; justify-content: space-between; align-items: center; background: #f9fafb; padding: 20px; border-radius: 12px; border: 1px solid #f3f4f6; margin-bottom: 30px;">
+            <div>
+               <div style="color: #6b7280; font-size: 10px; text-transform: uppercase; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">Beneficiary / Payee</div>
+               <div style="font-size: 18px; font-weight: 800; color: #111827;">${expense.staffName}</div>
+               <div style="font-size: 12px; color: #4b5563; margin-top: 2px; font-weight: 500;">${designation} • ID: ${staffId}</div>
+            </div>
+            <div>
+               ${photoHTML}
+            </div>
+         </div>
+
+         <!-- Main Amount -->
+         <div style="text-align: center; margin-bottom: 35px; padding: 30px 20px; border: 2px dashed #e5e7eb; border-radius: 16px; position: relative;">
+            <div style="position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: white; padding: 0 10px; font-size: 10px; text-transform: uppercase; font-weight: 800; color: #9ca3af; letter-spacing: 1px;">Amount Authorized</div>
+            <div style="font-size: 48px; font-weight: 900; color: #111827; line-height: 1; letter-spacing: -1px;">৳ ${expense.amount.toLocaleString()}</div>
+            <div style="font-size: 12px; font-weight: 600; color: #4b5563; margin-top: 5px; text-transform: uppercase; letter-spacing: 1px;">
+               BDT Taka Only
+            </div>
+            <div style="margin-top: 20px; font-size: 14px; font-weight: 500; color: #374151; background: #f3f4f6; padding: 10px 20px; border-radius: 50px; display: inline-block;">
+               "${expense.reason}"
+            </div>
+            <div style="margin-top: 10px; font-size: 10px; font-weight: 600; color: #9ca3af;">
+               Date: ${dateStr}
+            </div>
+         </div>
+
+         <!-- Account Summary Table -->
+         <div style="margin-bottom: 50px;">
+            <div style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: #6b7280; margin-bottom: 10px; letter-spacing: 0.5px; padding-left: 5px;">Current Account Summary</div>
+            <table style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 11px; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+               <thead>
+                 <tr style="background: #f9fafb;">
+                    <th style="padding: 12px 15px; text-align: left; border-bottom: 1px solid #e5e7eb; border-right: 1px solid #e5e7eb; font-weight: 700; color: #374151; text-transform: uppercase; font-size: 10px;">Total Regular Advance</th>
+                    <th style="padding: 12px 15px; text-align: right; border-bottom: 1px solid #e5e7eb; border-right: 1px solid #e5e7eb; font-weight: 700; color: #374151; text-transform: uppercase; font-size: 10px;">Total Approved Expense</th>
+                    <th style="padding: 12px 15px; text-align: right; border-bottom: 1px solid #e5e7eb; font-weight: 700; color: #374151; text-transform: uppercase; font-size: 10px;">Net Balance</th>
+                 </tr>
+               </thead>
+               <tbody>
+                 <tr>
+                    <td style="padding: 15px; text-align: left; border-right: 1px solid #e5e7eb; font-weight: 600; font-size: 13px;">৳ ${stats.regularAdv.toLocaleString()}</td>
+                    <td style="padding: 15px; text-align: right; border-right: 1px solid #e5e7eb; font-weight: 600; font-size: 13px;">৳ ${stats.approvedExp.toLocaleString()}</td>
+                    <td style="padding: 15px; text-align: right; font-weight: 900; color: ${stats.balance < 0 ? '#dc2626' : '#059669'}; font-size: 14px;">
+                       ${stats.balance < 0 ? 'Payable' : 'Cash'} ৳ ${Math.abs(stats.balance).toLocaleString()}
+                    </td>
+                 </tr>
+               </tbody>
+            </table>
+         </div>
+
+         <!-- Signatures -->
+         <div style="display: flex; justify-content: space-between; margin-top: 40px; padding-top: 20px;">
+            <div style="text-align: center; width: 30%;">
+               <div style="border-top: 1px solid #9ca3af; width: 100%; margin-bottom: 8px;"></div>
+               <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">Receiver Signature</div>
+            </div>
+            <div style="text-align: center; width: 30%;">
+               <div style="border-top: 1px solid #9ca3af; width: 100%; margin-bottom: 8px;"></div>
+               <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">Authority Signature</div>
+            </div>
+         </div>
+         
+         <div style="position: absolute; bottom: 10px; right: 20px; font-size: 9px; color: #cbd5e1; font-style: italic;">
+            System Generated via Depend App • ${new Date().toLocaleString('bn-BD')}
+         </div>
+      </div>
+    `;
+  };
+
+  const processVoucherDownload = async (expense: Expense) => {
+    return new Promise<void>(async (resolve) => {
+      try {
+        const htmlContent = generateVoucherHTML(expense);
+        const container = document.createElement('div');
+        container.innerHTML = htmlContent;
+        
+        // Fixed positioning off-screen
+        container.style.position = 'fixed';
+        container.style.left = '-10000px';
+        container.style.top = '0';
+        container.style.width = '700px'; 
+        container.style.zIndex = '-1000';
+        container.style.backgroundColor = '#ffffff';
+        
+        document.body.appendChild(container);
+
+        // Wait for images to load
+        const images = container.querySelectorAll('img');
+        const imagePromises = Array.from(images).map(img => {
+            if (img.complete) return Promise.resolve();
+            return new Promise((res) => { 
+                img.onload = res; 
+                img.onerror = res;
+            });
+        });
+        
+        if (imagePromises.length > 0) {
+            await Promise.all(imagePromises);
+        }
+        
+        // Delay for rendering
+        await new Promise(r => setTimeout(r, 800));
+
+        // @ts-ignore
+        if (window.html2canvas) {
+           // @ts-ignore
+           const canvas = await window.html2canvas(container.firstElementChild as HTMLElement, {
+              scale: 2,
+              useCORS: true,
+              backgroundColor: '#ffffff',
+              logging: false,
+              windowWidth: 1200
+           });
+           
+           const link = document.createElement('a');
+           link.download = `Voucher_${expense.staffName}_${expense.id.substring(0,6)}.png`;
+           link.href = canvas.toDataURL('image/png');
+           document.body.appendChild(link);
+           link.click();
+           document.body.removeChild(link);
+        } else {
+            alert("Image generation library (html2canvas) not found. Please refresh the page.");
+        }
+
+        document.body.removeChild(container);
+      } catch (e) {
+        console.error("Voucher Generation Error", e);
+      }
+      resolve();
+    });
+  };
+
+  const handleDownloadPNG = async (expense: Expense) => {
+    setDownloadingId(expense.id);
+    await processVoucherDownload(expense);
+    setDownloadingId(null);
+  };
+
+  const handleBulkDownload = async () => {
+    // Group by Staff ID to get the latest approved expense for each
+    const latestExpensesMap = new Map<string, Expense>();
+    
+    expenses.forEach(e => {
+        if (!e.isDeleted && e.status === 'APPROVED') {
+            const existing = latestExpensesMap.get(e.staffId);
+            if (!existing) {
+                latestExpensesMap.set(e.staffId, e);
+            } else {
+                // Compare dates, keep latest
+                if (new Date(e.createdAt) > new Date(existing.createdAt)) {
+                    latestExpensesMap.set(e.staffId, e);
+                }
+            }
+        }
+    });
+
+    const targetExpenses = Array.from(latestExpensesMap.values());
+
+    if (targetExpenses.length === 0) {
+        alert("কোনো অনুমোদিত বিল পাওয়া যায়নি।");
+        return;
+    }
+
+    if (window.confirm(`সর্বমোট ${targetExpenses.length} জন স্টাফের লাস্ট ভাউচার ডাউনলোড করতে চান?`)) {
+        setIsBulkDownloading(true);
+        // Process sequentially with delay
+        for (let i = 0; i < targetExpenses.length; i++) {
+            setBulkProgress(`${i+1}/${targetExpenses.length}`);
+            await processVoucherDownload(targetExpenses[i]);
+            // Increased delay to prevent browser blocking multiple downloads
+            await new Promise(resolve => setTimeout(resolve, 2000)); 
+        }
+        setBulkProgress('');
+        setIsBulkDownloading(false);
+    }
+  };
+
+  const handlePrintPDF = (expense: Expense) => {
+    const htmlContent = generateVoucherHTML(expense);
+    const printWindow = window.open('', '_blank', 'width=900,height=800');
+    
+    if (printWindow) {
+       printWindow.document.open();
+       printWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+             <head>
+                <title>Voucher #${expense.id}</title>
+                <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
+                <style>
+                   body { background-color: #f3f4f6; display: flex; justify-content: center; padding-top: 40px; margin: 0; font-family: 'Hind Siliguri', sans-serif; }
+                   @media print { body { background-color: white; padding: 0; display: block; -webkit-print-color-adjust: exact; } .no-print { display: none; } }
+                </style>
+             </head>
+             <body>${htmlContent}<script>window.onload = function() { setTimeout(function() { window.print(); }, 800); };</script></body>
+          </html>
+       `);
+       printWindow.document.close();
+    } else {
+       alert("Print popup blocked. Please allow popups for this site.");
+    }
+  };
 
   const filteredExpenses = useMemo(() => {
-    return (expenses || []).filter(e => {
-      if (!e || e.isDeleted) return false;
+    return expenses.filter(e => {
+      if (e.isDeleted) return false;
 
       // SECURITY: Staff can only see their own expenses
+      // Admin and MD can see everyone's expenses
       if (role === UserRole.STAFF && currentUser) {
          if (e.staffName !== currentUser) return false;
       }
       
-      // Filter by Selected Staff (Dropdown)
-      if (selectedStaffFilter && e.staffId !== selectedStaffFilter) {
-        return false;
-      }
+      // Staff Filter (Admin/MD only)
+      if (selectedStaffFilter && e.staffId !== selectedStaffFilter) return false;
       
-      const safeReason = (e.reason || '').toLowerCase();
-      const safeStaffName = (e.staffName || '').toLowerCase();
-      const safeSearch = searchTerm.toLowerCase();
-
       const matchesSearch = 
-        safeReason.includes(safeSearch) || 
-        safeStaffName.includes(safeSearch);
+        e.reason.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        e.staffName.toLowerCase().includes(searchTerm.toLowerCase());
       
       const expenseDate = new Date(e.createdAt).setHours(0, 0, 0, 0);
       const start = startDate ? new Date(startDate).setHours(0, 0, 0, 0) : null;
@@ -104,31 +329,21 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
 
       return matchesSearch && matchesDate;
     })
-    // Sort by Date Descending (Newest First)
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [expenses, searchTerm, selectedStaffFilter, startDate, endDate, role, currentUser]);
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()); // Sort by Date: Newest First
+  }, [expenses, searchTerm, startDate, endDate, role, currentUser, selectedStaffFilter]);
 
   const handleReasonChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const text = e.target.value;
-    // 1. Convert Bengali digits to English
-    let processedText = text.replace(/[০-৯]/g, d => "0123456789"["০১২৩৪৫৬৭৮৯".indexOf(d)]);
-    // 2. Normalize Separators
-    processedText = processedText.replace(/[\u2013\u2014]/g, '-');
-    // 3. Remove Explicit Date Ranges
-    const explicitDateRangeRegex = /(?:\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})\s*(?:to|থেকে|\-|–|—)\s*(?:\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})/gi;
-    processedText = processedText.replace(explicitDateRangeRegex, 'SKIP_DATE_RANGE');
-    // 4. Pre-processing
-    processedText = processedText.replace(/([a-zA-Z\u0980-\u09FF]+)[\s\-:=]+(\d+)/g, '$1 $2');
-    processedText = processedText.replace(/(taka|tk|bdt|টাকা)/gi, 'CURRENCY_SYMBOL');
-    // 5. Exclusions
-    processedText = processedText.replace(/\d{4}-\d{2}-\d{2}/g, 'SKIP_DATE'); 
-    processedText = processedText.replace(/\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}/g, 'SKIP_DATE');
-    processedText = processedText.replace(/01\d{9}/g, 'SKIP_PHONE');
-    processedText = processedText.replace(/\d{1,2}:\d{2}/g, 'SKIP_TIME_COLON'); 
-    processedText = processedText.replace(/\d{1,2}[:\.]\d{2}\s*(am|pm|a\.m|p\.m)/gi, 'SKIP_TIME');
-    processedText = processedText.replace(/\d{1,2}\s*(am|pm|a\.m|p\.m|টা|বাজে|বাজা)/gi, 'SKIP_TIME');
     
-    // Summation
+    // 1. Convert Bengali digits to English for calculation
+    const banglaToEng = (str: string) => str.replace(/[০-৯]/g, d => "0123456789"["০১২৩৪৫৬৭৮৯".indexOf(d)]);
+    let processedText = banglaToEng(text);
+
+    // 2. EXCLUSION LOGIC: Mask numbers that are part of addresses/locations
+    const exclusionPattern = /(মিরপুর|উত্তরা|সেক্টর|রোড|বাসা|ফ্ল্যাট|লেভেল|তলা|ব্লক|লেন|ওয়ার্ড|নম্বর|নং|প্লাটফর্ম|গাড়ি|বাস নং|Mirpur|Uttara|Sector|Road|House|Flat|Level|Floor|Block|Lane|Ward|No|Num)[\s\-\.]*[0-9]+/gi;
+    processedText = processedText.replace(exclusionPattern, (match) => match.replace(/[0-9]/g, 'X'));
+
+    // 3. Extract remaining numbers and sum them up
     const matches = processedText.match(/(\d+(\.\d+)?)/g);
     let total = 0;
     if (matches) {
@@ -138,7 +353,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
     setFormData(prev => ({
       ...prev,
       reason: text,
-      amount: total 
+      amount: total // Auto update amount
     }));
   };
 
@@ -174,7 +389,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
 
   const removeImage = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if(window.confirm("ছবি মুছতে চান?")) {
+    if(window.confirm("আপনি কি নিশ্চিত যে ছবি মুছে ফেলতে চান?")) {
       setFormData(prev => ({ ...prev, voucherImage: '' }));
       if (fileInputRef.current) fileInputRef.current.value = '';
       if (cameraInputRef.current) cameraInputRef.current.value = '';
@@ -184,37 +399,59 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    // 1. Resolve Staff ID
     let targetStaffId = formData.staffId;
     if (role === UserRole.STAFF && currentUser) {
        const myself = activeStaff.find(s => s.name === currentUser);
        if (!myself) {
-         alert("প্রোফাইল ডাটা পাওয়া যাচ্ছে না।");
+         alert("আপনার প্রোফাইল ডাটা পাওয়া যাচ্ছে না। রিফ্রেশ দিন।");
          return;
        }
        targetStaffId = myself.id;
     }
 
-    if (!targetStaffId) return alert("স্টাফ নির্বাচন করুন।");
-    
-    const staff = activeStaff.find(s => s.id === targetStaffId);
-    if (!staff) return alert("স্টাফ পাওয়া যায়নি।");
-
-    if (!formData.amount || Number(formData.amount) <= 0) return alert("টাকার পরিমাণ লিখুন।");
-    if (!formData.date) return alert("তারিখ দিন।");
-
-    if (role === UserRole.STAFF) {
-        const [y, m, d] = formData.date.split('-').map(Number);
-        const selectedDate = new Date(y, m - 1, d);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
-        const diffTime = today.getTime() - selectedDate.getTime();
-        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-        if (diffDays > 1) return alert(`স্টাফরা সর্বোচ্চ ১ দিন আগের বিল দিতে পারবে।`);
-        if (diffDays < 0) return alert("ভবিষ্যতের তারিখ দেওয়া যাবে না।");
+    if (!targetStaffId) {
+      alert("স্টাফ নির্বাচন করা হয়নি।");
+      return;
     }
 
+    const staff = activeStaff.find(s => s.id === targetStaffId);
+    if (!staff) {
+      alert("স্টাফ পাওয়া যায়নি।");
+      return;
+    }
+
+    // 2. Validate Amount
+    if (!formData.amount || Number(formData.amount) <= 0) {
+       alert("দয়া করে টাকার সঠিক পরিমাণ লিখুন।");
+       return;
+    }
+
+    // 3. Validate Date
+    if (!formData.date) {
+        alert("তারিখ নির্বাচন করুন।");
+        return;
+    }
+
+    // 4. Duplicate Check (Warning only)
+    let isDuplicate = false;
+    try {
+        isDuplicate = expenses.some(e => {
+            if (e.isDeleted || e.staffId !== targetStaffId) return false;
+            return getSafeDateStr(e.createdAt) === formData.date;
+        });
+    } catch (err) {
+        console.error("Duplicate check error", err);
+    }
+
+    if (isDuplicate) {
+      const confirmMsg = `সতর্কতা: ${staff.name}-এর জন্য ${new Date(formData.date).toLocaleDateString('bn-BD')} তারিখে ইতিমধ্যে একটি বিল সিস্টেমে আছে।\n\nআপনি কি নিশ্চিত যে এটি একটি আলাদা বিল এবং সাবমিট করতে চান?`;
+      if (!window.confirm(confirmMsg)) {
+        return; // User cancelled
+      }
+    }
+
+    // 5. Create Object
     const submitDate = new Date(formData.date);
     const now = new Date();
     submitDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
@@ -232,46 +469,50 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
     
     setExpenses(prev => [newExpense, ...prev]);
     setIsSubmitModalOpen(false);
-    setFormData({ staffId: '', amount: 0, reason: '', voucherImage: '', date: new Date().toISOString().split('T')[0] });
+    
+    setFormData({ 
+      staffId: '', 
+      amount: 0, 
+      reason: '', 
+      voucherImage: '', 
+      date: new Date().toISOString().split('T')[0] 
+    });
   };
 
   const updateStatus = (id: string, status: Expense['status']) => {
-    setStatusConfirmData({ id, status });
-  };
-
-  const confirmStatusUpdate = () => {
-    if (statusConfirmData) {
-      setExpenses(prev => prev.map(e => e.id === statusConfirmData.id ? { ...e, status: statusConfirmData.status } : e));
-      setStatusConfirmData(null);
+    if (status === 'REJECTED') {
+      if (!window.confirm('আপনি কি নিশ্চিত যে এই বিলটি বাতিল (Reject) করতে চান?')) return;
     }
+    if (status === 'APPROVED') {
+      if (!window.confirm('আপনি কি নিশ্চিত যে এই বিলটি অনুমোদন (Approve) করতে চান?')) return;
+    }
+    setExpenses(prev => prev.map(e => e.id === id ? { ...e, status } : e));
   };
 
-  const softDelete = (id: string) => {
-    setDeleteConfirmId(id);
+  const requestDelete = (expense: Expense) => {
+    setDeleteConfirmExpense(expense);
   };
 
   const confirmDelete = () => {
-    if (deleteConfirmId) {
-      setExpenses(prev => prev.map(e => e.id === deleteConfirmId ? { ...e, isDeleted: true } : e));
-      setDeleteConfirmId(null);
-    }
-  };
-
-  const handleClearHistory = () => {
-    const candidates = (expenses || []).filter(e => !e.isDeleted && (e.status === 'APPROVED' || e.status === 'REJECTED'));
-    const count = candidates.length;
-
-    if (count === 0) return alert('কোনো ডাটা নেই।');
-
-    if (window.confirm(`${count} টি পুরনো বিল (Approved/Rejected) ডিলিট করতে চান?`)) {
-      setExpenses(prev => prev.map(e => (e.status === 'APPROVED' || e.status === 'REJECTED') ? { ...e, isDeleted: true } : e));
-      alert('ক্লিন করা হয়েছে।');
+    if (deleteConfirmExpense) {
+      setExpenses(prev => prev.map(e => e.id === deleteConfirmExpense.id ? { ...e, isDeleted: true } : e));
+      setDeleteConfirmExpense(null);
     }
   };
 
   const handleApproveAll = () => {
-    if (window.confirm(`সব পেন্ডিং বিল অ্যাপ্রুভ করতে চান?`)) {
-      setExpenses(prev => prev.map(e => (!e.isDeleted && (e.status === 'PENDING' || e.status === 'VERIFIED')) ? { ...e, status: 'APPROVED' } : e));
+    const pendingCount = expenses.filter(e => !e.isDeleted && (e.status === 'PENDING' || e.status === 'VERIFIED')).length;
+    if (pendingCount === 0) {
+      alert('কোনো পেন্ডিং বা ভেরিফাইড বিল নেই।');
+      return;
+    }
+
+    if (window.confirm(`আপনি কি নিশ্চিত যে ${pendingCount} টি বিল একসাথে অ্যাপ্রুভ করতে চান?`)) {
+      setExpenses(prev => prev.map(e => 
+        (!e.isDeleted && (e.status === 'PENDING' || e.status === 'VERIFIED')) 
+          ? { ...e, status: 'APPROVED' } 
+          : e
+      ));
     }
   };
 
@@ -282,7 +523,13 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
       if (myself) initialStaffId = myself.id;
     }
     
-    setFormData({ staffId: initialStaffId, amount: 0, reason: '', voucherImage: '', date: new Date().toISOString().split('T')[0] });
+    setFormData({ 
+      staffId: initialStaffId, 
+      amount: 0, 
+      reason: '', 
+      voucherImage: '', 
+      date: new Date().toISOString().split('T')[0]
+    });
     setIsSubmitModalOpen(true);
   };
 
@@ -294,20 +541,23 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
 
   const saveCorrection = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!correctionData || !correctionData.date) return;
+    if (!correctionData) return;
     
     setExpenses(prev => prev.map(ex => {
       if (ex.id === correctionData.id) {
-        try {
-            const originalDate = new Date(ex.createdAt);
-            const [y, m, d] = correctionData.date.split('-').map(Number);
-            const updatedDate = new Date(originalDate);
-            updatedDate.setFullYear(y);
-            updatedDate.setMonth(m - 1);
-            updatedDate.setDate(d);
-            
-            return { ...ex, amount: Number(correctionData.amount), reason: correctionData.reason, createdAt: updatedDate.toISOString() };
-        } catch { return ex; }
+        const originalDate = new Date(ex.createdAt);
+        const [y, m, d] = correctionData.date.split('-').map(Number);
+        const updatedDate = new Date(originalDate);
+        updatedDate.setFullYear(y);
+        updatedDate.setMonth(m - 1);
+        updatedDate.setDate(d);
+
+        return { 
+          ...ex, 
+          amount: Number(correctionData.amount), 
+          reason: correctionData.reason,
+          createdAt: updatedDate.toISOString()
+        };
       }
       return ex;
     }));
@@ -316,1344 +566,449 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses = [], setExpen
     setCorrectionData(null);
   };
 
+  const clearFilters = () => {
+    setSearchTerm('');
+    setStartDate('');
+    setEndDate('');
+    setSelectedStaffFilter('');
+  };
+
   const getStaffDisplayId = (staffId: string) => {
-    const staff = (staffList || []).find(s => s.id === staffId);
+    const staff = staffList.find(s => s.id === staffId);
     return staff ? staff.staffId : '';
   };
 
-  // Helper to convert number to words (Simple version for demo)
-  const numberToWords = (num: number) => {
-     return `${num} Taka Only`;
-  };
-
-  // --- CORPORATE VOUCHER GENERATION ---
-  const generateApprovalVoucher = (expense: Expense) => {
-    const staff = (staffList || []).find(s => s.id === expense.staffId);
-    
-    // Ledger Calculation
-    const staffApprovedExpenses = (expenses || [])
-      .filter(e => !e.isDeleted && e.status === 'APPROVED' && e.staffId === expense.staffId)
-      .reduce((sum, e) => sum + Number(e.amount), 0);
-
-    const staffRegularAdvances = (advances || [])
-      .filter(a => !a.isDeleted && a.type !== 'SALARY' && a.staffId === expense.staffId)
-      .reduce((sum, a) => sum + Number(a.amount), 0);
-
-    const balance = staffRegularAdvances - staffApprovedExpenses;
-    let balanceText = '';
-    let balanceColor = '#16a34a'; // Green
-
-    if (balance < 0) {
-       balanceText = `Payable: ${Math.abs(balance).toLocaleString()} BDT`;
-       balanceColor = '#dc2626'; // Red
-    } else {
-       balanceText = `Cash In Hand: ${balance.toLocaleString()} BDT`;
-    }
-
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-
-    const voucherHtml = `
-      <!DOCTYPE html>
-      <html lang="en">
-      <head>
-        <meta charset="UTF-8">
-        <title>Payment Voucher #${expense.id}</title>
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-        <style>
-          @page { size: A4; margin: 0; }
-          body { 
-            font-family: 'Inter', sans-serif; 
-            background: #fff;
-            color: #1e293b; /* Slate 800 */
-            margin: 0;
-            padding: 40px;
-            -webkit-print-color-adjust: exact; 
-            print-color-adjust: exact;
-          }
-          
-          .voucher-box {
-            border: 1px solid #e2e8f0; /* Very light border */
-            padding: 40px;
-            max-width: 210mm;
-            margin: 0 auto;
-            position: relative;
-            background: white;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); /* Soft shadow for screen */
-          }
-
-          /* Header */
-          .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 40px;
-            padding-bottom: 20px;
-            border-bottom: 2px solid #f1f5f9; /* Light divider */
-          }
-
-          .company-logo {
-             width: 40px; 
-             height: 40px; 
-             background: #0f172a; 
-             border-radius: 8px;
-             display: flex;
-             align-items: center;
-             justify-content: center;
-             color: white;
-             font-weight: bold;
-             font-size: 20px;
-             margin-right: 12px;
-          }
-
-          .company-info h1 {
-            font-size: 24px;
-            font-weight: 800;
-            margin: 0;
-            text-transform: uppercase;
-            letter-spacing: -0.5px;
-            color: #0f172a;
-          }
-          .company-info p {
-            font-size: 11px;
-            margin: 4px 0 0;
-            color: #64748b;
-            font-weight: 500;
-            letter-spacing: 0.5px;
-          }
-
-          .voucher-meta {
-            text-align: right;
-          }
-          .voucher-badge {
-            background-color: #f8fafc;
-            color: #64748b;
-            padding: 6px 12px;
-            border-radius: 6px;
-            font-size: 10px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            display: inline-block;
-            margin-bottom: 8px;
-            border: 1px solid #e2e8f0;
-          }
-          .voucher-id {
-            font-size: 14px;
-            font-weight: 700;
-            color: #334155;
-            font-family: monospace;
-          }
-
-          /* Grid Layout for Info */
-          .info-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 40px;
-            margin-bottom: 40px;
-          }
-          
-          .info-group {
-            margin-bottom: 15px;
-          }
-          .info-label {
-            font-size: 10px;
-            color: #94a3b8;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 4px;
-            display: block;
-          }
-          .info-value {
-            font-size: 14px;
-            font-weight: 600;
-            color: #1e293b;
-            padding-bottom: 4px;
-            border-bottom: 1px solid #f1f5f9;
-            display: block;
-          }
-
-          /* Table Styling */
-          table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 30px;
-          }
-          th {
-            background-color: #f8fafc;
-            color: #475569;
-            font-size: 10px;
-            text-transform: uppercase;
-            font-weight: 700;
-            text-align: left;
-            padding: 12px 16px;
-            border-top: 1px solid #e2e8f0;
-            border-bottom: 1px solid #e2e8f0;
-          }
-          td {
-            padding: 16px;
-            font-size: 13px;
-            color: #334155;
-            border-bottom: 1px solid #f1f5f9;
-          }
-          .amount-cell {
-            text-align: right;
-            font-weight: 700;
-            font-family: monospace;
-            font-size: 14px;
-          }
-          .total-row td {
-            border-top: 2px solid #e2e8f0;
-            border-bottom: none;
-            font-weight: 800;
-            font-size: 16px;
-            color: #0f172a;
-            padding-top: 20px;
-          }
-
-          /* Ledger Box */
-          .ledger-summary {
-            background-color: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 50px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-          }
-          .ledger-item {
-            text-align: center;
-            flex: 1;
-          }
-          .ledger-label {
-            font-size: 9px;
-            font-weight: 700;
-            color: #64748b;
-            text-transform: uppercase;
-            display: block;
-            margin-bottom: 6px;
-            letter-spacing: 0.5px;
-          }
-          .ledger-value {
-            font-size: 14px;
-            font-weight: 700;
-            color: #334155;
-          }
-
-          /* Footer Signatures */
-          .footer {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 80px;
-            padding-top: 20px;
-          }
-          .signature-box {
-            width: 22%;
-            text-align: center;
-          }
-          .signature-line {
-            border-top: 1px solid #cbd5e1;
-            margin-bottom: 10px;
-          }
-          .signature-text {
-            font-size: 10px;
-            font-weight: 700;
-            color: #94a3b8;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-          }
-
-          /* Watermark */
-          .watermark {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%) rotate(-30deg);
-            font-size: 100px;
-            font-weight: 900;
-            color: rgba(241, 245, 249, 0.8); /* Very faint slate */
-            pointer-events: none;
-            z-index: 0;
-            white-space: nowrap;
-            user-select: none;
-          }
-
-          @media print {
-            body { background: white; padding: 0; margin: 0; }
-            .voucher-box { border: none; box-shadow: none; padding: 40px; }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="voucher-box">
-           <div class="watermark">OFFICE COPY</div>
-           
-           <div class="header">
-              <div style="display: flex; align-items: center;">
-                 <div class="company-logo">DS</div>
-                 <div class="company-info">
-                    <h1>Depend Sourcing Ltd.</h1>
-                    <p>Promise Beyond Business</p>
-                    <p>Head Office: A-14/8, Johir Complex, Savar, Dhaka.</p>
-                 </div>
-              </div>
-              <div class="voucher-meta">
-                 <div class="voucher-badge">Payment Voucher</div>
-                 <div class="voucher-id">#${expense.id.substring(0, 8).toUpperCase()}</div>
-                 <div style="font-size: 12px; color: #64748b; margin-top: 4px;">${new Date(expense.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
-              </div>
-           </div>
-
-           <div class="info-grid">
-              <div class="left-col">
-                 <div class="info-group">
-                    <span class="info-label">Pay To</span>
-                    <span class="info-value">${expense.staffName}</span>
-                 </div>
-                 <div class="info-group">
-                    <span class="info-label">Designation</span>
-                    <span class="info-value">${staff?.designation || 'Staff'}</span>
-                 </div>
-              </div>
-              <div class="right-col">
-                 <div class="info-group">
-                    <span class="info-label">Staff ID</span>
-                    <span class="info-value">${staff?.staffId || 'N/A'}</span>
-                 </div>
-                 <div class="info-group">
-                    <span class="info-label">Payment Mode</span>
-                    <span class="info-value">Cash / Adjustment</span>
-                 </div>
-              </div>
-           </div>
-
-           <table>
-              <thead>
-                 <tr>
-                    <th style="width: 10%">SL</th>
-                    <th style="width: 70%">Description</th>
-                    <th style="width: 20%; text-align: right;">Amount</th>
-                 </tr>
-              </thead>
-              <tbody>
-                 <tr>
-                    <td>01</td>
-                    <td>
-                       <span style="font-weight: 600; display: block; margin-bottom: 4px; color: #1e293b;">Expense Reimbursement</span>
-                       <span style="color: #64748b; font-size: 12px;">${expense.reason}</span>
-                    </td>
-                    <td class="amount-cell">৳ ${expense.amount.toLocaleString()}</td>
-                 </tr>
-                 <!-- Spacer Row -->
-                 <tr style="height: 60px;"><td></td><td></td><td></td></tr>
-                 <tr class="total-row">
-                    <td colspan="2" style="text-align: right; padding-right: 20px;">TOTAL AMOUNT</td>
-                    <td class="amount-cell">৳ ${expense.amount.toLocaleString()}</td>
-                 </tr>
-              </tbody>
-           </table>
-
-           <div style="font-size: 11px; color: #64748b; margin-bottom: 30px; font-style: italic; padding-left: 10px;">
-              <strong>In Words:</strong> ${expense.amount} Taka Only (approx).
-           </div>
-
-           <div class="ledger-summary">
-              <div class="ledger-item">
-                 <span class="ledger-label">Total Expenses</span>
-                 <span class="ledger-value">৳ ${staffApprovedExpenses.toLocaleString()}</span>
-              </div>
-              <div style="width: 1px; height: 30px; background: #e2e8f0;"></div>
-              <div class="ledger-item">
-                 <span class="ledger-label">Total Advance</span>
-                 <span class="ledger-value">৳ ${staffRegularAdvances.toLocaleString()}</span>
-              </div>
-              <div style="width: 1px; height: 30px; background: #e2e8f0;"></div>
-              <div class="ledger-item">
-                 <span class="ledger-label">Net Balance</span>
-                 <span class="ledger-value" style="color: ${balanceColor}">${balanceText}</span>
-              </div>
-           </div>
-
-           <div class="footer">
-              <div class="signature-box">
-                 <div class="signature-line"></div>
-                 <div class="signature-text">Prepared By</div>
-              </div>
-              <div class="signature-box">
-                 <div class="signature-line"></div>
-                 <div class="signature-text">Verified By</div>
-              </div>
-              <div class="signature-box">
-                 <div class="signature-line"></div>
-                 <div class="signature-text">Authorized By</div>
-              </div>
-              <div class="signature-box">
-                 <div class="signature-line"></div>
-                 <div class="signature-text">Receiver</div>
-              </div>
-           </div>
-        </div>
-        <script>window.onload = () => { setTimeout(() => { window.print(); }, 800); };</script>
-      </body>
-      </html>
-    `;
-
-    printWindow.document.write(voucherHtml);
-    printWindow.document.close();
-  };
-
-  const handleBulkDownloadLastVouchers = () => {
-    if (role !== UserRole.ADMIN) return;
-
-    const latestVouchers: Expense[] = [];
-    
-    // Iterate active staff to ensure we get one per staff
-    activeStaff.forEach(staff => {
-        const staffExpenses = expenses.filter(e => 
-            !e.isDeleted && 
-            e.status === 'APPROVED' && 
-            e.staffId === staff.id
-        ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-        if (staffExpenses.length > 0) {
-            latestVouchers.push(staffExpenses[0]);
-        }
-    });
-
-    if (latestVouchers.length === 0) {
-        alert("কোনো অনুমোদিত ভাউচার পাওয়া যায়নি।");
-        return;
-    }
-
-    // Generate HTML
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-
-    let vouchersHtml = '';
-
-    latestVouchers.forEach((expense, index) => {
-        const staff = staffList.find(s => s.id === expense.staffId);
-        
-        // Ledger Calculation (Same as individual voucher)
-        const staffApprovedExpenses = expenses
-          .filter(e => !e.isDeleted && e.status === 'APPROVED' && e.staffId === expense.staffId)
-          .reduce((sum, e) => sum + Number(e.amount), 0);
-
-        const staffRegularAdvances = advances
-          .filter(a => !a.isDeleted && a.type !== 'SALARY' && a.staffId === expense.staffId)
-          .reduce((sum, a) => sum + Number(a.amount), 0);
-
-        const balance = staffRegularAdvances - staffApprovedExpenses;
-        let balanceText = '';
-        let balanceColor = '#16a34a'; 
-
-        if (balance < 0) {
-           balanceText = `Payable: ${Math.abs(balance).toLocaleString()} BDT`;
-           balanceColor = '#dc2626';
-        } else {
-           balanceText = `Cash In Hand: ${balance.toLocaleString()} BDT`;
-        }
-
-        vouchersHtml += `
-            <div class="voucher-wrapper" style="page-break-after: always; height: 100vh; display: flex; flex-direction: column; justify-content: center;">
-                <div class="voucher-box">
-                   <div class="watermark">OFFICE COPY</div>
-                   
-                   <div class="header">
-                      <div style="display: flex; align-items: center;">
-                         <div class="company-logo">DS</div>
-                         <div class="company-info">
-                            <h1>Depend Sourcing Ltd.</h1>
-                            <p>Promise Beyond Business</p>
-                            <p>Head Office: A-14/8, Johir Complex, Savar, Dhaka.</p>
-                         </div>
-                      </div>
-                      <div class="voucher-meta">
-                         <div class="voucher-badge">Payment Voucher</div>
-                         <div class="voucher-id">#${expense.id.substring(0, 8).toUpperCase()}</div>
-                         <div style="font-size: 12px; color: #64748b; margin-top: 4px;">${new Date(expense.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
-                      </div>
-                   </div>
-
-                   <div class="info-grid">
-                      <div class="left-col">
-                         <div class="info-group">
-                            <span class="info-label">Pay To</span>
-                            <span class="info-value">${expense.staffName}</span>
-                         </div>
-                         <div class="info-group">
-                            <span class="info-label">Designation</span>
-                            <span class="info-value">${staff?.designation || 'Staff'}</span>
-                         </div>
-                      </div>
-                      <div class="right-col">
-                         <div class="info-group">
-                            <span class="info-label">Staff ID</span>
-                            <span class="info-value">${staff?.staffId || 'N/A'}</span>
-                         </div>
-                         <div class="info-group">
-                            <span class="info-label">Payment Mode</span>
-                            <span class="info-value">Cash / Adjustment</span>
-                         </div>
-                      </div>
-                   </div>
-
-                   <table>
-                      <thead>
-                         <tr>
-                            <th style="width: 10%">SL</th>
-                            <th style="width: 70%">Description</th>
-                            <th style="width: 20%; text-align: right;">Amount</th>
-                         </tr>
-                      </thead>
-                      <tbody>
-                         <tr>
-                            <td>01</td>
-                            <td>
-                               <span style="font-weight: 600; display: block; margin-bottom: 4px; color: #1e293b;">Expense Reimbursement</span>
-                               <span style="color: #64748b; font-size: 12px;">${expense.reason}</span>
-                            </td>
-                            <td class="amount-cell">৳ ${expense.amount.toLocaleString()}</td>
-                         </tr>
-                         <tr style="height: 60px;"><td></td><td></td><td></td></tr>
-                         <tr class="total-row">
-                            <td colspan="2" style="text-align: right; padding-right: 20px;">TOTAL AMOUNT</td>
-                            <td class="amount-cell">৳ ${expense.amount.toLocaleString()}</td>
-                         </tr>
-                      </tbody>
-                   </table>
-
-                   <div style="font-size: 11px; color: #64748b; margin-bottom: 30px; font-style: italic; padding-left: 10px;">
-                      <strong>In Words:</strong> ${expense.amount} Taka Only (approx).
-                   </div>
-
-                   <div class="ledger-summary">
-                      <div class="ledger-item">
-                         <span class="ledger-label">Total Expenses</span>
-                         <span class="ledger-value">৳ ${staffApprovedExpenses.toLocaleString()}</span>
-                      </div>
-                      <div style="width: 1px; height: 30px; background: #e2e8f0;"></div>
-                      <div class="ledger-item">
-                         <span class="ledger-label">Total Advance</span>
-                         <span class="ledger-value">৳ ${staffRegularAdvances.toLocaleString()}</span>
-                      </div>
-                      <div style="width: 1px; height: 30px; background: #e2e8f0;"></div>
-                      <div class="ledger-item">
-                         <span class="ledger-label">Net Balance</span>
-                         <span class="ledger-value" style="color: ${balanceColor}">${balanceText}</span>
-                      </div>
-                   </div>
-
-                   <div class="footer">
-                      <div class="signature-box">
-                         <div class="signature-line"></div>
-                         <div class="signature-text">Prepared By</div>
-                      </div>
-                      <div class="signature-box">
-                         <div class="signature-line"></div>
-                         <div class="signature-text">Verified By</div>
-                      </div>
-                      <div class="signature-box">
-                         <div class="signature-line"></div>
-                         <div class="signature-text">Authorized By</div>
-                      </div>
-                      <div class="signature-box">
-                         <div class="signature-line"></div>
-                         <div class="signature-text">Receiver</div>
-                      </div>
-                   </div>
-                </div>
-            </div>
-        `;
-    });
-
-    const finalHtml = `
-      <!DOCTYPE html>
-      <html lang="en">
-      <head>
-        <meta charset="UTF-8">
-        <title>Bulk Vouchers - ${new Date().toLocaleDateString()}</title>
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-        <style>
-          @page { size: A4; margin: 0; }
-          body { 
-            font-family: 'Inter', sans-serif; 
-            background: #fff;
-            color: #1e293b;
-            margin: 0;
-            padding: 0;
-            -webkit-print-color-adjust: exact; 
-            print-color-adjust: exact;
-          }
-          
-          .voucher-box {
-            border: 1px solid #e2e8f0; 
-            padding: 40px;
-            max-width: 210mm;
-            margin: 0 auto;
-            position: relative;
-            background: white;
-            /* box-shadow removed for print optimization */
-          }
-
-          /* Header */
-          .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 40px;
-            padding-bottom: 20px;
-            border-bottom: 2px solid #f1f5f9;
-          }
-
-          .company-logo {
-             width: 40px; 
-             height: 40px; 
-             background: #0f172a; 
-             border-radius: 8px;
-             display: flex;
-             align-items: center;
-             justify-content: center;
-             color: white;
-             font-weight: bold;
-             font-size: 20px;
-             margin-right: 12px;
-          }
-
-          .company-info h1 {
-            font-size: 24px;
-            font-weight: 800;
-            margin: 0;
-            text-transform: uppercase;
-            letter-spacing: -0.5px;
-            color: #0f172a;
-          }
-          .company-info p {
-            font-size: 11px;
-            margin: 4px 0 0;
-            color: #64748b;
-            font-weight: 500;
-            letter-spacing: 0.5px;
-          }
-
-          .voucher-meta {
-            text-align: right;
-          }
-          .voucher-badge {
-            background-color: #f8fafc;
-            color: #64748b;
-            padding: 6px 12px;
-            border-radius: 6px;
-            font-size: 10px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            display: inline-block;
-            margin-bottom: 8px;
-            border: 1px solid #e2e8f0;
-          }
-          .voucher-id {
-            font-size: 14px;
-            font-weight: 700;
-            color: #334155;
-            font-family: monospace;
-          }
-
-          /* Grid Layout for Info */
-          .info-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 40px;
-            margin-bottom: 40px;
-          }
-          
-          .info-group {
-            margin-bottom: 15px;
-          }
-          .info-label {
-            font-size: 10px;
-            color: #94a3b8;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 4px;
-            display: block;
-          }
-          .info-value {
-            font-size: 14px;
-            font-weight: 600;
-            color: #1e293b;
-            padding-bottom: 4px;
-            border-bottom: 1px solid #f1f5f9;
-            display: block;
-          }
-
-          /* Table Styling */
-          table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 30px;
-          }
-          th {
-            background-color: #f8fafc;
-            color: #475569;
-            font-size: 10px;
-            text-transform: uppercase;
-            font-weight: 700;
-            text-align: left;
-            padding: 12px 16px;
-            border-top: 1px solid #e2e8f0;
-            border-bottom: 1px solid #e2e8f0;
-          }
-          td {
-            padding: 16px;
-            font-size: 13px;
-            color: #334155;
-            border-bottom: 1px solid #f1f5f9;
-          }
-          .amount-cell {
-            text-align: right;
-            font-weight: 700;
-            font-family: monospace;
-            font-size: 14px;
-          }
-          .total-row td {
-            border-top: 2px solid #e2e8f0;
-            border-bottom: none;
-            font-weight: 800;
-            font-size: 16px;
-            color: #0f172a;
-            padding-top: 20px;
-          }
-
-          /* Ledger Box */
-          .ledger-summary {
-            background-color: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 50px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-          }
-          .ledger-item {
-            text-align: center;
-            flex: 1;
-          }
-          .ledger-label {
-            font-size: 9px;
-            font-weight: 700;
-            color: #64748b;
-            text-transform: uppercase;
-            display: block;
-            margin-bottom: 6px;
-            letter-spacing: 0.5px;
-          }
-          .ledger-value {
-            font-size: 14px;
-            font-weight: 700;
-            color: #334155;
-          }
-
-          /* Footer Signatures */
-          .footer {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 80px;
-            padding-top: 20px;
-          }
-          .signature-box {
-            width: 22%;
-            text-align: center;
-          }
-          .signature-line {
-            border-top: 1px solid #cbd5e1;
-            margin-bottom: 10px;
-          }
-          .signature-text {
-            font-size: 10px;
-            font-weight: 700;
-            color: #94a3b8;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-          }
-
-          /* Watermark */
-          .watermark {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%) rotate(-30deg);
-            font-size: 100px;
-            font-weight: 900;
-            color: rgba(241, 245, 249, 0.5); /* Faint slate */
-            pointer-events: none;
-            z-index: 0;
-            white-space: nowrap;
-            user-select: none;
-          }
-
-          @media print {
-            body { background: white; padding: 0; margin: 0; }
-            .voucher-wrapper {
-               break-inside: avoid;
-               height: 100vh;
-               width: 100%;
-               display: flex;
-               flex-direction: column;
-               justify-content: center;
-            }
-            .voucher-box { border: none; padding: 40px; margin: 0 auto; width: 100%; max-width: 210mm; }
-          }
-        </style>
-      </head>
-      <body>
-        ${vouchersHtml}
-        <script>window.onload = () => { setTimeout(() => { window.print(); }, 1000); };</script>
-      </body>
-      </html>
-    `;
-
-    printWindow.document.write(finalHtml);
-    printWindow.document.close();
-  };
-
-  const getStatusStyles = (status: Expense['status']) => {
-    switch(status) {
-      case 'APPROVED': return { 
-        bg: 'bg-green-100', text: 'text-green-700', 
-        cardBg: 'bg-gradient-to-br from-white to-green-50/50',
-        border: 'border-green-100 hover:border-green-200',
-        shadow: 'hover:shadow-green-100'
-      };
-      case 'PENDING': return { 
-        bg: 'bg-orange-100', text: 'text-orange-700',
-        cardBg: 'bg-gradient-to-br from-white to-orange-50/50',
-        border: 'border-orange-100 hover:border-orange-200',
-        shadow: 'hover:shadow-orange-100'
-      };
-      case 'VERIFIED': return { 
-        bg: 'bg-blue-100', text: 'text-blue-700',
-        cardBg: 'bg-gradient-to-br from-white to-blue-50/50',
-        border: 'border-blue-100 hover:border-blue-200',
-        shadow: 'hover:shadow-blue-100'
-      };
-      case 'REJECTED': return { 
-        bg: 'bg-red-100', text: 'text-red-700',
-        cardBg: 'bg-gradient-to-br from-white to-red-50/50',
-        border: 'border-red-100 hover:border-red-200',
-        shadow: 'hover:shadow-red-100'
-      };
-      default: return { 
-        bg: 'bg-gray-100', text: 'text-gray-700',
-        cardBg: 'bg-white',
-        border: 'border-gray-100',
-        shadow: 'hover:shadow-gray-100'
-      };
-    }
-  };
-
-  // --- NEW VOUCHER LOGIC (Image Download) ---
-  const downloadVoucherImage = async () => {
-    if (voucherRef.current) {
-      setIsDownloading(true);
-      try {
-        const html2canvas = (window as any).html2canvas;
-        if (!html2canvas) {
-           alert("html2canvas library not loaded. Please check your internet connection.");
-           return;
-        }
-        
-        // Optimization: Temporarily remove shadow for faster rendering
-        const originalShadow = voucherRef.current.style.boxShadow;
-        voucherRef.current.style.boxShadow = 'none';
-
-        const canvas = await html2canvas(voucherRef.current, {
-          scale: 1, // Reduced from 1.5 to 1 for speed
-          backgroundColor: '#ffffff',
-          useCORS: true,
-          logging: false,
-          allowTaint: true,
-          imageTimeout: 0,
-          removeContainer: true,
-        });
-
-        // Restore shadow
-        voucherRef.current.style.boxShadow = originalShadow;
-
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.7); // Slightly lower quality for speed
-        const link = document.createElement('a');
-        link.href = dataUrl;
-        link.download = `Voucher_${voucherPreviewData?.id}.jpg`;
-        link.click();
-      } catch (e) {
-        console.error("Voucher download failed", e);
-        alert("ডাউনলোডে সমস্যা হয়েছে। আবার চেষ্টা করুন।");
-      } finally {
-        setIsDownloading(false);
-      }
-    }
-  };
-
-  const getVoucherData = () => {
-    if (!voucherPreviewData) return null;
-    
-    // Calculate ledger for the preview
-    const staffApprovedExpenses = (expenses || [])
-      .filter(e => !e.isDeleted && e.status === 'APPROVED' && e.staffId === voucherPreviewData.staffId)
-      .reduce((sum, e) => sum + Number(e.amount), 0);
-
-    const staffRegularAdvances = (advances || [])
-      .filter(a => !a.isDeleted && a.type !== 'SALARY' && a.staffId === voucherPreviewData.staffId)
-      .reduce((sum, a) => sum + Number(a.amount), 0);
-
-    const balance = staffRegularAdvances - staffApprovedExpenses;
-    const staffInfo = (staffList || []).find(s => s.id === voucherPreviewData.staffId);
-
-    return {
-       ...voucherPreviewData,
-       designation: staffInfo?.designation || 'Staff',
-       staffDisplayId: staffInfo?.staffId || 'N/A',
-       balance,
-       totalExp: staffApprovedExpenses,
-       totalAdv: staffRegularAdvances
-    };
-  };
-
   return (
-    <div className="space-y-8">
-      {/* Header Section with Modern Card Look */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-        <div>
-            <h2 className="text-2xl font-black text-gray-800 tracking-tight">
-                খরচ ও ভাউচার ম্যানেজমেন্ট
-            </h2>
-            <p className="text-sm text-gray-500 font-medium mt-1">
-                সকল বিল, খরচ এবং ভাউচার একজায়গায় নিয়ন্ত্রণ করুন
-            </p>
-        </div>
-        
-        <div className="flex flex-wrap gap-3">
-          {/* Admin Buttons */}
-          {(role === UserRole.ADMIN) && (
-             <button
-               onClick={handleBulkDownloadLastVouchers}
-               className="group relative overflow-hidden bg-white border border-purple-200 text-purple-700 px-5 py-2.5 rounded-xl font-bold hover:border-purple-300 hover:text-purple-800 transition-all shadow-sm hover:shadow-md flex items-center gap-2"
-             >
-               <span className="absolute inset-0 w-full h-full bg-purple-50/50 transform -translate-x-full group-hover:translate-x-0 transition-transform duration-300"></span>
-               <Files className="w-4 h-4 relative z-10" />
-               <span className="relative z-10">সকল ভাউচার</span>
-             </button>
-          )}
-          
-          {(role === UserRole.ADMIN || role === UserRole.MD) && (
-             <button 
-               onClick={handleClearHistory} 
-               className="group relative overflow-hidden bg-white border border-red-200 text-red-600 px-5 py-2.5 rounded-xl font-bold hover:border-red-300 hover:text-red-700 transition-all shadow-sm hover:shadow-md flex items-center gap-2"
-             >
-                <span className="absolute inset-0 w-full h-full bg-red-50/50 transform -translate-x-full group-hover:translate-x-0 transition-transform duration-300"></span>
-                <Eraser className="w-4 h-4 relative z-10" /> 
-                <span className="relative z-10">হিস্ট্রি ক্লিন</span>
-             </button>
-          )}
-
-          {(role === UserRole.ADMIN || role === UserRole.STAFF) && (
-            <button 
-                onClick={handleOpenSubmitModal} 
-                className="bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-6 py-2.5 rounded-xl font-bold hover:shadow-lg hover:shadow-indigo-200 hover:-translate-y-0.5 transition-all flex items-center gap-2"
-            >
-                <Receipt className="w-5 h-5" /> 
-                নতুন বিল সাবমিট
-            </button>
-          )}
-
-          {role === UserRole.MD && (
-            <button 
-                onClick={handleApproveAll} 
-                className="bg-gradient-to-r from-emerald-500 to-green-600 text-white px-6 py-2.5 rounded-xl font-bold hover:shadow-lg hover:shadow-green-200 hover:-translate-y-0.5 transition-all flex items-center gap-2"
-            >
-                <CheckCheck className="w-5 h-5" /> 
-                সব অ্যাপ্রুভ
-            </button>
-          )}
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-2">
+        <h2 className="text-xl font-bold text-gray-800">খরচ ও ভাউচার ম্যানেজমেন্ট</h2>
+        <div className="flex flex-wrap gap-2">
+            {(role === UserRole.ADMIN || role === UserRole.MD) && (
+               <>
+                 <button
+                   onClick={handleBulkDownload}
+                   disabled={isBulkDownloading}
+                   className="h-9 px-4 rounded-full bg-white text-indigo-600 hover:bg-indigo-50 border border-indigo-100 font-bold text-[10px] uppercase tracking-wider transition-all shadow-sm flex items-center gap-2 outline-none disabled:opacity-50"
+                   title="Download Last Approved Vouchers for All Staff"
+                 >
+                   {isBulkDownloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Images className="w-3.5 h-3.5" />} 
+                   <span>{isBulkDownloading ? `Processing ${bulkProgress}...` : 'Daily Vouchers'}</span>
+                 </button>
+               </>
+            )}
+            
+            {(role === UserRole.ADMIN || role === UserRole.STAFF) && (
+              <button 
+                onClick={handleOpenSubmitModal}
+                className="h-9 px-5 rounded-full bg-indigo-600 text-white hover:bg-indigo-700 font-bold text-[10px] uppercase tracking-wider transition-all shadow-lg shadow-indigo-200 flex items-center gap-2 outline-none active:scale-95"
+              >
+                <Receipt className="w-3.5 h-3.5" /> <span className="whitespace-nowrap">New Bill</span>
+              </button>
+            )}
+            
+            {role === UserRole.MD && (
+              <button 
+                onClick={handleApproveAll}
+                className="h-9 px-5 rounded-full bg-emerald-500 text-white hover:bg-emerald-600 font-bold text-[10px] uppercase tracking-wider transition-all shadow-lg shadow-emerald-200 flex items-center gap-2 outline-none active:scale-95"
+              >
+                <CheckCheck className="w-3.5 h-3.5" /> <span className="whitespace-nowrap">Approve All</span>
+              </button>
+            )}
         </div>
       </div>
 
-      {/* Compact Filter Bar - Ultra Premium Light Design */}
-      <div className="bg-white/80 backdrop-blur-xl p-3 rounded-[2rem] shadow-lg shadow-slate-200/50 border border-white/20 flex flex-col md:flex-row items-center gap-3 mb-8 sticky top-0 z-20">
-        
-        {/* Search */}
-        <div className="relative flex-1 w-full group">
-            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <Search className="h-4 w-4 text-indigo-300 group-focus-within:text-indigo-500 transition-colors duration-300" />
+      {/* Filter Bar */}
+      <div className="bg-white/80 backdrop-blur-xl p-1.5 rounded-[2rem] shadow-sm shadow-indigo-100/50 border border-white/50 flex flex-col lg:flex-row items-center gap-2 mb-6 transition-all">
+        <div className="relative flex-1 w-full lg:w-auto group">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search className="h-3.5 w-3.5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
             </div>
             <input 
                 type="text" 
-                placeholder="নাম, কারণ বা টাকা..." 
-                className="block w-full pl-11 pr-4 py-3 bg-slate-50/50 border border-slate-100 rounded-full text-sm font-semibold text-slate-600 focus:bg-white focus:border-indigo-100 focus:ring-4 focus:ring-indigo-50/50 transition-all duration-300 placeholder:text-slate-400 outline-none hover:bg-slate-50 shadow-md shadow-indigo-100/20" 
+                placeholder="Search..." 
+                className="block w-full pl-9 pr-4 py-2 bg-slate-50/50 border-none rounded-full text-xs font-bold text-slate-600 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all placeholder:text-slate-400 outline-none h-9 shadow-sm" 
                 value={searchTerm} 
                 onChange={(e) => setSearchTerm(e.target.value)} 
             />
         </div>
 
-        {/* Staff Filter (Admin/MD) */}
         {(role === UserRole.ADMIN || role === UserRole.MD) && (
-          <div className="relative w-full md:w-48 group">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <User className="h-4 w-4 text-purple-300 group-focus-within:text-purple-500 transition-colors duration-300" />
+          <div className="relative w-full lg:w-40 group">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <User className="h-3.5 w-3.5 text-slate-400 group-focus-within:text-purple-500 transition-colors" />
               </div>
               <select 
-                  className="block w-full pl-10 pr-8 py-3 bg-slate-50/50 border border-slate-100 rounded-full text-sm font-semibold text-slate-600 focus:bg-white focus:border-purple-100 focus:ring-4 focus:ring-purple-50/50 transition-all duration-300 appearance-none cursor-pointer outline-none hover:bg-slate-50" 
+                  className="block w-full pl-9 pr-8 py-2 bg-slate-50/50 border-none rounded-full text-xs font-bold text-slate-600 focus:bg-white focus:ring-2 focus:ring-purple-100 transition-all appearance-none cursor-pointer outline-none h-9" 
                   value={selectedStaffFilter} 
                   onChange={(e) => setSelectedStaffFilter(e.target.value)}
               >
-                <option value="">সকল স্টাফ</option>
-                {allStaffForFilter.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                <option value="">All Staff</option>
+                {activeStaff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
-              <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
-                  <ChevronDown className="h-3 w-3 text-slate-400" />
+              <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                  <ChevronDown className="h-3 w-3 text-slate-300" />
               </div>
           </div>
         )}
 
-        {/* Date Range Group */}
-        <div className="flex items-center gap-2 w-full md:w-auto bg-slate-50/50 p-1 rounded-full border border-slate-100 shadow-sm">
-            <div className="relative flex-1 md:w-auto group">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none gap-1">
-                    <Calendar className="h-3.5 w-3.5 text-blue-300 group-focus-within:text-blue-500 transition-colors duration-300" />
-                    <span className="text-[10px] font-bold text-slate-400 group-focus-within:text-blue-400">শুরু</span>
-                </div>
+        <div className="flex items-center bg-slate-50/50 rounded-full px-1 py-1 border border-slate-100/50 h-9 w-full lg:w-auto">
+            <div className="relative flex-1 min-w-[100px]">
                 <input 
                     type="date" 
-                    className="block w-full pl-14 pr-3 py-2 bg-transparent border-none rounded-full text-xs font-bold text-slate-600 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all outline-none cursor-pointer min-w-[130px]" 
+                    className="block w-full pl-3 pr-1 py-1 bg-transparent border-none text-[10px] font-bold text-slate-500 focus:ring-0 cursor-pointer h-full outline-none" 
                     value={startDate} 
                     onChange={(e) => setStartDate(e.target.value)} 
                 />
             </div>
-            <span className="text-slate-300 font-bold text-xs">থেকে</span>
-            <div className="relative flex-1 md:w-auto group">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none gap-1">
-                    <Calendar className="h-3.5 w-3.5 text-blue-300 group-focus-within:text-blue-500 transition-colors duration-300" />
-                    <span className="text-[10px] font-bold text-slate-400 group-focus-within:text-blue-400">শেষ</span>
-                </div>
+            <span className="text-slate-300 text-[10px] font-bold px-1">to</span>
+            <div className="relative flex-1 min-w-[100px]">
                 <input 
                     type="date" 
-                    className="block w-full pl-14 pr-3 py-2 bg-transparent border-none rounded-full text-xs font-bold text-slate-600 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all outline-none cursor-pointer min-w-[130px]" 
+                    className="block w-full pl-1 pr-3 py-1 bg-transparent border-none text-[10px] font-bold text-slate-500 focus:ring-0 cursor-pointer h-full text-right outline-none" 
                     value={endDate} 
                     onChange={(e) => setEndDate(e.target.value)} 
                 />
             </div>
         </div>
 
-        {/* Reset Button */}
-        <button 
-            onClick={() => { setSearchTerm(''); setSelectedStaffFilter(''); setStartDate(''); setEndDate(''); }} 
-            className="p-3 bg-white text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all active:scale-95 border border-slate-100 hover:border-red-100 shrink-0 shadow-sm"
-            title="রিসেট"
-        >
-            <FilterX className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-1.5 w-full lg:w-auto justify-end">
+            <button 
+                onClick={clearFilters} 
+                className="w-9 h-9 flex items-center justify-center bg-white text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all border border-slate-100 shadow-sm outline-none"
+                title="Reset Filters"
+            >
+                <FilterX className="w-3.5 h-3.5" />
+            </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredExpenses.map((expense) => {
           const expenseDateStr = getSafeDateStr(expense.createdAt);
-          const isDuplicate = expenses.filter(e => !e.isDeleted && e.staffId === expense.staffId && getSafeDateStr(e.createdAt) === expenseDateStr).length > 1;
-          const styles = getStatusStyles(expense.status);
-          const staffMember = (staffList || []).find(s => s.id === expense.staffId);
+          const isDuplicate = expenses.filter(e => 
+             !e.isDeleted && 
+             e.staffId === expense.staffId && 
+             getSafeDateStr(e.createdAt) === expenseDateStr
+          ).length > 1;
+
+          const staffMember = staffList.find(s => s.id === expense.staffId);
 
           return (
-          <div key={expense.id} className={`group relative rounded-2xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:-translate-y-1 transition-all duration-300 flex flex-col overflow-hidden ${styles.cardBg} ${styles.border} ${styles.shadow}`}>
-            
-            <div className="absolute top-0 right-0 p-4 opacity-[0.03] transform group-hover:scale-110 transition-transform duration-500 pointer-events-none">
-               <Receipt className="w-32 h-32" />
-            </div>
-
-            <div className="p-5 flex-1 relative z-10">
+          <div key={expense.id} className={`bg-white rounded-2xl shadow-sm border overflow-hidden flex flex-col hover:shadow-md transition-all ${isDuplicate && (role === UserRole.ADMIN || role === UserRole.MD) ? 'border-red-300 ring-2 ring-red-100' : 'border-gray-100'}`}>
+            <div className="p-5 flex-1">
+              <div className="flex justify-between items-start mb-4">
+                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
+                  expense.status === 'APPROVED' ? 'bg-green-100 text-green-700' : 
+                  expense.status === 'REJECTED' ? 'bg-red-100 text-red-700' :
+                  expense.status === 'VERIFIED' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'
+                }`}>
+                  {expense.status === 'PENDING' ? 'পেন্ডিং' : expense.status === 'VERIFIED' ? 'ভেরিফাইড (MD)' : expense.status === 'APPROVED' ? 'অনুমোদিত' : 'প্রত্যাখ্যাত'}
+                </span>
+                
+                <div className="flex items-center gap-2">
+                  {((role === UserRole.ADMIN || role === UserRole.MD) && (expense.status === 'PENDING' || expense.status === 'VERIFIED')) && (
+                    <button 
+                      onClick={() => openCorrectionModal(expense)}
+                      className="text-orange-500 hover:text-orange-700 transition-colors p-1 hover:bg-orange-50 rounded-full"
+                      title="বিল সংশোধন করুন"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+                  )}
+                  {expense.voucherImage && (
+                    <button 
+                      onClick={() => setViewingVoucher(expense.voucherImage!)}
+                      className="text-indigo-600 hover:text-indigo-800 transition-colors p-1 hover:bg-indigo-50 rounded-full"
+                      title="ভাউচার দেখুন"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </button>
+                  )}
+                  <p className="text-xs text-gray-400">{new Date(expense.createdAt).toLocaleDateString('bn-BD')}</p>
+                </div>
+              </div>
+              
+              <h4 className="text-lg font-bold text-gray-800 mb-1">৳ {expense.amount.toLocaleString()}</h4>
+              <p className="text-sm text-gray-600 mb-4 font-medium h-10 line-clamp-2">{expense.reason}</p>
+              
               {isDuplicate && (role === UserRole.ADMIN || role === UserRole.MD) && (
-                 <div className="mb-3 bg-red-50 border-l-4 border-red-500 p-3 rounded-r-lg animate-pulse"><div className="flex items-center gap-2"><ShieldAlert className="w-5 h-5 text-red-600" /><h4 className="text-xs font-black text-red-700 uppercase">ডুপ্লিকেট বিল ডিটেক্টেড!</h4></div><p className="text-[10px] text-red-600 mt-1 font-medium leading-tight">এই তারিখে এই স্টাফের আরও একটি বিল আছে। দয়া করে চেক করুন।</p></div>
+                 <div className="mb-3 bg-red-100 text-red-700 px-3 py-2 rounded-lg text-[10px] font-black flex items-center gap-1.5 border border-red-200 animate-pulse">
+                    <AlertTriangle className="w-4 h-4" />
+                    সতর্কতা: একই তারিখে একাধিক বিল (Duplicate)!
+                 </div>
               )}
 
-              <div className="flex justify-between items-center mb-3">
-                <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${styles.bg} ${styles.text}`}>
-                  {expense.status === 'PENDING' ? 'Waiting' : expense.status}
-                </span>
-                <span className="text-[10px] font-bold text-gray-400 bg-white/50 backdrop-blur-sm px-2 py-1 rounded-md border border-gray-100">
-                   {new Date(expense.createdAt).toLocaleDateString('bn-BD', { day: 'numeric', month: 'short' })}
-                </span>
-              </div>
-              
-              <div className="mb-2">
-                 <h4 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-gray-900 to-gray-600 group-hover:from-indigo-600 group-hover:to-purple-600 transition-all">৳ {expense.amount.toLocaleString()}</h4>
+              <div className="flex items-center gap-3 py-3 border-t border-gray-50">
+                <div 
+                  onClick={() => onOpenProfile && onOpenProfile(expense.staffId)}
+                  className="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-xs cursor-pointer hover:ring-2 hover:ring-indigo-200 transition-all overflow-hidden"
+                >
+                  {staffMember && staffMember.photo ? (
+                    <img src={staffMember.photo} alt={expense.staffName} className="w-full h-full object-cover" />
+                  ) : (
+                    expense.staffName[0]
+                  )}
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-gray-700">{expense.staffName}</p>
+                  <p className="text-[10px] text-gray-400">ID: {getStaffDisplayId(expense.staffId)}</p>
+                </div>
               </div>
 
-              <p className="text-sm text-gray-600 font-medium line-clamp-2 leading-relaxed h-10 mb-4">{expense.reason}</p>
-              
-              <div className="h-px w-full bg-gray-100/50 mb-4"></div>
-
-              <div className="flex justify-between items-end">
-                 <div 
-                   className="flex items-center gap-2.5 cursor-pointer hover:scale-105 transition-transform" 
-                   onClick={() => onOpenProfile && onOpenProfile(expense.staffId)}
-                 >
-                    <div className="w-9 h-9 rounded-full bg-white border border-gray-100 flex items-center justify-center text-indigo-700 font-bold text-xs shadow-sm overflow-hidden shrink-0">
-                       {staffMember && staffMember.photo ? <img src={staffMember.photo} alt={expense.staffName} className="w-full h-full object-cover" /> : (expense.staffName || '?')[0]}
-                    </div>
-                    <div>
-                       <p className="text-xs font-bold text-gray-700 line-clamp-1 hover:text-indigo-600 hover:underline">{expense.staffName}</p>
-                       <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">{getStaffDisplayId(expense.staffId)}</p>
-                    </div>
+              {expense.status === 'APPROVED' && (
+                 <div className="mt-3 flex gap-2">
+                    <button 
+                      onClick={() => handleDownloadPNG(expense)}
+                      disabled={downloadingId === expense.id}
+                      className="flex-1 bg-gray-900 text-white py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 hover:bg-black transition-all disabled:opacity-70 disabled:cursor-wait"
+                    >
+                       {downloadingId === expense.id ? (
+                         <span className="flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin"/> Downloading...</span>
+                       ) : (
+                         <><ImageIcon className="w-3 h-3" /> PNG Voucher</>
+                       )}
+                    </button>
+                    <button 
+                      onClick={() => handlePrintPDF(expense)}
+                      className="flex-1 bg-gray-100 text-gray-700 py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 hover:bg-gray-200 transition-all border border-gray-200"
+                    >
+                       <Printer className="w-3 h-3" /> PDF/Print
+                    </button>
                  </div>
-
-                 <div className="flex gap-1 bg-white/50 rounded-lg p-0.5 backdrop-blur-sm">
-                    {/* APPROVED VOUCHER DOWNLOAD - AVAILABLE TO ALL */}
-                    {expense.status === 'APPROVED' && (
-                        <button 
-                           onClick={() => setVoucherPreviewData(expense)}
-                           className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors" 
-                           title="ভাউচার ছবি ডাউনলোড"
-                        >
-                           <ImageIcon className="w-4 h-4" />
-                        </button>
-                    )}
-                    {/* PDF Print Button */}
-                    {expense.status === 'APPROVED' && (
-                        <button 
-                           onClick={() => generateApprovalVoucher(expense)}
-                           className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" 
-                           title="ভাউচার প্রিন্ট করুন"
-                        >
-                           <Printer className="w-4 h-4" />
-                        </button>
-                    )}
-
-                    {((role === UserRole.ADMIN || role === UserRole.MD) && (expense.status === 'PENDING' || expense.status === 'VERIFIED')) && (
-                       <button onClick={() => openCorrectionModal(expense)} className="p-1.5 text-orange-500 hover:bg-orange-50 rounded-lg transition-colors" title="Edit"><Edit3 className="w-4 h-4" /></button>
-                    )}
-                    {expense.voucherImage ? (
-                       <button onClick={() => setViewingVoucher(expense.voucherImage!)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="View Voucher"><FileText className="w-4 h-4" /></button>
-                    ) : (
-                       <div className="p-1.5 text-gray-300" title="No Voucher"><FileText className="w-4 h-4" /></div>
-                    )}
-                 </div>
-              </div>
+              )}
             </div>
 
-            <div className="bg-white/50 p-2 grid grid-cols-2 gap-2 border-t border-gray-100 backdrop-blur-sm">
-               {role === UserRole.ADMIN && expense.status === 'PENDING' && (
+            <div className="bg-gray-50 p-3 flex gap-2 border-t border-gray-100">
+               {role === UserRole.ADMIN && (
                  <>
-                    <button onClick={() => updateStatus(expense.id, 'VERIFIED')} className="col-span-2 bg-indigo-600 text-white py-2 rounded-lg text-xs font-bold hover:bg-indigo-700 shadow-sm transition-colors">MD-র কাছে পাঠান</button>
-                    <button onClick={() => updateStatus(expense.id, 'REJECTED')} className="bg-white text-red-600 border border-gray-200 py-1.5 rounded-lg text-xs font-bold hover:bg-red-50 hover:border-red-200 transition-colors">বাতিল</button>
-                    <button onClick={() => softDelete(expense.id)} className="bg-white text-gray-400 border border-gray-200 py-1.5 rounded-lg text-xs font-bold hover:text-red-500 hover:border-red-200 transition-colors"><Trash2 className="w-4 h-4 mx-auto" /></button>
+                   {expense.status === 'PENDING' && (
+                     <>
+                        <button onClick={() => updateStatus(expense.id, 'VERIFIED')} className="flex-[2] bg-indigo-600 text-white py-2 rounded-lg text-xs font-bold hover:bg-indigo-700 shadow-sm transition-colors">
+                          MD-র কাছে পাঠান
+                        </button>
+                        <button onClick={() => updateStatus(expense.id, 'REJECTED')} className="flex-1 bg-white text-red-600 border border-red-200 py-2 rounded-lg text-xs font-bold hover:bg-red-50 transition-colors">
+                          বাতিল
+                        </button>
+                        <button onClick={() => requestDelete(expense)} className="px-3 bg-white text-gray-400 border border-gray-200 py-2 rounded-lg hover:text-red-500 hover:border-red-200 transition-colors">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                     </>
+                   )}
+                   {expense.status === 'VERIFIED' && (
+                     <>
+                        <button onClick={() => updateStatus(expense.id, 'PENDING')} className="flex-1 bg-orange-50 text-orange-700 border border-orange-200 py-2 rounded-lg text-xs font-bold hover:bg-orange-100 transition-colors flex items-center justify-center gap-2">
+                          <RotateCcw className="w-3.5 h-3.5" /> ফেরত আনুন
+                        </button>
+                        <button onClick={() => requestDelete(expense)} className="flex-1 bg-red-50 text-red-700 border border-red-200 py-2 rounded-lg text-xs font-bold hover:bg-red-100 transition-colors flex items-center justify-center gap-2">
+                           <Trash2 className="w-3.5 h-3.5" /> ডিলিট করুন
+                        </button>
+                     </>
+                   )}
                  </>
                )}
-               {role === UserRole.MD && (expense.status === 'VERIFIED' || expense.status === 'PENDING') && (
+
+               {role === UserRole.MD && expense.status === 'VERIFIED' && (
                  <>
-                   <button onClick={() => updateStatus(expense.id, 'APPROVED')} className="col-span-2 bg-green-600 text-white py-2 rounded-lg text-xs font-bold hover:bg-green-700 shadow-sm transition-colors flex items-center justify-center gap-1"><CheckCircle className="w-3.5 h-3.5"/> অ্যাপ্রুভ করুন</button>
-                   <button onClick={() => updateStatus(expense.id, 'REJECTED')} className="bg-white text-red-600 border border-gray-200 py-1.5 rounded-lg text-xs font-bold hover:bg-red-50 hover:border-red-200 transition-colors">বাতিল</button>
-                   <button onClick={() => softDelete(expense.id)} className="bg-white text-gray-400 border border-gray-200 py-1.5 rounded-lg text-xs font-bold hover:text-red-500 hover:border-red-200 transition-colors"><Trash2 className="w-4 h-4 mx-auto" /></button>
+                   <button onClick={() => updateStatus(expense.id, 'APPROVED')} className="flex-[2] bg-indigo-600 text-white py-2 rounded-lg text-xs font-bold hover:bg-indigo-700 shadow-sm transition-colors">
+                     <CheckCircle className="w-4 h-4 inline mr-1"/> অ্যাপ্রুভ করুন
+                   </button>
+                   <button onClick={() => updateStatus(expense.id, 'REJECTED')} className="flex-1 bg-white text-red-600 border border-red-200 py-2 rounded-lg text-xs font-bold hover:bg-red-50 transition-colors">
+                     বাতিল
+                   </button>
                  </>
                )}
-               {((role === UserRole.ADMIN && (expense.status === 'VERIFIED' || expense.status === 'APPROVED' || expense.status === 'REJECTED')) || (role === UserRole.STAFF && (expense.status === 'PENDING' || expense.status === 'REJECTED'))) && (
-                  <div className="col-span-2 flex gap-2">
-                     {role === UserRole.ADMIN && expense.status === 'VERIFIED' && <button onClick={() => updateStatus(expense.id, 'PENDING')} className="flex-1 bg-orange-50 text-orange-700 border border-orange-200 py-1.5 rounded-lg text-xs font-bold hover:bg-orange-100 flex items-center justify-center gap-1"><RotateCcw className="w-3 h-3" /> ফেরত</button>}
-                     <button onClick={() => softDelete(expense.id)} className="flex-1 bg-white text-gray-400 border border-gray-200 hover:border-red-200 hover:text-red-500 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1"><Trash2 className="w-3.5 h-3.5" /> ডিলিট</button>
-                  </div>
+
+               {((role === UserRole.ADMIN || role === UserRole.MD) && (expense.status === 'APPROVED' || expense.status === 'REJECTED')) && (
+                  <button onClick={() => requestDelete(expense)} className="w-full bg-white text-gray-400 border border-gray-200 hover:border-red-200 hover:text-red-500 py-2 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-2">
+                    <Trash2 className="w-4 h-4" /> রেকর্ড মুছে ফেলুন
+                  </button>
                )}
             </div>
           </div>
         )})}
+        {filteredExpenses.length === 0 && (
+          <div className="col-span-full py-12 text-center bg-white rounded-2xl border border-dashed border-gray-200 text-gray-400">
+             কোনো বিল পাওয়া যায়নি
+          </div>
+        )}
       </div>
-      
-      {filteredExpenses.length === 0 && <div className="py-16 text-center bg-white rounded-2xl border border-dashed border-gray-200 text-gray-400"><div className="flex flex-col items-center gap-2 opacity-50"><Receipt className="w-10 h-10" /><p className="text-sm font-medium">কোনো বিল পাওয়া যায়নি</p></div></div>}
 
-      {/* --- VOUCHER PREVIEW & DOWNLOAD MODAL --- */}
-      {voucherPreviewData && (
-        <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 pb-24 md:pb-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-           <div className="bg-white w-full max-w-lg rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh] md:max-h-[90vh]">
-              {/* Toolbar */}
-              <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                 <h3 className="font-bold text-gray-800">ভাউচার ডাউনলোড</h3>
-                 <button onClick={() => setVoucherPreviewData(null)} className="p-2 hover:bg-gray-200 rounded-full transition-colors"><X className="w-5 h-5 text-gray-600"/></button>
-              </div>
-              
-              {/* SCROLLABLE AREA */}
-              <div className="overflow-auto p-4 bg-gray-100 flex-1 flex justify-center items-start">
-                 {/* ACTUAL VOUCHER TO CAPTURE */}
-                 {/* Fixed width to ensure consistent layout capture */}
-                 <div ref={voucherRef} id="voucher-content" className="bg-white p-8 w-[450px] shadow-lg relative text-gray-800 border border-gray-300 shrink-0 mx-auto">
-                    {/* Watermark */}
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transform -rotate-30 opacity-[0.05] pointer-events-none select-none border-4 border-black p-4 text-center">
-                       <span className="text-4xl font-black uppercase text-black block">OFFICE</span>
-                       <span className="text-4xl font-black uppercase text-black block">COPY</span>
-                    </div>
-
-                    {/* Header */}
-                    <div className="border-b-2 border-black pb-4 mb-4">
-                       <h1 className="text-xl font-black uppercase tracking-tight">Depend Sourcing Ltd.</h1>
-                       <p className="text-[10px] text-gray-500 mt-1">Head Office: A-14/8, Johir Complex, Savar, Dhaka.</p>
-                    </div>
-
-                    <div className="flex justify-between items-center mb-6">
-                       <div className="bg-black text-white px-3 py-1 text-xs font-bold uppercase">Payment Voucher</div>
-                       <div className="text-right">
-                          <p className="text-[10px] font-bold">NO: #${voucherPreviewData.id.substring(0,8).toUpperCase()}</p>
-                          <p className="text-[10px]">Date: {new Date(voucherPreviewData.createdAt).toLocaleDateString('en-GB')}</p>
-                       </div>
-                    </div>
-
-                    {/* Pay To Section */}
-                    <div className="mb-4 text-xs">
-                       <div className="flex mb-1"><span className="w-20 font-bold">Pay To:</span> <span className="border-b border-dotted border-gray-400 flex-1">{voucherPreviewData.staffName}</span></div>
-                       <div className="flex mb-1"><span className="w-20 font-bold">ID:</span> <span className="border-b border-dotted border-gray-400 flex-1">{getVoucherData()?.staffDisplayId}</span></div>
-                       <div className="flex"><span className="w-20 font-bold">Role:</span> <span className="border-b border-dotted border-gray-400 flex-1">{getVoucherData()?.designation}</span></div>
-                    </div>
-
-                    {/* Table */}
-                    <table className="w-full text-xs border-collapse border border-black mb-4">
-                       <thead>
-                          <tr className="bg-gray-100">
-                             <th className="border border-black p-2 text-left w-10">SL</th>
-                             <th className="border border-black p-2 text-left">Description</th>
-                             <th className="border border-black p-2 text-right w-20">Amount</th>
-                          </tr>
-                       </thead>
-                       <tbody>
-                          <tr>
-                             <td className="border border-black p-2 text-center align-top">01</td>
-                             <td className="border border-black p-2 align-top h-20">{voucherPreviewData.reason}</td>
-                             <td className="border border-black p-2 text-right align-top font-bold">{voucherPreviewData.amount.toLocaleString()}</td>
-                          </tr>
-                          <tr>
-                             <td className="border border-black p-2 text-right font-black" colSpan={2}>TOTAL</td>
-                             <td className="border border-black p-2 text-right font-black">{voucherPreviewData.amount.toLocaleString()}</td>
-                          </tr>
-                       </tbody>
-                    </table>
-
-                    <div className="text-[10px] italic text-gray-600 mb-6">
-                       <strong>In Words:</strong> {voucherPreviewData.amount} Taka Only (approx).
-                    </div>
-
-                    {/* Ledger Box */}
-                    <div className="border border-black p-2 mb-8 bg-gray-50 text-[10px]">
-                       <p className="font-bold border-b border-gray-300 pb-1 mb-1">Account Summary:</p>
-                       <div className="flex justify-between"><span>Total Exp:</span> <span>{getVoucherData()?.totalExp.toLocaleString()}</span></div>
-                       <div className="flex justify-between"><span>Total Adv:</span> <span>{getVoucherData()?.totalAdv.toLocaleString()}</span></div>
-                       <div className="flex justify-between font-bold border-top border-gray-300 pt-1 mt-1">
-                          <span>Balance:</span> 
-                          <span className={(getVoucherData()?.balance || 0) < 0 ? 'text-red-600' : 'text-green-600'}>
-                             {(getVoucherData()?.balance || 0) < 0 ? 'Payable' : 'Cash In Hand'} {Math.abs(getVoucherData()?.balance || 0).toLocaleString()}
-                          </span>
-                       </div>
-                    </div>
-
-                    {/* Signatures */}
-                    <div className="flex justify-between items-end pt-4">
-                       <div className="text-center w-20">
-                          <div className="border-t border-black mb-1"></div>
-                          <p className="text-[8px] font-bold uppercase">Prepared By</p>
-                       </div>
-                       <div className="text-center w-20">
-                          <div className="border-t border-black mb-1"></div>
-                          <p className="text-[8px] font-bold uppercase">Receiver</p>
-                       </div>
-                       <div className="text-center w-20">
-                          <div className="border-t border-black mb-1"></div>
-                          <p className="text-[8px] font-bold uppercase">Authorized By</p>
-                       </div>
-                    </div>
-                 </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="p-4 border-t border-gray-100 bg-white flex gap-3">
-                 <button 
-                   onClick={downloadVoucherImage} 
-                   disabled={isDownloading}
-                   className={`flex-1 bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 flex items-center justify-center gap-2 shadow-lg active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed`}
-                 >
-                    {isDownloading ? (
-                       <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : (
-                       <Download className="w-5 h-5" />
-                    )}
-                    {isDownloading ? 'Processing...' : 'Download JPG'}
-                 </button>
-              </div>
-           </div>
-        </div>
-      )}
-
-      {/* ... (Other modals like Submit, Status Confirm, Delete Confirm, Correction remain unchanged) ... */}
-      {/* Keeping previous modals rendered logic exactly as is to avoid breaking functionality */}
       {isSubmitModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in zoom-in duration-200">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-indigo-600 text-white shrink-0">
-              <h3 className="font-bold text-xl">নতুন বিল</h3>
-              <button onClick={() => setIsSubmitModalOpen(false)} className="text-indigo-200 hover:text-white">×</button>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-indigo-600 text-white">
+              <h3 className="font-bold text-xl">নতুন বিল জমা দিন</h3>
+              <button onClick={() => setIsSubmitModalOpen(false)} className="text-indigo-200 hover:text-white transition-colors">×</button>
             </div>
-            <form onSubmit={handleSubmit} className="flex flex-col h-full" id="expense-form">
-                <div className="overflow-y-auto p-6 flex-1 space-y-4">
-                  {isSubmissionDuplicate && <div className="mb-4 bg-red-50 border border-red-200 p-4 rounded-xl flex items-start gap-3 animate-pulse"><AlertTriangle className="w-6 h-6 text-red-500 shrink-0" /><div><h4 className="font-bold text-red-700 text-sm">সতর্কতা: ডুপ্লিকেট বিল!</h4><p className="text-xs text-red-600 mt-1">নির্বাচিত তারিখে এই স্টাফের ইতিমধ্যে একটি বিল সিস্টেমে আছে।</p></div></div>}
-                  
-                  <div><label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 ml-1">স্টাফ মেম্বার</label><select required className="w-full px-3 py-2.5 bg-slate-50 border border-slate-100 text-slate-700 font-bold rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all shadow-sm appearance-none text-sm" value={formData.staffId} onChange={(e) => setFormData({...formData, staffId: e.target.value})}><option value="">স্টাফ নির্বাচন করুন</option>{activeStaff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
-                  <div><label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 ml-1">তারিখ</label><input type="date" required className="w-full px-3 py-2.5 bg-slate-50 border border-slate-100 text-slate-700 font-bold rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all shadow-sm text-sm" value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} /></div>
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1 flex justify-between"><span>খরচের কারণ ও বিবরণ</span><span className="text-xs text-indigo-600 font-bold flex items-center gap-1"><Sparkles className="w-3 h-3"/> Auto Calculator</span></label><textarea required rows={3} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-gray-900 bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm" placeholder="কারণ..." value={formData.reason} onChange={handleReasonChange} /></div>
-                  <div><label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 ml-1">টাকার পরিমাণ</label><div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">৳</span><input required type="number" className="w-full pl-7 pr-3 py-2.5 bg-slate-50 border border-slate-100 text-slate-800 font-black text-base rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all shadow-sm placeholder:text-slate-300" placeholder="0.00" value={formData.amount || ''} onChange={(e) => setFormData({...formData, amount: Number(e.target.value)})} /></div></div>
-                  
-                  {/* Image Options Grid */}
-                  <div>
-                     <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 ml-1">ভাউচার ইমেজ (অপশনাল)</label>
-                     <div className="grid grid-cols-2 gap-2">
-                        <div 
-                           onClick={() => fileInputRef.current?.click()} 
-                           className="group py-2.5 px-2 border border-dashed border-indigo-200 hover:border-indigo-400 rounded-lg bg-indigo-50/30 hover:bg-indigo-50 cursor-pointer transition-all flex flex-row items-center justify-center gap-2 text-center"
-                        >
-                           <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={handleImageUpload} />
-                           <Upload className="w-4 h-4 text-indigo-500 group-hover:text-indigo-700 transition-colors"/>
-                           <span className="text-[11px] font-bold text-indigo-600 group-hover:text-indigo-800">গ্যালারি</span>
-                        </div>
+            <form onSubmit={handleSubmit} className="p-4 space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">স্টাফ নির্বাচন করুন</label>
+                {role === UserRole.STAFF ? (
+                  <div className="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg font-bold text-gray-600 flex items-center justify-between cursor-not-allowed">
+                     <span>{currentUser}</span>
+                     <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded uppercase">Self</span>
+                  </div>
+                ) : (
+                  <select required className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all" value={formData.staffId} onChange={(e) => setFormData({...formData, staffId: e.target.value})}>
+                    <option value="">নির্বাচন করুন</option>
+                    {activeStaff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                )}
+              </div>
 
-                        <div 
-                           onClick={() => cameraInputRef.current?.click()} 
-                           className="group py-2.5 px-2 border border-dashed border-purple-200 hover:border-purple-400 rounded-lg bg-purple-50/30 hover:bg-purple-50 cursor-pointer transition-all flex flex-row items-center justify-center gap-2 text-center"
-                        >
-                           <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" hidden onChange={handleImageUpload} />
-                           <Camera className="w-4 h-4 text-purple-500 group-hover:text-purple-700 transition-colors"/>
-                           <span className="text-[11px] font-bold text-purple-600 group-hover:text-purple-800">ক্যামেরা</span>
-                        </div>
-                     </div>
-                     {formData.voucherImage && (
-                        <div className="mt-2 relative rounded-lg overflow-hidden border border-gray-200 h-24 bg-gray-50">
-                           <img src={formData.voucherImage} alt="Voucher Preview" className="w-full h-full object-contain" />
-                           <button 
-                              type="button"
-                              onClick={removeImage}
-                              className="absolute top-1 right-1 bg-white/80 hover:bg-white text-red-500 p-1 rounded-full shadow-sm transition-colors"
-                           >
-                              <XCircle className="w-4 h-4" />
-                           </button>
-                        </div>
-                     )}
+              <div className="grid grid-cols-2 gap-3">
+                {(role === UserRole.ADMIN || role === UserRole.MD) && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">তারিখ (Date)</label>
+                    <input 
+                      type="date"
+                      required
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm font-bold"
+                      value={formData.date}
+                      onChange={(e) => setFormData({...formData, date: e.target.value})}
+                    />
+                  </div>
+                )}
+                
+                <div className={`${(role === UserRole.ADMIN || role === UserRole.MD) ? '' : 'col-span-2'}`}>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">টাকার পরিমাণ</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">৳</span>
+                    <input 
+                      required 
+                      type="number" 
+                      className="w-full pl-7 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-lg text-gray-800" 
+                      placeholder="0.00" 
+                      value={formData.amount || ''} 
+                      onChange={(e) => setFormData({...formData, amount: Number(e.target.value)})} 
+                    />
                   </div>
                 </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 flex justify-between">
+                  <span>খরচের কারণ ও বিবরণ</span>
+                  <span className="text-xs text-indigo-600 font-bold flex items-center gap-1"><Sparkles className="w-3 h-3"/> Auto Calculator</span>
+                </label>
+                <textarea 
+                  required 
+                  rows={2} 
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all" 
+                  placeholder="যেমন: নাস্তা ৫০, রিক্সা ভাড়া ১০০..." 
+                  value={formData.reason} 
+                  onChange={handleReasonChange} 
+                />
+              </div>
 
-                <div className="p-4 border-t border-gray-100 bg-white shrink-0">
-                   <button type="submit" form="expense-form" className={`w-full text-white py-3.5 rounded-xl font-bold text-sm transition-all active:scale-95 flex items-center justify-center gap-2 shadow-xl ${isSubmissionDuplicate ? 'bg-red-500 hover:bg-red-600 shadow-red-200' : 'bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 shadow-indigo-200'}`}>{isSubmissionDuplicate ? <><AlertTriangle className="w-5 h-5"/> তবুও সাবমিট করুন</> : 'বিল সাবমিট করুন'}</button>
-                </div>
+              <div className="space-y-2">
+                 <label className="block text-sm font-medium text-gray-700">ভাউচার ছবি</label>
+                 <div className="flex gap-2">
+                    <button type="button" onClick={() => fileInputRef.current?.click()} className="flex-1 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-gray-200 transition-colors">
+                       <ImageIcon className="w-4 h-4" /> গ্যালারি
+                    </button>
+                    <button type="button" onClick={() => cameraInputRef.current?.click()} className="flex-1 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-indigo-100 transition-colors">
+                       <Camera className="w-4 h-4" /> ক্যামেরা
+                    </button>
+                 </div>
+                 
+                 <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={handleImageUpload} />
+                 <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" hidden onChange={handleImageUpload} />
+                 
+                 {formData.voucherImage ? (
+                   <div className="relative h-24 w-full bg-gray-50 rounded-lg border border-gray-200 overflow-hidden">
+                     <img src={formData.voucherImage} alt="Preview" className="h-full w-full object-contain" />
+                     <button type="button" onClick={removeImage} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full shadow-sm hover:bg-red-600 transition-colors"><X className="w-3 h-3" /></button>
+                   </div>
+                 ) : (
+                   <div className="h-24 w-full border-2 border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center bg-gray-50 text-gray-400">
+                      <p className="text-xs">কোনো ছবি নির্বাচন করা হয়নি</p>
+                   </div>
+                 )}
+              </div>
+
+              <div className="pt-2">
+                <button type="submit" className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all">বিল সাবমিট করুন</button>
+              </div>
             </form>
           </div>
         </div>
       )}
-      {statusConfirmData && <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in duration-200"><div className="bg-white w-full max-w-sm rounded-2xl p-6 text-center shadow-2xl"><h3 className="font-bold text-lg mb-2">নিশ্চিত করুন</h3><p className="text-sm text-gray-500 mb-4">স্ট্যাটাস পরিবর্তন করতে চান?</p><div className="flex gap-3"><button onClick={() => setStatusConfirmData(null)} className="flex-1 py-2 border rounded-lg font-bold text-gray-600">না</button><button onClick={confirmStatusUpdate} className="flex-1 py-2 bg-indigo-600 text-white rounded-lg font-bold">হ্যাঁ</button></div></div></div>}
-      {deleteConfirmId && <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in duration-200"><div className="bg-white w-full max-w-sm rounded-2xl p-6 text-center shadow-2xl"><div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600"><Trash2 className="w-6 h-6" /></div><h3 className="font-bold text-lg mb-2">ডিলিট করবেন?</h3><div className="flex gap-3 mt-4"><button onClick={() => setDeleteConfirmId(null)} className="flex-1 py-2 border rounded-lg font-bold text-gray-600">না</button><button onClick={confirmDelete} className="flex-1 py-2 bg-red-600 text-white rounded-lg font-bold">হ্যাঁ</button></div></div></div>}
-      {isCorrectionModalOpen && correctionData && <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in zoom-in duration-200"><div className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl relative overflow-hidden"><div className="flex justify-between items-start mb-4"><h3 className="font-bold text-lg text-gray-800">বিল সংশোধন</h3><div className="flex flex-col items-end"><label className="text-[9px] font-bold text-gray-600 uppercase tracking-wider mb-0.5">তারিখ</label><input type="date" className="text-xs border border-gray-200 rounded-lg px-2 py-1 font-bold text-gray-900 bg-white focus:outline-none focus:border-orange-400 shadow-sm" value={correctionData.date} onChange={(e) => setCorrectionData({...correctionData, date: e.target.value})} /></div></div><form onSubmit={saveCorrection} className="space-y-4"><div><label className="block text-xs font-bold text-gray-600 mb-1">টাকার পরিমাণ</label><input type="number" className="w-full border border-gray-200 p-3 rounded-xl font-black text-2xl text-gray-900 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-orange-100 outline-none transition-colors" value={correctionData.amount} onChange={e => setCorrectionData({...correctionData, amount: Number(e.target.value)})} /></div><div><label className="block text-xs font-bold text-gray-600 mb-1">কারণ</label><textarea rows={3} className="w-full border border-gray-200 p-3 rounded-xl text-sm font-medium text-gray-900 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-orange-100 outline-none resize-none transition-colors" value={correctionData.reason} onChange={e => setCorrectionData({...correctionData, reason: e.target.value})} /></div><div className="flex gap-3 mt-2"><button type="button" onClick={() => setIsCorrectionModalOpen(false)} className="flex-1 border border-gray-200 py-3 rounded-xl font-bold text-gray-500 hover:bg-gray-50 transition-colors">বাতিল</button><button type="submit" className="flex-[2] bg-orange-500 text-white py-3 rounded-xl font-bold hover:bg-orange-600 shadow-lg shadow-orange-200 transition-colors">আপডেট করুন</button></div></form></div></div>}
-      {viewingVoucher && <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/90 animate-in fade-in duration-200" onClick={() => setViewingVoucher(null)}><div className="relative max-w-3xl w-full max-h-screen p-2"><button onClick={() => setViewingVoucher(null)} className="absolute -top-10 right-0 text-white hover:text-red-400 transition-colors"><X className="w-8 h-8" /></button><img src={viewingVoucher} alt="Voucher" className="w-full h-auto max-h-[85vh] object-contain rounded-lg shadow-2xl bg-white" /></div></div>}
+
+      {isCorrectionModalOpen && correctionData && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+             <div className="p-5 border-b border-gray-100 bg-orange-500 text-white flex justify-between items-center">
+                <h3 className="font-bold text-lg">বিল সংশোধন (Correction)</h3>
+                <button onClick={() => setIsCorrectionModalOpen(false)} className="text-orange-100 hover:text-white"><X className="w-5 h-5"/></button>
+             </div>
+             <form onSubmit={saveCorrection} className="p-6 space-y-4">
+                <div>
+                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">তারিখ (Date)</label>
+                  <input type="date" required className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none font-bold text-gray-800" value={correctionData.date} onChange={(e) => setCorrectionData({...correctionData, date: e.target.value})} />
+                </div>
+                <div>
+                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">সঠিক টাকার পরিমাণ</label>
+                  <input type="number" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none font-bold text-xl text-gray-800" value={correctionData.amount} onChange={(e) => setCorrectionData({...correctionData, amount: Number(e.target.value)})} />
+                </div>
+                <div>
+                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">সংশোধিত কারণ/নোট</label>
+                  <textarea rows={4} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm font-medium" value={correctionData.reason} onChange={(e) => setCorrectionData({...correctionData, reason: e.target.value})} />
+                </div>
+                <button type="submit" className="w-full bg-orange-500 text-white py-3 rounded-xl font-bold hover:bg-orange-600 shadow-lg shadow-orange-100 flex items-center justify-center gap-2"><Edit3 className="w-4 h-4" /> সেইভ করুন</button>
+             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmExpense && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle className="w-8 h-8 text-red-600" />
+              </div>
+              <h3 className="text-xl font-black text-gray-800 mb-2">আপনি কি নিশ্চিত?</h3>
+              <p className="text-sm text-gray-500 mb-6">
+                {deleteConfirmExpense.status === 'APPROVED' ? 
+                  `আপনি ৳${deleteConfirmExpense.amount} টাকার একটি "অনুমোদিত" (Approved) বিল ডিলিট করতে চাচ্ছেন। এর ফলে মোট খরচের হিসাব এবং স্টাফের ব্যালেন্স পরিবর্তন হবে।` :
+                 deleteConfirmExpense.status === 'PENDING' ?
+                  `আপনি ৳${deleteConfirmExpense.amount} টাকার একটি "পেন্ডিং" (Pending) বিল ডিলিট করতে চাচ্ছেন।` :
+                 deleteConfirmExpense.status === 'VERIFIED' ?
+                  `এই বিলটি ভেরিফাই করা হয়েছে (MD-এর অনুমোদনের অপেক্ষায়)। আপনি কি এটি ডিলিট করতে চান?` :
+                 deleteConfirmExpense.status === 'REJECTED' ?
+                  `আপনি একটি "বাতিল করা" (Rejected) বিল ডিলিট করছেন। এটি রিসাইকেল বিনে জমা হবে।` :
+                  `আপনি কি নিশ্চিত যে এই বিলটি ডিলিট করতে চান?`
+                }
+              </p>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setDeleteConfirmExpense(null)}
+                  className="flex-1 py-3 border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors"
+                >
+                  না, বাতিল করুন
+                </button>
+                <button 
+                  onClick={confirmDelete}
+                  className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 shadow-lg shadow-red-200 transition-colors"
+                >
+                  হ্যাঁ, ডিলিট করুন
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewingVoucher && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm animate-in fade-in zoom-in duration-200" onClick={() => setViewingVoucher(null)}>
+          <div className="relative max-w-3xl w-full max-h-screen p-2">
+             <button onClick={() => setViewingVoucher(null)} className="absolute -top-12 right-0 text-white hover:text-red-400 transition-colors"><X className="w-8 h-8" /></button>
+             <img src={viewingVoucher} alt="Voucher Full View" className="w-full h-auto max-h-[85vh] object-contain rounded-lg shadow-2xl bg-white" />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
