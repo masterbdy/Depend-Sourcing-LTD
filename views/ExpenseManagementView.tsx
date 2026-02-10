@@ -484,7 +484,8 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                   {expense.status === 'PENDING' ? 'পেন্ডিং' : expense.status === 'VERIFIED' ? 'ভেরিফাইড (MD)' : expense.status === 'APPROVED' ? 'অনুমোদিত' : 'প্রত্যাখ্যাত'}
                 </span>
                 <div className="flex items-center gap-2">
-                  {((role === UserRole.ADMIN || role === UserRole.MD) && (expense.status === 'PENDING' || expense.status === 'VERIFIED')) && (
+                  {/* EDIT Button Logic: MD can NOT edit Pending bills */}
+                  {((role === UserRole.ADMIN && (expense.status === 'PENDING' || expense.status === 'VERIFIED')) || (role === UserRole.MD && expense.status === 'VERIFIED')) && (
                     <button onClick={() => openCorrectionModal(expense)} className="text-orange-500 hover:text-orange-700 transition-colors p-1 hover:bg-orange-50 rounded-full" title="বিল সংশোধন করুন"><Edit3 className="w-4 h-4" /></button>
                   )}
                   {expense.voucherImage && (
@@ -531,10 +532,20 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                    )}
                  </>
                )}
-               {role === UserRole.MD && (expense.status === 'VERIFIED' || expense.status === 'PENDING') && (
+               {role === UserRole.MD && (
                  <>
-                   <button type="button" onClick={() => updateStatus(expense.id, 'APPROVED')} className="flex-[2] bg-indigo-600 text-white py-2 rounded-lg text-xs font-bold hover:bg-indigo-700 shadow-sm transition-colors cursor-pointer active:scale-95"><CheckCircle className="w-4 h-4 inline mr-1"/> অ্যাপ্রুভ করুন</button>
-                   <button type="button" onClick={() => updateStatus(expense.id, 'REJECTED')} className="flex-1 bg-white text-red-600 border border-red-200 py-2 rounded-lg text-xs font-bold hover:bg-red-50 transition-colors cursor-pointer active:scale-95">বাতিল</button>
+                   {expense.status === 'VERIFIED' && (
+                      <>
+                        <button type="button" onClick={() => updateStatus(expense.id, 'APPROVED')} className="flex-[2] bg-indigo-600 text-white py-2 rounded-lg text-xs font-bold hover:bg-indigo-700 shadow-sm transition-colors cursor-pointer active:scale-95"><CheckCircle className="w-4 h-4 inline mr-1"/> অ্যাপ্রুভ করুন</button>
+                        <button type="button" onClick={() => updateStatus(expense.id, 'REJECTED')} className="flex-1 bg-white text-red-600 border border-red-200 py-2 rounded-lg text-xs font-bold hover:bg-red-50 transition-colors cursor-pointer active:scale-95">বাতিল</button>
+                      </>
+                   )}
+                   {/* MD sees Pending but CANNOT Reject/Edit */}
+                   {expense.status === 'PENDING' && (
+                      <div className="flex-[2] bg-gray-100 text-gray-400 border border-gray-200 py-2 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 cursor-not-allowed select-none">
+                        <Clock className="w-3 h-3" /> অ্যাডমিন ভেরিফিকেশন বাকি
+                      </div>
+                   )}
                  </>
                )}
                {((role === UserRole.ADMIN || role === UserRole.MD) && (expense.status === 'APPROVED' || expense.status === 'REJECTED')) && (
