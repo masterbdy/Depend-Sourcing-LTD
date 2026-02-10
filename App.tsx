@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   LayoutGrid, UsersRound, Footprints, Banknote, PieChart, Settings2, Recycle, 
@@ -107,6 +108,7 @@ const App: React.FC = () => {
     password: ''
   });
   const profileFileRef = useRef<HTMLInputElement>(null);
+  const [showProfilePassword, setShowProfilePassword] = useState(false);
   
   const [isCloudEnabled, setIsCloudEnabled] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -422,6 +424,7 @@ const App: React.FC = () => {
       photo: targetStaff.photo || '',
       password: targetStaff.password || ''
     });
+    setShowProfilePassword(false);
     setIsProfileModalOpen(true);
   };
 
@@ -1076,7 +1079,7 @@ const App: React.FC = () => {
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-indigo-400 transition-colors duration-300" />
                 <input 
                   required 
-                  type="text" 
+                  type={showLoginPassword ? "text" : "password"}
                   disabled={isLoggingIn}
                   className="w-full pl-10 pr-12 py-3 bg-white/10 border border-white/10 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all font-bold text-gray-100 text-sm placeholder:text-gray-500 hover:bg-white/20 focus:bg-white/20 backdrop-blur-md disabled:opacity-50"
                   placeholder="Password..."
@@ -1532,18 +1535,25 @@ const App: React.FC = () => {
                     </div>
                  </div>
 
-                 <div className="bg-white/80 dark:bg-gray-700/80 p-3 rounded-xl flex items-center gap-3 border border-gray-100 dark:border-gray-600 focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-transparent transition-all">
+                 <div className="bg-white/80 dark:bg-gray-700/80 p-3 rounded-xl flex items-center gap-3 border border-gray-100 dark:border-gray-600 focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-transparent transition-all relative">
                     <div className="bg-indigo-50 dark:bg-gray-600 p-2 rounded-lg text-indigo-600 dark:text-indigo-400"><KeyRound className="w-4 h-4" /></div>
-                    <div className="flex-1">
+                    <div className="flex-1 pr-8">
                       <p className="text-[9px] font-bold text-gray-400 dark:text-gray-400 uppercase tracking-wider">পাসওয়ার্ড</p>
                       <input 
-                        type="text" 
+                        type={showProfilePassword ? "text" : "password"} 
                         className="w-full bg-transparent border-none p-0 text-sm font-bold text-gray-800 dark:text-gray-200 outline-none placeholder:text-gray-300"
                         placeholder="Set Password (Optional)"
                         value={profileForm.password}
                         onChange={(e) => setProfileForm({...profileForm, password: e.target.value})}
                       />
                     </div>
+                    <button 
+                      type="button"
+                      onClick={() => setShowProfilePassword(!showProfilePassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                    >
+                      {showProfilePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
                  </div>
                </div>
 

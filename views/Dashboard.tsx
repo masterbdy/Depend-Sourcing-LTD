@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import { TrendingDown, AlertCircle, Clock, ShieldAlert, Landmark, Wallet, Trophy, Crown, ArrowUpRight, Coins, Banknote, WalletCards, Calendar, Sparkles } from 'lucide-react';
 import { Expense, UserRole, Staff, AdvanceLog } from '../types';
@@ -58,6 +59,11 @@ const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApproval
   const isStaff = role === UserRole.STAFF;
   const isManagement = role === UserRole.ADMIN || role === UserRole.MD;
 
+  // Find My ID
+  const myStaffId = useMemo(() => {
+    return (staffList || []).find(s => s.name === currentUser)?.id;
+  }, [staffList, currentUser]);
+
   // Helper to format large numbers
   const formatPoints = (num: number) => {
     if (num >= 100000) return (num / 100000).toFixed(1).replace(/\.0$/, '') + 'L';
@@ -66,26 +72,43 @@ const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApproval
   };
 
   // --- STAFF SPECIFIC STATS ---
-  const { myApprovedTotal, myPendingCount } = useMemo(() => {
+  const { myApprovedTotal, myPendingCount, myRegularAdvance, mySalaryAdvance, myNetBalance } = useMemo(() => {
+    if (!myStaffId) return { myApprovedTotal: 0, myPendingCount: 0, myRegularAdvance: 0, mySalaryAdvance: 0, myNetBalance: 0 };
+
     const safeExpenses = expenses || [];
-    const myExps = safeExpenses.filter(e => e.staffName === currentUser && !e.isDeleted);
+    const safeAdvances = advances || [];
+    
+    // Expenses (Filter by ID)
+    const myExps = safeExpenses.filter(e => e.staffId === myStaffId && !e.isDeleted);
+    const myApproved = myExps.filter(e => e.status === 'APPROVED').reduce((sum, e) => sum + Number(e.amount), 0);
+    const myPending = myExps.filter(e => e.status === 'PENDING' || e.status === 'VERIFIED').length;
+
+    // Advances (Filter by ID)
+    const myAdvs = safeAdvances.filter(a => a.staffId === myStaffId && !a.isDeleted);
+    const regular = myAdvs.filter(a => a.type !== 'SALARY').reduce((sum, a) => sum + Number(a.amount), 0);
+    const salary = myAdvs.filter(a => a.type === 'SALARY').reduce((sum, a) => sum + Number(a.amount), 0);
+
+    // Balance Logic: Regular Advance - Expenses
+    // Positive = Cash in Hand (Staff has cash)
+    // Negative = Payable (Office owes Staff)
+    const balance = regular - myApproved;
+
     return {
-      myApprovedTotal: myExps.filter(e => e.status === 'APPROVED').reduce((sum, e) => sum + Number(e.amount), 0),
-      myPendingCount: myExps.filter(e => e.status === 'PENDING' || e.status === 'VERIFIED').length
+      myApprovedTotal: myApproved,
+      myPendingCount: myPending,
+      myRegularAdvance: regular,
+      mySalaryAdvance: salary,
+      myNetBalance: balance
     };
-  }, [expenses, currentUser]);
-  
-  const myTotalReceived = useMemo(() => {
-    return (advances || []).filter(a => a.staffName === currentUser && !a.isDeleted).reduce((sum, a) => sum + Number(a.amount), 0);
-  }, [advances, currentUser]);
+  }, [expenses, advances, myStaffId]);
 
   const myRecentAdvances = useMemo(() => {
-    if (!isStaff) return [];
+    if (!isStaff || !myStaffId) return [];
     return (advances || [])
-      .filter(a => a.staffName === currentUser && !a.isDeleted)
+      .filter(a => a.staffId === myStaffId && !a.isDeleted)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       .slice(0, 5);
-  }, [advances, currentUser, isStaff]);
+  }, [advances, myStaffId, isStaff]);
 
   // --- CHAMPIONS LOGIC ---
   const { champions, monthName } = useMemo(() => {
@@ -287,42 +310,74 @@ const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApproval
           {/* Quick Stats Grid (STAFF VIEW) */}
           {isStaff && (
              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* 1. Total Received (Advance) */}
-                <div className="bg-white dark:bg-gray-800/60 rounded-2xl p-5 border border-teal-100 dark:border-teal-900/30 shadow-sm relative overflow-hidden group">
-                   <div className="absolute top-0 right-0 w-24 h-24 bg-teal-50 dark:bg-teal-500/10 rounded-full -mr-8 -mt-8 opacity-50"></div>
+                
+                {/* 1. Total Regular Advance (NEW) */}
+                <div className="bg-white dark:bg-gray-800/60 rounded-2xl p-5 border border-blue-100 dark:border-blue-900/30 shadow-sm relative overflow-hidden">
+                   <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 dark:bg-blue-500/10 rounded-full -mr-8 -mt-8 opacity-50"></div>
                    <div className="relative z-10">
-                      <div className="flex items-center gap-3 mb-3">
-                         <div className="bg-teal-100 dark:bg-teal-900/30 p-2.5 rounded-xl text-teal-600 dark:text-teal-400">
-                            <Wallet className="w-5 h-5" />
+                      <div className="flex items-center justify-between mb-3">
+                         <div className="bg-blue-100 dark:bg-blue-900/30 p-2.5 rounded-xl text-blue-600 dark:text-blue-400">
+                            <Banknote className="w-5 h-5" />
                          </div>
-                         <span className="text-xs font-black text-teal-500 dark:text-teal-400 uppercase tracking-widest">মোট জমা (Received)</span>
                       </div>
-                      <h3 className="text-2xl font-black text-gray-800 dark:text-gray-100">৳ {myTotalReceived.toLocaleString()}</h3>
-                      <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">অফিস থেকে নেওয়া মোট অগ্রিম (Regular + Salary)</p>
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">টোটাল রেগুলার এডভান্স</p>
+                      <h3 className="text-2xl font-black text-gray-800 dark:text-gray-100">৳ {myRegularAdvance.toLocaleString()}</h3>
+                      <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">অফিস থেকে নেওয়া মোট সাধারণ অগ্রিম</p>
                    </div>
                 </div>
 
                 {/* 2. My Total Expense */}
-                <div className="bg-white dark:bg-gray-800/60 rounded-2xl p-5 border border-indigo-100 dark:border-indigo-900/30 shadow-sm">
-                   <div className="flex items-start justify-between mb-3">
-                      <div className="bg-indigo-50 dark:bg-indigo-900/30 p-3 rounded-xl text-indigo-600 dark:text-indigo-400"><TrendingDown className="w-6 h-6" /></div>
+                <div className="bg-white dark:bg-gray-800/60 rounded-2xl p-5 border border-indigo-100 dark:border-indigo-900/30 shadow-sm relative overflow-hidden">
+                   <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-50 dark:bg-indigo-500/10 rounded-full -mr-8 -mt-8 opacity-50"></div>
+                   <div className="relative z-10">
+                      <div className="flex items-center justify-between mb-3">
+                         <div className="bg-indigo-50 dark:bg-indigo-900/30 p-2.5 rounded-xl text-indigo-600 dark:text-indigo-400">
+                            <TrendingDown className="w-5 h-5" />
+                         </div>
+                      </div>
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">টোটাল খরচ (Approved)</p>
+                      <h3 className="text-2xl font-black text-gray-800 dark:text-gray-100">৳ {myApprovedTotal.toLocaleString()}</h3>
+                      <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">মোট অনুমোদিত বিল</p>
                    </div>
-                   <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">আমার মোট খরচ</p>
-                   <h3 className="text-2xl font-black text-gray-800 dark:text-gray-100">৳ {myApprovedTotal.toLocaleString()}</h3>
-                   <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">অনুমোদিত বিলের যোগফল</p>
                 </div>
 
-                {/* 3. My Pending Bills */}
-                <div className="bg-white dark:bg-gray-800/60 rounded-2xl p-5 border border-orange-100 dark:border-orange-900/30 shadow-sm sm:col-span-2">
-                   <div className="flex items-start justify-between mb-3">
-                      <div className="bg-orange-50 dark:bg-orange-900/30 p-3 rounded-xl text-orange-600 dark:text-orange-400"><AlertCircle className="w-6 h-6" /></div>
+                {/* 3. Net Balance (Cash in Hand / Payable) */}
+                <div className={`bg-white dark:bg-gray-800/60 rounded-2xl p-5 border shadow-sm relative overflow-hidden group ${myNetBalance < 0 ? 'border-red-100 dark:border-red-900/30' : 'border-emerald-100 dark:border-emerald-900/30'}`}>
+                   <div className={`absolute top-0 right-0 w-24 h-24 rounded-full -mr-8 -mt-8 opacity-50 ${myNetBalance < 0 ? 'bg-red-50 dark:bg-red-500/10' : 'bg-emerald-50 dark:bg-emerald-500/10'}`}></div>
+                   <div className="relative z-10">
+                      <div className="flex items-center gap-3 mb-3">
+                         <div className={`p-2.5 rounded-xl ${myNetBalance < 0 ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                            <Wallet className="w-5 h-5" />
+                         </div>
+                         <span className={`text-xs font-black uppercase tracking-widest ${myNetBalance < 0 ? 'text-red-500' : 'text-emerald-500'}`}>
+                            {myNetBalance < 0 ? 'পাওনা (Payable)' : 'হাতে আছে (Cash)'}
+                         </span>
+                      </div>
+                      <h3 className="text-2xl font-black text-gray-800 dark:text-gray-100">
+                         {myNetBalance < 0 ? '-' : ''} ৳ {Math.abs(myNetBalance).toLocaleString()}
+                      </h3>
+                      <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">
+                         {myNetBalance < 0 ? 'আপনি অফিসের কাছে পাবেন' : 'আপনার কাছে অফিসের ক্যাশ আছে'}
+                      </p>
                    </div>
-                   <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">পেন্ডিং বিল</p>
-                   <h3 className="text-2xl font-black text-gray-800 dark:text-gray-100">{myPendingCount} টি</h3>
-                   <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">অনুমোদনের অপেক্ষায় আছে</p>
+                </div>
+
+                {/* 4. My Pending Bills */}
+                <div className="bg-white dark:bg-gray-800/60 rounded-2xl p-5 border border-orange-100 dark:border-orange-900/30 shadow-sm relative overflow-hidden">
+                   <div className="absolute top-0 right-0 w-24 h-24 bg-orange-50 dark:bg-orange-500/10 rounded-full -mr-8 -mt-8 opacity-50"></div>
+                   <div className="relative z-10">
+                      <div className="flex items-center justify-between mb-3">
+                         <div className="bg-orange-50 dark:bg-orange-900/30 p-2.5 rounded-xl text-orange-600 dark:text-orange-400">
+                            <AlertCircle className="w-5 h-5" />
+                         </div>
+                      </div>
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">পেন্ডিং বিল</p>
+                      <h3 className="text-2xl font-black text-gray-800 dark:text-gray-100">{myPendingCount} টি</h3>
+                      <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">অনুমোদনের অপেক্ষায় আছে</p>
+                   </div>
                 </div>
                 
-                {/* 4. Recent Advances (NEW) */}
+                {/* 5. Recent Advances (Keeping this as it's useful context below the main cards) */}
                 <div className="sm:col-span-2 bg-white dark:bg-gray-800/60 rounded-2xl border border-gray-100 dark:border-white/10 shadow-sm overflow-hidden">
                    <div className="p-4 bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-white/5 flex items-center gap-2">
                       <WalletCards className="w-4 h-4 text-indigo-500" />
