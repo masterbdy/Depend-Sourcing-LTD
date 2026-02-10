@@ -847,149 +847,154 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
 
       {isSubmitModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-indigo-600 text-white">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-indigo-600 text-white shrink-0">
               <h3 className="font-bold text-xl">নতুন বিল জমা দিন</h3>
               <button onClick={() => setIsSubmitModalOpen(false)} className="text-indigo-200 hover:text-white transition-colors">×</button>
             </div>
-            <form onSubmit={handleSubmit} className="p-4 space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">স্টাফ নির্বাচন করুন</label>
-                {role === UserRole.STAFF ? (
-                  <div className="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg font-bold text-gray-600 flex items-center justify-between cursor-not-allowed">
-                     <span>{currentUser}</span>
-                     <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded uppercase">Self</span>
-                  </div>
-                ) : (
-                  <select required className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all" value={formData.staffId} onChange={(e) => setFormData({...formData, staffId: e.target.value})}>
-                    <option value="">নির্বাচন করুন</option>
-                    {activeStaff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                {(role === UserRole.ADMIN || role === UserRole.MD) && (
+            
+            <div className="overflow-y-auto p-4 custom-scrollbar">
+                <form onSubmit={handleSubmit} className="space-y-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">তারিখ (Date)</label>
-                    <input 
-                      type="date"
-                      required
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm font-bold"
-                      value={formData.date}
-                      onChange={(e) => setFormData({...formData, date: e.target.value})}
-                    />
+                    <label className="block text-sm font-medium text-gray-700 mb-1">স্টাফ নির্বাচন করুন</label>
+                    {role === UserRole.STAFF ? (
+                      <div className="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg font-bold text-gray-600 flex items-center justify-between cursor-not-allowed">
+                         <span>{currentUser}</span>
+                         <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded uppercase">Self</span>
+                      </div>
+                    ) : (
+                      <select required className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all" value={formData.staffId} onChange={(e) => setFormData({...formData, staffId: e.target.value})}>
+                        <option value="">নির্বাচন করুন</option>
+                        {activeStaff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      </select>
+                    )}
                   </div>
-                )}
-                
-                <div className={`${(role === UserRole.ADMIN || role === UserRole.MD) ? '' : 'col-span-2'}`}>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">টাকার পরিমাণ</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">৳</span>
-                    <input 
+
+                  <div className="grid grid-cols-2 gap-3">
+                    {(role === UserRole.ADMIN || role === UserRole.MD) && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">তারিখ (Date)</label>
+                        <input 
+                          type="date"
+                          required
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm font-bold"
+                          value={formData.date}
+                          onChange={(e) => setFormData({...formData, date: e.target.value})}
+                        />
+                      </div>
+                    )}
+                    
+                    <div className={`${(role === UserRole.ADMIN || role === UserRole.MD) ? '' : 'col-span-2'}`}>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">টাকার পরিমাণ</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">৳</span>
+                        <input 
+                          required 
+                          type="number" 
+                          className="w-full pl-7 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-lg text-gray-800" 
+                          placeholder="0.00" 
+                          value={formData.amount || ''} 
+                          onChange={(e) => setFormData({...formData, amount: Number(e.target.value)})} 
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* REAL-TIME DUPLICATE WARNING */}
+                  {duplicateCheck.length > 0 && (
+                      <div className="p-3 bg-red-100 border border-red-200 rounded-xl flex flex-col gap-2 animate-in fade-in zoom-in duration-300">
+                          <div className="flex items-center gap-2 text-red-700 font-black text-xs uppercase tracking-widest">
+                              <AlertTriangle className="w-4 h-4" />
+                              সতর্কতা: ডুপ্লিকেট এন্ট্রি!
+                          </div>
+                          <p className="text-xs font-bold text-red-600 leading-relaxed">
+                              এই স্টাফের নামের সাথে <u>{new Date(formData.date).toLocaleDateString('bn-BD')}</u> তারিখে ইতিমধ্যে <span className="text-lg">{duplicateCheck.length}</span> টি বিল আছে।
+                          </p>
+                          <div className="bg-white/50 p-2 rounded-lg max-h-24 overflow-y-auto custom-scrollbar">
+                              {duplicateCheck.map(e => (
+                                  <div key={e.id} className="flex justify-between text-[10px] font-bold text-red-500 border-b border-red-100 last:border-0 py-1">
+                                      <span>{e.reason.substring(0, 20)}...</span>
+                                      <span>৳ {e.amount}</span>
+                                  </div>
+                              ))}
+                          </div>
+                      </div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1 flex justify-between">
+                      <span>খরচের কারণ ও বিবরণ</span>
+                      <span className="text-xs text-indigo-600 font-bold flex items-center gap-1"><Sparkles className="w-3 h-3"/> Auto Calculator</span>
+                    </label>
+                    <textarea 
                       required 
-                      type="number" 
-                      className="w-full pl-7 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-lg text-gray-800" 
-                      placeholder="0.00" 
-                      value={formData.amount || ''} 
-                      onChange={(e) => setFormData({...formData, amount: Number(e.target.value)})} 
+                      rows={2} 
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all" 
+                      placeholder="যেমন: নাস্তা ৫০, রিক্সা ভাড়া ১০০..." 
+                      value={formData.reason} 
+                      onChange={handleReasonChange} 
                     />
                   </div>
-                </div>
-              </div>
-              
-              {/* REAL-TIME DUPLICATE WARNING */}
-              {duplicateCheck.length > 0 && (
-                  <div className="p-3 bg-red-100 border border-red-200 rounded-xl flex flex-col gap-2 animate-in fade-in zoom-in duration-300">
-                      <div className="flex items-center gap-2 text-red-700 font-black text-xs uppercase tracking-widest">
-                          <AlertTriangle className="w-4 h-4" />
-                          সতর্কতা: ডুপ্লিকেট এন্ট্রি!
-                      </div>
-                      <p className="text-xs font-bold text-red-600 leading-relaxed">
-                          এই স্টাফের নামের সাথে <u>{new Date(formData.date).toLocaleDateString('bn-BD')}</u> তারিখে ইতিমধ্যে <span className="text-lg">{duplicateCheck.length}</span> টি বিল আছে।
-                      </p>
-                      <div className="bg-white/50 p-2 rounded-lg max-h-24 overflow-y-auto custom-scrollbar">
-                          {duplicateCheck.map(e => (
-                              <div key={e.id} className="flex justify-between text-[10px] font-bold text-red-500 border-b border-red-100 last:border-0 py-1">
-                                  <span>{e.reason.substring(0, 20)}...</span>
-                                  <span>৳ {e.amount}</span>
-                              </div>
-                          ))}
-                      </div>
+
+                  <div className="space-y-2">
+                     <label className="block text-sm font-medium text-gray-700">ভাউচার ছবি</label>
+                     <div className="flex gap-2">
+                        <button type="button" onClick={() => fileInputRef.current?.click()} className="flex-1 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-gray-200 transition-colors">
+                           <ImageIcon className="w-4 h-4" /> গ্যালারি
+                        </button>
+                        <button type="button" onClick={() => cameraInputRef.current?.click()} className="flex-1 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-indigo-100 transition-colors">
+                           <Camera className="w-4 h-4" /> ক্যামেরা
+                        </button>
+                     </div>
+                     
+                     <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={handleImageUpload} />
+                     <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" hidden onChange={handleImageUpload} />
+                     
+                     {formData.voucherImage ? (
+                       <div className="relative h-24 w-full bg-gray-50 rounded-lg border border-gray-200 overflow-hidden">
+                         <img src={formData.voucherImage} alt="Preview" className="h-full w-full object-contain" />
+                         <button type="button" onClick={removeImage} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full shadow-sm hover:bg-red-600 transition-colors"><X className="w-3 h-3" /></button>
+                       </div>
+                     ) : (
+                       <div className="h-24 w-full border-2 border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center bg-gray-50 text-gray-400">
+                          <p className="text-xs">কোনো ছবি নির্বাচন করা হয়নি</p>
+                       </div>
+                     )}
                   </div>
-              )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1 flex justify-between">
-                  <span>খরচের কারণ ও বিবরণ</span>
-                  <span className="text-xs text-indigo-600 font-bold flex items-center gap-1"><Sparkles className="w-3 h-3"/> Auto Calculator</span>
-                </label>
-                <textarea 
-                  required 
-                  rows={2} 
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all" 
-                  placeholder="যেমন: নাস্তা ৫০, রিক্সা ভাড়া ১০০..." 
-                  value={formData.reason} 
-                  onChange={handleReasonChange} 
-                />
-              </div>
-
-              <div className="space-y-2">
-                 <label className="block text-sm font-medium text-gray-700">ভাউচার ছবি</label>
-                 <div className="flex gap-2">
-                    <button type="button" onClick={() => fileInputRef.current?.click()} className="flex-1 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-gray-200 transition-colors">
-                       <ImageIcon className="w-4 h-4" /> গ্যালারি
-                    </button>
-                    <button type="button" onClick={() => cameraInputRef.current?.click()} className="flex-1 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-indigo-100 transition-colors">
-                       <Camera className="w-4 h-4" /> ক্যামেরা
-                    </button>
-                 </div>
-                 
-                 <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={handleImageUpload} />
-                 <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" hidden onChange={handleImageUpload} />
-                 
-                 {formData.voucherImage ? (
-                   <div className="relative h-24 w-full bg-gray-50 rounded-lg border border-gray-200 overflow-hidden">
-                     <img src={formData.voucherImage} alt="Preview" className="h-full w-full object-contain" />
-                     <button type="button" onClick={removeImage} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full shadow-sm hover:bg-red-600 transition-colors"><X className="w-3 h-3" /></button>
-                   </div>
-                 ) : (
-                   <div className="h-24 w-full border-2 border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center bg-gray-50 text-gray-400">
-                      <p className="text-xs">কোনো ছবি নির্বাচন করা হয়নি</p>
-                   </div>
-                 )}
-              </div>
-
-              <div className="pt-2">
-                <button type="submit" className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all">বিল সাবমিট করুন</button>
-              </div>
-            </form>
+                  <div className="pt-2">
+                    <button type="submit" className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all">বিল সাবমিট করুন</button>
+                  </div>
+                </form>
+            </div>
           </div>
         </div>
       )}
 
       {isCorrectionModalOpen && correctionData && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-             <div className="p-5 border-b border-gray-100 bg-orange-500 text-white flex justify-between items-center">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col max-h-[85vh]">
+             <div className="p-5 border-b border-gray-100 bg-orange-500 text-white flex justify-between items-center shrink-0">
                 <h3 className="font-bold text-lg">বিল সংশোধন (Correction)</h3>
                 <button onClick={() => setIsCorrectionModalOpen(false)} className="text-orange-100 hover:text-white"><X className="w-5 h-5"/></button>
              </div>
-             <form onSubmit={saveCorrection} className="p-6 space-y-4">
-                <div>
-                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">তারিখ (Date)</label>
-                  <input type="date" required className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none font-bold text-gray-800" value={correctionData.date} onChange={(e) => setCorrectionData({...correctionData, date: e.target.value})} />
-                </div>
-                <div>
-                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">সঠিক টাকার পরিমাণ</label>
-                  <input type="number" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none font-bold text-xl text-gray-800" value={correctionData.amount} onChange={(e) => setCorrectionData({...correctionData, amount: Number(e.target.value)})} />
-                </div>
-                <div>
-                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">সংশোধিত কারণ/নোট</label>
-                  <textarea rows={4} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm font-medium" value={correctionData.reason} onChange={(e) => setCorrectionData({...correctionData, reason: e.target.value})} />
-                </div>
-                <button type="submit" className="w-full bg-orange-500 text-white py-3 rounded-xl font-bold hover:bg-orange-600 shadow-lg shadow-orange-100 flex items-center justify-center gap-2"><Edit3 className="w-4 h-4" /> সেইভ করুন</button>
-             </form>
+             <div className="overflow-y-auto p-6 custom-scrollbar">
+                 <form onSubmit={saveCorrection} className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">তারিখ (Date)</label>
+                      <input type="date" required className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none font-bold text-gray-800" value={correctionData.date} onChange={(e) => setCorrectionData({...correctionData, date: e.target.value})} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">সঠিক টাকার পরিমাণ</label>
+                      <input type="number" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none font-bold text-xl text-gray-800" value={correctionData.amount} onChange={(e) => setCorrectionData({...correctionData, amount: Number(e.target.value)})} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">সংশোধিত কারণ/নোট</label>
+                      <textarea rows={4} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm font-medium" value={correctionData.reason} onChange={(e) => setCorrectionData({...correctionData, reason: e.target.value})} />
+                    </div>
+                    <button type="submit" className="w-full bg-orange-500 text-white py-3 rounded-xl font-bold hover:bg-orange-600 shadow-lg shadow-orange-100 flex items-center justify-center gap-2"><Edit3 className="w-4 h-4" /> সেইভ করুন</button>
+                 </form>
+             </div>
           </div>
         </div>
       )}
