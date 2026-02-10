@@ -1,7 +1,6 @@
-
 import React, { useState, useMemo } from 'react';
-import { BarChart3, Download, FileText, Users, Calendar, Table, Printer, UserCheck, PieChart as PieIcon, Wallet, ArrowRight } from 'lucide-react';
-import { Expense, Staff, AdvanceLog, Attendance, FundEntry } from '../types';
+import { BarChart3, Download, FileText, Users, Calendar, Table, Printer, UserCheck, PieChart as PieIcon, Wallet, ArrowRight, MapPin, Calculator } from 'lucide-react';
+import { Expense, Staff, AdvanceLog, Attendance, FundEntry, MovementLog, UserRole } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
 
 interface ReportsProps {
@@ -9,10 +8,12 @@ interface ReportsProps {
   staffList: Staff[];
   advances: AdvanceLog[];
   attendanceList: Attendance[];
-  funds?: FundEntry[]; // Added funds to props
+  funds?: FundEntry[];
+  movements?: MovementLog[];
+  role: UserRole;
 }
 
-const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], advances = [], attendanceList = [], funds = [] }) => {
+const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], advances = [], attendanceList = [], funds = [], movements = [], role }) => {
   const [reportStartDate, setReportStartDate] = useState('');
   const [reportEndDate, setReportEndDate] = useState('');
   
@@ -70,6 +71,47 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
   }).filter(d => d.amount > 0);
 
   const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f59e0b', '#10b981'];
+
+  // --- TRAVEL COST ANALYSIS LOGIC ---
+  const travelCostStats = useMemo(() => {
+    if (role !== UserRole.ADMIN) return [];
+
+    // 1. Identify Non-Driver Staff IDs
+    const nonDriverIds = staffList
+        .filter(s => !s.designation.toLowerCase().includes('driver') && !s.designation.includes('ড্রাইভার'))
+        .map(s => s.id);
+
+    // 2. Filter Movements
+    const relevantMovements = (movements || []).filter(m =>
+        m.transportCost &&
+        m.transportCost > 0 &&
+        nonDriverIds.includes(m.staffId) &&
+        !m.isDeleted
+    );
+
+    // 3. Group by Location
+    const locMap: Record<string, number[]> = {};
+
+    relevantMovements.forEach(m => {
+        // Simple normalization
+        const locName = m.location?.trim() || 'Unknown';
+        // Basic cleanup to group similar locations could be added here
+        if (!locMap[locName]) locMap[locName] = [];
+        locMap[locName].push(m.transportCost!);
+    });
+
+    // 4. Calculate Stats
+    const stats = Object.entries(locMap).map(([location, costs]) => {
+        const sum = costs.reduce((a, b) => a + b, 0);
+        const avg = sum / costs.length;
+        const min = Math.min(...costs);
+        const max = Math.max(...costs);
+        return { location, avg, min, max, count: costs.length };
+    });
+
+    // 5. Sort by Count (Popularity)
+    return stats.sort((a, b) => b.count - a.count); 
+  }, [movements, staffList, role]);
 
   // --- COMMON STYLES FOR PDF ---
   const getCommonStyle = () => `
@@ -404,6 +446,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
     printWindow.document.close();
   };
 
+  // --- ACCOUNT STATEMENT REPORT GENERATOR ---
   const generatePDFReport = () => {
     const start = reportStartDate ? new Date(reportStartDate).setHours(0, 0, 0, 0) : 0;
     const end = reportEndDate ? new Date(reportEndDate).setHours(23, 59, 59, 999) : Number.MAX_VALUE;
@@ -551,6 +594,130 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
     printWindow.document.close();
   };
 
+  // --- PAYABLE LEDGER REPORT ---
+  const generatePayableLedgerPDF = () => {
+    // Active staff only
+    const activeStaff = (staffList || []).filter(s => !s.deletedAt && s.status === 'ACTIVE');
+    
+    // Calculate ledger
+    const ledgerData = activeStaff.map(staff => {
+       const approvedExp = (expenses || [])
+          .filter(e => !e.isDeleted && e.status === 'APPROVED' && e.staffId === staff.id)
+          .reduce((sum, e) => sum + Number(e.amount), 0);
+        
+       const regularAdv = (advances || [])
+          .filter(a => !a.isDeleted && a.type !== 'SALARY' && a.staffId === staff.id)
+          .reduce((sum, a) => sum + Number(a.amount), 0);
+        
+       // Balance: Regular Advance - Expense. 
+       // If Negative, Company owes Staff (Payable).
+       const balance = regularAdv - approvedExp;
+       
+       return {
+         name: staff.name,
+         staffId: staff.staffId,
+         designation: staff.designation,
+         approvedExp,
+         regularAdv,
+         balance,
+         payableAmount: balance < 0 ? Math.abs(balance) : 0
+       };
+    })
+    .filter(item => item.payableAmount > 0) // Filter only those who have payable amount
+    .sort((a, b) => b.payableAmount - a.payableAmount); // Sort desc
+
+    if (ledgerData.length === 0) {
+       alert("বর্তমানে কোনো স্টাফের বকেয়া বিল (Payable) নেই।");
+       return;
+    }
+
+    const totalPayable = ledgerData.reduce((sum, item) => sum + item.payableAmount, 0);
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html lang="bn">
+      <head>
+        <meta charset="UTF-8">
+        <title>Payable Ledger Report</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+        <style>
+          ${getCommonStyle()}
+          .theme-color { color: #dc2626; }
+          .theme-border { border-color: #dc2626; }
+          .table-header { background-color: #fef2f2 !important; color: #991b1b !important; border-bottom: 2px solid #dc2626; }
+        </style>
+      </head>
+      <body>
+        <div class="watermark">PAYABLE LIST</div>
+        <div class="max-w-[210mm] mx-auto">
+          
+          <div class="header-section theme-border flex justify-between items-end">
+             <div><h1 class="company-name theme-color">Depend Sourcing Ltd.</h1><p class="tagline">Promise Beyond Business</p></div>
+             <div class="address-block"><p>Payable Bills Ledger</p><p>Generated: ${new Date().toLocaleDateString('en-GB')}</p></div>
+          </div>
+
+          <div class="report-title-box bg-red-50 border border-red-200">
+             <div>
+               <h2 class="report-title theme-color">STAFF PAYABLE LIST</h2>
+               <p class="meta-text text-gray-600">List of staff members with due bills (Regular Adv vs Approved Exp)</p>
+             </div>
+             <div class="text-right">
+                <span class="block text-[10px] font-bold text-gray-500 uppercase">Total Payable Amount</span>
+                <span class="text-xl font-black text-red-600">৳ ${totalPayable.toLocaleString()}</span>
+             </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr class="table-header">
+                <th class="text-center w-10">SL</th>
+                <th class="text-left">Staff Name</th>
+                <th class="text-left">Details</th>
+                <th class="text-right">Total Expense</th>
+                <th class="text-right">Regular Adv</th>
+                <th class="text-right">Payable (Due)</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${ledgerData.map((item, index) => `
+                <tr class="${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}">
+                  <td class="text-center font-bold text-gray-500">${index + 1}</td>
+                  <td class="font-bold text-gray-800">${item.name}</td>
+                  <td class="text-xs text-gray-500">${item.staffId} • ${item.designation}</td>
+                  <td class="text-right text-gray-600">৳ ${item.approvedExp.toLocaleString()}</td>
+                  <td class="text-right text-gray-600">৳ ${item.regularAdv.toLocaleString()}</td>
+                  <td class="text-right font-black text-red-600">৳ ${item.payableAmount.toLocaleString()}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+            <tfoot>
+               <tr class="bg-red-50 font-bold text-xs border-t-2 border-red-200">
+                 <td colspan="5" class="text-right uppercase p-3 text-red-900">Total Payable</td>
+                 <td class="text-right text-red-700 p-3 text-sm">৳ ${totalPayable.toLocaleString()}</td>
+               </tr>
+            </tfoot>
+          </table>
+
+          <div class="footer">
+             <div><p>System Generated Report. Confidential.</p></div>
+             <div class="text-center" style="width: 200px; margin-left: auto;">
+                <div class="h-px bg-gray-800 w-full mb-1"></div>
+                <p class="font-bold text-sm text-gray-800">Authorized Signature</p>
+             </div>
+          </div>
+        </div>
+        <script>window.onload = () => { setTimeout(() => { window.print(); }, 500); }</script>
+      </body>
+      </html>
+    `;
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
+
   return (
     <div className="space-y-8">
       
@@ -657,6 +824,13 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
             <UserCheck className="w-5 h-5" />
             হাজিরা রিপোর্ট
           </button>
+          <button 
+            onClick={generatePayableLedgerPDF}
+            className="w-full bg-red-600 text-white py-2.5 rounded-xl font-bold hover:bg-red-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-100 active:scale-95"
+          >
+            <Wallet className="w-5 h-5" />
+            পেয়েবল লিস্ট (Payable)
+          </button>
         </div>
       </div>
 
@@ -717,6 +891,43 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
            </div>
         </div>
       </div>
+
+      {/* TRAVEL COST ESTIMATION (ADMIN ONLY) */}
+      {role === UserRole.ADMIN && (
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-orange-100">
+           <div className="flex items-center gap-2 mb-6">
+              <MapPin className="w-5 h-5 text-orange-600" />
+              <h3 className="font-bold text-gray-800">যাতায়াত খরচ বিশ্লেষণ (Travel Cost Estimation)</h3>
+              <span className="text-[10px] bg-orange-100 text-orange-700 px-2 py-0.5 rounded font-bold">Admin Only</span>
+           </div>
+           
+           <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                 <thead className="bg-orange-50/50">
+                    <tr>
+                       <th className="px-4 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">গন্তব্য (Destination)</th>
+                       <th className="px-4 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">গড় খরচ (Avg)</th>
+                       <th className="px-4 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">সর্বনিম্ন - সর্বোচ্চ</th>
+                       <th className="px-4 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">ফ্রিকোয়েন্সি</th>
+                    </tr>
+                 </thead>
+                 <tbody className="divide-y divide-orange-50">
+                    {travelCostStats.length > 0 ? travelCostStats.map((stat, idx) => (
+                       <tr key={idx} className="hover:bg-orange-50/20 transition-colors">
+                          <td className="px-4 py-3 text-xs font-bold text-gray-700">{stat.location}</td>
+                          <td className="px-4 py-3 text-right text-sm font-black text-orange-600">৳ {Math.round(stat.avg)}</td>
+                          <td className="px-4 py-3 text-right text-xs text-gray-500">৳ {stat.min} - ৳ {stat.max}</td>
+                          <td className="px-4 py-3 text-right text-xs font-bold text-gray-600">{stat.count} বার</td>
+                       </tr>
+                    )) : (
+                       <tr><td colSpan={4} className="px-4 py-8 text-center text-xs text-gray-400">কোনো যাতায়াত তথ্য পাওয়া যায়নি (ড্রাইভার বাদে)।</td></tr>
+                    )}
+                 </tbody>
+              </table>
+           </div>
+           <p className="text-[10px] text-gray-400 mt-4 italic">* এই রিপোর্টটি ড্রাইভারদের বাদ দিয়ে সাধারণ স্টাফদের যাতায়াত খরচের গড় হিসাব দেখাচ্ছে।</p>
+        </div>
+      )}
     </div>
   );
 };

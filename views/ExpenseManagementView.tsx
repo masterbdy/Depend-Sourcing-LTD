@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { Receipt, Camera, CheckCircle, XCircle, Clock, Eye, Trash2, Search, Calendar, FilterX, RotateCcw, CheckCheck, Sparkles, Image as ImageIcon, X, Edit3, Eraser, AlertTriangle, User, ChevronDown, Printer, Loader2, Images, MessageCircle } from 'lucide-react';
+import { Receipt, Camera, CheckCircle, XCircle, Clock, Eye, Trash2, Search, Calendar, FilterX, RotateCcw, CheckCheck, Sparkles, Image as ImageIcon, X, Edit3, Eraser, AlertTriangle, User, ChevronDown, Printer, Loader2, Images, MessageCircle, SpellCheck, Wand2 } from 'lucide-react';
 import { Expense, Staff, UserRole, AppNotification, AdvanceLog } from '../types';
 
 interface ExpenseProps {
@@ -12,6 +12,34 @@ interface ExpenseProps {
   onOpenProfile?: (staffId: string) => void;
   onNotify?: (title: string, message: string, type: AppNotification['type']) => void;
 }
+
+// Common Bengali Typos Dictionary
+const TYPO_DICTIONARY: Record<string, string> = {
+  'লান্স': 'লাঞ্চ',
+  'লান্চ': 'লাঞ্চ',
+  'লাঞ্চ বিল': 'লাঞ্চ',
+  'রিস্কা': 'রিকশা',
+  'রিকসা': 'রিকশা',
+  'রিক্সা': 'রিকশা',
+  'ভারা': 'ভাড়া',
+  'গারি': 'গাড়ি',
+  'বিল্ল': 'বিল',
+  'নাষ্তা': 'নাস্তা',
+  'নাশ্তা': 'নাস্তা',
+  'খাবাড়': 'খাবার',
+  'লেত': 'লেট',
+  'লেঠ': 'লেট',
+  'ওভারটাইম': 'ওভারটাইম',
+  'ওভার টাইম': 'ওভারটাইম',
+  'মোবাইল বিল': 'মোবাইল',
+  'তেল': 'ফুয়েল',
+  'পেটেল': 'পেট্রোল',
+  'পেট্রোল': 'অকটেন', // If needed strictly
+  'সিএনজি': 'CNG',
+  'বাইক': 'বাইক',
+  'মালামাল': 'মালামাল',
+  'কুরিয়ার': 'কুরিয়ার'
+};
 
 const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, staffList, role, currentUser, advances = [], onOpenProfile }) => {
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
@@ -68,6 +96,30 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
       getSafeDateStr(e.createdAt) === formData.date
     );
   }, [expenses, formData.staffId, formData.date]);
+
+  // TYPO CHECKER LOGIC
+  const detectedTypos = useMemo(() => {
+    const words = formData.reason.split(/[\s,]+/); // Split by space or comma
+    const found: { wrong: string, correct: string }[] = [];
+    
+    words.forEach(word => {
+       // Simple check (can be improved with fuzzy search later)
+       if (TYPO_DICTIONARY[word]) {
+          // Avoid duplicates
+          if (!found.some(f => f.wrong === word)) {
+             found.push({ wrong: word, correct: TYPO_DICTIONARY[word] });
+          }
+       }
+    });
+    return found;
+  }, [formData.reason]);
+
+  const fixTypo = (wrong: string, correct: string) => {
+     setFormData(prev => ({
+        ...prev,
+        reason: prev.reason.replace(new RegExp(wrong, 'g'), correct)
+     }));
+  };
 
   // Helper: Get Financial Stats for a Staff (For Voucher)
   const getStaffFinancials = (staffId: string) => {
@@ -618,6 +670,31 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                       <span className="text-xs text-indigo-600 font-bold flex items-center gap-1"><Sparkles className="w-3 h-3"/> Auto Calculator</span>
                     </label>
                     <textarea required rows={2} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all" placeholder="যেমন: নাস্তা ৫০, রিক্সা ভাড়া ১০০..." value={formData.reason} onChange={handleReasonChange} />
+                    
+                    {/* TYPO SUGGESTIONS UI */}
+                    {detectedTypos.length > 0 && (
+                       <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-lg animate-in fade-in zoom-in duration-200">
+                          <div className="flex items-center gap-1.5 text-yellow-800 text-[10px] font-bold uppercase mb-1.5">
+                             <Wand2 className="w-3 h-3" />
+                             বানান সতর্কতা (Spelling Suggestion)
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                             {detectedTypos.map((typo, idx) => (
+                                <button 
+                                  key={idx}
+                                  type="button" 
+                                  onClick={() => fixTypo(typo.wrong, typo.correct)}
+                                  className="flex items-center gap-1 px-2 py-1 bg-white border border-yellow-300 rounded text-xs font-bold text-gray-700 hover:bg-yellow-100 transition-colors shadow-sm"
+                                  title="ক্লিক করে ঠিক করুন"
+                                >
+                                   <span className="line-through text-red-400 opacity-70">{typo.wrong}</span>
+                                   <span className="text-gray-400">→</span>
+                                   <span className="text-green-600">{typo.correct}</span>
+                                </button>
+                             ))}
+                          </div>
+                       </div>
+                    )}
                   </div>
 
                   <div className="space-y-2">
