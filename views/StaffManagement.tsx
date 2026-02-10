@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Plus, Search, Edit3, Trash2, UserPlus, X, Calendar, FilterX, Phone, Banknote, Users, UserCheck, UserX, ArrowUpDown, ShieldCheck, ShieldAlert, Eye, EyeOff, Lock, Camera, Image as ImageIcon, Briefcase, Wallet, ArrowRight, Coins, Crown, UserCog, History, CalendarClock, MapPin, LocateFixed, Globe, ToggleLeft, ToggleRight, Map, MonitorSmartphone, Gift, Star, MoreVertical, WalletCards, AlertTriangle, CheckCircle, RotateCcw, TrendingDown, Maximize2, Minimize2, ChevronDown, Sparkles, CreditCard, ExternalLink } from 'lucide-react';
 import { Staff, UserRole, Expense, AdvanceLog } from '../types';
@@ -1092,7 +1091,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
       {historyStaff && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
               <div>
                  <h3 className="font-bold text-xl text-gray-800">{historyStaff.name}</h3>
                  <p className="text-xs text-gray-500 font-bold">{historyStaff.designation} • ID: {historyStaff.staffId}</p>
@@ -1100,7 +1099,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
               <button onClick={() => setHistoryStaff(null)} className="p-2 hover:bg-gray-200 rounded-full transition-colors"><X className="w-5 h-5 text-gray-500"/></button>
             </div>
             
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
                {/* Financial Summary */}
                {(() => {
                   const { balance, totalRegularAdv, totalSalaryAdv, approved } = getStaffFinancials(historyStaff.id);
@@ -1168,13 +1167,13 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
       {/* Profile Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-indigo-600 text-white">
+          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-indigo-600 text-white shrink-0">
               <h3 className="font-bold text-xl">{editingStaff ? 'প্রোফাইল আপডেট' : 'নতুন ইউজার যুক্ত করুন'}</h3>
               <button onClick={closeModal} className="p-1 text-indigo-200 hover:text-white transition-colors"><X className="w-6 h-6" /></button>
             </div>
             
-            <div className="p-6 space-y-6">
+            <div className="p-6 space-y-6 overflow-y-auto custom-scrollbar">
               {/* Photo Upload */}
               <div className="flex flex-col items-center">
                  <div onClick={() => fileInputRef.current?.click()} className="w-24 h-24 rounded-full border-4 border-indigo-50 flex items-center justify-center cursor-pointer hover:border-indigo-200 overflow-hidden relative group shadow-lg">

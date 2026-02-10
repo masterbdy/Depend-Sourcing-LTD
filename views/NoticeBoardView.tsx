@@ -300,8 +300,8 @@ const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices = [], setNotices,
       {/* Create Notice Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in duration-200">
-          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden">
-             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-indigo-600 text-white">
+          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-indigo-600 text-white shrink-0">
                 <div className="flex items-center gap-3">
                    <Megaphone className="w-6 h-6" />
                    <h3 className="font-bold text-xl">নতুন নোটিশ তৈরি করুন</h3>
@@ -311,57 +311,59 @@ const NoticeBoardView: React.FC<NoticeBoardProps> = ({ notices = [], setNotices,
                 </button>
              </div>
 
-             <form onSubmit={handleSubmit} className="p-6 space-y-5">
-                <div>
-                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">নোটিশের বিষয় (Title)</label>
-                  <input 
-                    required 
-                    type="text" 
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-gray-800"
-                    placeholder="যেমন: আগামীকাল অফিস বন্ধ থাকবে"
-                    value={formData.title}
-                    onChange={(e) => setFormData({...formData, title: e.target.value})}
-                  />
-                </div>
+             <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar">
+                <form onSubmit={handleSubmit} className="space-y-5">
+                    <div>
+                      <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">নোটিশের বিষয় (Title)</label>
+                      <input 
+                        required 
+                        type="text" 
+                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-gray-800"
+                        placeholder="যেমন: আগামীকাল অফিস বন্ধ থাকবে"
+                        value={formData.title}
+                        onChange={(e) => setFormData({...formData, title: e.target.value})}
+                      />
+                    </div>
 
-                <div>
-                   <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">নোটিশের ধরণ</label>
-                   <div className="flex gap-4">
-                      <label className={`flex-1 cursor-pointer border-2 rounded-xl p-3 flex items-center justify-center gap-2 transition-all ${formData.type === 'NORMAL' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-100 bg-white text-gray-500 hover:bg-gray-50'}`}>
-                         <input type="radio" className="hidden" name="type" checked={formData.type === 'NORMAL'} onChange={() => setFormData({...formData, type: 'NORMAL'})} />
-                         <Info className="w-5 h-5" />
-                         <span className="font-bold text-sm">সাধারণ নোটিশ</span>
-                      </label>
-                      <label className={`flex-1 cursor-pointer border-2 rounded-xl p-3 flex items-center justify-center gap-2 transition-all ${formData.type === 'URGENT' ? 'border-red-600 bg-red-50 text-red-700' : 'border-gray-100 bg-white text-gray-500 hover:bg-gray-50'}`}>
-                         <input type="radio" className="hidden" name="type" checked={formData.type === 'URGENT'} onChange={() => setFormData({...formData, type: 'URGENT'})} />
-                         <AlertCircle className="w-5 h-5" />
-                         <span className="font-bold text-sm">জরুরী ঘোষণা</span>
-                      </label>
-                   </div>
-                </div>
+                    <div>
+                       <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">নোটিশের ধরণ</label>
+                       <div className="flex gap-4">
+                          <label className={`flex-1 cursor-pointer border-2 rounded-xl p-3 flex items-center justify-center gap-2 transition-all ${formData.type === 'NORMAL' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-100 bg-white text-gray-500 hover:bg-gray-50'}`}>
+                             <input type="radio" className="hidden" name="type" checked={formData.type === 'NORMAL'} onChange={() => setFormData({...formData, type: 'NORMAL'})} />
+                             <Info className="w-5 h-5" />
+                             <span className="font-bold text-sm">সাধারণ নোটিশ</span>
+                          </label>
+                          <label className={`flex-1 cursor-pointer border-2 rounded-xl p-3 flex items-center justify-center gap-2 transition-all ${formData.type === 'URGENT' ? 'border-red-600 bg-red-50 text-red-700' : 'border-gray-100 bg-white text-gray-500 hover:bg-gray-50'}`}>
+                             <input type="radio" className="hidden" name="type" checked={formData.type === 'URGENT'} onChange={() => setFormData({...formData, type: 'URGENT'})} />
+                             <AlertCircle className="w-5 h-5" />
+                             <span className="font-bold text-sm">জরুরী ঘোষণা</span>
+                          </label>
+                       </div>
+                    </div>
 
-                <div>
-                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">বিস্তারিত বিবরণ</label>
-                  <textarea 
-                    required 
-                    rows={5}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm font-medium text-gray-700"
-                    placeholder="এখানে বিস্তারিত লিখুন..."
-                    value={formData.content}
-                    onChange={(e) => setFormData({...formData, content: e.target.value})}
-                  />
-                </div>
+                    <div>
+                      <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">বিস্তারিত বিবরণ</label>
+                      <textarea 
+                        required 
+                        rows={5}
+                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm font-medium text-gray-700"
+                        placeholder="এখানে বিস্তারিত লিখুন..."
+                        value={formData.content}
+                        onChange={(e) => setFormData({...formData, content: e.target.value})}
+                      />
+                    </div>
 
-                <div className="pt-2">
-                   <button 
-                     type="submit" 
-                     className="w-full bg-indigo-600 text-white py-4 rounded-xl font-black text-sm hover:bg-indigo-700 shadow-xl shadow-indigo-100 flex items-center justify-center gap-2 transition-all active:scale-95"
-                   >
-                     <Check className="w-5 h-5" />
-                     পাবলিশ করুন
-                   </button>
-                </div>
-             </form>
+                    <div className="pt-2">
+                       <button 
+                         type="submit" 
+                         className="w-full bg-indigo-600 text-white py-4 rounded-xl font-black text-sm hover:bg-indigo-700 shadow-xl shadow-indigo-100 flex items-center justify-center gap-2 transition-all active:scale-95"
+                       >
+                         <Check className="w-5 h-5" />
+                         পাবলিশ করুন
+                       </button>
+                    </div>
+                </form>
+             </div>
           </div>
         </div>
       )}
