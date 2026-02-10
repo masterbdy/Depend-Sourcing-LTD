@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { Receipt, Camera, CheckCircle, XCircle, Clock, Eye, Trash2, Search, Calendar, FilterX, RotateCcw, CheckCheck, Sparkles, Image as ImageIcon, X, Edit3, Eraser, AlertTriangle, User, ChevronDown, Printer, Loader2, Images } from 'lucide-react';
+import { Receipt, Camera, CheckCircle, XCircle, Clock, Eye, Trash2, Search, Calendar, FilterX, RotateCcw, CheckCheck, Sparkles, Image as ImageIcon, X, Edit3, Eraser, AlertTriangle, User, ChevronDown, Printer, Loader2, Images, MessageCircle } from 'lucide-react';
 import { Expense, Staff, UserRole, AppNotification, AdvanceLog } from '../types';
 
 interface ExpenseProps {
@@ -84,7 +84,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
     return { approvedExp, regularAdv, balance };
   };
 
-  // --- VOUCHER GENERATOR FUNCTION ---
+  // ... (Voucher Generator Code) ...
   const generateVoucherHTML = (expense: Expense) => {
     const stats = getStaffFinancials(expense.staffId);
     const dateStr = new Date(expense.createdAt).toLocaleDateString('bn-BD', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -99,8 +99,6 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
 
     return `
       <div style="width: 650px; padding: 40px; background: white; border: 1px solid #d1d5db; font-family: 'Hind Siliguri', sans-serif; color: #1f2937; position: relative; margin: auto; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-         
-         <!-- Top Banner -->
          <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #111827; padding-bottom: 20px; margin-bottom: 30px;">
             <div>
                <h1 style="font-size: 28px; font-weight: 900; margin: 0; color: #111827; text-transform: uppercase; letter-spacing: -0.5px; line-height: 1;">Depend Sourcing Ltd.</h1>
@@ -111,35 +109,21 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                <p style="margin-top: 5px; font-size: 10px; font-weight: bold; color: #9ca3af;">#${expense.id.substring(0, 8).toUpperCase()}</p>
             </div>
          </div>
-
-         <!-- Payee Info Box -->
          <div style="display: flex; justify-content: space-between; align-items: center; background: #f9fafb; padding: 20px; border-radius: 12px; border: 1px solid #f3f4f6; margin-bottom: 30px;">
             <div>
                <div style="color: #6b7280; font-size: 10px; text-transform: uppercase; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">Beneficiary / Payee</div>
                <div style="font-size: 18px; font-weight: 800; color: #111827;">${expense.staffName}</div>
                <div style="font-size: 12px; color: #4b5563; margin-top: 2px; font-weight: 500;">${designation} • ID: ${staffId}</div>
             </div>
-            <div>
-               ${photoHTML}
-            </div>
+            <div>${photoHTML}</div>
          </div>
-
-         <!-- Main Amount -->
          <div style="text-align: center; margin-bottom: 35px; padding: 30px 20px; border: 2px dashed #e5e7eb; border-radius: 16px; position: relative;">
             <div style="position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: white; padding: 0 10px; font-size: 10px; text-transform: uppercase; font-weight: 800; color: #9ca3af; letter-spacing: 1px;">Amount Authorized</div>
             <div style="font-size: 48px; font-weight: 900; color: #111827; line-height: 1; letter-spacing: -1px;">৳ ${expense.amount.toLocaleString()}</div>
-            <div style="font-size: 12px; font-weight: 600; color: #4b5563; margin-top: 5px; text-transform: uppercase; letter-spacing: 1px;">
-               BDT Taka Only
-            </div>
-            <div style="margin-top: 20px; font-size: 14px; font-weight: 500; color: #374151; background: #f3f4f6; padding: 10px 20px; border-radius: 50px; display: inline-block;">
-               "${expense.reason}"
-            </div>
-            <div style="margin-top: 10px; font-size: 10px; font-weight: 600; color: #9ca3af;">
-               Date: ${dateStr}
-            </div>
+            <div style="font-size: 12px; font-weight: 600; color: #4b5563; margin-top: 5px; text-transform: uppercase; letter-spacing: 1px;">BDT Taka Only</div>
+            <div style="margin-top: 20px; font-size: 14px; font-weight: 500; color: #374151; background: #f3f4f6; padding: 10px 20px; border-radius: 50px; display: inline-block;">"${expense.reason}"</div>
+            <div style="margin-top: 10px; font-size: 10px; font-weight: 600; color: #9ca3af;">Date: ${dateStr}</div>
          </div>
-
-         <!-- Account Summary Table -->
          <div style="margin-bottom: 50px;">
             <div style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: #6b7280; margin-bottom: 10px; letter-spacing: 0.5px; padding-left: 5px;">Current Account Summary</div>
             <table style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 11px; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
@@ -154,15 +138,11 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                  <tr>
                     <td style="padding: 15px; text-align: left; border-right: 1px solid #e5e7eb; font-weight: 600; font-size: 13px;">৳ ${stats.regularAdv.toLocaleString()}</td>
                     <td style="padding: 15px; text-align: right; border-right: 1px solid #e5e7eb; font-weight: 600; font-size: 13px;">৳ ${stats.approvedExp.toLocaleString()}</td>
-                    <td style="padding: 15px; text-align: right; font-weight: 900; color: ${stats.balance < 0 ? '#dc2626' : '#059669'}; font-size: 14px;">
-                       ${stats.balance < 0 ? 'Payable' : 'Cash'} ৳ ${Math.abs(stats.balance).toLocaleString()}
-                    </td>
+                    <td style="padding: 15px; text-align: right; font-weight: 900; color: ${stats.balance < 0 ? '#dc2626' : '#059669'}; font-size: 14px;">${stats.balance < 0 ? 'Payable' : 'Cash'} ৳ ${Math.abs(stats.balance).toLocaleString()}</td>
                  </tr>
                </tbody>
             </table>
          </div>
-
-         <!-- Signatures -->
          <div style="display: flex; justify-content: space-between; margin-top: 40px; padding-top: 20px;">
             <div style="text-align: center; width: 30%;">
                <div style="border-top: 1px solid #9ca3af; width: 100%; margin-bottom: 8px;"></div>
@@ -173,10 +153,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">Authority Signature</div>
             </div>
          </div>
-         
-         <div style="position: absolute; bottom: 10px; right: 20px; font-size: 9px; color: #cbd5e1; font-style: italic;">
-            System Generated via Depend App • ${new Date().toLocaleString('bn-BD')}
-         </div>
+         <div style="position: absolute; bottom: 10px; right: 20px; font-size: 9px; color: #cbd5e1; font-style: italic;">System Generated via Depend App • ${new Date().toLocaleString('bn-BD')}</div>
       </div>
     `;
   };
@@ -188,7 +165,6 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
         const container = document.createElement('div');
         container.innerHTML = htmlContent;
         
-        // Fixed positioning off-screen
         container.style.position = 'fixed';
         container.style.left = '-10000px';
         container.style.top = '0';
@@ -198,32 +174,21 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
         
         document.body.appendChild(container);
 
-        // Wait for images to load
         const images = container.querySelectorAll('img');
         const imagePromises = Array.from(images).map(img => {
             if (img.complete) return Promise.resolve();
-            return new Promise((res) => { 
-                img.onload = res; 
-                img.onerror = res;
-            });
+            return new Promise((res) => { img.onload = res; img.onerror = res; });
         });
         
-        if (imagePromises.length > 0) {
-            await Promise.all(imagePromises);
-        }
+        if (imagePromises.length > 0) await Promise.all(imagePromises);
         
-        // Delay for rendering
         await new Promise(r => setTimeout(r, 800));
 
         // @ts-ignore
         if (window.html2canvas) {
            // @ts-ignore
            const canvas = await window.html2canvas(container.firstElementChild as HTMLElement, {
-              scale: 2,
-              useCORS: true,
-              backgroundColor: '#ffffff',
-              logging: false,
-              windowWidth: 1200
+              scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, windowWidth: 1200
            });
            
            const link = document.createElement('a');
@@ -235,7 +200,6 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
         } else {
             alert("Image generation library (html2canvas) not found. Please refresh the page.");
         }
-
         document.body.removeChild(container);
       } catch (e) {
         console.error("Voucher Generation Error", e);
@@ -251,37 +215,21 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
   };
 
   const handleBulkDownload = async () => {
-    // Group by Staff ID to get the latest approved expense for each
     const latestExpensesMap = new Map<string, Expense>();
-    
     expenses.forEach(e => {
         if (!e.isDeleted && e.status === 'APPROVED') {
             const existing = latestExpensesMap.get(e.staffId);
-            if (!existing) {
-                latestExpensesMap.set(e.staffId, e);
-            } else {
-                // Compare dates, keep latest
-                if (new Date(e.createdAt) > new Date(existing.createdAt)) {
-                    latestExpensesMap.set(e.staffId, e);
-                }
-            }
+            if (!existing) latestExpensesMap.set(e.staffId, e);
+            else if (new Date(e.createdAt) > new Date(existing.createdAt)) latestExpensesMap.set(e.staffId, e);
         }
     });
-
     const targetExpenses = Array.from(latestExpensesMap.values());
-
-    if (targetExpenses.length === 0) {
-        alert("কোনো অনুমোদিত বিল পাওয়া যায়নি।");
-        return;
-    }
-
+    if (targetExpenses.length === 0) { alert("কোনো অনুমোদিত বিল পাওয়া যায়নি।"); return; }
     if (window.confirm(`সর্বমোট ${targetExpenses.length} জন স্টাফের লাস্ট ভাউচার ডাউনলোড করতে চান?`)) {
         setIsBulkDownloading(true);
-        // Process sequentially with delay
         for (let i = 0; i < targetExpenses.length; i++) {
             setBulkProgress(`${i+1}/${targetExpenses.length}`);
             await processVoucherDownload(targetExpenses[i]);
-            // Increased delay to prevent browser blocking multiple downloads
             await new Promise(resolve => setTimeout(resolve, 2000)); 
         }
         setBulkProgress('');
@@ -292,80 +240,39 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
   const handlePrintPDF = (expense: Expense) => {
     const htmlContent = generateVoucherHTML(expense);
     const printWindow = window.open('', '_blank', 'width=900,height=800');
-    
     if (printWindow) {
        printWindow.document.open();
-       printWindow.document.write(`
-          <!DOCTYPE html>
-          <html>
-             <head>
-                <title>Voucher #${expense.id}</title>
-                <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
-                <style>
-                   body { background-color: #f3f4f6; display: flex; justify-content: center; padding-top: 40px; margin: 0; font-family: 'Hind Siliguri', sans-serif; }
-                   @media print { body { background-color: white; padding: 0; display: block; -webkit-print-color-adjust: exact; } .no-print { display: none; } }
-                </style>
-             </head>
-             <body>${htmlContent}<script>window.onload = function() { setTimeout(function() { window.print(); }, 800); };</script></body>
-          </html>
-       `);
+       printWindow.document.write(`<!DOCTYPE html><html><head><title>Voucher #${expense.id}</title><link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet"><style>body { background-color: #f3f4f6; display: flex; justify-content: center; padding-top: 40px; margin: 0; font-family: 'Hind Siliguri', sans-serif; } @media print { body { background-color: white; padding: 0; display: block; -webkit-print-color-adjust: exact; } .no-print { display: none; } }</style></head><body>${htmlContent}<script>window.onload = function() { setTimeout(function() { window.print(); }, 800); };</script></body></html>`);
        printWindow.document.close();
-    } else {
-       alert("Print popup blocked. Please allow popups for this site.");
-    }
+    } else { alert("Print popup blocked. Please allow popups for this site."); }
   };
 
   const filteredExpenses = useMemo(() => {
     return expenses.filter(e => {
       if (e.isDeleted) return false;
-
-      // SECURITY: Staff can only see their own expenses
-      // Admin and MD can see everyone's expenses
-      if (role === UserRole.STAFF && currentUser) {
-         if (e.staffName !== currentUser) return false;
-      }
-      
-      // Staff Filter (Admin/MD only)
+      if (role === UserRole.STAFF && currentUser) { if (e.staffName !== currentUser) return false; }
       if (selectedStaffFilter && e.staffId !== selectedStaffFilter) return false;
       
-      const matchesSearch = 
-        e.reason.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        e.staffName.toLowerCase().includes(searchTerm.toLowerCase());
-      
+      const matchesSearch = e.reason.toLowerCase().includes(searchTerm.toLowerCase()) || e.staffName.toLowerCase().includes(searchTerm.toLowerCase());
       const expenseDate = new Date(e.createdAt).setHours(0, 0, 0, 0);
       const start = startDate ? new Date(startDate).setHours(0, 0, 0, 0) : null;
       const end = endDate ? new Date(endDate).setHours(23, 59, 59, 999) : null;
-
       const matchesDate = (!start || expenseDate >= start) && (!end || expenseDate <= end);
-
       return matchesSearch && matchesDate;
     })
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()); // Sort by Date: Newest First
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [expenses, searchTerm, startDate, endDate, role, currentUser, selectedStaffFilter]);
 
   const handleReasonChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const text = e.target.value;
-    
-    // 1. Convert Bengali digits to English for calculation
     const banglaToEng = (str: string) => str.replace(/[০-৯]/g, d => "0123456789"["০১২৩৪৫৬৭৮৯".indexOf(d)]);
     let processedText = banglaToEng(text);
-
-    // 2. EXCLUSION LOGIC: Mask numbers that are part of addresses/locations
     const exclusionPattern = /(মিরপুর|উত্তরা|সেক্টর|রোড|বাসা|ফ্ল্যাট|লেভেল|তলা|ব্লক|লেন|ওয়ার্ড|নম্বর|নং|প্লাটফর্ম|গাড়ি|বাস নং|Mirpur|Uttara|Sector|Road|House|Flat|Level|Floor|Block|Lane|Ward|No|Num)[\s\-\.]*[0-9]+/gi;
     processedText = processedText.replace(exclusionPattern, (match) => match.replace(/[0-9]/g, 'X'));
-
-    // 3. Extract remaining numbers and sum them up
     const matches = processedText.match(/(\d+(\.\d+)?)/g);
     let total = 0;
-    if (matches) {
-      total = matches.reduce((sum, num) => sum + parseFloat(num), 0);
-    }
-
-    setFormData(prev => ({
-      ...prev,
-      reason: text,
-      amount: total // Auto update amount
-    }));
+    if (matches) total = matches.reduce((sum, num) => sum + parseFloat(num), 0);
+    setFormData(prev => ({ ...prev, reason: text, amount: total }));
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -378,19 +285,11 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
           const MAX_WIDTH = 800;
-          let width = img.width;
-          let height = img.height;
-          
-          if (width > MAX_WIDTH) {
-            height *= MAX_WIDTH / width;
-            width = MAX_WIDTH;
-          }
-          
-          canvas.width = width;
-          canvas.height = height;
+          let width = img.width; let height = img.height;
+          if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+          canvas.width = width; canvas.height = height;
           ctx?.drawImage(img, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-          setFormData(prev => ({ ...prev, voucherImage: dataUrl }));
+          setFormData(prev => ({ ...prev, voucherImage: canvas.toDataURL('image/jpeg', 0.7) }));
         };
         img.src = event.target?.result as string;
       };
@@ -409,61 +308,30 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
-    // 1. Resolve Staff ID
     let targetStaffId = formData.staffId;
     if (role === UserRole.STAFF && currentUser) {
        const myself = activeStaff.find(s => s.name === currentUser);
-       if (!myself) {
-         alert("আপনার প্রোফাইল ডাটা পাওয়া যাচ্ছে না। রিফ্রেশ দিন।");
-         return;
-       }
+       if (!myself) { alert("আপনার প্রোফাইল ডাটা পাওয়া যাচ্ছে না।"); return; }
        targetStaffId = myself.id;
     }
-
-    if (!targetStaffId) {
-      alert("স্টাফ নির্বাচন করা হয়নি।");
-      return;
-    }
-
+    if (!targetStaffId) { alert("স্টাফ নির্বাচন করা হয়নি।"); return; }
     const staff = activeStaff.find(s => s.id === targetStaffId);
-    if (!staff) {
-      alert("স্টাফ পাওয়া যায়নি।");
-      return;
-    }
+    if (!staff) { alert("স্টাফ পাওয়া যায়নি।"); return; }
+    if (!formData.amount || Number(formData.amount) <= 0) { alert("টাকার সঠিক পরিমাণ লিখুন।"); return; }
+    if (!formData.date) { alert("তারিখ নির্বাচন করুন।"); return; }
 
-    // 2. Validate Amount
-    if (!formData.amount || Number(formData.amount) <= 0) {
-       alert("দয়া করে টাকার সঠিক পরিমাণ লিখুন।");
-       return;
-    }
-
-    // 3. Validate Date
-    if (!formData.date) {
-        alert("তারিখ নির্বাচন করুন।");
-        return;
-    }
-
-    // 4. Duplicate Check (Warning only)
     let duplicateCount = 0;
     try {
         duplicateCount = expenses.filter(e => {
             if (e.isDeleted || e.staffId !== targetStaffId) return false;
             return getSafeDateStr(e.createdAt) === formData.date;
         }).length;
-    } catch (err) {
-        console.error("Duplicate check error", err);
-    }
+    } catch (err) {}
 
     if (duplicateCount > 0) {
-      const dateStr = new Date(formData.date).toLocaleDateString('bn-BD', { day: 'numeric', month: 'long', year: 'numeric' });
-      const confirmMsg = `⚠️ ডুপ্লিকেট বিল সতর্কতা (Duplicate Bill Warning)!\n\nএই তারিখে (${dateStr}) ${staff.name}-এর ইতিমধ্যে ${duplicateCount}টি বিল সাবমিট করা আছে।\n\nআপনি কি নিশ্চিত যে এটি একটি আলাদা বিল? ভুল করে একই বিল দুইবার সাবমিট করছেন না তো?\n\nযদি নিশ্চিত হন তবেই 'OK' চাপুন।`;
-      if (!window.confirm(confirmMsg)) {
-        return; // User cancelled
-      }
+      if (!window.confirm(`⚠️ ডুপ্লিকেট বিল সতর্কতা!\n\nএই তারিখে (${new Date(formData.date).toLocaleDateString('bn-BD')}) ইতিমধ্যে বিল আছে। নিশ্চিত হলে 'OK' চাপুন।`)) return;
     }
 
-    // 5. Create Object
     const submitDate = new Date(formData.date);
     const now = new Date();
     submitDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
@@ -483,48 +351,31 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
     setIsSubmitModalOpen(false);
     
     setFormData({ 
-      staffId: '', 
-      amount: 0, 
-      reason: '', 
-      voucherImage: '', 
+      staffId: '', amount: 0, reason: '', voucherImage: '', 
       date: new Date().toISOString().split('T')[0] 
     });
   };
 
   const updateStatus = (id: string, status: Expense['status']) => {
-    if (status === 'REJECTED') {
-      if (!window.confirm('আপনি কি নিশ্চিত যে এই বিলটি বাতিল (Reject) করতে চান?')) return;
-    }
-    if (status === 'APPROVED') {
-      if (!window.confirm('আপনি কি নিশ্চিত যে এই বিলটি অনুমোদন (Approve) করতে চান?')) return;
-    }
-    setExpenses(prev => prev.map(e => e.id === id ? { ...e, status } : e));
+    if (status === 'REJECTED' && !window.confirm('আপনি কি নিশ্চিত যে এই বিলটি বাতিল (Reject) করতে চান?')) return;
+    // Removed confirmation for APPROVE to make it instant/easier
+    
+    setExpenses(prevExpenses => prevExpenses.map(e => e.id === id ? { ...e, status } : e));
   };
 
-  const requestDelete = (expense: Expense) => {
-    setDeleteConfirmExpense(expense);
-  };
-
-  const confirmDelete = () => {
-    if (deleteConfirmExpense) {
-      setExpenses(prev => prev.map(e => e.id === deleteConfirmExpense.id ? { ...e, isDeleted: true } : e));
-      setDeleteConfirmExpense(null);
-    }
+  const requestDelete = (expense: Expense) => setDeleteConfirmExpense(expense);
+  const confirmDelete = () => { 
+    if (deleteConfirmExpense) { 
+      setExpenses(prev => prev.map(e => e.id === deleteConfirmExpense.id ? { ...e, isDeleted: true } : e)); 
+      setDeleteConfirmExpense(null); 
+    } 
   };
 
   const handleApproveAll = () => {
     const pendingCount = expenses.filter(e => !e.isDeleted && (e.status === 'PENDING' || e.status === 'VERIFIED')).length;
-    if (pendingCount === 0) {
-      alert('কোনো পেন্ডিং বা ভেরিফাইড বিল নেই।');
-      return;
-    }
-
+    if (pendingCount === 0) { alert('কোনো পেন্ডিং বা ভেরিফাইড বিল নেই।'); return; }
     if (window.confirm(`আপনি কি নিশ্চিত যে ${pendingCount} টি বিল একসাথে অ্যাপ্রুভ করতে চান?`)) {
-      setExpenses(prev => prev.map(e => 
-        (!e.isDeleted && (e.status === 'PENDING' || e.status === 'VERIFIED')) 
-          ? { ...e, status: 'APPROVED' } 
-          : e
-      ));
+      setExpenses(prevExpenses => prevExpenses.map(e => (!e.isDeleted && (e.status === 'PENDING' || e.status === 'VERIFIED')) ? { ...e, status: 'APPROVED' } : e));
     }
   };
 
@@ -534,14 +385,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
       const myself = activeStaff.find(s => s.name === currentUser);
       if (myself) initialStaffId = myself.id;
     }
-    
-    setFormData({ 
-      staffId: initialStaffId, 
-      amount: 0, 
-      reason: '', 
-      voucherImage: '', 
-      date: new Date().toISOString().split('T')[0]
-    });
+    setFormData({ staffId: initialStaffId, amount: 0, reason: '', voucherImage: '', date: new Date().toISOString().split('T')[0] });
     setIsSubmitModalOpen(true);
   };
 
@@ -554,36 +398,20 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
   const saveCorrection = (e: React.FormEvent) => {
     e.preventDefault();
     if (!correctionData) return;
-    
     setExpenses(prev => prev.map(ex => {
       if (ex.id === correctionData.id) {
         const originalDate = new Date(ex.createdAt);
         const [y, m, d] = correctionData.date.split('-').map(Number);
         const updatedDate = new Date(originalDate);
-        updatedDate.setFullYear(y);
-        updatedDate.setMonth(m - 1);
-        updatedDate.setDate(d);
-
-        return { 
-          ...ex, 
-          amount: Number(correctionData.amount), 
-          reason: correctionData.reason,
-          createdAt: updatedDate.toISOString()
-        };
+        updatedDate.setFullYear(y); updatedDate.setMonth(m - 1); updatedDate.setDate(d);
+        return { ...ex, amount: Number(correctionData.amount), reason: correctionData.reason, createdAt: updatedDate.toISOString() };
       }
       return ex;
     }));
-    
-    setIsCorrectionModalOpen(false);
-    setCorrectionData(null);
+    setIsCorrectionModalOpen(false); setCorrectionData(null);
   };
 
-  const clearFilters = () => {
-    setSearchTerm('');
-    setStartDate('');
-    setEndDate('');
-    setSelectedStaffFilter('');
-  };
+  const clearFilters = () => { setSearchTerm(''); setStartDate(''); setEndDate(''); setSelectedStaffFilter(''); };
 
   const getStaffDisplayId = (staffId: string) => {
     const staff = staffList.find(s => s.id === staffId);
@@ -596,33 +424,18 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
         <h2 className="text-xl font-bold text-gray-800">খরচ ও ভাউচার ম্যানেজমেন্ট</h2>
         <div className="flex flex-wrap gap-2">
             {(role === UserRole.ADMIN || role === UserRole.MD) && (
-               <>
-                 <button
-                   onClick={handleBulkDownload}
-                   disabled={isBulkDownloading}
-                   className="h-9 px-4 rounded-full bg-white text-indigo-600 hover:bg-indigo-50 border border-indigo-100 font-bold text-[10px] uppercase tracking-wider transition-all shadow-sm flex items-center gap-2 outline-none disabled:opacity-50"
-                   title="Download Last Approved Vouchers for All Staff"
-                 >
+               <button onClick={handleBulkDownload} disabled={isBulkDownloading} className="h-9 px-4 rounded-full bg-white text-indigo-600 hover:bg-indigo-50 border border-indigo-100 font-bold text-[10px] uppercase tracking-wider transition-all shadow-sm flex items-center gap-2 outline-none disabled:opacity-50">
                    {isBulkDownloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Images className="w-3.5 h-3.5" />} 
                    <span>{isBulkDownloading ? `Processing ${bulkProgress}...` : 'Daily Vouchers'}</span>
-                 </button>
-               </>
+               </button>
             )}
-            
             {(role === UserRole.ADMIN || role === UserRole.STAFF) && (
-              <button 
-                onClick={handleOpenSubmitModal}
-                className="h-9 px-5 rounded-full bg-indigo-600 text-white hover:bg-indigo-700 font-bold text-[10px] uppercase tracking-wider transition-all shadow-lg shadow-indigo-200 flex items-center gap-2 outline-none active:scale-95"
-              >
+              <button onClick={handleOpenSubmitModal} className="h-9 px-5 rounded-full bg-indigo-600 text-white hover:bg-indigo-700 font-bold text-[10px] uppercase tracking-wider transition-all shadow-lg shadow-indigo-200 flex items-center gap-2 outline-none active:scale-95">
                 <Receipt className="w-3.5 h-3.5" /> <span className="whitespace-nowrap">New Bill</span>
               </button>
             )}
-            
             {role === UserRole.MD && (
-              <button 
-                onClick={handleApproveAll}
-                className="h-9 px-5 rounded-full bg-emerald-500 text-white hover:bg-emerald-600 font-bold text-[10px] uppercase tracking-wider transition-all shadow-lg shadow-emerald-200 flex items-center gap-2 outline-none active:scale-95"
-              >
+              <button onClick={handleApproveAll} className="h-9 px-5 rounded-full bg-emerald-500 text-white hover:bg-emerald-600 font-bold text-[10px] uppercase tracking-wider transition-all shadow-lg shadow-emerald-200 flex items-center gap-2 outline-none active:scale-95">
                 <CheckCheck className="w-3.5 h-3.5" /> <span className="whitespace-nowrap">Approve All</span>
               </button>
             )}
@@ -635,214 +448,102 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Search className="h-3.5 w-3.5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
             </div>
-            <input 
-                type="text" 
-                placeholder="Search..." 
-                className="block w-full pl-9 pr-4 py-2 bg-white border-none rounded-full text-xs font-bold text-slate-600 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all placeholder:text-slate-400 outline-none h-9 shadow-sm" 
-                value={searchTerm} 
-                onChange={(e) => setSearchTerm(e.target.value)} 
-            />
+            <input type="text" placeholder="Search..." className="block w-full pl-9 pr-4 py-2 bg-white border-none rounded-full text-xs font-bold text-slate-600 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all placeholder:text-slate-400 outline-none h-9 shadow-sm" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
         </div>
-
         {(role === UserRole.ADMIN || role === UserRole.MD) && (
           <div className="relative w-full lg:w-40 group">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <User className="h-3.5 w-3.5 text-slate-400 group-focus-within:text-purple-500 transition-colors" />
-              </div>
-              <select 
-                  className="block w-full pl-9 pr-8 py-2 bg-white border-none rounded-full text-xs font-bold text-slate-600 focus:bg-white focus:ring-2 focus:ring-purple-100 transition-all appearance-none cursor-pointer outline-none h-9 shadow-sm" 
-                  value={selectedStaffFilter} 
-                  onChange={(e) => setSelectedStaffFilter(e.target.value)}
-              >
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><User className="h-3.5 w-3.5 text-slate-400 group-focus-within:text-purple-500 transition-colors" /></div>
+              <select className="block w-full pl-9 pr-8 py-2 bg-white border-none rounded-full text-xs font-bold text-slate-600 focus:bg-white focus:ring-2 focus:ring-purple-100 transition-all appearance-none cursor-pointer outline-none h-9 shadow-sm" value={selectedStaffFilter} onChange={(e) => setSelectedStaffFilter(e.target.value)}>
                 <option value="">All Staff</option>
                 {activeStaff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
-              <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                  <ChevronDown className="h-3 w-3 text-slate-300" />
-              </div>
+              <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none"><ChevronDown className="h-3 w-3 text-slate-300" /></div>
           </div>
         )}
-
         <div className="flex items-center bg-white rounded-full px-1 py-1 border border-indigo-50 h-9 w-full lg:w-auto shadow-sm">
-            <div className="relative flex-1 min-w-[100px]">
-                <input 
-                    type="date" 
-                    className="block w-full pl-3 pr-1 py-1 bg-transparent border-none text-[10px] font-bold text-slate-500 focus:ring-0 cursor-pointer h-full outline-none" 
-                    value={startDate} 
-                    onChange={(e) => setStartDate(e.target.value)} 
-                />
-            </div>
+            <div className="relative flex-1 min-w-[100px]"><input type="date" className="block w-full pl-3 pr-1 py-1 bg-transparent border-none text-[10px] font-bold text-slate-500 focus:ring-0 cursor-pointer h-full outline-none" value={startDate} onChange={(e) => setStartDate(e.target.value)} /></div>
             <span className="text-slate-300 text-[10px] font-bold px-1">to</span>
-            <div className="relative flex-1 min-w-[100px]">
-                <input 
-                    type="date" 
-                    className="block w-full pl-1 pr-3 py-1 bg-transparent border-none text-[10px] font-bold text-slate-500 focus:ring-0 cursor-pointer h-full text-right outline-none" 
-                    value={endDate} 
-                    onChange={(e) => setEndDate(e.target.value)} 
-                />
-            </div>
+            <div className="relative flex-1 min-w-[100px]"><input type="date" className="block w-full pl-1 pr-3 py-1 bg-transparent border-none text-[10px] font-bold text-slate-500 focus:ring-0 cursor-pointer h-full text-right outline-none" value={endDate} onChange={(e) => setEndDate(e.target.value)} /></div>
         </div>
-
         <div className="flex items-center gap-1.5 w-full lg:w-auto justify-end">
-            <button 
-                onClick={clearFilters} 
-                className="w-9 h-9 flex items-center justify-center bg-white text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all border border-slate-100 shadow-sm outline-none"
-                title="Reset Filters"
-            >
-                <FilterX className="w-3.5 h-3.5" />
-            </button>
+            <button onClick={clearFilters} className="w-9 h-9 flex items-center justify-center bg-white text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all border border-slate-100 shadow-sm outline-none" title="Reset Filters"><FilterX className="w-3.5 h-3.5" /></button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredExpenses.map((expense) => {
           const expenseDateStr = getSafeDateStr(expense.createdAt);
-          const isDuplicate = expenses.filter(e => 
-             !e.isDeleted && 
-             e.staffId === expense.staffId && 
-             getSafeDateStr(e.createdAt) === expenseDateStr
-          ).length > 1;
-
+          const isDuplicate = expenses.filter(e => !e.isDeleted && e.staffId === expense.staffId && getSafeDateStr(e.createdAt) === expenseDateStr).length > 1;
           const staffMember = staffList.find(s => s.id === expense.staffId);
 
           return (
           <div key={expense.id} className={`bg-white rounded-2xl shadow-sm border overflow-hidden flex flex-col hover:shadow-md transition-all ${isDuplicate && (role === UserRole.ADMIN || role === UserRole.MD) ? 'border-red-300 ring-2 ring-red-100' : 'border-gray-100'}`}>
             <div className="p-5 flex-1">
               <div className="flex justify-between items-start mb-4">
-                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
-                  expense.status === 'APPROVED' ? 'bg-green-100 text-green-700' : 
-                  expense.status === 'REJECTED' ? 'bg-red-100 text-red-700' :
-                  expense.status === 'VERIFIED' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'
-                }`}>
+                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${expense.status === 'APPROVED' ? 'bg-green-100 text-green-700' : expense.status === 'REJECTED' ? 'bg-red-100 text-red-700' : expense.status === 'VERIFIED' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
                   {expense.status === 'PENDING' ? 'পেন্ডিং' : expense.status === 'VERIFIED' ? 'ভেরিফাইড (MD)' : expense.status === 'APPROVED' ? 'অনুমোদিত' : 'প্রত্যাখ্যাত'}
                 </span>
-                
                 <div className="flex items-center gap-2">
                   {((role === UserRole.ADMIN || role === UserRole.MD) && (expense.status === 'PENDING' || expense.status === 'VERIFIED')) && (
-                    <button 
-                      onClick={() => openCorrectionModal(expense)}
-                      className="text-orange-500 hover:text-orange-700 transition-colors p-1 hover:bg-orange-50 rounded-full"
-                      title="বিল সংশোধন করুন"
-                    >
-                      <Edit3 className="w-4 h-4" />
-                    </button>
+                    <button onClick={() => openCorrectionModal(expense)} className="text-orange-500 hover:text-orange-700 transition-colors p-1 hover:bg-orange-50 rounded-full" title="বিল সংশোধন করুন"><Edit3 className="w-4 h-4" /></button>
                   )}
                   {expense.voucherImage && (
-                    <button 
-                      onClick={() => setViewingVoucher(expense.voucherImage!)}
-                      className="text-indigo-600 hover:text-indigo-800 transition-colors p-1 hover:bg-indigo-50 rounded-full"
-                      title="ভাউচার দেখুন"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
+                    <button onClick={() => setViewingVoucher(expense.voucherImage!)} className="text-indigo-600 hover:text-indigo-800 transition-colors p-1 hover:bg-indigo-50 rounded-full" title="ভাউচার দেখুন"><Eye className="w-4 h-4" /></button>
                   )}
                   <p className="text-xs text-gray-400">{new Date(expense.createdAt).toLocaleDateString('bn-BD')}</p>
                 </div>
               </div>
-              
               <h4 className="text-lg font-bold text-gray-800 mb-1">৳ {expense.amount.toLocaleString()}</h4>
               <p className="text-sm text-gray-600 mb-4 font-medium h-10 line-clamp-2">{expense.reason}</p>
-              
               {isDuplicate && (role === UserRole.ADMIN || role === UserRole.MD) && (
-                 <div className="mb-3 bg-red-100 text-red-700 px-3 py-2 rounded-lg text-[10px] font-black flex items-center gap-1.5 border border-red-200 animate-pulse">
-                    <AlertTriangle className="w-4 h-4" />
-                    সতর্কতা: একই তারিখে একাধিক বিল (Duplicate)!
-                 </div>
+                 <div className="mb-3 bg-red-100 text-red-700 px-3 py-2 rounded-lg text-[10px] font-black flex items-center gap-1.5 border border-red-200 animate-pulse"><AlertTriangle className="w-4 h-4" /> সতর্কতা: একই তারিখে একাধিক বিল (Duplicate)!</div>
               )}
-
               <div className="flex items-center gap-3 py-3 border-t border-gray-50">
-                <div 
-                  onClick={() => onOpenProfile && onOpenProfile(expense.staffId)}
-                  className="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-xs cursor-pointer hover:ring-2 hover:ring-indigo-200 transition-all overflow-hidden"
-                >
-                  {staffMember && staffMember.photo ? (
-                    <img src={staffMember.photo} alt={expense.staffName} className="w-full h-full object-cover" />
-                  ) : (
-                    expense.staffName[0]
-                  )}
+                <div onClick={() => onOpenProfile && onOpenProfile(expense.staffId)} className="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-xs cursor-pointer hover:ring-2 hover:ring-indigo-200 transition-all overflow-hidden">
+                  {staffMember && staffMember.photo ? <img src={staffMember.photo} alt={expense.staffName} className="w-full h-full object-cover" /> : expense.staffName[0]}
                 </div>
-                <div>
-                  <p className="text-xs font-bold text-gray-700">{expense.staffName}</p>
-                  <p className="text-[10px] text-gray-400">ID: {getStaffDisplayId(expense.staffId)}</p>
-                </div>
+                <div><p className="text-xs font-bold text-gray-700">{expense.staffName}</p><p className="text-[10px] text-gray-400">ID: {getStaffDisplayId(expense.staffId)}</p></div>
               </div>
-
               {expense.status === 'APPROVED' && (
                  <div className="mt-3 flex gap-2">
-                    <button 
-                      onClick={() => handleDownloadPNG(expense)}
-                      disabled={downloadingId === expense.id}
-                      className="flex-1 bg-gray-900 text-white py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 hover:bg-black transition-all disabled:opacity-70 disabled:cursor-wait"
-                    >
-                       {downloadingId === expense.id ? (
-                         <span className="flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin"/> Downloading...</span>
-                       ) : (
-                         <><ImageIcon className="w-3 h-3" /> PNG Voucher</>
-                       )}
+                    <button onClick={() => handleDownloadPNG(expense)} disabled={downloadingId === expense.id} className="flex-1 bg-gray-900 text-white py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 hover:bg-black transition-all disabled:opacity-70 disabled:cursor-wait">
+                       {downloadingId === expense.id ? <span className="flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin"/> Downloading...</span> : <><ImageIcon className="w-3 h-3" /> PNG Voucher</>}
                     </button>
-                    <button 
-                      onClick={() => handlePrintPDF(expense)}
-                      className="flex-1 bg-gray-100 text-gray-700 py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 hover:bg-gray-200 transition-all border border-gray-200"
-                    >
-                       <Printer className="w-3 h-3" /> PDF/Print
-                    </button>
+                    <button onClick={() => handlePrintPDF(expense)} className="flex-1 bg-gray-100 text-gray-700 py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 hover:bg-gray-200 transition-all border border-gray-200"><Printer className="w-3 h-3" /> PDF/Print</button>
                  </div>
               )}
             </div>
-
             <div className="bg-gray-50 p-3 flex gap-2 border-t border-gray-100">
                {role === UserRole.ADMIN && (
                  <>
                    {expense.status === 'PENDING' && (
                      <>
-                        <button onClick={() => updateStatus(expense.id, 'VERIFIED')} className="flex-[2] bg-indigo-600 text-white py-2 rounded-lg text-xs font-bold hover:bg-indigo-700 shadow-sm transition-colors">
-                          MD-র কাছে পাঠান
-                        </button>
-                        <button onClick={() => updateStatus(expense.id, 'REJECTED')} className="flex-1 bg-white text-red-600 border border-red-200 py-2 rounded-lg text-xs font-bold hover:bg-red-50 transition-colors">
-                          বাতিল
-                        </button>
-                        <button onClick={() => requestDelete(expense)} className="px-3 bg-white text-gray-400 border border-gray-200 py-2 rounded-lg hover:text-red-500 hover:border-red-200 transition-colors">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <button onClick={() => updateStatus(expense.id, 'VERIFIED')} className="flex-[2] bg-indigo-600 text-white py-2 rounded-lg text-xs font-bold hover:bg-indigo-700 shadow-sm transition-colors">MD-র কাছে পাঠান</button>
+                        <button onClick={() => updateStatus(expense.id, 'REJECTED')} className="flex-1 bg-white text-red-600 border border-red-200 py-2 rounded-lg text-xs font-bold hover:bg-red-50 transition-colors">বাতিল</button>
+                        <button onClick={() => requestDelete(expense)} className="px-3 bg-white text-gray-400 border border-gray-200 py-2 rounded-lg hover:text-red-500 hover:border-red-200 transition-colors"><Trash2 className="w-4 h-4" /></button>
                      </>
                    )}
                    {expense.status === 'VERIFIED' && (
                      <>
-                        <button onClick={() => updateStatus(expense.id, 'PENDING')} className="flex-1 bg-orange-50 text-orange-700 border border-orange-200 py-2 rounded-lg text-xs font-bold hover:bg-orange-100 transition-colors flex items-center justify-center gap-2">
-                          <RotateCcw className="w-3.5 h-3.5" /> ফেরত আনুন
-                        </button>
-                        <button onClick={() => requestDelete(expense)} className="flex-1 bg-red-50 text-red-700 border border-red-200 py-2 rounded-lg text-xs font-bold hover:bg-red-100 transition-colors flex items-center justify-center gap-2">
-                           <Trash2 className="w-3.5 h-3.5" /> ডিলিট করুন
-                        </button>
+                        <button onClick={() => updateStatus(expense.id, 'PENDING')} className="flex-1 bg-orange-50 text-orange-700 border border-orange-200 py-2 rounded-lg text-xs font-bold hover:bg-orange-100 transition-colors flex items-center justify-center gap-2"><RotateCcw className="w-3.5 h-3.5" /> ফেরত আনুন</button>
+                        <button onClick={() => requestDelete(expense)} className="flex-1 bg-red-50 text-red-700 border border-red-200 py-2 rounded-lg text-xs font-bold hover:bg-red-100 transition-colors flex items-center justify-center gap-2"><Trash2 className="w-3.5 h-3.5" /> ডিলিট করুন</button>
                      </>
                    )}
                  </>
                )}
-
-               {role === UserRole.MD && expense.status === 'VERIFIED' && (
+               {role === UserRole.MD && (expense.status === 'VERIFIED' || expense.status === 'PENDING') && (
                  <>
-                   <button onClick={() => updateStatus(expense.id, 'APPROVED')} className="flex-[2] bg-indigo-600 text-white py-2 rounded-lg text-xs font-bold hover:bg-indigo-700 shadow-sm transition-colors">
-                     <CheckCircle className="w-4 h-4 inline mr-1"/> অ্যাপ্রুভ করুন
-                   </button>
-                   <button onClick={() => updateStatus(expense.id, 'REJECTED')} className="flex-1 bg-white text-red-600 border border-red-200 py-2 rounded-lg text-xs font-bold hover:bg-red-50 transition-colors">
-                     বাতিল
-                   </button>
+                   <button type="button" onClick={() => updateStatus(expense.id, 'APPROVED')} className="flex-[2] bg-indigo-600 text-white py-2 rounded-lg text-xs font-bold hover:bg-indigo-700 shadow-sm transition-colors cursor-pointer active:scale-95"><CheckCircle className="w-4 h-4 inline mr-1"/> অ্যাপ্রুভ করুন</button>
+                   <button type="button" onClick={() => updateStatus(expense.id, 'REJECTED')} className="flex-1 bg-white text-red-600 border border-red-200 py-2 rounded-lg text-xs font-bold hover:bg-red-50 transition-colors cursor-pointer active:scale-95">বাতিল</button>
                  </>
                )}
-
                {((role === UserRole.ADMIN || role === UserRole.MD) && (expense.status === 'APPROVED' || expense.status === 'REJECTED')) && (
-                  <button onClick={() => requestDelete(expense)} className="w-full bg-white text-gray-400 border border-gray-200 hover:border-red-200 hover:text-red-500 py-2 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-2">
-                    <Trash2 className="w-4 h-4" /> রেকর্ড মুছে ফেলুন
-                  </button>
+                  <button onClick={() => requestDelete(expense)} className="w-full bg-white text-gray-400 border border-gray-200 hover:border-red-200 hover:text-red-500 py-2 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-2"><Trash2 className="w-4 h-4" /> রেকর্ড মুছে ফেলুন</button>
                )}
             </div>
           </div>
         )})}
-        {filteredExpenses.length === 0 && (
-          <div className="col-span-full py-12 text-center bg-white rounded-2xl border border-dashed border-gray-200 text-gray-400">
-             কোনো বিল পাওয়া যায়নি
-          </div>
-        )}
+        {filteredExpenses.length === 0 && <div className="col-span-full py-12 text-center bg-white rounded-2xl border border-dashed border-gray-200 text-gray-400">কোনো বিল পাওয়া যায়নি</div>}
       </div>
 
       {isSubmitModalOpen && (
@@ -874,47 +575,26 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                     {(role === UserRole.ADMIN || role === UserRole.MD) && (
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">তারিখ (Date)</label>
-                        <input 
-                          type="date"
-                          required
-                          className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm font-bold"
-                          value={formData.date}
-                          onChange={(e) => setFormData({...formData, date: e.target.value})}
-                        />
+                        <input type="date" required className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm font-bold" value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} />
                       </div>
                     )}
-                    
                     <div className={`${(role === UserRole.ADMIN || role === UserRole.MD) ? '' : 'col-span-2'}`}>
                       <label className="block text-sm font-medium text-gray-700 mb-1">টাকার পরিমাণ</label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">৳</span>
-                        <input 
-                          required 
-                          type="number" 
-                          className="w-full pl-7 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-lg text-gray-800" 
-                          placeholder="0.00" 
-                          value={formData.amount || ''} 
-                          onChange={(e) => setFormData({...formData, amount: Number(e.target.value)})} 
-                        />
+                        <input required type="number" className="w-full pl-7 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-lg text-gray-800" placeholder="0.00" value={formData.amount || ''} onChange={(e) => setFormData({...formData, amount: Number(e.target.value)})} />
                       </div>
                     </div>
                   </div>
                   
-                  {/* REAL-TIME DUPLICATE WARNING */}
                   {duplicateCheck.length > 0 && (
                       <div className="p-3 bg-red-100 border border-red-200 rounded-xl flex flex-col gap-2 animate-in fade-in zoom-in duration-300">
-                          <div className="flex items-center gap-2 text-red-700 font-black text-xs uppercase tracking-widest">
-                              <AlertTriangle className="w-4 h-4" />
-                              সতর্কতা: ডুপ্লিকেট এন্ট্রি!
-                          </div>
-                          <p className="text-xs font-bold text-red-600 leading-relaxed">
-                              এই স্টাফের নামের সাথে <u>{new Date(formData.date).toLocaleDateString('bn-BD')}</u> তারিখে ইতিমধ্যে <span className="text-lg">{duplicateCheck.length}</span> টি বিল আছে।
-                          </p>
+                          <div className="flex items-center gap-2 text-red-700 font-black text-xs uppercase tracking-widest"><AlertTriangle className="w-4 h-4" /> সতর্কতা: ডুপ্লিকেট এন্ট্রি!</div>
+                          <p className="text-xs font-bold text-red-600 leading-relaxed">এই স্টাফের নামের সাথে <u>{new Date(formData.date).toLocaleDateString('bn-BD')}</u> তারিখে ইতিমধ্যে <span className="text-lg">{duplicateCheck.length}</span> টি বিল আছে।</p>
                           <div className="bg-white/50 p-2 rounded-lg max-h-24 overflow-y-auto custom-scrollbar">
                               {duplicateCheck.map(e => (
                                   <div key={e.id} className="flex justify-between text-[10px] font-bold text-red-500 border-b border-red-100 last:border-0 py-1">
-                                      <span>{e.reason.substring(0, 20)}...</span>
-                                      <span>৳ {e.amount}</span>
+                                      <span>{e.reason.substring(0, 20)}...</span><span>৳ {e.amount}</span>
                                   </div>
                               ))}
                           </div>
@@ -926,27 +606,15 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                       <span>খরচের কারণ ও বিবরণ</span>
                       <span className="text-xs text-indigo-600 font-bold flex items-center gap-1"><Sparkles className="w-3 h-3"/> Auto Calculator</span>
                     </label>
-                    <textarea 
-                      required 
-                      rows={2} 
-                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all" 
-                      placeholder="যেমন: নাস্তা ৫০, রিক্সা ভাড়া ১০০..." 
-                      value={formData.reason} 
-                      onChange={handleReasonChange} 
-                    />
+                    <textarea required rows={2} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all" placeholder="যেমন: নাস্তা ৫০, রিক্সা ভাড়া ১০০..." value={formData.reason} onChange={handleReasonChange} />
                   </div>
 
                   <div className="space-y-2">
                      <label className="block text-sm font-medium text-gray-700">ভাউচার ছবি</label>
                      <div className="flex gap-2">
-                        <button type="button" onClick={() => fileInputRef.current?.click()} className="flex-1 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-gray-200 transition-colors">
-                           <ImageIcon className="w-4 h-4" /> গ্যালারি
-                        </button>
-                        <button type="button" onClick={() => cameraInputRef.current?.click()} className="flex-1 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-indigo-100 transition-colors">
-                           <Camera className="w-4 h-4" /> ক্যামেরা
-                        </button>
+                        <button type="button" onClick={() => fileInputRef.current?.click()} className="flex-1 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-gray-200 transition-colors"><ImageIcon className="w-4 h-4" /> গ্যালারি</button>
+                        <button type="button" onClick={() => cameraInputRef.current?.click()} className="flex-1 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-indigo-100 transition-colors"><Camera className="w-4 h-4" /> ক্যামেরা</button>
                      </div>
-                     
                      <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={handleImageUpload} />
                      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" hidden onChange={handleImageUpload} />
                      
@@ -963,7 +631,9 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                   </div>
 
                   <div className="pt-2">
-                    <button type="submit" className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all">বিল সাবমিট করুন</button>
+                    <button type="submit" className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all flex items-center justify-center gap-2">
+                        <MessageCircle className="w-4 h-4" /> সাবমিট করুন (Submit)
+                    </button>
                   </div>
                 </form>
             </div>
@@ -1010,29 +680,19 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
               <h3 className="text-xl font-black text-gray-800 mb-2">আপনি কি নিশ্চিত?</h3>
               <p className="text-sm text-gray-500 mb-6">
                 {deleteConfirmExpense.status === 'APPROVED' ? 
-                  `আপনি ৳${deleteConfirmExpense.amount} টাকার একটি "অনুমোদিত" (Approved) বিল ডিলিট করতে চাচ্ছেন। এর ফলে মোট খরচের হিসাব এবং স্টাফের ব্যালেন্স পরিবর্তন হবে।` :
+                  `আপনি ৳${deleteConfirmExpense.amount} টাকার একটি "অনুমোদিত" (Approved) বিল ডিলিট করতে চাচ্ছেন।` :
                  deleteConfirmExpense.status === 'PENDING' ?
                   `আপনি ৳${deleteConfirmExpense.amount} টাকার একটি "পেন্ডিং" (Pending) বিল ডিলিট করতে চাচ্ছেন।` :
                  deleteConfirmExpense.status === 'VERIFIED' ?
                   `এই বিলটি ভেরিফাই করা হয়েছে (MD-এর অনুমোদনের অপেক্ষায়)। আপনি কি এটি ডিলিট করতে চান?` :
                  deleteConfirmExpense.status === 'REJECTED' ?
-                  `আপনি একটি "বাতিল করা" (Rejected) বিল ডিলিট করছেন। এটি রিসাইকেল বিনে জমা হবে।` :
+                  `আপনি একটি "বাতিল করা" (Rejected) বিল ডিলিট করছেন।` :
                   `আপনি কি নিশ্চিত যে এই বিলটি ডিলিট করতে চান?`
                 }
               </p>
               <div className="flex gap-3">
-                <button 
-                  onClick={() => setDeleteConfirmExpense(null)}
-                  className="flex-1 py-3 border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors"
-                >
-                  না, বাতিল করুন
-                </button>
-                <button 
-                  onClick={confirmDelete}
-                  className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 shadow-lg shadow-red-200 transition-colors"
-                >
-                  হ্যাঁ, ডিলিট করুন
-                </button>
+                <button onClick={() => setDeleteConfirmExpense(null)} className="flex-1 py-3 border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors">না, বাতিল করুন</button>
+                <button onClick={confirmDelete} className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 shadow-lg shadow-red-200 transition-colors">হ্যাঁ, ডিলিট করুন</button>
               </div>
             </div>
           </div>

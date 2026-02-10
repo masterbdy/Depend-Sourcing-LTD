@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   LayoutGrid, UsersRound, Footprints, Banknote, PieChart, Settings2, Recycle, 
@@ -301,16 +300,26 @@ const App: React.FC = () => {
     }
   };
 
-  const updateStaffList = (val: any) => { const next = typeof val === 'function' ? val(staffList) : val; setStaffList(next); syncData('staffList', next); };
-  const updateExpenses = (val: any) => { const next = typeof val === 'function' ? val(expenses) : val; setExpenses(next); syncData('expenses', next); };
-  const updateMovements = (val: any) => { const next = typeof val === 'function' ? val(movements) : val; setMovements(next); syncData('movements', next); };
-  const updateBillingRules = (val: any) => { const next = typeof val === 'function' ? val(billingRules) : val; setBillingRules(next); syncData('billingRules', next); };
-  const updateFunds = (val: any) => { const next = typeof val === 'function' ? val(funds) : val; setFunds(next); syncData('funds', next); };
-  const updateNotices = (val: any) => { const next = typeof val === 'function' ? val(notices) : val; setNotices(next); syncData('notices', next); };
-  const updateAdvances = (val: any) => { const next = typeof val === 'function' ? val(advances) : val; setAdvances(next); syncData('advances', next); };
-  const updateComplaints = (val: any) => { const next = typeof val === 'function' ? val(complaints) : val; setComplaints(next); syncData('complaints', next); };
-  const updateMessages = (val: any) => { const next = typeof val === 'function' ? val(messages) : val; setMessages(next); syncData('messages', next); };
-  const updateAttendance = (val: any) => { const next = typeof val === 'function' ? val(attendanceList) : val; setAttendanceList(next); syncData('attendanceList', next); };
+  // Robust State Updaters using Functional Updates
+  // This ensures we always work with the latest state when updating, preventing stale data overrides.
+  const createUpdater = (key: string, setter: React.Dispatch<React.SetStateAction<any[]>>) => (val: any) => {
+    setter(prev => {
+      const next = typeof val === 'function' ? val(prev) : val;
+      syncData(key, next);
+      return next;
+    });
+  };
+
+  const updateStaffList = createUpdater('staffList', setStaffList);
+  const updateExpenses = createUpdater('expenses', setExpenses);
+  const updateMovements = createUpdater('movements', setMovements);
+  const updateBillingRules = createUpdater('billingRules', setBillingRules);
+  const updateFunds = createUpdater('funds', setFunds);
+  const updateNotices = createUpdater('notices', setNotices);
+  const updateAdvances = createUpdater('advances', setAdvances);
+  const updateComplaints = createUpdater('complaints', setComplaints);
+  const updateMessages = createUpdater('messages', setMessages);
+  const updateAttendance = createUpdater('attendanceList', setAttendanceList);
 
   useEffect(() => {
     if (currentUser && staffList.length > 0) {
