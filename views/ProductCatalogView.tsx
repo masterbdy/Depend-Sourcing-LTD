@@ -7,9 +7,11 @@ interface ProductCatalogProps {
   products: Product[];
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
   role: UserRole;
+  productEditors: string[];
+  currentStaffId: string | null;
 }
 
-const ProductCatalogView: React.FC<ProductCatalogProps> = ({ onLogout, products = [], setProducts, role }) => {
+const ProductCatalogView: React.FC<ProductCatalogProps> = ({ onLogout, products = [], setProducts, role, productEditors = [], currentStaffId }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [cart, setCart] = useState<string[]>([]); // Storing Product IDs
@@ -23,7 +25,10 @@ const ProductCatalogView: React.FC<ProductCatalogProps> = ({ onLogout, products 
   const [deleteConfirmProductId, setDeleteConfirmProductId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const isAdminOrMD = role === UserRole.ADMIN || role === UserRole.MD;
+  // Updated Permission Logic:
+  // Admin ALWAYS has access.
+  // Others (including MD) need to be in the 'productEditors' list.
+  const canManageCatalog = role === UserRole.ADMIN || (currentStaffId && productEditors.includes(currentStaffId));
 
   const categories = ['All', ...Array.from(new Set(products.map(p => p.category)))];
 
@@ -239,8 +244,8 @@ const ProductCatalogView: React.FC<ProductCatalogProps> = ({ onLogout, products 
                         MOQ: {product.moq}
                      </div>
 
-                     {/* Admin Controls Overlay */}
-                     {isAdminOrMD && (
+                     {/* Admin/Allowed User Controls Overlay */}
+                     {canManageCatalog && (
                         <div className="absolute top-3 left-3 flex gap-2">
                             <button onClick={() => openEditModal(product)} className="p-2 bg-white/90 backdrop-blur-sm text-indigo-600 rounded-full shadow-sm hover:bg-indigo-50 transition-colors"><Edit3 className="w-3.5 h-3.5" /></button>
                             <button onClick={() => handleDeleteRequest(product.id)} className="p-2 bg-white/90 backdrop-blur-sm text-red-600 rounded-full shadow-sm hover:bg-red-50 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
@@ -281,8 +286,8 @@ const ProductCatalogView: React.FC<ProductCatalogProps> = ({ onLogout, products 
          </div>
       </div>
 
-      {/* Floating Add Product Button (Admin Only) */}
-      {isAdminOrMD && (
+      {/* Floating Add Product Button (Allowed Users Only) */}
+      {canManageCatalog && (
         <button
             onClick={openAddModal}
             className="fixed bottom-24 right-6 z-40 bg-green-500 text-white p-4 rounded-full shadow-2xl hover:bg-green-600 transition-all hover:scale-110 active:scale-95 flex items-center justify-center group"

@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
-import { Settings, Save, Clock, Download, Upload, Database, ShieldCheck, ExternalLink, HelpCircle, Code, Check, AlertTriangle } from 'lucide-react';
-import { BillingRule, UserRole } from '../types';
+import { Settings, Save, Clock, Download, Upload, Database, ShieldCheck, ExternalLink, HelpCircle, Code, Check, AlertTriangle, Package, UserCheck, X } from 'lucide-react';
+import { BillingRule, UserRole, Staff } from '../types';
 
 interface SettingsProps {
   billingRules: BillingRule[];
@@ -10,9 +10,12 @@ interface SettingsProps {
   importData: (data: string) => void;
   cloudConfig: any;
   saveCloudConfig: (config: any) => void;
+  staffList: Staff[];
+  productEditors: string[];
+  setProductEditors: React.Dispatch<React.SetStateAction<string[]>>;
 }
 
-const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, role, exportData, importData, cloudConfig, saveCloudConfig }) => {
+const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, role, exportData, importData, cloudConfig, saveCloudConfig, staffList = [], productEditors = [], setProductEditors }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [configInput, setConfigInput] = useState(cloudConfig ? JSON.stringify(cloudConfig, null, 2) : '');
   const [parseError, setParseError] = useState<string | null>(null);
@@ -71,8 +74,56 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
     }
   };
 
+  const toggleProductEditor = (staffId: string) => {
+    if (productEditors.includes(staffId)) {
+        setProductEditors(prev => prev.filter(id => id !== staffId));
+    } else {
+        setProductEditors(prev => [...prev, staffId]);
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-12">
+      {/* Product Catalog Permissions (ADMIN ONLY) */}
+      {role === UserRole.ADMIN && (
+        <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
+            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-50">
+                <div className="bg-pink-100 p-2.5 rounded-2xl text-pink-600"><Package className="w-6 h-6" /></div>
+                <div>
+                    <h2 className="text-xl font-black text-gray-800">পণ্য তালিকা পারমিশন (Product Permission)</h2>
+                    <p className="text-xs text-gray-400">নির্ধারণ করুন কে কে পণ্য তালিকা এডিট বা নতুন পণ্য যুক্ত করতে পারবে।</p>
+                </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-96 overflow-y-auto custom-scrollbar p-2">
+                {(staffList || []).filter(s => s.status === 'ACTIVE' && !s.deletedAt && s.role !== UserRole.KIOSK).map(staff => {
+                    const isAllowed = productEditors.includes(staff.id);
+                    return (
+                        <div 
+                            key={staff.id} 
+                            onClick={() => toggleProductEditor(staff.id)}
+                            className={`p-3 rounded-xl border-2 cursor-pointer transition-all flex items-center justify-between group ${isAllowed ? 'border-pink-500 bg-pink-50' : 'border-gray-100 hover:border-gray-300'}`}
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${isAllowed ? 'bg-pink-200 text-pink-700' : 'bg-gray-100 text-gray-500'}`}>
+                                    {staff.name[0]}
+                                </div>
+                                <div>
+                                    <p className={`text-sm font-bold ${isAllowed ? 'text-pink-700' : 'text-gray-700'}`}>{staff.name}</p>
+                                    <p className="text-[10px] text-gray-400">{staff.role}</p>
+                                </div>
+                            </div>
+                            <div className={`w-5 h-5 rounded-full flex items-center justify-center ${isAllowed ? 'bg-pink-500 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                                {isAllowed ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+            <p className="text-[10px] text-gray-400 mt-4 italic">* শুধুমাত্র অ্যাডমিন এবং এখানে সিলেক্ট করা ব্যক্তিরা পণ্য তালিকায় পরিবর্তন আনতে পারবে।</p>
+        </div>
+      )}
+
       {/* Cloud Sync Configuration */}
       <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
         <div className="flex items-center justify-between mb-8 pb-4 border-b border-gray-50">

@@ -161,6 +161,7 @@ const App: React.FC = () => {
   const [attendanceList, setAttendanceList] = useState<Attendance[]>([]);
   const [liveLocations, setLiveLocations] = useState<Record<string, StaffLocation>>({});
   const [products, setProducts] = useState<Product[]>([]);
+  const [productEditors, setProductEditors] = useState<string[]>([]); // New State for Product Editors
 
   const cleanArray = <T,>(data: any): T[] => {
     if (!data) return [];
@@ -203,6 +204,7 @@ const App: React.FC = () => {
     setMessages(getLocal('messages', '[]') as ChatMessage[]);
     setAttendanceList(getLocal('attendanceList', '[]') as Attendance[]);
     setProducts(getLocal('products', JSON.stringify(INITIAL_PRODUCTS)) as Product[]);
+    setProductEditors(getLocal('productEditors', '[]') as string[]);
     
     try {
       const savedAcc = safeGetItem('saved_accounts');
@@ -272,6 +274,7 @@ const App: React.FC = () => {
         handleSnapshot('attendanceList', setAttendanceList);
         handleSnapshot('staff_locations', setLiveLocations);
         handleSnapshot('products', setProducts);
+        handleSnapshot('productEditors', setProductEditors);
       }
     } catch (error: any) {
       console.error("Cloud Connection Error:", error);
@@ -351,6 +354,7 @@ const App: React.FC = () => {
   const updateMessages = createUpdater('messages', setMessages);
   const updateAttendance = createUpdater('attendanceList', setAttendanceList);
   const updateProducts = createUpdater('products', setProducts);
+  const updateProductEditors = createUpdater('productEditors', setProductEditors);
 
   useEffect(() => {
     if (currentUser && staffList.length > 0) {
@@ -885,7 +889,7 @@ const App: React.FC = () => {
 
   const handleExport = () => {
     const data = {
-      staffList, expenses, movements, billingRules, funds, notices, advances, complaints, messages, attendanceList, products,
+      staffList, expenses, movements, billingRules, funds, notices, advances, complaints, messages, attendanceList, products, productEditors,
       exportDate: new Date().toISOString(),
       version: '1.0'
     };
@@ -914,6 +918,7 @@ const App: React.FC = () => {
       if (data.messages) updateMessages(data.messages);
       if (data.attendanceList) updateAttendance(data.attendanceList);
       if (data.products) updateProducts(data.products);
+      if (data.productEditors) updateProductEditors(data.productEditors);
       alert('ডাটা ইমপোর্ট সফল হয়েছে!');
     } catch (e) {
       console.error(e);
@@ -1045,9 +1050,9 @@ const App: React.FC = () => {
       case 'movements': return <MovementLogView movements={movements} setMovements={updateMovements} staffList={staffList} billingRules={billingRules} role={role!} setMessages={updateMessages} currentUser={currentUser} onUpdatePoints={handlePointUpdate} />;
       case 'expenses': return <ExpenseManagementView expenses={expenses} setExpenses={updateExpenses} staffList={staffList} role={role!} currentUser={currentUser} advances={advances} onOpenProfile={openProfile} />;
       case 'reports': return <ReportsView expenses={expenses} staffList={staffList} advances={advances} attendanceList={attendanceList} funds={funds} movements={movements} role={role!} />;
-      case 'settings': return <SettingsView billingRules={billingRules} setBillingRules={updateBillingRules} role={role!} exportData={handleExport} importData={handleImport} cloudConfig={firebaseConfig} saveCloudConfig={(config) => { safeSetItem('fb_config', JSON.stringify(config)); alert('Settings saved! Reloading...'); window.location.reload(); }} />;
+      case 'settings': return <SettingsView billingRules={billingRules} setBillingRules={updateBillingRules} role={role!} exportData={handleExport} importData={handleImport} cloudConfig={firebaseConfig} saveCloudConfig={(config) => { safeSetItem('fb_config', JSON.stringify(config)); alert('Settings saved! Reloading...'); window.location.reload(); }} staffList={staffList} productEditors={productEditors} setProductEditors={updateProductEditors} />;
       case 'trash': return <TrashView staffList={staffList} setStaffList={updateStaffList} movements={movements} setMovements={updateMovements} expenses={expenses} setExpenses={updateExpenses} funds={funds} setFunds={updateFunds} notices={notices} setNotices={updateNotices} role={role!} />;
-      case 'products': return <ProductCatalogView onLogout={() => {}} products={products} setProducts={updateProducts} role={role!} />; // New Case
+      case 'products': return <ProductCatalogView onLogout={() => {}} products={products} setProducts={updateProducts} role={role!} productEditors={productEditors} currentStaffId={myStaffId} />; 
       default: return <DashboardView totalExpense={totalExpense} pendingApprovals={pendingApprovals} expenses={expenses} cloudError={cloudError} totalFund={totalFund} cashOnHand={cashOnHand} role={role!} staffList={staffList} advances={advances} currentUser={currentUser} onOpenProfile={openProfile} />;
     }
   };
@@ -1056,7 +1061,7 @@ const App: React.FC = () => {
 
   // --- GUEST VIEW RENDER ---
   if (role === UserRole.GUEST) {
-    return <ProductCatalogView onLogout={handleLogout} products={products} setProducts={updateProducts} role={role} />;
+    return <ProductCatalogView onLogout={handleLogout} products={products} setProducts={updateProducts} role={role} productEditors={productEditors} currentStaffId={null} />;
   }
 
   // --- LOGIN SCREEN ---
