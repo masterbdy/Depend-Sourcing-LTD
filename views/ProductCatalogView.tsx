@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { ShoppingBag, LogOut, Phone, Mail, Globe, Search, Filter, ShoppingCart, X, CheckCircle, ExternalLink, Package, Layers, Scissors, Plus, Edit3, Trash2, Save, Camera, Tag, AlertTriangle } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { ShoppingBag, LogOut, Phone, Mail, Globe, Search, Filter, ShoppingCart, X, CheckCircle, ExternalLink, Package, Layers, Scissors, Plus, Edit3, Trash2, Save, Camera, Tag, AlertTriangle, Eye, Users } from 'lucide-react';
 import { Product, UserRole } from '../types';
 
 interface ProductCatalogProps {
@@ -9,9 +9,11 @@ interface ProductCatalogProps {
   role: UserRole;
   productEditors: string[];
   currentStaffId: string | null;
+  onTrackSearch?: () => void;
+  visitCount?: number; // New Prop for Visit Counter
 }
 
-const ProductCatalogView: React.FC<ProductCatalogProps> = ({ onLogout, products = [], setProducts, role, productEditors = [], currentStaffId }) => {
+const ProductCatalogView: React.FC<ProductCatalogProps> = ({ onLogout, products = [], setProducts, role, productEditors = [], currentStaffId, onTrackSearch, visitCount }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [cart, setCart] = useState<string[]>([]); // Storing Product IDs
@@ -24,6 +26,17 @@ const ProductCatalogView: React.FC<ProductCatalogProps> = ({ onLogout, products 
   const [productForm, setProductForm] = useState<Partial<Product>>({});
   const [deleteConfirmProductId, setDeleteConfirmProductId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // SEARCH ANALYTICS TRACKING (Debounced)
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      if (searchTerm.length > 2) {
+        onTrackSearch && onTrackSearch();
+      }
+    }, 2000); // 2 seconds pause implies a search intention
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchTerm, onTrackSearch]);
 
   // Updated Permission Logic:
   // Admin ALWAYS has access.
@@ -126,7 +139,7 @@ const ProductCatalogView: React.FC<ProductCatalogProps> = ({ onLogout, products 
     <div className="min-h-screen bg-gray-50 font-['Hind_Siliguri'] pb-20 md:pb-0 relative">
       
       {/* Navbar */}
-      <nav className="bg-white sticky top-0 z-50 shadow-sm border-b border-gray-100">
+      <nav className="bg-white z-50 shadow-sm border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
             <div className="flex items-center gap-3">
@@ -139,7 +152,15 @@ const ProductCatalogView: React.FC<ProductCatalogProps> = ({ onLogout, products 
                </div>
             </div>
             
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 sm:gap-4">
+               {/* VISIT COUNT BADGE - VISIBLE ON ALL DEVICES */}
+               {visitCount !== undefined && (
+                  <div className="flex items-center gap-1.5 bg-gray-50 text-gray-600 px-3 py-1.5 rounded-full text-[10px] font-bold border border-gray-200 shadow-sm" title="Total Website Visits">
+                     <Users className="w-3.5 h-3.5 text-indigo-500" />
+                     <span>{visitCount.toLocaleString()} <span className="hidden sm:inline">Views</span></span>
+                  </div>
+               )}
+
                {/* Cart Button (Only for Guest, or viewable by Admin too) */}
                <button 
                  onClick={() => cart.length > 0 && setIsOrderModalOpen(true)}
@@ -157,10 +178,10 @@ const ProductCatalogView: React.FC<ProductCatalogProps> = ({ onLogout, products 
                {role === UserRole.GUEST && (
                    <button 
                      onClick={onLogout}
-                     className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-100 text-gray-600 font-bold text-sm hover:bg-red-50 hover:text-red-600 transition-all"
+                     className="flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2 rounded-xl bg-gray-100 text-gray-600 font-bold text-sm hover:bg-red-50 hover:text-red-600 transition-all"
                    >
                      <LogOut className="w-4 h-4" />
-                     <span className="hidden sm:inline">Exit Guest Mode</span>
+                     <span className="hidden sm:inline">Exit</span>
                    </button>
                )}
             </div>

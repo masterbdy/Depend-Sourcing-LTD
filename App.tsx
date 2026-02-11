@@ -4,7 +4,7 @@ import {
   LogOut, Wallet, User, Cloud, WifiOff, Menu, X, Lock, ArrowRightLeft, XCircle, Landmark, Bell, Phone, Briefcase, Crown, UserCog, Camera, Save, KeyRound, CreditCard, MonitorSmartphone, Trophy, Gift, Sun, Moon, Loader2, BellRing, ChevronRight, Fingerprint, Megaphone, Radar, ShieldAlert, MessageCircleMore, Download, Sparkles, Eye, EyeOff, ShoppingBag, Package
 } from 'lucide-react';
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
-import { getDatabase, ref, onValue, set } from "firebase/database";
+import { getDatabase, ref, onValue, set, runTransaction } from "firebase/database";
 import { UserRole, Staff, MovementLog, Expense, BillingRule, FundEntry, Notice, AdvanceLog, Complaint, ChatMessage, Attendance, StaffLocation, AppNotification, Product } from './types';
 import { INITIAL_STAFF, INITIAL_BILLING_RULES, ROLE_LABELS, DEFAULT_FIREBASE_CONFIG, INITIAL_PRODUCTS } from './constants';
 import GlowingCursor from './GlowingCursor';
@@ -161,7 +161,9 @@ const App: React.FC = () => {
   const [attendanceList, setAttendanceList] = useState<Attendance[]>([]);
   const [liveLocations, setLiveLocations] = useState<Record<string, StaffLocation>>({});
   const [products, setProducts] = useState<Product[]>([]);
-  const [productEditors, setProductEditors] = useState<string[]>([]); // New State for Product Editors
+  const [productEditors, setProductEditors] = useState<string[]>([]);
+  const [searchCount, setSearchCount] = useState<number>(0);
+  const [visitCount, setVisitCount] = useState<number>(0); // New State for Visit Counter
 
   const cleanArray = <T,>(data: any): T[] => {
     if (!data) return [];
@@ -205,12 +207,35 @@ const App: React.FC = () => {
     setAttendanceList(getLocal('attendanceList', '[]') as Attendance[]);
     setProducts(getLocal('products', JSON.stringify(INITIAL_PRODUCTS)) as Product[]);
     setProductEditors(getLocal('productEditors', '[]') as string[]);
+    setSearchCount(Number(safeGetItem('searchCount', '0')));
+    setVisitCount(Number(safeGetItem('visitCount', '0')));
     
     try {
       const savedAcc = safeGetItem('saved_accounts');
       if (savedAcc) setSavedAccounts(JSON.parse(savedAcc));
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  // Function to track searches
+  const handleTrackSearch = () => {
+    // Optimistic Update
+    setSearchCount(prev => prev + 1);
+    
+    if (firebaseConfig && firebaseConfig.databaseURL && isCloudEnabled) {
+      try {
+        const app = getApp();
+        const db = getDatabase(app, firebaseConfig.databaseURL);
+        const countRef = ref(db, 'analytics/search_count');
+        
+        // Use Transaction for safe increment
+        runTransaction(countRef, (currentCount) => {
+          return (currentCount || 0) + 1;
+        });
+      } catch (err) {
+        console.error("Failed to track search:", err);
+      }
     }
   };
 
@@ -233,6 +258,24 @@ const App: React.FC = () => {
       if (dbInstance) {
         setIsSyncing(true);
         setCloudError(null);
+
+        // VISIT COUNT LOGIC (Session Based)
+        const visitRef = ref(dbInstance, 'analytics/visit_count');
+        
+        // Listen for updates
+        onValue(visitRef, (snapshot) => {
+           const count = snapshot.val() || 0;
+           setVisitCount(count);
+           safeSetItem('visitCount', String(count));
+        });
+
+        // Increment visit count (Only once per session)
+        const sessionKey = 'has_visited_session';
+        if (!sessionStorage.getItem(sessionKey)) {
+           runTransaction(visitRef, (current) => (current || 0) + 1)
+             .then(() => sessionStorage.setItem(sessionKey, 'true'))
+             .catch(err => console.error("Visit tracking failed", err));
+        }
 
         const handleSnapshot = (node: string, setter: any) => {
           const dataRef = ref(dbInstance, node);
@@ -275,6 +318,14 @@ const App: React.FC = () => {
         handleSnapshot('staff_locations', setLiveLocations);
         handleSnapshot('products', setProducts);
         handleSnapshot('productEditors', setProductEditors);
+
+        // Separate listener for single value (search count)
+        const searchRef = ref(dbInstance, 'analytics/search_count');
+        onValue(searchRef, (snapshot) => {
+           const count = snapshot.val() || 0;
+           setSearchCount(count);
+           safeSetItem('searchCount', String(count));
+        });
       }
     } catch (error: any) {
       console.error("Cloud Connection Error:", error);
@@ -889,7 +940,7 @@ const App: React.FC = () => {
 
   const handleExport = () => {
     const data = {
-      staffList, expenses, movements, billingRules, funds, notices, advances, complaints, messages, attendanceList, products, productEditors,
+      staffList, expenses, movements, billingRules, funds, notices, advances, complaints, messages, attendanceList, products, productEditors, searchCount, visitCount,
       exportDate: new Date().toISOString(),
       version: '1.0'
     };
@@ -919,6 +970,8 @@ const App: React.FC = () => {
       if (data.attendanceList) updateAttendance(data.attendanceList);
       if (data.products) updateProducts(data.products);
       if (data.productEditors) updateProductEditors(data.productEditors);
+      if (data.searchCount) setSearchCount(data.searchCount);
+      if (data.visitCount) setVisitCount(data.visitCount);
       alert('ডাটা ইমপোর্ট সফল হয়েছে!');
     } catch (e) {
       console.error(e);
@@ -1038,7 +1091,7 @@ const App: React.FC = () => {
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'dashboard': return <DashboardView totalExpense={totalExpense} pendingApprovals={pendingApprovals} expenses={expenses} cloudError={cloudError} totalFund={totalFund} cashOnHand={cashOnHand} role={role!} staffList={staffList} advances={advances} currentUser={currentUser} onOpenProfile={openProfile} />;
+      case 'dashboard': return <DashboardView totalExpense={totalExpense} pendingApprovals={pendingApprovals} expenses={expenses} cloudError={cloudError} totalFund={totalFund} cashOnHand={cashOnHand} role={role!} staffList={staffList} advances={advances} currentUser={currentUser} onOpenProfile={openProfile} searchCount={searchCount} />;
       case 'chat': return <GroupChatView messages={messages} setMessages={updateMessages} currentUser={currentUser} role={role} onNavigate={(view) => setActiveTab(view)} onUpdatePoints={handlePointUpdate} staffList={staffList} onOpenProfile={openProfile} />;
       case 'attendance': return <AttendanceView staffList={staffList} attendanceList={attendanceList} setAttendanceList={updateAttendance} currentUser={currentUser} role={role!} />;
       case 'live-location': return <LiveLocationView staffList={staffList} liveLocations={liveLocations} />;
@@ -1052,8 +1105,8 @@ const App: React.FC = () => {
       case 'reports': return <ReportsView expenses={expenses} staffList={staffList} advances={advances} attendanceList={attendanceList} funds={funds} movements={movements} role={role!} />;
       case 'settings': return <SettingsView billingRules={billingRules} setBillingRules={updateBillingRules} role={role!} exportData={handleExport} importData={handleImport} cloudConfig={firebaseConfig} saveCloudConfig={(config) => { safeSetItem('fb_config', JSON.stringify(config)); alert('Settings saved! Reloading...'); window.location.reload(); }} staffList={staffList} productEditors={productEditors} setProductEditors={updateProductEditors} />;
       case 'trash': return <TrashView staffList={staffList} setStaffList={updateStaffList} movements={movements} setMovements={updateMovements} expenses={expenses} setExpenses={updateExpenses} funds={funds} setFunds={updateFunds} notices={notices} setNotices={updateNotices} role={role!} />;
-      case 'products': return <ProductCatalogView onLogout={() => {}} products={products} setProducts={updateProducts} role={role!} productEditors={productEditors} currentStaffId={myStaffId} />; 
-      default: return <DashboardView totalExpense={totalExpense} pendingApprovals={pendingApprovals} expenses={expenses} cloudError={cloudError} totalFund={totalFund} cashOnHand={cashOnHand} role={role!} staffList={staffList} advances={advances} currentUser={currentUser} onOpenProfile={openProfile} />;
+      case 'products': return <ProductCatalogView onLogout={() => {}} products={products} setProducts={updateProducts} role={role!} productEditors={productEditors} currentStaffId={myStaffId} onTrackSearch={handleTrackSearch} visitCount={visitCount} />; 
+      default: return <DashboardView totalExpense={totalExpense} pendingApprovals={pendingApprovals} expenses={expenses} cloudError={cloudError} totalFund={totalFund} cashOnHand={cashOnHand} role={role!} staffList={staffList} advances={advances} currentUser={currentUser} onOpenProfile={openProfile} searchCount={searchCount} />;
     }
   };
 
@@ -1061,14 +1114,15 @@ const App: React.FC = () => {
 
   // --- GUEST VIEW RENDER ---
   if (role === UserRole.GUEST) {
-    return <ProductCatalogView onLogout={handleLogout} products={products} setProducts={updateProducts} role={role} productEditors={productEditors} currentStaffId={null} />;
+    return <ProductCatalogView onLogout={handleLogout} products={products} setProducts={updateProducts} role={role} productEditors={productEditors} currentStaffId={null} onTrackSearch={handleTrackSearch} visitCount={visitCount} />;
   }
 
   // --- LOGIN SCREEN ---
+  // ... (Login screen remains same) ...
   if (!role) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4 relative overflow-hidden">
-        {/* ... (Login Screen Content remains same as before) ... */}
+        {/* ... (Login Screen Content) ... */}
         
         <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-black to-blue-900 opacity-80 z-0"></div>
         {/* Disable heavy animation on mobile for smoothness */}
@@ -1237,6 +1291,7 @@ const App: React.FC = () => {
     );
   }
 
+  // ... (Rest of layout remains unchanged) ...
   return (
     <div className={`flex h-screen overflow-hidden font-['Hind_Siliguri'] relative ${isDarkMode ? 'dark' : ''} ${isDarkMode ? 'text-gray-100' : 'bg-gray-50 text-gray-900'}`}>
       
