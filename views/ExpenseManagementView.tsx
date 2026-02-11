@@ -372,18 +372,6 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
     if (!formData.amount || Number(formData.amount) <= 0) { alert("টাকার সঠিক পরিমাণ লিখুন।"); return; }
     if (!formData.date) { alert("তারিখ নির্বাচন করুন।"); return; }
 
-    let duplicateCount = 0;
-    try {
-        duplicateCount = expenses.filter(e => {
-            if (e.isDeleted || e.staffId !== targetStaffId) return false;
-            return getSafeDateStr(e.createdAt) === formData.date;
-        }).length;
-    } catch (err) {}
-
-    if (duplicateCount > 0) {
-      if (!window.confirm(`⚠️ ডুপ্লিকেট বিল সতর্কতা!\n\nএই তারিখে (${new Date(formData.date).toLocaleDateString('bn-BD')}) ইতিমধ্যে বিল আছে। নিশ্চিত হলে 'OK' চাপুন।`)) return;
-    }
-
     const submitDate = new Date(formData.date);
     const now = new Date();
     submitDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());

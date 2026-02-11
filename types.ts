@@ -3,7 +3,8 @@ export enum UserRole {
   ADMIN = 'ADMIN',
   MD = 'MD',
   STAFF = 'STAFF',
-  KIOSK = 'KIOSK' // New Role for Factory Common Device
+  KIOSK = 'KIOSK', // New Role for Factory Common Device
+  GUEST = 'GUEST' // New Role for Product Viewers
 }
 
 export interface Reaction {
@@ -165,4 +166,16 @@ export interface AppNotification {
   timestamp: string;
   isRead: boolean;
   link?: string; // Tab ID to navigate to
+}
+
+// New Types for Product Catalog
+export interface Product {
+  id: string;
+  name: string;
+  category: string;
+  priceRange: string;
+  moq: string; // Minimum Order Quantity
+  image: string;
+  description: string;
+  tags: string[];
 }

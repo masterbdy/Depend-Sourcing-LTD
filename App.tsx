@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   LayoutGrid, UsersRound, Footprints, Banknote, PieChart, Settings2, Recycle, 
-  LogOut, Wallet, User, Cloud, WifiOff, Menu, X, Lock, ArrowRightLeft, XCircle, Landmark, Bell, Phone, Briefcase, Crown, UserCog, Camera, Save, KeyRound, CreditCard, MonitorSmartphone, Trophy, Gift, Sun, Moon, Loader2, BellRing, ChevronRight, Fingerprint, Megaphone, Radar, ShieldAlert, MessageCircleMore, Download, Sparkles, Eye, EyeOff
+  LogOut, Wallet, User, Cloud, WifiOff, Menu, X, Lock, ArrowRightLeft, XCircle, Landmark, Bell, Phone, Briefcase, Crown, UserCog, Camera, Save, KeyRound, CreditCard, MonitorSmartphone, Trophy, Gift, Sun, Moon, Loader2, BellRing, ChevronRight, Fingerprint, Megaphone, Radar, ShieldAlert, MessageCircleMore, Download, Sparkles, Eye, EyeOff, ShoppingBag, Package
 } from 'lucide-react';
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { getDatabase, ref, onValue, set } from "firebase/database";
-import { UserRole, Staff, MovementLog, Expense, BillingRule, FundEntry, Notice, AdvanceLog, Complaint, ChatMessage, Attendance, StaffLocation, AppNotification } from './types';
-import { INITIAL_STAFF, INITIAL_BILLING_RULES, ROLE_LABELS, DEFAULT_FIREBASE_CONFIG } from './constants';
+import { UserRole, Staff, MovementLog, Expense, BillingRule, FundEntry, Notice, AdvanceLog, Complaint, ChatMessage, Attendance, StaffLocation, AppNotification, Product } from './types';
+import { INITIAL_STAFF, INITIAL_BILLING_RULES, ROLE_LABELS, DEFAULT_FIREBASE_CONFIG, INITIAL_PRODUCTS } from './constants';
 import GlowingCursor from './GlowingCursor';
 
 import DashboardView from './views/Dashboard';
@@ -23,6 +23,7 @@ import GroupChatView from './views/GroupChat';
 import AttendanceView from './views/Attendance';
 import LiveLocationView from './views/LiveLocation';
 import LuckyDrawView from './views/LuckyDraw';
+import ProductCatalogView from './views/ProductCatalogView'; // New Import
 
 // Safe LocalStorage Helper
 const safeGetItem = (key: string, defaultValue: string | null = null) => {
@@ -133,6 +134,7 @@ const App: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [attendanceList, setAttendanceList] = useState<Attendance[]>([]);
   const [liveLocations, setLiveLocations] = useState<Record<string, StaffLocation>>({});
+  const [products, setProducts] = useState<Product[]>([]);
 
   const cleanArray = <T,>(data: any): T[] => {
     if (!data) return [];
@@ -174,6 +176,7 @@ const App: React.FC = () => {
     setComplaints(getLocal('complaints', '[]') as Complaint[]);
     setMessages(getLocal('messages', '[]') as ChatMessage[]);
     setAttendanceList(getLocal('attendanceList', '[]') as Attendance[]);
+    setProducts(getLocal('products', JSON.stringify(INITIAL_PRODUCTS)) as Product[]);
     
     try {
       const savedAcc = safeGetItem('saved_accounts');
@@ -242,6 +245,7 @@ const App: React.FC = () => {
         handleSnapshot('messages', setMessages);
         handleSnapshot('attendanceList', setAttendanceList);
         handleSnapshot('staff_locations', setLiveLocations);
+        handleSnapshot('products', setProducts);
       }
     } catch (error: any) {
       console.error("Cloud Connection Error:", error);
@@ -320,6 +324,7 @@ const App: React.FC = () => {
   const updateComplaints = createUpdater('complaints', setComplaints);
   const updateMessages = createUpdater('messages', setMessages);
   const updateAttendance = createUpdater('attendanceList', setAttendanceList);
+  const updateProducts = createUpdater('products', setProducts);
 
   useEffect(() => {
     if (currentUser && staffList.length > 0) {
@@ -526,7 +531,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!currentUser || !role || !firebaseConfig || !isCloudEnabled) return;
-    if (role === UserRole.ADMIN || role === UserRole.MD) return;
+    if (role === UserRole.ADMIN || role === UserRole.MD || role === UserRole.GUEST) return; // Skip for GUEST too
     if (!myStaffId) return;
 
     let watchId: number;
@@ -588,7 +593,7 @@ const App: React.FC = () => {
   }, [currentUser, role, isCloudEnabled, myStaffId]);
 
   useEffect(() => {
-    if (!currentUser || !role || role === UserRole.MD) return;
+    if (!currentUser || !role || role === UserRole.MD || role === UserRole.GUEST) return; // Skip for GUEST
 
     const checkAttendance = () => {
       const today = new Date().toISOString().split('T')[0];
@@ -673,6 +678,8 @@ const App: React.FC = () => {
 
   const prevMessagesLength = useRef(0);
   useEffect(() => {
+    if (role === UserRole.GUEST) return; // Skip chat notifications for Guest
+
     if (messages.length > 0 && prevMessagesLength.current > 0 && messages.length > prevMessagesLength.current) {
       const lastMsg = messages[messages.length - 1];
       if (lastMsg.sender !== currentUser) {
@@ -687,10 +694,12 @@ const App: React.FC = () => {
       }
     }
     prevMessagesLength.current = messages.length;
-  }, [messages, currentUser]);
+  }, [messages, currentUser, role]);
 
   const prevExpensesRef = useRef<Expense[]>([]);
   useEffect(() => {
+    if (role === UserRole.GUEST) return; // Skip expense notifications for Guest
+
     const prev = prevExpensesRef.current;
     if (prev.length === 0 && expenses.length > 0) {
         prevExpensesRef.current = expenses;
@@ -730,6 +739,13 @@ const App: React.FC = () => {
       requestNotificationPermission();
     }
   }, [role]);
+
+  const handleGuestLogin = () => {
+    setRole(UserRole.GUEST);
+    setCurrentUser('Guest User');
+    setLoginError('');
+    setIsLoggingIn(false);
+  };
 
   const handleLogin = (e: React.FormEvent | null, quickAuthData?: any) => {
     if (e) e.preventDefault();
@@ -838,7 +854,7 @@ const App: React.FC = () => {
 
   const handleExport = () => {
     const data = {
-      staffList, expenses, movements, billingRules, funds, notices, advances, complaints, messages, attendanceList,
+      staffList, expenses, movements, billingRules, funds, notices, advances, complaints, messages, attendanceList, products,
       exportDate: new Date().toISOString(),
       version: '1.0'
     };
@@ -866,6 +882,7 @@ const App: React.FC = () => {
       if (data.complaints) updateComplaints(data.complaints);
       if (data.messages) updateMessages(data.messages);
       if (data.attendanceList) updateAttendance(data.attendanceList);
+      if (data.products) updateProducts(data.products);
       alert('ডাটা ইমপোর্ট সফল হয়েছে!');
     } catch (e) {
       console.error(e);
@@ -956,6 +973,7 @@ const App: React.FC = () => {
   const allNavItems = useMemo(() => [
     { id: 'dashboard', label: 'ড্যাশবোর্ড', icon: LayoutGrid, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF, UserRole.KIOSK], color: 'text-sky-600', bgColor: 'bg-sky-50' },
     { id: 'attendance', label: 'হাজিরা', icon: Fingerprint, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF, UserRole.KIOSK], color: 'text-green-600', bgColor: 'bg-green-50' },
+    { id: 'products', label: 'পণ্য তালিকা', icon: Package, roles: [UserRole.ADMIN, UserRole.MD], color: 'text-pink-600', bgColor: 'bg-pink-50' }, // Added Product Catalog for Admin/MD
     { id: 'expenses', label: 'বিল ও খরচ', icon: Banknote, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-rose-600', bgColor: 'bg-rose-50' },
     { id: 'notices', label: 'নোটিশ বোর্ড', icon: Megaphone, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF, UserRole.KIOSK], color: 'text-orange-600', bgColor: 'bg-orange-50' },
     { id: 'chat', label: 'টিম চ্যাট', icon: MessageCircleMore, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-violet-600', bgColor: 'bg-violet-50' },
@@ -984,30 +1002,37 @@ const App: React.FC = () => {
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'dashboard': return <DashboardView totalExpense={totalExpense} pendingApprovals={pendingApprovals} expenses={expenses} cloudError={cloudError} totalFund={totalFund} cashOnHand={cashOnHand} role={role} staffList={staffList} advances={advances} currentUser={currentUser} onOpenProfile={openProfile} />;
+      case 'dashboard': return <DashboardView totalExpense={totalExpense} pendingApprovals={pendingApprovals} expenses={expenses} cloudError={cloudError} totalFund={totalFund} cashOnHand={cashOnHand} role={role!} staffList={staffList} advances={advances} currentUser={currentUser} onOpenProfile={openProfile} />;
       case 'chat': return <GroupChatView messages={messages} setMessages={updateMessages} currentUser={currentUser} role={role} onNavigate={(view) => setActiveTab(view)} onUpdatePoints={handlePointUpdate} staffList={staffList} onOpenProfile={openProfile} />;
-      case 'attendance': return <AttendanceView staffList={staffList} attendanceList={attendanceList} setAttendanceList={updateAttendance} currentUser={currentUser} role={role} />;
+      case 'attendance': return <AttendanceView staffList={staffList} attendanceList={attendanceList} setAttendanceList={updateAttendance} currentUser={currentUser} role={role!} />;
       case 'live-location': return <LiveLocationView staffList={staffList} liveLocations={liveLocations} />;
       case 'lucky-draw': return <LuckyDrawView staffList={staffList} currentUser={currentUser} onUpdatePoints={handlePointUpdate} onUpdateDrawTime={handleDrawTimeUpdate} role={role} />;
-      case 'notices': return <NoticeBoardView notices={notices} setNotices={updateNotices} role={role} currentUser={currentUser || ''} staffList={staffList} onOpenProfile={openProfile} />;
-      case 'complaints': return <ComplaintBoxView complaints={complaints} setComplaints={updateComplaints} staffList={staffList} role={role} currentUser={currentUser} onOpenProfile={openProfile} />;
-      case 'funds': return <FundLedgerView funds={funds} setFunds={updateFunds} expenses={expenses} advances={advances} totalFund={totalFund} cashOnHand={cashOnHand} role={role} />;
-      case 'staff': return <StaffManagementView staffList={staffList} setStaffList={updateStaffList} role={role} expenses={expenses} advances={advances} setAdvances={updateAdvances} currentUser={currentUser} onUpdatePoints={handlePointUpdate} highlightStaffId={highlightStaffId} setHighlightStaffId={setHighlightStaffId} />;
-      case 'movements': return <MovementLogView movements={movements} setMovements={updateMovements} staffList={staffList} billingRules={billingRules} role={role} setMessages={updateMessages} currentUser={currentUser} onUpdatePoints={handlePointUpdate} />;
-      case 'expenses': return <ExpenseManagementView expenses={expenses} setExpenses={updateExpenses} staffList={staffList} role={role} currentUser={currentUser} advances={advances} onOpenProfile={openProfile} />;
-      case 'reports': return <ReportsView expenses={expenses} staffList={staffList} advances={advances} attendanceList={attendanceList} funds={funds} movements={movements} role={role} />;
-      case 'settings': return <SettingsView billingRules={billingRules} setBillingRules={updateBillingRules} role={role} exportData={handleExport} importData={handleImport} cloudConfig={firebaseConfig} saveCloudConfig={(config) => { safeSetItem('fb_config', JSON.stringify(config)); alert('Settings saved! Reloading...'); window.location.reload(); }} />;
-      case 'trash': return <TrashView staffList={staffList} setStaffList={updateStaffList} movements={movements} setMovements={updateMovements} expenses={expenses} setExpenses={updateExpenses} funds={funds} setFunds={updateFunds} notices={notices} setNotices={updateNotices} role={role} />;
-      default: return <DashboardView totalExpense={totalExpense} pendingApprovals={pendingApprovals} expenses={expenses} cloudError={cloudError} totalFund={totalFund} cashOnHand={cashOnHand} role={role} staffList={staffList} advances={advances} currentUser={currentUser} onOpenProfile={openProfile} />;
+      case 'notices': return <NoticeBoardView notices={notices} setNotices={updateNotices} role={role!} currentUser={currentUser || ''} staffList={staffList} onOpenProfile={openProfile} />;
+      case 'complaints': return <ComplaintBoxView complaints={complaints} setComplaints={updateComplaints} staffList={staffList} role={role!} currentUser={currentUser} onOpenProfile={openProfile} />;
+      case 'funds': return <FundLedgerView funds={funds} setFunds={updateFunds} expenses={expenses} advances={advances} totalFund={totalFund} cashOnHand={cashOnHand} role={role!} />;
+      case 'staff': return <StaffManagementView staffList={staffList} setStaffList={updateStaffList} role={role!} expenses={expenses} advances={advances} setAdvances={updateAdvances} currentUser={currentUser} onUpdatePoints={handlePointUpdate} highlightStaffId={highlightStaffId} setHighlightStaffId={setHighlightStaffId} />;
+      case 'movements': return <MovementLogView movements={movements} setMovements={updateMovements} staffList={staffList} billingRules={billingRules} role={role!} setMessages={updateMessages} currentUser={currentUser} onUpdatePoints={handlePointUpdate} />;
+      case 'expenses': return <ExpenseManagementView expenses={expenses} setExpenses={updateExpenses} staffList={staffList} role={role!} currentUser={currentUser} advances={advances} onOpenProfile={openProfile} />;
+      case 'reports': return <ReportsView expenses={expenses} staffList={staffList} advances={advances} attendanceList={attendanceList} funds={funds} movements={movements} role={role!} />;
+      case 'settings': return <SettingsView billingRules={billingRules} setBillingRules={updateBillingRules} role={role!} exportData={handleExport} importData={handleImport} cloudConfig={firebaseConfig} saveCloudConfig={(config) => { safeSetItem('fb_config', JSON.stringify(config)); alert('Settings saved! Reloading...'); window.location.reload(); }} />;
+      case 'trash': return <TrashView staffList={staffList} setStaffList={updateStaffList} movements={movements} setMovements={updateMovements} expenses={expenses} setExpenses={updateExpenses} funds={funds} setFunds={updateFunds} notices={notices} setNotices={updateNotices} role={role!} />;
+      case 'products': return <ProductCatalogView onLogout={() => {}} products={products} setProducts={updateProducts} role={role!} />; // New Case
+      default: return <DashboardView totalExpense={totalExpense} pendingApprovals={pendingApprovals} expenses={expenses} cloudError={cloudError} totalFund={totalFund} cashOnHand={cashOnHand} role={role!} staffList={staffList} advances={advances} currentUser={currentUser} onOpenProfile={openProfile} />;
     }
   };
 
   const isStaffUser = role === UserRole.STAFF; // Helper for conditional rendering
 
+  // --- GUEST VIEW RENDER ---
+  if (role === UserRole.GUEST) {
+    return <ProductCatalogView onLogout={handleLogout} products={products} setProducts={updateProducts} role={role} />;
+  }
+
+  // --- LOGIN SCREEN ---
   if (!role) {
-    // ... Login UI (No Changes needed here) ...
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4 relative overflow-hidden">
+        {/* ... (Login Screen Content remains same as before) ... */}
         
         <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-black to-blue-900 opacity-80 z-0"></div>
         {/* Disable heavy animation on mobile for smoothness */}
@@ -1146,6 +1171,17 @@ const App: React.FC = () => {
               {!isLoggingIn && <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>}
             </button>
           </form>
+
+          {/* GUEST MODE BUTTON */}
+          <div className="mt-4 border-t border-white/10 pt-4">
+             <button 
+               onClick={handleGuestLogin}
+               className="w-full bg-white/5 border border-white/10 text-indigo-300 hover:text-white hover:bg-white/10 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all active:scale-95 text-xs uppercase tracking-wider group"
+             >
+                <ShoppingBag className="w-4 h-4 group-hover:text-yellow-400 transition-colors" />
+                প্রোডাক্ট ক্যাটালগ দেখুন (Guest)
+             </button>
+          </div>
 
           <div className="mt-6 flex flex-col items-center gap-3">
             {isCloudEnabled ? (
@@ -1346,6 +1382,7 @@ const App: React.FC = () => {
         </div>
       </main>
 
+      {/* ... (Mobile Menu & Profile Modal unchanged) ... */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 flex justify-around items-center px-2 py-2 z-50 shadow-lg">
          {bottomNavItems.map((item) => (
             <button 
