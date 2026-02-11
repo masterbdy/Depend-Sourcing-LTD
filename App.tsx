@@ -1179,7 +1179,7 @@ const App: React.FC = () => {
                className="w-full bg-white/5 border border-white/10 text-indigo-300 hover:text-white hover:bg-white/10 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all active:scale-95 text-xs uppercase tracking-wider group"
              >
                 <ShoppingBag className="w-4 h-4 group-hover:text-yellow-400 transition-colors" />
-                প্রোডাক্ট ক্যাটালগ দেখুন (Guest)
+                View Product Catalog (Guest Mode)
              </button>
           </div>
 
