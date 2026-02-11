@@ -63,6 +63,32 @@ const App: React.FC = () => {
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
   }, []);
 
+  // --- PERSISTENT LOGIN LOGIC (Auto-Login on Load) ---
+  useEffect(() => {
+    const savedSession = safeGetItem('active_session');
+    if (savedSession) {
+      try {
+        const sessionData = JSON.parse(savedSession);
+        if (sessionData && sessionData.role && sessionData.username) {
+          setRole(sessionData.role);
+          setCurrentUser(sessionData.username);
+          // Optional: Restore active tab if saved
+          const lastTab = safeGetItem('last_active_tab');
+          if (lastTab) setActiveTab(lastTab);
+        }
+      } catch (e) {
+        console.error("Failed to restore session", e);
+      }
+    }
+  }, []);
+
+  // Save active tab on change
+  useEffect(() => {
+    if (activeTab) {
+      safeSetItem('last_active_tab', activeTab);
+    }
+  }, [activeTab]);
+
   const handleInstallClick = () => {
     if (deferredPrompt) {
       deferredPrompt.prompt();
@@ -120,7 +146,7 @@ const App: React.FC = () => {
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false); 
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true); // Default to true for better UX
   const [savedAccounts, setSavedAccounts] = useState<any[]>([]);
 
   const [staffList, setStaffList] = useState<Staff[]>([]);
@@ -777,6 +803,10 @@ const App: React.FC = () => {
           setCurrentUser(authenticatedUser!.name);
           setIsLoggingIn(false); 
           
+          // Save session to localStorage for persistent login
+          const sessionData = { role: authenticatedUser!.role, username: authenticatedUser!.name };
+          safeSetItem('active_session', JSON.stringify(sessionData));
+          
           if (authenticatedUser!.role === UserRole.KIOSK) {
             setActiveTab('attendance'); 
           }
@@ -850,6 +880,7 @@ const App: React.FC = () => {
     setLoginPassword('');
     setLoginError('');
     setActiveTab('dashboard');
+    localStorage.removeItem('active_session'); // Clear persistent session
   };
 
   const handleExport = () => {
