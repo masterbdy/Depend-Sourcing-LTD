@@ -118,7 +118,7 @@ const ProductCatalogView: React.FC<ProductCatalogProps> = ({ onLogout, products 
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 font-['Hind_Siliguri'] pb-20 md:pb-0">
+    <div className="min-h-screen bg-gray-50 font-['Hind_Siliguri'] pb-20 md:pb-0 relative">
       
       {/* Navbar */}
       <nav className="bg-white sticky top-0 z-50 shadow-sm border-b border-gray-100">
@@ -164,69 +164,60 @@ const ProductCatalogView: React.FC<ProductCatalogProps> = ({ onLogout, products 
       </nav>
 
       {/* Hero Section */}
-      <div className="bg-indigo-900 text-white py-16 px-4 relative overflow-hidden">
+      <div className="bg-indigo-900 text-white py-12 px-4 relative overflow-hidden">
          <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1534951474654-87823058c487?auto=format&fit=crop&q=80')] bg-cover bg-center opacity-20"></div>
          <div className="absolute inset-0 bg-gradient-to-r from-indigo-950 via-indigo-900/90 to-transparent"></div>
          
          <div className="max-w-7xl mx-auto relative z-10 flex flex-col md:flex-row justify-between items-center gap-6">
             <div>
-                <h2 className="text-4xl md:text-5xl font-black mb-4 leading-tight">
+                <h2 className="text-3xl md:text-5xl font-black mb-3 leading-tight">
                 Premium Garment <br/>
                 <span className="text-yellow-400">Raw Materials</span>
                 </h2>
-                <p className="text-indigo-200 text-lg max-w-2xl mb-8 font-medium">
+                <p className="text-indigo-200 text-sm md:text-lg max-w-2xl mb-6 font-medium">
                 One-stop sourcing solution for Fabrics, Yarn, and Accessories. We ensure export-quality materials for your manufacturing needs.
                 </p>
-                <div className="flex flex-wrap gap-4">
-                    <button onClick={() => document.getElementById('catalog')?.scrollIntoView({behavior: 'smooth'})} className="px-8 py-3 bg-white text-indigo-900 rounded-full font-bold shadow-lg hover:bg-gray-100 transition-all active:scale-95 flex items-center gap-2">
+                <div className="flex flex-wrap gap-3">
+                    <button onClick={() => document.getElementById('catalog')?.scrollIntoView({behavior: 'smooth'})} className="px-6 py-2.5 bg-white text-indigo-900 rounded-full font-bold shadow-lg hover:bg-gray-100 transition-all active:scale-95 flex items-center gap-2 text-sm">
                         <Scissors className="w-4 h-4" /> View Materials
                     </button>
-                    <button onClick={() => window.location.href = 'mailto:info@dependsourcing.com'} className="px-8 py-3 bg-indigo-700 text-white border border-indigo-500 rounded-full font-bold hover:bg-indigo-600 transition-all flex items-center gap-2">
+                    <button onClick={() => window.location.href = 'mailto:info@dependsourcing.com'} className="px-6 py-2.5 bg-indigo-700 text-white border border-indigo-500 rounded-full font-bold hover:bg-indigo-600 transition-all flex items-center gap-2 text-sm">
                         <Mail className="w-4 h-4" /> Contact Supplier
                     </button>
                 </div>
             </div>
-            
-            {/* Admin Add Product Button */}
-            {isAdminOrMD && (
-                <button 
-                    onClick={openAddModal}
-                    className="bg-green-500 hover:bg-green-600 text-white px-8 py-4 rounded-2xl font-black shadow-2xl shadow-green-900/50 flex flex-col items-center gap-1 transition-all transform hover:scale-105"
-                >
-                    <Plus className="w-8 h-8" />
-                    <span>ADD PRODUCT</span>
-                </button>
-            )}
          </div>
       </div>
 
       {/* Main Content */}
-      <div id="catalog" className="max-w-7xl mx-auto px-4 py-12">
+      <div id="catalog" className="max-w-7xl mx-auto px-4 py-8">
          
-         {/* Filters */}
+         {/* Filters & Search */}
          <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-8">
-            <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-2 scrollbar-hide">
-               {categories.map(cat => (
-                  <button 
-                    key={cat}
-                    onClick={() => setSelectedCategory(cat)}
-                    className={`px-5 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all ${
-                       selectedCategory === cat 
-                         ? 'bg-indigo-600 text-white shadow-md' 
-                         : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
-                    }`}
-                  >
-                     {cat}
-                  </button>
-               ))}
+            <div className="w-full md:w-auto overflow-x-auto scrollbar-hide pb-1">
+                <div className="flex items-center gap-2">
+                    {categories.map(cat => (
+                        <button 
+                            key={cat}
+                            onClick={() => setSelectedCategory(cat)}
+                            className={`px-4 py-1.5 rounded-full text-xs md:text-sm font-bold whitespace-nowrap transition-all border ${
+                            selectedCategory === cat 
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' 
+                                : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50 hover:text-gray-700'
+                            }`}
+                        >
+                            {cat}
+                        </button>
+                    ))}
+                </div>
             </div>
             
-            <div className="relative w-full md:w-72">
+            <div className="relative w-full md:w-64">
                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                <input 
                  type="text" 
                  placeholder="Search materials..." 
-                 className="w-full pl-10 pr-4 py-2.5 rounded-full border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-bold"
+                 className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-bold bg-white"
                  value={searchTerm}
                  onChange={(e) => setSearchTerm(e.target.value)}
                />
@@ -234,54 +225,54 @@ const ProductCatalogView: React.FC<ProductCatalogProps> = ({ onLogout, products 
          </div>
 
          {/* Product Grid */}
-         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredProducts.map(product => (
                <div key={product.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all duration-300 group flex flex-col">
-                  <div className="relative h-64 overflow-hidden bg-gray-100 shrink-0">
+                  <div className="relative h-56 overflow-hidden bg-gray-100 shrink-0">
                      {product.image ? (
                         <img src={product.image} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                      ) : (
                         <div className="w-full h-full flex items-center justify-center bg-gray-200 text-gray-400">No Image</div>
                      )}
                      
-                     <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-lg text-xs font-bold text-gray-700 shadow-sm">
+                     <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-lg text-[10px] font-bold text-gray-700 shadow-sm border border-white/50">
                         MOQ: {product.moq}
                      </div>
 
                      {/* Admin Controls Overlay */}
                      {isAdminOrMD && (
                         <div className="absolute top-3 left-3 flex gap-2">
-                            <button onClick={() => openEditModal(product)} className="p-2 bg-white text-indigo-600 rounded-full shadow-lg hover:bg-indigo-50 transition-colors"><Edit3 className="w-4 h-4" /></button>
-                            <button onClick={() => handleDeleteRequest(product.id)} className="p-2 bg-white text-red-600 rounded-full shadow-lg hover:bg-red-50 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                            <button onClick={() => openEditModal(product)} className="p-2 bg-white/90 backdrop-blur-sm text-indigo-600 rounded-full shadow-sm hover:bg-indigo-50 transition-colors"><Edit3 className="w-3.5 h-3.5" /></button>
+                            <button onClick={() => handleDeleteRequest(product.id)} className="p-2 bg-white/90 backdrop-blur-sm text-red-600 rounded-full shadow-sm hover:bg-red-50 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
                         </div>
                      )}
                   </div>
-                  <div className="p-6 flex-1 flex flex-col">
+                  <div className="p-5 flex-1 flex flex-col">
                      <div className="flex justify-between items-start mb-2">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 px-2 py-1 rounded">{product.category}</span>
-                        <span className="text-sm font-bold text-gray-900">{product.priceRange}</span>
+                        <span className="text-[9px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">{product.category}</span>
+                        <span className="text-xs font-bold text-gray-900">{product.priceRange}</span>
                      </div>
-                     <h3 className="text-xl font-bold text-gray-800 mb-2 leading-tight">{product.name}</h3>
-                     <p className="text-sm text-gray-500 mb-4 line-clamp-2 flex-1">{product.description}</p>
+                     <h3 className="text-lg font-bold text-gray-800 mb-1.5 leading-tight">{product.name}</h3>
+                     <p className="text-xs text-gray-500 mb-4 line-clamp-2 flex-1 leading-relaxed">{product.description}</p>
                      
-                     <div className="flex flex-wrap gap-2 mb-6">
+                     <div className="flex flex-wrap gap-1.5 mb-5">
                         {product.tags.map(tag => (
-                           <span key={tag} className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full font-medium">#{tag}</span>
+                           <span key={tag} className="text-[9px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-md font-medium border border-gray-200">#{tag}</span>
                         ))}
                      </div>
 
                      <button 
                        onClick={() => cart.includes(product.id) ? removeFromCart(product.id) : addToCart(product.id)}
-                       className={`w-full py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${
+                       className={`w-full py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 ${
                           cart.includes(product.id) 
                             ? 'bg-green-100 text-green-700 hover:bg-green-200' 
-                            : 'bg-gray-900 text-white hover:bg-indigo-600 shadow-lg'
+                            : 'bg-gray-900 text-white hover:bg-indigo-600 shadow-md'
                        }`}
                      >
                         {cart.includes(product.id) ? (
-                           <><CheckCircle className="w-4 h-4" /> Added to Inquiry</>
+                           <><CheckCircle className="w-3.5 h-3.5" /> Added</>
                         ) : (
-                           <><ShoppingBag className="w-4 h-4" /> Add to Inquiry</>
+                           <><ShoppingBag className="w-3.5 h-3.5" /> Add to Inquiry</>
                         )}
                      </button>
                   </div>
@@ -289,6 +280,17 @@ const ProductCatalogView: React.FC<ProductCatalogProps> = ({ onLogout, products 
             ))}
          </div>
       </div>
+
+      {/* Floating Add Product Button (Admin Only) */}
+      {isAdminOrMD && (
+        <button
+            onClick={openAddModal}
+            className="fixed bottom-24 right-6 z-40 bg-green-500 text-white p-4 rounded-full shadow-2xl hover:bg-green-600 transition-all hover:scale-110 active:scale-95 flex items-center justify-center group"
+            title="Add Product"
+        >
+            <Plus className="w-6 h-6 group-hover:rotate-90 transition-transform" />
+        </button>
+      )}
 
       {/* Footer */}
       <footer className="bg-gray-900 text-white py-12 mt-12">
