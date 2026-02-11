@@ -1004,14 +1004,14 @@ const App: React.FC = () => {
   const allNavItems = useMemo(() => [
     { id: 'dashboard', label: 'ড্যাশবোর্ড', icon: LayoutGrid, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF, UserRole.KIOSK], color: 'text-sky-600', bgColor: 'bg-sky-50' },
     { id: 'attendance', label: 'হাজিরা', icon: Fingerprint, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF, UserRole.KIOSK], color: 'text-green-600', bgColor: 'bg-green-50' },
-    { id: 'products', label: 'পণ্য তালিকা', icon: Package, roles: [UserRole.ADMIN, UserRole.MD], color: 'text-pink-600', bgColor: 'bg-pink-50' }, // Added Product Catalog for Admin/MD
+    { id: 'funds', label: 'ফান্ড লেজার', icon: Landmark, roles: [UserRole.ADMIN, UserRole.MD], color: 'text-emerald-600', bgColor: 'bg-emerald-50' },
     { id: 'expenses', label: 'বিল ও খরচ', icon: Banknote, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-rose-600', bgColor: 'bg-rose-50' },
+    { id: 'products', label: 'পণ্য তালিকা', icon: Package, roles: [UserRole.ADMIN, UserRole.MD], color: 'text-pink-600', bgColor: 'bg-pink-50' }, // Moved Down
     { id: 'notices', label: 'নোটিশ বোর্ড', icon: Megaphone, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF, UserRole.KIOSK], color: 'text-orange-600', bgColor: 'bg-orange-50' },
     { id: 'chat', label: 'টিম চ্যাট', icon: MessageCircleMore, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-violet-600', bgColor: 'bg-violet-50' },
     { id: 'live-location', label: 'লাইভ ট্র্যাকিং', icon: Radar, roles: [UserRole.ADMIN, UserRole.MD], color: 'text-cyan-600', bgColor: 'bg-cyan-50' },
     { id: 'lucky-draw', label: 'লাকি ড্র & গেম', icon: Gift, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-purple-600', bgColor: 'bg-purple-50' },
     { id: 'complaints', label: 'অভিযোগ বক্স', icon: ShieldAlert, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-red-600', bgColor: 'bg-red-50' },
-    { id: 'funds', label: 'ফান্ড লেজার', icon: Landmark, roles: [UserRole.ADMIN, UserRole.MD], color: 'text-emerald-600', bgColor: 'bg-emerald-50' },
     { id: 'staff', label: 'স্টাফ ম্যানেজমেন্ট', icon: UsersRound, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-indigo-600', bgColor: 'bg-indigo-50' },
     { id: 'movements', label: 'মুভমেন্ট লগ', icon: Footprints, roles: [UserRole.ADMIN, UserRole.STAFF], color: 'text-amber-600', bgColor: 'bg-amber-50' },
     { id: 'reports', label: 'রিপোর্ট ও ফাইল', icon: PieChart, roles: [UserRole.ADMIN, UserRole.MD], color: 'text-slate-600', bgColor: 'bg-slate-50' },
