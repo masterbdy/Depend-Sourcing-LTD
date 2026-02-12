@@ -974,11 +974,13 @@ const App: React.FC = () => {
                setIsLoggingIn(false);
                
                if (err.code === 1) {
-                   setLoginError("⚠️ লগইন করতে অবশ্যই লোকেশন পারমিশন দিতে হবে (Allow Location)।");
+                   setLoginError("⚠️ লগইন ব্যর্থ! আপনি লোকেশন পারমিশন ব্লক করেছেন। ব্রাউজার সেটিংসে গিয়ে লোকেশন Allow করুন এবং আবার চেষ্টা করুন।");
                } else if (err.code === 2) {
                    setLoginError("❌ মোবাইলের লোকেশন (GPS) বন্ধ আছে। দয়া করে লোকেশন অন করে আবার চেষ্টা করুন।");
+               } else if (err.code === 3) {
+                   setLoginError("⚠️ লোকেশন রেসপন্স টাইমআউট। দয়া করে আবার চেষ্টা করুন।");
                } else {
-                   setLoginError("⚠️ লোকেশন পাওয়া যাচ্ছে না। ইন্টারনেট ও জিপিএস চেক করুন।");
+                   setLoginError("⚠️ লোকেশন সমস্যা। ইন্টারনেট ও জিপিএস চেক করুন।");
                }
             },
             { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
