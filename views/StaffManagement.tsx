@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Plus, Search, Edit3, Trash2, UserPlus, X, Calendar, FilterX, Phone, Banknote, Users, UserCheck, UserX, ArrowUpDown, ShieldCheck, ShieldAlert, Eye, EyeOff, Lock, Camera, Image as ImageIcon, Briefcase, Wallet, ArrowRight, Coins, Crown, UserCog, History, CalendarClock, MapPin, LocateFixed, Globe, ToggleLeft, ToggleRight, Map, MonitorSmartphone, Gift, Star, MoreVertical, WalletCards, AlertTriangle, CheckCircle, RotateCcw, TrendingDown, Maximize2, Minimize2, ChevronDown, Sparkles, CreditCard, ExternalLink } from 'lucide-react';
+import { Plus, Search, Edit3, Trash2, UserPlus, X, Calendar, FilterX, Phone, Banknote, Users, UserCheck, UserX, ArrowUpDown, ShieldCheck, ShieldAlert, Eye, EyeOff, Lock, Camera, Image as ImageIcon, Briefcase, Wallet, ArrowRight, Coins, Crown, UserCog, History, CalendarClock, MapPin, LocateFixed, Globe, ToggleLeft, ToggleRight, Map, MonitorSmartphone, Gift, Star, MoreVertical, WalletCards, AlertTriangle, CheckCircle, RotateCcw, TrendingDown, Maximize2, Minimize2, ChevronDown, Sparkles, CreditCard, ExternalLink, Laptop } from 'lucide-react';
 import { Staff, UserRole, Expense, AdvanceLog } from '../types';
 import { ROLE_LABELS } from '../constants';
 
@@ -791,11 +791,19 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
                                       <p className="text-xs font-bold text-gray-800 dark:text-gray-200">{joinDate}</p>
                                   </div>
                               </div>
+                              {/* Device Info */}
+                              <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-100 dark:border-gray-600 flex items-center gap-3">
+                                  <div className="bg-white dark:bg-gray-600 p-2 rounded-lg text-orange-500 shadow-sm"><Laptop className="w-4 h-4"/></div>
+                                  <div>
+                                      <p className="text-[9px] text-gray-400 font-bold uppercase">Last Device</p>
+                                      <p className="text-xs font-bold text-gray-800 dark:text-gray-200 truncate max-w-[100px]" title={staff.lastDevice || 'Unknown'}>{staff.lastDevice || 'Unknown'}</p>
+                                  </div>
+                              </div>
                               {(role === UserRole.ADMIN || role === UserRole.MD) && (
-                                  <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-100 dark:border-gray-600 flex items-center gap-3">
+                                  <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-100 dark:border-gray-600 flex items-center gap-3 col-span-2">
                                       <div className="bg-white dark:bg-gray-600 p-2 rounded-lg text-green-500 shadow-sm"><Wallet className="w-4 h-4"/></div>
                                       <div>
-                                          <p className="text-[9px] text-gray-400 font-bold uppercase">Salary</p>
+                                          <p className="text-[9px] text-gray-400 font-bold uppercase">Basic Salary</p>
                                           <p className="text-xs font-bold text-gray-800 dark:text-gray-200">৳ {staff.basicSalary?.toLocaleString() || 0}</p>
                                       </div>
                                   </div>

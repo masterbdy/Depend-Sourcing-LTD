@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { Map, Navigation, Battery, SignalHigh, ExternalLink, Clock } from 'lucide-react';
+import { Map, Navigation, Battery, SignalHigh, ExternalLink, Clock, Laptop } from 'lucide-react';
 import { Staff, StaffLocation, UserRole } from '../types';
 
 interface LiveLocationProps {
@@ -93,6 +92,12 @@ const LiveLocationView: React.FC<LiveLocationProps> = ({ staffList = [], liveLoc
                           {new Date(location.timestamp).toLocaleTimeString('bn-BD')}
                        </p>
                     </div>
+
+                    {location.deviceName && (
+                        <div className="flex items-center justify-center gap-1.5 text-[10px] text-indigo-500 font-bold bg-indigo-50 py-1 rounded-lg">
+                            <Laptop className="w-3 h-3" /> {location.deviceName}
+                        </div>
+                    )}
 
                     <a 
                       href={`https://www.google.com/maps?q=${location.lat},${location.lng}`} 

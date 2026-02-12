@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   LayoutGrid, UsersRound, Footprints, Banknote, PieChart, Settings2, Recycle, 
-  LogOut, Wallet, User, Cloud, WifiOff, Menu, X, Lock, ArrowRightLeft, XCircle, Landmark, Bell, Phone, Briefcase, Crown, UserCog, Camera, Save, KeyRound, CreditCard, MonitorSmartphone, Trophy, Gift, Sun, Moon, Loader2, BellRing, ChevronRight, Fingerprint, Megaphone, Radar, ShieldAlert, MessageCircleMore, Download, Sparkles, Eye, EyeOff, ShoppingBag, Package
+  LogOut, Wallet, User, Cloud, WifiOff, Menu, X, Lock, ArrowRightLeft, XCircle, Landmark, Bell, Phone, Briefcase, Crown, UserCog, Camera, Save, KeyRound, CreditCard, MonitorSmartphone, Trophy, Gift, Sun, Moon, Loader2, BellRing, ChevronRight, Fingerprint, Megaphone, Radar, ShieldAlert, MessageCircleMore, Download, Sparkles, Eye, EyeOff, ShoppingBag, Package, Share2
 } from 'lucide-react';
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { getDatabase, ref, onValue, set, runTransaction } from "firebase/database";
@@ -41,6 +41,41 @@ const safeSetItem = (key: string, value: string) => {
   } catch (e) {
     console.warn(`LocalStorage write failed for key: ${key}`);
   }
+};
+
+// --- DEVICE DETECTION HELPER ---
+const getDeviceInfo = () => {
+  const ua = navigator.userAgent;
+  let device = "Unknown Device";
+  let icon = "💻"; // Default PC
+
+  if (/Android/i.test(ua)) {
+     device = "Android Mobile";
+     icon = "📱";
+  }
+  else if (/iPhone|iPad|iPod/i.test(ua)) {
+     device = "iPhone/iPad (iOS)";
+     icon = "📱";
+  }
+  else if (/Windows/i.test(ua)) {
+     device = "Windows PC";
+     icon = "💻";
+  }
+  else if (/Mac/i.test(ua)) {
+     device = "Mac Computer";
+     icon = "💻";
+  }
+  else if (/Linux/i.test(ua)) {
+     device = "Linux System";
+     icon = "🖥️";
+  }
+
+  // Check for common browsers to append
+  if (/Chrome/i.test(ua)) device += " (Chrome)";
+  else if (/Firefox/i.test(ua)) device += " (Firefox)";
+  else if (/Safari/i.test(ua)) device += " (Safari)";
+
+  return device;
 };
 
 const App: React.FC = () => {
@@ -97,6 +132,29 @@ const App: React.FC = () => {
           setDeferredPrompt(null);
         }
       });
+    }
+  };
+
+  const handleShareApp = async () => {
+    const shareData = {
+      title: 'Depend Sourcing App',
+      text: 'Staff Management & Billing Control Center',
+      url: window.location.origin
+    };
+
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch (err) {
+        console.log('Share canceled');
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(shareData.url);
+        handleAddNotification('লিংক কপি হয়েছে', 'অ্যাপ লিংক ক্লিপবোর্ডে কপি করা হয়েছে।', 'SUCCESS');
+      } catch (err) {
+        console.error('Copy failed', err);
+      }
     }
   };
   
@@ -641,7 +699,8 @@ const App: React.FC = () => {
                 timestamp: new Date().toISOString(),
                 speed: position.coords.speed || 0,
                 // @ts-ignore
-                batteryLevel: (await navigator.getBattery?.())?.level || undefined
+                batteryLevel: (await navigator.getBattery?.())?.level || undefined,
+                deviceName: getDeviceInfo() // Sending detected device info
               };
               await set(ref(db, `staff_locations/${myStaffId}`), locationData);
             } catch (err) {
@@ -649,7 +708,7 @@ const App: React.FC = () => {
             }
           },
           (err) => console.error("GPS Error", err),
-          { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
+          { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 } // Ensure fresh data
         );
       }
     };
@@ -862,6 +921,17 @@ const App: React.FC = () => {
           const sessionData = { role: authenticatedUser!.role, username: authenticatedUser!.name };
           safeSetItem('active_session', JSON.stringify(sessionData));
           
+          // DEVICE TRACKING ON LOGIN
+          if (authenticatedUser!.role === UserRole.STAFF) {
+             const deviceInfo = getDeviceInfo();
+             // Find user ID to update device info
+             const myUser = staffList.find(s => s.name === authenticatedUser!.name);
+             if (myUser) {
+                // We update state locally first, syncing handles the DB
+                setStaffList(prev => prev.map(s => s.id === myUser.id ? { ...s, lastDevice: deviceInfo, updatedAt: new Date().toISOString() } : s));
+             }
+          }
+
           if (authenticatedUser!.role === UserRole.KIOSK) {
             setActiveTab('attendance'); 
           }
@@ -890,7 +960,7 @@ const App: React.FC = () => {
 
       if (authenticatedUser.role === UserRole.STAFF || authenticatedUser.role === UserRole.KIOSK) {
           if (!navigator.geolocation) {
-             setLoginError("ডিভাইসে লোকেশন সাপোর্ট নেই।");
+             setLoginError("এই ডিভাইসে লোকেশন সাপোর্ট করছে না।");
              setIsLoggingIn(false);
              return;
           }
@@ -903,14 +973,15 @@ const App: React.FC = () => {
                console.error("Login Location Check Failed:", err);
                setIsLoggingIn(false);
                
-               let errorMsg = "লগইন ব্যর্থ! ❌";
-               if (err.code === 1) errorMsg += " লোকেশন পারমিশন দেওয়া হয়নি।";
-               else if (err.code === 2) errorMsg += " জিপিএস (GPS) বন্ধ আছে বা সিগনাল পাওয়া যাচ্ছে না।";
-               else errorMsg += " লোকেশন পাওয়া যাচ্ছে না।";
-               
-               setLoginError(`${errorMsg} দয়া করে মোবাইলের লোকেশন অন করুন এবং ব্রাউজারে অনুমতি দিন।`);
+               if (err.code === 1) {
+                   setLoginError("⚠️ লগইন করতে অবশ্যই লোকেশন পারমিশন দিতে হবে (Allow Location)।");
+               } else if (err.code === 2) {
+                   setLoginError("❌ মোবাইলের লোকেশন (GPS) বন্ধ আছে। দয়া করে লোকেশন অন করে আবার চেষ্টা করুন।");
+               } else {
+                   setLoginError("⚠️ লোকেশন পাওয়া যাচ্ছে না। ইন্টারনেট ও জিপিএস চেক করুন।");
+               }
             },
-            { enableHighAccuracy: true, timeout: 8000 }
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
           );
       } else {
           proceedLogin();
@@ -1067,7 +1138,7 @@ const App: React.FC = () => {
     { id: 'products', label: 'পণ্য তালিকা', icon: Package, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-pink-600', bgColor: 'bg-pink-50' }, // Added STAFF Role
     { id: 'notices', label: 'নোটিশ বোর্ড', icon: Megaphone, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF, UserRole.KIOSK], color: 'text-orange-600', bgColor: 'bg-orange-50' },
     { id: 'chat', label: 'টিম চ্যাট', icon: MessageCircleMore, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-violet-600', bgColor: 'bg-violet-50' },
-    { id: 'live-location', label: 'লাইভ ট্র্যাকিং', icon: Radar, roles: [UserRole.ADMIN, UserRole.MD], color: 'text-cyan-600', bgColor: 'bg-cyan-50' },
+    { id: 'live-location', label: 'লাইভ ট্র্যাকিং', icon: Radar, roles: [UserRole.ADMIN], color: 'text-cyan-600', bgColor: 'bg-cyan-50' }, // REMOVED UserRole.MD
     { id: 'lucky-draw', label: 'লাকি ড্র & গেম', icon: Gift, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-purple-600', bgColor: 'bg-purple-50' },
     { id: 'complaints', label: 'অভিযোগ বক্স', icon: ShieldAlert, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-red-600', bgColor: 'bg-red-50' },
     { id: 'staff', label: 'স্টাফ ম্যানেজমেন্ট', icon: UsersRound, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-indigo-600', bgColor: 'bg-indigo-50' },
@@ -1105,7 +1176,7 @@ const App: React.FC = () => {
       case 'reports': return <ReportsView expenses={expenses} staffList={staffList} advances={advances} attendanceList={attendanceList} funds={funds} movements={movements} role={role!} />;
       case 'settings': return <SettingsView billingRules={billingRules} setBillingRules={updateBillingRules} role={role!} exportData={handleExport} importData={handleImport} cloudConfig={firebaseConfig} saveCloudConfig={(config) => { safeSetItem('fb_config', JSON.stringify(config)); alert('Settings saved! Reloading...'); window.location.reload(); }} staffList={staffList} productEditors={productEditors} setProductEditors={updateProductEditors} />;
       case 'trash': return <TrashView staffList={staffList} setStaffList={updateStaffList} movements={movements} setMovements={updateMovements} expenses={expenses} setExpenses={updateExpenses} funds={funds} setFunds={updateFunds} notices={notices} setNotices={updateNotices} role={role!} />;
-      case 'products': return <ProductCatalogView onLogout={() => {}} products={products} setProducts={updateProducts} role={role!} productEditors={productEditors} currentStaffId={myStaffId} onTrackSearch={handleTrackSearch} visitCount={visitCount} />; 
+      case 'products': return <ProductCatalogView onLogout={() => {}} products={products} setProducts={updateProducts} role={role!} productEditors={productEditors} currentStaffId={myStaffId} onTrackSearch={handleTrackSearch} visitCount={visitCount} setComplaints={updateComplaints} />; 
       default: return <DashboardView totalExpense={totalExpense} pendingApprovals={pendingApprovals} expenses={expenses} cloudError={cloudError} totalFund={totalFund} cashOnHand={cashOnHand} role={role!} staffList={staffList} advances={advances} currentUser={currentUser} onOpenProfile={openProfile} searchCount={searchCount} />;
     }
   };
@@ -1114,7 +1185,7 @@ const App: React.FC = () => {
 
   // --- GUEST VIEW RENDER ---
   if (role === UserRole.GUEST) {
-    return <ProductCatalogView onLogout={handleLogout} products={products} setProducts={updateProducts} role={role} productEditors={productEditors} currentStaffId={null} onTrackSearch={handleTrackSearch} visitCount={visitCount} />;
+    return <ProductCatalogView onLogout={handleLogout} products={products} setProducts={updateProducts} role={role} productEditors={productEditors} currentStaffId={null} onTrackSearch={handleTrackSearch} visitCount={visitCount} setComplaints={updateComplaints} />;
   }
 
   // --- LOGIN SCREEN ---
@@ -1355,6 +1426,13 @@ const App: React.FC = () => {
         </nav>
 
         <div className="p-4 border-t border-white/5 shrink-0 relative z-10">
+           <button 
+             onClick={handleShareApp} 
+             className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-bold text-sky-400 hover:text-white hover:bg-sky-500/10 hover:ring-1 hover:ring-sky-500/20 transition-all group mb-2"
+           >
+              <Share2 className="w-5 h-5 transition-transform group-hover:scale-110" /> 
+              <span>অ্যাপ শেয়ার করুন</span>
+           </button>
            {deferredPrompt && (
               <div className="px-4 mb-2 relative z-10">
                  <button onClick={handleInstallClick} className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-bold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 ring-1 ring-emerald-500/20 transition-all group">
@@ -1558,6 +1636,12 @@ const App: React.FC = () => {
                      className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-bold text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-800 transition-colors mb-2"
                   >
                      <UserCog className="w-4 h-4" /> প্রোফাইল সেটিংস
+                  </button>
+                  <button 
+                     onClick={handleShareApp} 
+                     className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold bg-sky-50 text-sky-600 dark:bg-sky-900/20 dark:text-sky-400 hover:bg-sky-100 transition-colors mb-2"
+                  >
+                     <Share2 className="w-4 h-4" /> অ্যাপ শেয়ার করুন
                   </button>
                   {deferredPrompt && (
                     <button 

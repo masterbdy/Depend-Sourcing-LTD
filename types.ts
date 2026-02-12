@@ -39,6 +39,7 @@ export interface Staff {
   lastVisitTime?: string;
   lastLuckyDrawTime?: string;
   luckyDrawCount?: number;
+  lastDevice?: string; // New Field for Device Tracking
 }
 
 export interface MovementLog {
@@ -156,6 +157,7 @@ export interface StaffLocation {
   timestamp: string;
   batteryLevel?: number;
   speed?: number; 
+  deviceName?: string; // New Field
 }
 
 export interface AppNotification {

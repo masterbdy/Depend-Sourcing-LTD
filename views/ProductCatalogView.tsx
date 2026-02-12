@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ShoppingBag, LogOut, Phone, Mail, Globe, Search, Filter, ShoppingCart, X, CheckCircle, ExternalLink, Package, Layers, Scissors, Plus, Edit3, Trash2, Save, Camera, Tag, AlertTriangle, Eye, Users } from 'lucide-react';
-import { Product, UserRole } from '../types';
+import { Product, UserRole, Complaint } from '../types';
 
 interface ProductCatalogProps {
   onLogout: () => void;
@@ -10,15 +10,24 @@ interface ProductCatalogProps {
   productEditors: string[];
   currentStaffId: string | null;
   onTrackSearch?: () => void;
-  visitCount?: number; // New Prop for Visit Counter
+  visitCount?: number;
+  setComplaints?: React.Dispatch<React.SetStateAction<Complaint[]>>; // Added Prop for Inquiry Submission
 }
 
-const ProductCatalogView: React.FC<ProductCatalogProps> = ({ onLogout, products = [], setProducts, role, productEditors = [], currentStaffId, onTrackSearch, visitCount }) => {
+const ProductCatalogView: React.FC<ProductCatalogProps> = ({ onLogout, products = [], setProducts, role, productEditors = [], currentStaffId, onTrackSearch, visitCount, setComplaints }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [cart, setCart] = useState<string[]>([]); // Storing Product IDs
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
+
+  // Order Form State
+  const [orderForm, setOrderForm] = useState({
+    name: '',
+    company: '',
+    contact: '',
+    details: ''
+  });
 
   // Management State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -63,11 +72,31 @@ const ProductCatalogView: React.FC<ProductCatalogProps> = ({ onLogout, products 
 
   const handlePlaceOrder = (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulate API call
-    setTimeout(() => {
-      setOrderSuccess(true);
-      setCart([]);
-    }, 1000);
+    
+    // Prepare inquiry details
+    const selectedItems = products.filter(p => cart.includes(p.id));
+    const itemsList = selectedItems.map(p => `- ${p.name} (MOQ: ${p.moq})`).join('\n');
+    
+    if (setComplaints) {
+        const newInquiry: Complaint = {
+            id: Math.random().toString(36).substr(2, 9),
+            submittedBy: `${orderForm.name} ${orderForm.company ? `(${orderForm.company})` : ''}`,
+            submittedById: 'GUEST',
+            againstStaffId: 'SALES_INQUIRY', // Special ID to filter if needed
+            againstStaffName: 'Sales Inquiry',
+            subject: `🛒 Order Inquiry: ${cart.length} Items`,
+            description: `Contact Info: ${orderForm.contact}\n\nRequested Items:\n${itemsList}\n\nCustomer Note:\n${orderForm.details}`,
+            date: new Date().toISOString(),
+            status: 'PENDING',
+            type: 'SUGGESTION' // Using SUGGESTION type to appear as a positive entry
+        };
+        
+        setComplaints(prev => [newInquiry, ...prev]);
+    }
+
+    setOrderSuccess(true);
+    setCart([]);
+    setOrderForm({ name: '', company: '', contact: '', details: '' });
   };
 
   // --- MANAGEMENT FUNCTIONS ---
@@ -378,20 +407,46 @@ const ProductCatalogView: React.FC<ProductCatalogProps> = ({ onLogout, products 
                            <div className="grid grid-cols-2 gap-4">
                               <div>
                                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Your Name</label>
-                                 <input required type="text" className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-bold" placeholder="Full Name" />
+                                 <input 
+                                    required 
+                                    type="text" 
+                                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-bold" 
+                                    placeholder="Full Name" 
+                                    value={orderForm.name}
+                                    onChange={(e) => setOrderForm({...orderForm, name: e.target.value})}
+                                 />
                               </div>
                               <div>
                                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Company</label>
-                                 <input type="text" className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-bold" placeholder="Company Name" />
+                                 <input 
+                                    type="text" 
+                                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-bold" 
+                                    placeholder="Company Name" 
+                                    value={orderForm.company}
+                                    onChange={(e) => setOrderForm({...orderForm, company: e.target.value})}
+                                 />
                               </div>
                            </div>
                            <div>
                               <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Email / Phone</label>
-                              <input required type="text" className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-bold" placeholder="Contact Details" />
+                              <input 
+                                required 
+                                type="text" 
+                                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-bold" 
+                                placeholder="Contact Details" 
+                                value={orderForm.contact}
+                                onChange={(e) => setOrderForm({...orderForm, contact: e.target.value})}
+                              />
                            </div>
                            <div>
                               <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Requirements (Quantity/Specs)</label>
-                              <textarea className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-medium" rows={3} placeholder="E.g., I need 2000kg of Cotton Yarn..."></textarea>
+                              <textarea 
+                                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-medium" 
+                                rows={3} 
+                                placeholder="E.g., I need 2000kg of Cotton Yarn..."
+                                value={orderForm.details}
+                                onChange={(e) => setOrderForm({...orderForm, details: e.target.value})}
+                              ></textarea>
                            </div>
                            <button type="submit" className="w-full py-4 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all mt-4">
                               Send Inquiry Now
