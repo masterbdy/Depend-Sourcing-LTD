@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { TrendingDown, AlertCircle, Clock, ShieldAlert, Landmark, Wallet, Trophy, Crown, ArrowUpRight, Coins, Banknote, WalletCards, Calendar, Sparkles } from 'lucide-react';
 import { Expense, UserRole, Staff, AdvanceLog } from '../types';
@@ -416,34 +415,41 @@ const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApproval
                 </h3>
               </div>
               <div className="divide-y divide-gray-50 dark:divide-gray-700/50">
-                {recentActivities.length > 0 ? recentActivities.map((expense) => (
-                  <div key={expense.id} className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
-                    <div className="flex items-center gap-4">
-                      <div 
-                        onClick={() => onOpenProfile && onOpenProfile(expense.staffId)}
-                        className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold border-2 cursor-pointer hover:scale-105 transition-transform ${
-                        expense.status === 'APPROVED' ? 'bg-green-50 dark:bg-green-900/20 border-green-100 dark:border-green-800 text-green-600 dark:text-green-400' : 
-                        expense.status === 'REJECTED' ? 'bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-800 text-red-600 dark:text-red-400' :
-                        'bg-orange-50 dark:bg-orange-900/20 border-orange-100 dark:border-orange-800 text-orange-600 dark:text-orange-400'
-                      }`}>
-                        {expense.staffName.charAt(0)}
+                {recentActivities.length > 0 ? recentActivities.map((expense) => {
+                  const staffMember = staffList.find(s => s.id === expense.staffId);
+                  return (
+                    <div key={expense.id} className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                      <div className="flex items-center gap-4">
+                        <div 
+                          onClick={() => onOpenProfile && onOpenProfile(expense.staffId)}
+                          className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold border-2 cursor-pointer hover:scale-105 transition-transform overflow-hidden ${
+                          expense.status === 'APPROVED' ? 'bg-green-50 dark:bg-green-900/20 border-green-100 dark:border-green-800 text-green-600 dark:text-green-400' : 
+                          expense.status === 'REJECTED' ? 'bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-800 text-red-600 dark:text-red-400' :
+                          'bg-orange-50 dark:bg-orange-900/20 border-orange-100 dark:border-orange-800 text-orange-600 dark:text-orange-400'
+                        }`}>
+                          {staffMember && staffMember.photo ? (
+                            <img src={staffMember.photo} alt={expense.staffName} className="w-full h-full object-cover" />
+                          ) : (
+                            expense.staffName.charAt(0)
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-gray-800 dark:text-gray-200 line-clamp-1">{expense.reason}</p>
+                          <p className="text-xs text-gray-400 font-medium">{expense.staffName} • {new Date(expense.createdAt).toLocaleDateString('bn-BD')}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-bold text-gray-800 dark:text-gray-200 line-clamp-1">{expense.reason}</p>
-                        <p className="text-xs text-gray-400 font-medium">{expense.staffName} • {new Date(expense.createdAt).toLocaleDateString('bn-BD')}</p>
+                      <div className="text-right">
+                        <p className="text-sm font-black text-gray-800 dark:text-gray-100">৳ {expense.amount}</p>
+                        <span className={`text-[9px] font-bold uppercase ${
+                          expense.status === 'APPROVED' ? 'text-green-500' : 
+                          expense.status === 'REJECTED' ? 'text-red-500' : 'text-orange-500'
+                        }`}>
+                          {expense.status}
+                        </span>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-black text-gray-800 dark:text-gray-100">৳ {expense.amount}</p>
-                      <span className={`text-[9px] font-bold uppercase ${
-                        expense.status === 'APPROVED' ? 'text-green-500' : 
-                        expense.status === 'REJECTED' ? 'text-red-500' : 'text-orange-500'
-                      }`}>
-                        {expense.status}
-                      </span>
-                    </div>
-                  </div>
-                )) : (
+                  );
+                }) : (
                   <div className="p-12 text-center text-gray-400 text-sm">কোনো সাম্প্রতিক কার্যক্রম নেই</div>
                 )}
               </div>

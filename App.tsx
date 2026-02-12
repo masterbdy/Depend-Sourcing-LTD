@@ -1449,34 +1449,19 @@ const App: React.FC = () => {
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
-                className={`relative w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm transition-all duration-300 group overflow-hidden ${
+                className={`relative w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all duration-200 group border-b-[4px] active:border-b-0 active:translate-y-1 ${
                   isActive
-                    ? 'bg-white/10 text-white shadow-lg font-bold ring-1 ring-white/10 backdrop-blur-sm'
-                    : 'text-slate-400 hover:bg-white/5 hover:text-white font-medium'
+                    ? 'bg-gradient-to-r from-indigo-600 to-violet-600 border-indigo-900 text-white shadow-lg shadow-indigo-900/50'
+                    : 'bg-slate-800/40 border-slate-900 text-slate-400 hover:bg-slate-800 hover:text-gray-200 hover:-translate-y-0.5 hover:shadow-md'
                 }`}
               >
-                {/* Active Glow Effect */}
-                {isActive && (
-                  <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/20 via-purple-500/10 to-transparent opacity-100" />
-                )}
-
-                {/* Left Active Indicator Line */}
-                <div className={`absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full transition-all duration-300 ${isActive ? 'bg-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.8)]' : 'bg-transparent w-0'}`} />
-
-                {/* Icon with scaling effect */}
                 <item.icon
                   className={`w-5 h-5 relative z-10 transition-all duration-300 ${
-                    isActive ? 'text-cyan-300 scale-110 drop-shadow-md' : 'group-hover:text-white group-hover:scale-110'
+                    isActive ? 'text-white drop-shadow-md' : 'group-hover:scale-110'
                   }`}
                 />
-
-                {/* Label */}
                 <span className="relative z-10 flex-1 text-left tracking-wide">{item.label}</span>
-
-                {/* Right Arrow for Active Item */}
-                {isActive && (
-                  <ChevronRight className="w-4 h-4 text-cyan-400/70 relative z-10 animate-pulse" />
-                )}
+                {isActive && <div className="w-2 h-2 rounded-full bg-white shadow-[0_0_10px_white] animate-pulse" />}
               </button>
             );
           })}
@@ -1609,23 +1594,34 @@ const App: React.FC = () => {
       </main>
 
       {/* ... (Mobile Menu & Profile Modal unchanged) ... */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 flex justify-around items-center px-2 py-2 z-50 shadow-lg">
-         {bottomNavItems.map((item) => (
+      <div className="md:hidden fixed bottom-4 left-4 right-4 bg-gray-900/90 backdrop-blur-lg border border-white/10 rounded-2xl flex justify-around items-center px-2 h-16 z-50 shadow-2xl">
+         {bottomNavItems.map((item) => {
+            const isActive = activeTab === item.id;
+            return (
             <button 
                key={item.id}
                onClick={() => { setActiveTab(item.id); setIsMoreMenuOpen(false); }}
-               className={`flex flex-col items-center justify-center w-full py-1.5 rounded-lg transition-colors ${activeTab === item.id ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'}`}
+               className="relative w-full flex flex-col items-center justify-center"
             >
-               <item.icon className="w-6 h-6 mb-1" />
-               <span className="text-[10px] font-bold">{item.label}</span>
+               <div className={`transition-all duration-300 flex items-center justify-center ${
+                  isActive 
+                     ? 'w-12 h-12 bg-gradient-to-tr from-indigo-500 to-purple-500 rounded-full shadow-[0_8px_16px_rgba(99,102,241,0.5)] -translate-y-5 border-4 border-gray-900' 
+                     : 'w-10 h-10 text-gray-400 hover:text-gray-200'
+               }`}>
+                  <item.icon className={`transition-all ${isActive ? 'w-5 h-5 text-white' : 'w-5 h-5'}`} />
+               </div>
+               <span className={`text-[10px] font-bold transition-all duration-300 absolute -bottom-1 ${isActive ? 'opacity-100 text-indigo-300 translate-y-0' : 'opacity-0 translate-y-2'}`}>
+                  {item.label}
+               </span>
             </button>
-         ))}
+         )})}
          <button 
             onClick={() => setIsMoreMenuOpen(true)}
-            className={`flex flex-col items-center justify-center w-full py-1.5 rounded-lg transition-colors ${isMoreMenuOpen ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'}`}
+            className="relative w-full flex flex-col items-center justify-center"
          >
-            <Menu className="w-6 h-6 mb-1" />
-            <span className="text-[10px] font-bold">মেনু</span>
+            <div className={`transition-all duration-300 flex items-center justify-center w-10 h-10 text-gray-400 hover:text-gray-200 ${isMoreMenuOpen ? 'text-white' : ''}`}>
+               <Menu className="w-6 h-6" />
+            </div>
          </button>
       </div>
 
