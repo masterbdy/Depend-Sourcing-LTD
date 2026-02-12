@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   LayoutGrid, UsersRound, Footprints, Banknote, PieChart, Settings2, Recycle, 
-  LogOut, Wallet, User, Cloud, WifiOff, Menu, X, Lock, ArrowRightLeft, XCircle, Landmark, Bell, Phone, Briefcase, Crown, UserCog, Camera, Save, KeyRound, CreditCard, MonitorSmartphone, Trophy, Gift, Sun, Moon, Loader2, BellRing, ChevronRight, Fingerprint, Megaphone, Radar, ShieldAlert, MessageCircleMore, Download, Sparkles, Eye, EyeOff, ShoppingBag, Package, Share2
+  LogOut, Wallet, User, Cloud, WifiOff, Menu, X, Lock, ArrowRightLeft, XCircle, Landmark, Bell, Phone, Briefcase, Crown, UserCog, Camera, Save, KeyRound, CreditCard, MonitorSmartphone, Trophy, Gift, Sun, Moon, Loader2, BellRing, ChevronRight, Fingerprint, Megaphone, Radar, ShieldAlert, MessageCircleMore, Download, Sparkles, Eye, EyeOff, ShoppingBag, Package, Share2, MapPinOff, RefreshCw
 } from 'lucide-react';
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { getDatabase, ref, onValue, set, runTransaction } from "firebase/database";
@@ -85,6 +85,7 @@ const App: React.FC = () => {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false); 
   const [highlightStaffId, setHighlightStaffId] = useState<string | null>(null);
+  const [isLocationBlocked, setIsLocationBlocked] = useState(false); // New state for blocking UI
   
   // PWA Install State
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -116,6 +117,60 @@ const App: React.FC = () => {
       }
     }
   }, []);
+
+  // --- CONTINUOUS LOCATION MONITOR (BLOCKING LOGIC) ---
+  useEffect(() => {
+    // Only monitor for STAFF and KIOSK roles
+    if (!role || (role !== UserRole.STAFF && role !== UserRole.KIOSK)) {
+       setIsLocationBlocked(false);
+       return;
+    }
+
+    const checkLocationStatus = () => {
+       if (!navigator.geolocation) {
+          setIsLocationBlocked(true);
+          return;
+       }
+
+       navigator.geolocation.getCurrentPosition(
+          (position) => {
+             // Location Found - Allow Access
+             setIsLocationBlocked(false);
+          },
+          (error) => {
+             // Location Error - Block Access
+             console.error("Location Monitor: Access Lost", error);
+             setIsLocationBlocked(true);
+          },
+          {
+             enableHighAccuracy: true,
+             timeout: 5000,
+             maximumAge: 0 // Do not use cached position
+          }
+       );
+    };
+
+    // 1. Check immediately
+    checkLocationStatus();
+
+    // 2. Check every 10 seconds
+    const intervalId = setInterval(checkLocationStatus, 10000);
+
+    // 3. Check when user returns to the tab/app
+    const handleVisibilityChange = () => {
+       if (document.visibilityState === 'visible') {
+          checkLocationStatus();
+       }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", checkLocationStatus);
+
+    return () => {
+       clearInterval(intervalId);
+       document.removeEventListener("visibilitychange", handleVisibilityChange);
+       window.removeEventListener("focus", checkLocationStatus);
+    };
+  }, [role]);
 
   // Save active tab on change
   useEffect(() => {
@@ -1660,6 +1715,29 @@ const App: React.FC = () => {
                      <LogOut className="w-4 h-4" /> লগআউট
                   </button>
                </div>
+            </div>
+         </div>
+      )}
+
+      {/* LOCATION BLOCKING MODAL (New Feature) */}
+      {isLocationBlocked && (role === UserRole.STAFF || role === UserRole.KIOSK) && (
+         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-gray-900/95 backdrop-blur-md text-white text-center animate-in fade-in duration-300">
+            <div className="max-w-md w-full">
+               <div className="w-24 h-24 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse">
+                  <MapPinOff className="w-12 h-12 text-red-500" />
+               </div>
+               <h2 className="text-3xl font-black mb-4">লোকেশন অ্যাক্সেস নেই!</h2>
+               <p className="text-gray-300 mb-8 leading-relaxed">
+                  অ্যাপটি ব্যবহার করার জন্য <strong>লোকেশন (GPS)</strong> চালু থাকা বাধ্যতামূলক। আপনি হয়তো লোকেশন বন্ধ করেছেন বা পারমিশন দেননি।
+                  <br/><br/>
+                  দয়া করে মোবাইলের লোকেশন অন করুন এবং ব্রাউজারকে পারমিশন দিন।
+               </p>
+               <button 
+                  onClick={() => window.location.reload()}
+                  className="bg-red-600 hover:bg-red-700 text-white px-8 py-4 rounded-xl font-bold text-lg shadow-lg shadow-red-900/50 transition-all active:scale-95 w-full flex items-center justify-center gap-3"
+               >
+                  <RefreshCw className="w-6 h-6" /> রিফ্রেশ করুন
+               </button>
             </div>
          </div>
       )}
