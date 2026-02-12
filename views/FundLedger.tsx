@@ -1,6 +1,5 @@
-
 import React, { useState, useMemo } from 'react';
-import { PlusCircle, History, Landmark, Wallet, ArrowUpCircle, Trash2, Search, Calendar, FilterX, Info, ArrowDownLeft, ArrowUpRight, Banknote, AlertTriangle } from 'lucide-react';
+import { PlusCircle, History, Landmark, Wallet, ArrowUpCircle, Trash2, Search, Calendar, FilterX, Info, ArrowDownLeft, ArrowUpRight, Banknote, AlertTriangle, TrendingUp, Sparkles } from 'lucide-react';
 import { FundEntry, UserRole, Expense, AdvanceLog } from '../types';
 
 interface FundProps {
@@ -158,60 +157,97 @@ const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = 
   };
 
   return (
-    <div className="space-y-8">
-      {/* Live Balance Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between group hover:border-blue-200 transition-colors">
-          <div>
-            <p className="text-sm text-gray-400 font-medium mb-1 uppercase tracking-wider">মোট প্রাপ্ত ফান্ড (MD)</p>
-            <h3 className="text-3xl font-black text-gray-800">৳ {totalFund.toLocaleString()}</h3>
-          </div>
-          <div className="bg-blue-100 p-4 rounded-2xl group-hover:scale-110 transition-transform"><Landmark className="w-8 h-8 text-blue-600" /></div>
+    <div className="space-y-6">
+      {/* Premium Compact Balance Summary */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        
+        {/* Card 1: Total Fund (Credit) */}
+        <div className="relative overflow-hidden bg-white dark:bg-gray-800 rounded-2xl p-5 border border-b-4 border-r-4 border-blue-100 dark:border-blue-900 shadow-sm group">
+           {/* Background Decor */}
+           <Landmark className="absolute -right-6 -bottom-6 w-32 h-32 text-blue-50 dark:text-blue-900/30 rotate-12 group-hover:scale-110 transition-transform duration-500" />
+           <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-blue-500/10 to-transparent rounded-bl-full"></div>
+
+           <div className="relative z-10 flex flex-col justify-between h-full">
+              <div className="flex items-center gap-2 mb-1">
+                 <div className="p-1.5 bg-blue-50 dark:bg-blue-900/50 rounded-lg text-blue-600 dark:text-blue-400">
+                    <TrendingUp className="w-4 h-4" />
+                 </div>
+                 <p className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.15em]">Total Fund Received</p>
+              </div>
+              <div>
+                 <h3 className="text-3xl font-black text-gray-800 dark:text-white tracking-tight">৳ {totalFund.toLocaleString()}</h3>
+                 <p className="text-[9px] text-gray-400 dark:text-gray-500 font-medium mt-1">সর্বমোট প্রাপ্ত ফান্ড (MD)</p>
+              </div>
+           </div>
         </div>
-        <div className="bg-indigo-600 p-8 rounded-2xl shadow-xl shadow-indigo-100 flex items-center justify-between text-white transition-all hover:bg-indigo-700">
-          <div>
-            <p className="text-sm text-indigo-100 font-medium mb-1 uppercase tracking-wider">বর্তমান ক্যাশ ব্যালেন্স</p>
-            <h3 className="text-3xl font-black">৳ {cashOnHand.toLocaleString()}</h3>
-            <p className="text-[10px] text-indigo-200 mt-1 opacity-80">(ফান্ড - খরচ - অ্যাডভান্স)</p>
-          </div>
-          <div className="bg-indigo-500/50 p-4 rounded-2xl"><Wallet className="w-8 h-8 text-white" /></div>
+
+        {/* Card 2: Cash In Hand (Liquidity) */}
+        <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-5 border border-b-4 border-r-4 border-slate-950 shadow-xl group">
+           {/* Background Decor */}
+           <Wallet className="absolute -right-6 -bottom-6 w-32 h-32 text-white/5 rotate-12 group-hover:scale-110 transition-transform duration-500" />
+           <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 mix-blend-overlay"></div>
+           
+           {/* Glow Effect */}
+           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-1 bg-gradient-to-r from-transparent via-emerald-500 to-transparent opacity-50 blur-sm"></div>
+
+           <div className="relative z-10 flex flex-col justify-between h-full text-white">
+              <div className="flex items-center justify-between mb-1">
+                 <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-white/10 rounded-lg text-emerald-400 backdrop-blur-md border border-white/10">
+                       <Sparkles className="w-4 h-4" />
+                    </div>
+                    <p className="text-[10px] font-black text-emerald-400 uppercase tracking-[0.15em]">Cash Available</p>
+                 </div>
+                 <span className="flex h-2 w-2 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                 </span>
+              </div>
+              <div>
+                 <h3 className="text-3xl font-black text-white tracking-tight drop-shadow-md">৳ {cashOnHand.toLocaleString()}</h3>
+                 <p className="text-[9px] text-slate-400 font-medium mt-1 flex items-center gap-1">
+                    বর্তমান ক্যাশ ব্যালেন্স (Liquid)
+                 </p>
+              </div>
+           </div>
         </div>
+
       </div>
 
       {/* Filter Toolbar (Global for both tables) */}
-      <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-wrap items-end gap-4">
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-wrap items-end gap-4">
           <div className="flex-1 min-w-[200px]">
-            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">সার্চ করুন</label>
+            <label className="block text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1.5 ml-1">সার্চ করুন</label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input 
                 type="text" 
                 placeholder="নোট বা বিবরণ..." 
-                className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                className="w-full pl-9 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all dark:text-white"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
           </div>
           <div className="w-full sm:w-auto">
-            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">শুরু তারিখ</label>
+            <label className="block text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1.5 ml-1">শুরু তারিখ</label>
             <div className="relative">
               <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input 
                 type="date" 
-                className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                className="w-full pl-9 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all dark:text-white"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
               />
             </div>
           </div>
           <div className="w-full sm:w-auto">
-            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">শেষ তারিখ</label>
+            <label className="block text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1.5 ml-1">শেষ তারিখ</label>
             <div className="relative">
               <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input 
                 type="date" 
-                className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                className="w-full pl-9 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all dark:text-white"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
               />
@@ -220,7 +256,7 @@ const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = 
           {isFilterActive && (
             <button 
               onClick={clearFilters}
-              className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-100"
+              className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all border border-transparent hover:border-red-100"
               title="ফিল্টার মুছুন"
             >
               <FilterX className="w-5 h-5" />
@@ -228,55 +264,55 @@ const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = 
           )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           
           {/* LEFT: FUND HISTORY (CREDIT) */}
-          <div className="bg-white rounded-2xl shadow-sm border border-green-100 overflow-hidden h-fit">
-             <div className="p-5 border-b border-green-50 flex justify-between items-center bg-green-50/30">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-green-100 dark:border-green-900/30 overflow-hidden h-fit">
+             <div className="p-4 border-b border-green-50 dark:border-green-900/30 flex justify-between items-center bg-green-50/30 dark:bg-green-900/10">
                 <div className="flex items-center gap-2">
-                   <div className="bg-green-100 p-2 rounded-lg text-green-600"><ArrowDownLeft className="w-5 h-5" /></div>
-                   <h3 className="font-bold text-gray-800">ফান্ড জমার হিস্ট্রি (Credit)</h3>
+                   <div className="bg-green-100 dark:bg-green-900/50 p-1.5 rounded-lg text-green-600 dark:text-green-400"><ArrowDownLeft className="w-4 h-4" /></div>
+                   <h3 className="font-bold text-gray-800 dark:text-gray-200 text-sm">ফান্ড জমার হিস্ট্রি (Credit)</h3>
                 </div>
                 {(role === UserRole.ADMIN || role === UserRole.MD) && (
                     <button 
                     onClick={() => setIsModalOpen(true)}
-                    className="bg-green-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-green-700 transition-all flex items-center gap-1.5 shadow-md active:scale-95"
+                    className="bg-green-600 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-green-700 transition-all flex items-center gap-1 shadow-md active:scale-95"
                     >
-                    <PlusCircle className="w-3.5 h-3.5" />
+                    <PlusCircle className="w-3 h-3" />
                     নতুন ফান্ড
                     </button>
                 )}
              </div>
-             <div className="overflow-x-auto max-h-[600px] custom-scrollbar">
+             <div className="overflow-x-auto max-h-[500px] custom-scrollbar">
                 <table className="w-full text-left">
-                   <thead className="bg-green-50/50 sticky top-0 z-10">
+                   <thead className="bg-green-50/50 dark:bg-green-900/20 sticky top-0 z-10 backdrop-blur-sm">
                       <tr>
-                         <th className="px-4 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">তারিখ</th>
-                         <th className="px-4 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">বিবরণ</th>
-                         <th className="px-4 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">টাকা (In)</th>
-                         {(role === UserRole.ADMIN || role === UserRole.MD) && <th className="px-4 py-3 text-right"></th>}
+                         <th className="px-4 py-2 text-[9px] font-black text-gray-400 uppercase tracking-widest">তারিখ</th>
+                         <th className="px-4 py-2 text-[9px] font-black text-gray-400 uppercase tracking-widest">বিবরণ</th>
+                         <th className="px-4 py-2 text-[9px] font-black text-gray-400 uppercase tracking-widest text-right">টাকা (In)</th>
+                         {(role === UserRole.ADMIN || role === UserRole.MD) && <th className="px-4 py-2 text-right"></th>}
                       </tr>
                    </thead>
-                   <tbody className="divide-y divide-gray-50">
+                   <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
                       {creditTransactions.map((t) => (
-                         <tr key={t.id} className="hover:bg-green-50/10 transition-colors group">
-                            <td className="px-4 py-3 text-xs font-bold text-gray-600 whitespace-nowrap">
+                         <tr key={t.id} className="hover:bg-green-50/10 dark:hover:bg-green-900/10 transition-colors group">
+                            <td className="px-4 py-2.5 text-[11px] font-bold text-gray-600 dark:text-gray-300 whitespace-nowrap">
                                {new Date(t.date).toLocaleDateString('bn-BD', { day: '2-digit', month: 'short', year: '2-digit' })}
                             </td>
-                            <td className="px-4 py-3 text-xs text-gray-700 font-medium">
+                            <td className="px-4 py-2.5 text-[11px] text-gray-700 dark:text-gray-300 font-medium">
                                {t.description}
                             </td>
-                            <td className="px-4 py-3 text-right text-xs font-black text-green-600 whitespace-nowrap">
+                            <td className="px-4 py-2.5 text-right text-xs font-black text-green-600 dark:text-green-400 whitespace-nowrap">
                                ৳ {t.amount.toLocaleString()}
                             </td>
                             {(role === UserRole.ADMIN || role === UserRole.MD) && (
-                                <td className="px-4 py-3 text-right">
+                                <td className="px-4 py-2.5 text-right">
                                     <button 
                                     onClick={() => deleteEntry(t.id)} 
-                                    className="text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 p-1.5 rounded-lg transition-colors"
+                                    className="text-red-400 hover:text-red-600 bg-transparent hover:bg-red-50 dark:hover:bg-red-900/30 p-1 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
                                     title="Delete Fund Entry"
                                     >
-                                    <Trash2 className="w-4 h-4" />
+                                    <Trash2 className="w-3.5 h-3.5" />
                                     </button>
                                 </td>
                             )}
@@ -291,39 +327,39 @@ const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = 
           </div>
 
           {/* RIGHT: DEBIT HISTORY (EXPENSES & ADVANCES) */}
-          <div className="bg-white rounded-2xl shadow-sm border border-red-100 overflow-hidden h-fit">
-             <div className="p-5 border-b border-red-50 flex items-center gap-2 bg-red-50/30">
-                <div className="bg-red-100 p-2 rounded-lg text-red-600"><ArrowUpRight className="w-5 h-5" /></div>
-                <h3 className="font-bold text-gray-800">খরচ ও অ্যাডভান্স (Debit)</h3>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-red-100 dark:border-red-900/30 overflow-hidden h-fit">
+             <div className="p-4 border-b border-red-50 dark:border-red-900/30 flex items-center gap-2 bg-red-50/30 dark:bg-red-900/10">
+                <div className="bg-red-100 dark:bg-red-900/50 p-1.5 rounded-lg text-red-600 dark:text-red-400"><ArrowUpRight className="w-4 h-4" /></div>
+                <h3 className="font-bold text-gray-800 dark:text-gray-200 text-sm">খরচ ও অ্যাডভান্স (Debit)</h3>
              </div>
-             <div className="overflow-x-auto max-h-[600px] custom-scrollbar">
+             <div className="overflow-x-auto max-h-[500px] custom-scrollbar">
                 <table className="w-full text-left">
-                   <thead className="bg-red-50/50 sticky top-0 z-10">
+                   <thead className="bg-red-50/50 dark:bg-red-900/20 sticky top-0 z-10 backdrop-blur-sm">
                       <tr>
-                         <th className="px-4 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">তারিখ</th>
-                         <th className="px-4 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">বিবরণ</th>
-                         <th className="px-4 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">ধরন</th>
-                         <th className="px-4 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">টাকা (Out)</th>
+                         <th className="px-4 py-2 text-[9px] font-black text-gray-400 uppercase tracking-widest">তারিখ</th>
+                         <th className="px-4 py-2 text-[9px] font-black text-gray-400 uppercase tracking-widest">বিবরণ</th>
+                         <th className="px-4 py-2 text-[9px] font-black text-gray-400 uppercase tracking-widest">ধরন</th>
+                         <th className="px-4 py-2 text-[9px] font-black text-gray-400 uppercase tracking-widest text-right">টাকা (Out)</th>
                       </tr>
                    </thead>
-                   <tbody className="divide-y divide-gray-50">
+                   <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
                       {debitTransactions.map((t) => (
-                         <tr key={t.id} className="hover:bg-red-50/10 transition-colors">
-                            <td className="px-4 py-3 text-xs font-bold text-gray-600 whitespace-nowrap">
+                         <tr key={t.id} className="hover:bg-red-50/10 dark:hover:bg-red-900/10 transition-colors">
+                            <td className="px-4 py-2.5 text-[11px] font-bold text-gray-600 dark:text-gray-300 whitespace-nowrap">
                                {new Date(t.date).toLocaleDateString('bn-BD', { day: '2-digit', month: 'short', year: '2-digit' })}
                             </td>
-                            <td className="px-4 py-3 text-xs text-gray-700 font-medium">
-                               <p className="line-clamp-1">{t.description}</p>
+                            <td className="px-4 py-2.5 text-[11px] text-gray-700 dark:text-gray-300 font-medium">
+                               <p className="line-clamp-1" title={t.description}>{t.description}</p>
                             </td>
-                            <td className="px-4 py-3">
-                               <span className={`text-[9px] font-black uppercase tracking-tight px-1.5 py-0.5 rounded flex items-center gap-1 w-fit whitespace-nowrap ${
-                                  t.originalType === 'ADVANCE' ? (t.subType === 'SALARY' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700') : 
-                                  'bg-red-100 text-red-700'
+                            <td className="px-4 py-2.5">
+                               <span className={`text-[8px] font-black uppercase tracking-tight px-1.5 py-0.5 rounded flex items-center gap-1 w-fit whitespace-nowrap ${
+                                  t.originalType === 'ADVANCE' ? (t.subType === 'SALARY' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300') : 
+                                  'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
                                }`}>
                                   {t.originalType === 'EXPENSE' ? 'খরচ' : (t.subType === 'SALARY' ? 'বেতন অগ্রিম' : 'অগ্রিম')}
                                </span>
                             </td>
-                            <td className="px-4 py-3 text-right text-xs font-black text-red-600 whitespace-nowrap">
+                            <td className="px-4 py-2.5 text-right text-xs font-black text-red-600 dark:text-red-400 whitespace-nowrap">
                                ৳ {t.amount.toLocaleString()}
                             </td>
                          </tr>
@@ -341,38 +377,38 @@ const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = 
       {/* Add Fund Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-indigo-600 text-white">
+          <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-indigo-600 text-white">
               <h3 className="font-bold text-xl">নতুন ফান্ড যুক্ত করুন</h3>
               <button onClick={() => setIsModalOpen(false)} className="text-indigo-200 hover:text-white transition-colors text-2xl">×</button>
             </div>
             <form onSubmit={handleAddFund} className="p-6 space-y-5">
               <div>
-                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">তারিখ (Date)</label>
+                <label className="block text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1.5 ml-1">তারিখ (Date)</label>
                 <div className="relative">
                   <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input 
                     type="date"
                     required
-                    className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-gray-800"
+                    className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-gray-800 dark:text-white"
                     value={formData.date}
                     onChange={(e) => setFormData({...formData, date: e.target.value})}
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">টাকার পরিমাণ (MD থেকে প্রাপ্ত)</label>
+                <label className="block text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1.5 ml-1">টাকার পরিমাণ (MD থেকে প্রাপ্ত)</label>
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-gray-400">৳</span>
-                  <input required type="number" className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-lg" placeholder="0.00" value={formData.amount || ''} onChange={(e) => setFormData({...formData, amount: Number(e.target.value)})} />
+                  <input required type="number" className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-lg dark:text-white" placeholder="0.00" value={formData.amount || ''} onChange={(e) => setFormData({...formData, amount: Number(e.target.value)})} />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">নোট/বিবরণ</label>
-                <input required type="text" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all" placeholder="উদা: জানুয়ারী মাসের বাজেট" value={formData.note} onChange={(e) => setFormData({...formData, note: e.target.value})} />
+                <label className="block text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1.5 ml-1">নোট/বিবরণ</label>
+                <input required type="text" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all dark:text-white" placeholder="উদা: জানুয়ারী মাসের বাজেট" value={formData.note} onChange={(e) => setFormData({...formData, note: e.target.value})} />
               </div>
               <div className="pt-2 flex gap-3">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 border border-gray-200 text-gray-500 font-bold rounded-xl hover:bg-gray-50 transition-all">বাতিল</button>
+                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 font-bold rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all">বাতিল</button>
                 <button type="submit" className="flex-[2] bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 transition-all active:scale-95">
                   <ArrowUpCircle className="w-5 h-5" />
                   ফান্ড জমা করুন
@@ -386,19 +422,19 @@ const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = 
       {/* DELETE CONFIRMATION MODAL */}
       {deleteConfirmId && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
+          <div className="bg-white dark:bg-gray-800 w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
             <div className="p-6 text-center">
-              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <AlertTriangle className="w-8 h-8 text-red-600" />
+              <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle className="w-8 h-8 text-red-600 dark:text-red-400" />
               </div>
-              <h3 className="text-xl font-black text-gray-800 mb-2">আপনি কি নিশ্চিত?</h3>
-              <p className="text-sm text-gray-500 mb-6">
+              <h3 className="text-xl font-black text-gray-800 dark:text-white mb-2">আপনি কি নিশ্চিত?</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
                 আপনি এই ফান্ড রেকর্ডটি মুছে ফেলতে চাচ্ছেন। এটি রিসাইকেল বিনে জমা হবে।
               </p>
               <div className="flex gap-3">
                 <button 
                   onClick={() => setDeleteConfirmId(null)}
-                  className="flex-1 py-3 border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors"
+                  className="flex-1 py-3 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-bold rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                 >
                   না, বাতিল করুন
                 </button>
