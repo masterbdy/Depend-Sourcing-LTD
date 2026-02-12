@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Receipt, Camera, CheckCircle, XCircle, Clock, Eye, Trash2, Search, Calendar, FilterX, RotateCcw, CheckCheck, Sparkles, Image as ImageIcon, X, Edit3, Eraser, AlertTriangle, User, ChevronDown, Printer, Loader2, Images, MessageCircle, SpellCheck, Wand2 } from 'lucide-react';
 import { Expense, Staff, UserRole, AppNotification, AdvanceLog } from '../types';
 
@@ -580,7 +581,6 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                         <button type="button" onClick={() => updateStatus(expense.id, 'REJECTED')} className="flex-1 bg-white text-red-600 border border-red-200 py-2 rounded-lg text-xs font-bold hover:bg-red-50 transition-colors cursor-pointer active:scale-95">বাতিল</button>
                       </>
                    )}
-                   {/* MD sees Pending but CANNOT Reject/Edit */}
                    {expense.status === 'PENDING' && (
                       <div className="flex-[2] bg-gray-100 text-gray-400 border border-gray-200 py-2 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 cursor-not-allowed select-none">
                         <Clock className="w-3 h-3" /> অ্যাডমিন ভেরিফিকেশন বাকি
@@ -597,8 +597,8 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
         {filteredExpenses.length === 0 && <div className="col-span-full py-12 text-center bg-white rounded-2xl border border-dashed border-gray-200 text-gray-400">কোনো বিল পাওয়া যায়নি</div>}
       </div>
 
-      {isSubmitModalOpen && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+      {isSubmitModalOpen && createPortal(
+        <div className="fixed inset-0 z-[1001] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-indigo-600 text-white shrink-0">
               <h3 className="font-bold text-xl">নতুন বিল জমা দিন</h3>
@@ -659,7 +659,6 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                     </label>
                     <textarea required rows={2} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all" placeholder="যেমন: নাস্তা ৫০, রিক্সা ভাড়া ১০০..." value={formData.reason} onChange={handleReasonChange} />
                     
-                    {/* TYPO SUGGESTIONS UI */}
                     {detectedTypos.length > 0 && (
                        <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-lg animate-in fade-in zoom-in duration-200">
                           <div className="flex items-center gap-1.5 text-yellow-800 text-[10px] font-bold uppercase mb-1.5">
@@ -714,11 +713,12 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                 </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {isCorrectionModalOpen && correctionData && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      {isCorrectionModalOpen && correctionData && createPortal(
+        <div className="fixed inset-0 z-[1001] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col max-h-[85vh]">
              <div className="p-5 border-b border-gray-100 bg-orange-500 text-white flex justify-between items-center shrink-0">
                 <h3 className="font-bold text-lg">বিল সংশোধন (Correction)</h3>
@@ -742,12 +742,13 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                  </form>
              </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Delete Confirmation Modal */}
-      {deleteConfirmExpense && (
-        <div className="fixed inset-0 z-[210] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+      {deleteConfirmExpense && createPortal(
+        <div className="fixed inset-0 z-[1002] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
             <div className="p-6 text-center">
               <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -772,16 +773,18 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {viewingVoucher && (
-        <div className="fixed inset-0 z-[210] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm animate-in fade-in zoom-in duration-200" onClick={() => setViewingVoucher(null)}>
+      {viewingVoucher && createPortal(
+        <div className="fixed inset-0 z-[1002] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm animate-in fade-in zoom-in duration-200" onClick={() => setViewingVoucher(null)}>
           <div className="relative max-w-3xl w-full max-h-screen p-2">
              <button onClick={() => setViewingVoucher(null)} className="absolute -top-12 right-0 text-white hover:text-red-400 transition-colors"><X className="w-8 h-8" /></button>
              <img src={viewingVoucher} alt="Voucher Full View" className="w-full h-auto max-h-[85vh] object-contain rounded-lg shadow-2xl bg-white" />
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
