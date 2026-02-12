@@ -1,4 +1,3 @@
-
 import { Staff, UserRole, BillingRule, Product } from './types';
 
 export const INITIAL_STAFF: Staff[] = [
@@ -99,6 +98,7 @@ export const INITIAL_PRODUCTS: Product[] = [
 
 // OFFICE START TIME CHANGED TO 9:00 AM
 export const OFFICE_START_TIME = '09:00'; 
+export const OFFICE_END_TIME = '20:00'; // 8:00 PM
 
 // MULTIPLE WORK LOCATIONS CONFIGURATION
 // You need to update the Lat/Lng for Head Office and Factory correctly

@@ -460,7 +460,7 @@ const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApproval
              </div>
              <h3 className="font-bold text-gray-800 dark:text-gray-100 text-sm">অফিস টাইম</h3>
              <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">
-               সকাল ৯:০০ টার মধ্যে চেক-ইন করুন।
+               সকাল ৯:০০ টা থেকে রাত ৮:০০ টা পর্যন্ত।
              </p>
           </div>
 

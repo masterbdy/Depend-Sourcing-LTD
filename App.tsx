@@ -1398,20 +1398,19 @@ const App: React.FC = () => {
           </div>
 
           {savedAccounts.length > 0 && (
-            <div className="mb-6">
-               <p className="text-[10px] font-bold text-indigo-300 uppercase tracking-widest mb-3 ml-1">Saved Accounts</p>
+            <div className="mb-2">
+               <p className="text-[10px] font-bold text-indigo-300 uppercase tracking-widest mb-1.5 ml-1">Saved Accounts</p>
                <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
                   {savedAccounts.map((account, idx) => (
                      <div key={idx} className="relative group shrink-0">
                         <div 
                           onClick={() => !isLoggingIn && handleLogin(null, account)}
-                          className={`flex flex-col items-center bg-white/5 border border-white/10 p-3 rounded-2xl shadow-sm hover:shadow-lg cursor-pointer transition-all hover:bg-white/10 hover:border-indigo-500/50 w-24 hover:scale-105 active:scale-95 ${isLoggingIn ? 'opacity-50 pointer-events-none' : ''}`}
+                          className={`flex flex-col items-center bg-white/5 border border-white/10 p-2 rounded-xl shadow-sm hover:shadow-lg cursor-pointer transition-all hover:bg-white/10 hover:border-indigo-500/50 w-20 hover:scale-105 active:scale-95 ${isLoggingIn ? 'opacity-50 pointer-events-none' : ''}`}
                         >
-                           <div className="w-10 h-10 rounded-full bg-indigo-500/20 flex items-center justify-center overflow-hidden mb-2 border border-white/20">
-                              {account.photo ? <img src={account.photo} className="w-full h-full object-cover" /> : <User className="w-5 h-5 text-indigo-300" />}
+                           <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center overflow-hidden mb-1.5 border border-white/20">
+                              {account.photo ? <img src={account.photo} className="w-full h-full object-cover" /> : <User className="w-4 h-4 text-indigo-300" />}
                            </div>
-                           <p className="text-[10px] font-bold text-gray-200 truncate w-full text-center">{account.username}</p>
-                           <p className="text-[9px] text-indigo-400 font-medium">Click to Login</p>
+                           <p className="text-[9px] font-bold text-gray-200 truncate w-full text-center">{account.username}</p>
                         </div>
                         <button 
                           onClick={(e) => { e.stopPropagation(); removeSavedAccount(account.username); }}
@@ -1434,7 +1433,7 @@ const App: React.FC = () => {
                   required 
                   type="text" 
                   disabled={isLoggingIn}
-                  className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/10 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all font-bold text-gray-100 text-sm placeholder:text-gray-500 hover:bg-white/20 focus:bg-white/20 backdrop-blur-md disabled:opacity-50"
+                  className="w-full pl-10 pr-4 py-2.5 bg-white/10 border border-white/10 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all font-bold text-gray-100 text-sm placeholder:text-gray-500 hover:bg-white/20 focus:bg-white/20 backdrop-blur-md disabled:opacity-50"
                   placeholder="Username..."
                   value={loginUsername}
                   onChange={(e) => setLoginUsername(e.target.value)}
@@ -1450,7 +1449,7 @@ const App: React.FC = () => {
                   required 
                   type={showLoginPassword ? "text" : "password"}
                   disabled={isLoggingIn}
-                  className="w-full pl-10 pr-12 py-3 bg-white/10 border border-white/10 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all font-bold text-gray-100 text-sm placeholder:text-gray-500 hover:bg-white/20 focus:bg-white/20 backdrop-blur-md disabled:opacity-50"
+                  className="w-full pl-10 pr-12 py-2.5 bg-white/10 border border-white/10 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all font-bold text-gray-100 text-sm placeholder:text-gray-500 hover:bg-white/20 focus:bg-white/20 backdrop-blur-md disabled:opacity-50"
                   placeholder="Password..."
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
@@ -1489,7 +1488,7 @@ const App: React.FC = () => {
             <button 
               type="submit" 
               disabled={isLoggingIn}
-              className={`w-full bg-indigo-600 text-white py-3.5 rounded-xl font-black shadow-lg shadow-indigo-500/40 hover:bg-indigo-50 transition-all active:scale-95 flex items-center justify-center gap-2 text-sm relative overflow-hidden group border border-indigo-400/20 hover:border-indigo-400/50 ${isLoggingIn ? 'opacity-70 cursor-wait' : ''}`}
+              className={`w-full bg-indigo-600 text-white py-3 rounded-xl font-black shadow-lg shadow-indigo-500/40 hover:bg-indigo-50 transition-all active:scale-95 flex items-center justify-center gap-2 text-sm relative overflow-hidden group border border-indigo-400/20 hover:border-indigo-400/50 ${isLoggingIn ? 'opacity-70 cursor-wait' : ''}`}
             >
               <span className="relative z-10 flex items-center gap-2">
                 {isLoggingIn ? (

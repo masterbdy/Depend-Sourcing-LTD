@@ -194,6 +194,8 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
         alert("You cannot edit other staff members.");
         return;
       }
+      // Note: Role is not updated here if role selection UI is hidden for MD/Staff. 
+      // It retains the original role from state because setFormData initialized it.
       setStaffList(prev => prev.map(s => s && s.id === editingStaff.id ? { 
         ...s, 
         ...formData, 
@@ -202,7 +204,12 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
         updatedAt: now 
       } : s));
     } else {
-      if (isStaff) return;
+      // Permission Check: Only Admin can add new staff
+      if (role !== UserRole.ADMIN) {
+         alert("দুঃখিত! নতুন স্টাফ শুধুমাত্র অ্যাডমিন যুক্ত করতে পারেন।");
+         return;
+      }
+
       const newStaff: Staff = {
         id: Math.random().toString(36).substr(2, 9),
         name: formData.name,
@@ -563,7 +570,8 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
           </h2>
           <p className="text-xs text-gray-500 font-medium ml-8">ম্যানেজ করুন এবং মনিটর করুন</p>
         </div>
-        {!isStaff && (
+        {/* Only Admin can see Add New Staff button */}
+        {role === UserRole.ADMIN && (
           <button onClick={() => setIsModalOpen(true)} className="group relative overflow-hidden bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-5 py-2.5 rounded-xl font-bold shadow-lg shadow-indigo-200 hover:shadow-indigo-300 transition-all active:scale-95 flex items-center gap-2">
             <span className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></span>
             <UserPlus className="w-4 h-4 relative z-10" /> 
@@ -1199,8 +1207,8 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
               </div>
 
               <form onSubmit={handleSave} className="space-y-4">
-                {/* ROLE SELECTION */}
-                {!isStaff && (
+                {/* ROLE & LOCATION SELECTION - Restricted to ADMIN */}
+                {role === UserRole.ADMIN && (
                   <>
                   <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 mb-2">
                     <label className="block text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-2 ml-1">অ্যাকাউন্ট রোল (Role)</label>

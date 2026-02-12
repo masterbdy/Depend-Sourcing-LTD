@@ -191,12 +191,17 @@ const GroupChatView: React.FC<GroupChatProps> = ({ messages = [], setMessages, c
       {/* Chat Header */}
       <div className="p-4 bg-indigo-600 dark:bg-indigo-900 text-white flex items-center justify-between shrink-0 shadow-md z-10">
         <div className="flex items-center gap-3">
-          <div className="bg-white/20 p-2 rounded-full">
-            <Users className="w-6 h-6" />
+          <div className="relative">
+            <img 
+              src="https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=100&q=80" 
+              alt="Team Group" 
+              className="w-11 h-11 rounded-full object-cover border-2 border-white/30 shadow-sm" 
+            />
+            <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-indigo-600 rounded-full"></div>
           </div>
           <div>
-            <h3 className="font-bold text-lg">অফিস টিম চ্যাট</h3>
-            <p className="text-xs text-indigo-200">সকল স্টাফ, অ্যাডমিন এবং এমডি</p>
+            <h3 className="font-bold text-lg leading-tight">অফিস টিম চ্যাট</h3>
+            <p className="text-xs text-indigo-200 font-medium">সকল স্টাফ, অ্যাডমিন এবং এমডি</p>
           </div>
         </div>
         
@@ -210,153 +215,169 @@ const GroupChatView: React.FC<GroupChatProps> = ({ messages = [], setMessages, c
         </button>
       </div>
 
-      {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-[#f0f4f9] dark:bg-gray-950 relative custom-scrollbar bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] dark:bg-[radial-gradient(#334155_1px,transparent_1px)] [background-size:20px_20px]">
-        {sortedMessages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-gray-400 opacity-50">
-            <Users className="w-16 h-16 mb-2" />
-            <p className="text-sm font-bold">এখানে মেসেজ শুরু করুন</p>
-          </div>
-        )}
+      {/* Messages Area with Premium Background */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-6 relative custom-scrollbar bg-slate-50 dark:bg-[#0f172a]">
+        
+        {/* Background Pattern Layers */}
+        <div className="fixed inset-0 z-0 pointer-events-none opacity-40 dark:opacity-20">
+            {/* Grid Pattern */}
+            <div className="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:24px_24px]"></div>
+            {/* Subtle Texture */}
+            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+            {/* Central Glow */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-indigo-500/10 rounded-full blur-[120px]"></div>
+        </div>
 
-        {sortedMessages.map((msg) => {
-          const isMe = msg.sender === currentUser;
-          const reactions = msg.reactions || [];
-          const canDelete = isMe; 
-          const senderStaff = staffList.find(s => s.name === msg.sender);
-
-          if (msg.type === 'SYSTEM_MOVEMENT') {
-            return (
-              <div key={msg.id} className="flex justify-center my-2 group">
-                <div 
-                  onClick={() => msg.targetView && onNavigate(msg.targetView)}
-                  className={`bg-orange-50 dark:bg-orange-900/30 border border-orange-100 dark:border-orange-800 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-xl text-xs font-medium flex items-center gap-2 shadow-sm transition-transform hover:scale-105 ${msg.targetView ? 'cursor-pointer hover:bg-orange-100 dark:hover:bg-orange-900/50' : ''}`}
-                >
-                  <Car className="w-4 h-4 text-orange-500" />
-                  <span>{msg.text}</span>
-                  {msg.targetView && <ArrowRightCircle className="w-3 h-3 text-orange-400" />}
+        <div className="relative z-10 space-y-6 min-h-full pb-4">
+            {sortedMessages.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-64 text-gray-400 opacity-60">
+                <div className="w-20 h-20 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4">
+                    <MessageCircle className="w-10 h-10 text-indigo-300" />
                 </div>
-              </div>
-            );
-          }
+                <p className="text-sm font-bold">কথপোকথন শুরু করুন</p>
+                <p className="text-xs">আপনার টিমের সাথে কানেক্টেড থাকুন</p>
+            </div>
+            )}
 
-          return (
-            <div key={msg.id} className={`flex w-full group ${isMe ? 'justify-end' : 'justify-start items-end'}`}>
-              
-              {!isMe && (
-                 <div 
-                   onClick={() => handleProfileClick(msg.sender)} 
-                   className="mr-2 mb-1 cursor-pointer hover:scale-110 transition-transform hidden sm:block"
-                 >
-                    {senderStaff && senderStaff.photo ? (
-                       <img src={senderStaff.photo} className="w-8 h-8 rounded-full object-cover border border-gray-200" />
-                    ) : (
-                       <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-500 border border-gray-300">
-                          {msg.sender[0]}
-                       </div>
-                    )}
-                 </div>
-              )}
+            {sortedMessages.map((msg) => {
+            const isMe = msg.sender === currentUser;
+            const reactions = msg.reactions || [];
+            const canDelete = isMe; 
+            const senderStaff = staffList.find(s => s.name === msg.sender);
 
-              <div className={`max-w-[85%] md:max-w-[65%] flex flex-col ${isMe ? 'items-end' : 'items-start'} relative`}>
+            if (msg.type === 'SYSTEM_MOVEMENT') {
+                return (
+                <div key={msg.id} className="flex justify-center my-4 group">
+                    <div 
+                    onClick={() => msg.targetView && onNavigate(msg.targetView)}
+                    className={`bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-orange-100 dark:border-orange-900/50 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-full text-xs font-medium flex items-center gap-2 shadow-sm transition-transform hover:scale-105 ${msg.targetView ? 'cursor-pointer hover:bg-orange-50 dark:hover:bg-orange-900/30' : ''}`}
+                    >
+                    <Car className="w-4 h-4 text-orange-500" />
+                    <span>{msg.text}</span>
+                    {msg.targetView && <ArrowRightCircle className="w-3 h-3 text-orange-400" />}
+                    </div>
+                </div>
+                );
+            }
+
+            return (
+                <div key={msg.id} className={`flex w-full group ${isMe ? 'justify-end' : 'justify-start items-end'}`}>
                 
                 {!isMe && (
-                  <div className="flex items-center gap-1 mb-1 ml-1 cursor-pointer" onClick={() => handleProfileClick(msg.sender)}>
-                    <span className="text-xs font-bold text-gray-600 dark:text-gray-400 hover:underline">{msg.sender}</span>
-                    {msg.role !== UserRole.STAFF && (
-                      <span className={`text-[9px] px-1.5 py-0.5 rounded-full flex items-center gap-0.5 font-black uppercase ${msg.role === UserRole.MD ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300' : 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'}`}>
-                        {getRoleIcon(msg.role)}
-                        {getRoleLabel(msg.role)}
-                      </span>
-                    )}
-                  </div>
+                    <div 
+                    onClick={() => handleProfileClick(msg.sender)} 
+                    className="mr-2 mb-1 cursor-pointer hover:scale-110 transition-transform hidden sm:block"
+                    >
+                        {senderStaff && senderStaff.photo ? (
+                        <img src={senderStaff.photo} className="w-8 h-8 rounded-full object-cover border border-gray-200 shadow-sm" />
+                        ) : (
+                        <div className="w-8 h-8 rounded-full bg-white dark:bg-gray-800 flex items-center justify-center text-xs font-bold text-gray-500 border border-gray-200 dark:border-gray-700 shadow-sm">
+                            {msg.sender[0]}
+                        </div>
+                        )}
+                    </div>
                 )}
 
-                <div className="relative">
-                   <button 
-                      onClick={(e) => { e.stopPropagation(); setActiveReactionId(activeReactionId === msg.id ? null : msg.id); }}
-                      className={`absolute top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-white dark:bg-gray-800 text-gray-400 hover:text-orange-500 shadow-sm border border-gray-100 dark:border-gray-700 opacity-0 group-hover:opacity-100 transition-all z-10 ${isMe ? '-left-8' : '-right-8'}`}
-                      title="React"
-                   >
-                      <SmilePlus className="w-4 h-4" />
-                   </button>
+                <div className={`max-w-[85%] md:max-w-[65%] flex flex-col ${isMe ? 'items-end' : 'items-start'} relative`}>
+                    
+                    {!isMe && (
+                    <div className="flex items-center gap-1 mb-1 ml-1 cursor-pointer" onClick={() => handleProfileClick(msg.sender)}>
+                        <span className="text-xs font-bold text-gray-600 dark:text-gray-400 hover:underline shadow-sm px-1.5 py-0.5 bg-white/50 dark:bg-black/20 rounded backdrop-blur-sm">{msg.sender}</span>
+                        {msg.role !== UserRole.STAFF && (
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full flex items-center gap-0.5 font-black uppercase shadow-sm ${msg.role === UserRole.MD ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300' : 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'}`}>
+                            {getRoleIcon(msg.role)}
+                            {getRoleLabel(msg.role)}
+                        </span>
+                        )}
+                    </div>
+                    )}
 
-                   {canDelete && (
-                      <button 
-                         onClick={(e) => { e.stopPropagation(); openDeleteModal(msg.id); }}
-                         className={`absolute top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-white dark:bg-gray-800 text-gray-400 hover:text-red-500 shadow-sm border border-gray-100 dark:border-gray-700 opacity-0 group-hover:opacity-100 transition-all z-10 ${isMe ? '-left-20' : '-right-20'}`}
-                         title="ডিলিট করুন"
-                      >
-                         <Trash2 className="w-4 h-4" />
-                      </button>
-                   )}
+                    <div className="relative">
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); setActiveReactionId(activeReactionId === msg.id ? null : msg.id); }}
+                        className={`absolute top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-white dark:bg-gray-800 text-gray-400 hover:text-orange-500 shadow-md border border-gray-100 dark:border-gray-700 opacity-0 group-hover:opacity-100 transition-all z-10 scale-90 hover:scale-110 ${isMe ? '-left-8' : '-right-8'}`}
+                        title="React"
+                    >
+                        <SmilePlus className="w-4 h-4" />
+                    </button>
 
-                   {activeReactionId === msg.id && (
-                      <div 
-                        onClick={(e) => e.stopPropagation()} 
-                        className={`absolute bottom-full mb-2 bg-white dark:bg-gray-800 rounded-full shadow-xl border border-gray-100 dark:border-gray-700 p-2 flex gap-1 z-30 animate-in zoom-in duration-200 ${isMe ? 'right-0 origin-bottom-right' : 'left-0 origin-bottom-left'}`}
-                      >
-                         {AVAILABLE_REACTIONS.map(emoji => (
-                            <button 
-                              key={emoji}
-                              onClick={(e) => { e.stopPropagation(); toggleReaction(msg.id, emoji); }}
-                              className="w-9 h-9 flex items-center justify-center text-xl hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-full transition-transform hover:scale-125 active:scale-95"
+                    {canDelete && (
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); openDeleteModal(msg.id); }}
+                            className={`absolute top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-white dark:bg-gray-800 text-gray-400 hover:text-red-500 shadow-md border border-gray-100 dark:border-gray-700 opacity-0 group-hover:opacity-100 transition-all z-10 scale-90 hover:scale-110 ${isMe ? '-left-20' : '-right-20'}`}
+                            title="ডিলিট করুন"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                        </button>
+                    )}
+
+                    {activeReactionId === msg.id && (
+                        <div 
+                            onClick={(e) => e.stopPropagation()} 
+                            className={`absolute bottom-full mb-2 bg-white dark:bg-gray-800 rounded-full shadow-xl border border-gray-100 dark:border-gray-700 p-2 flex gap-1 z-30 animate-in zoom-in duration-200 ${isMe ? 'right-0 origin-bottom-right' : 'left-0 origin-bottom-left'}`}
+                        >
+                            {AVAILABLE_REACTIONS.map(emoji => (
+                                <button 
+                                key={emoji}
+                                onClick={(e) => { e.stopPropagation(); toggleReaction(msg.id, emoji); }}
+                                className="w-9 h-9 flex items-center justify-center text-xl hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-full transition-transform hover:scale-125 active:scale-95"
+                                >
+                                {emoji}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+
+                    <div 
+                        className={`px-5 py-3 rounded-2xl text-sm leading-relaxed shadow-sm relative z-0 backdrop-blur-sm ${
+                        isMe 
+                            ? 'bg-gradient-to-br from-indigo-600 to-indigo-700 text-white rounded-tr-none shadow-indigo-200 dark:shadow-none border border-indigo-500' 
+                            : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700 rounded-tl-none shadow-sm'
+                        }`}
+                    >
+                        {msg.text}
+                    </div>
+
+                    {reactions.length > 0 && (
+                        <div className={`absolute -bottom-3 ${isMe ? 'right-0' : 'left-0'} flex -space-x-1 z-10`}>
+                            <div 
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setViewingReactionMsgId(msg.id);
+                            }}
+                            className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full px-2 py-0.5 shadow-md flex items-center gap-1 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-all active:scale-95" 
+                            title="Click to see list"
                             >
-                               {emoji}
-                            </button>
-                         ))}
-                      </div>
-                   )}
-
-                   <div 
-                     className={`px-5 py-3 rounded-2xl text-sm leading-relaxed shadow-sm relative z-0 ${
-                       isMe 
-                         ? 'bg-gradient-to-br from-indigo-600 to-indigo-700 text-white rounded-tr-none shadow-indigo-200 dark:shadow-none' 
-                         : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border border-gray-100 dark:border-gray-700 rounded-tl-none shadow-sm'
-                     }`}
-                   >
-                     {msg.text}
-                   </div>
-
-                   {reactions.length > 0 && (
-                      <div className={`absolute -bottom-3 ${isMe ? 'right-0' : 'left-0'} flex -space-x-1 z-10`}>
-                         <div 
-                           onClick={(e) => {
-                              e.stopPropagation();
-                              setViewingReactionMsgId(msg.id);
-                           }}
-                           className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full px-2 py-0.5 shadow-sm flex items-center gap-1 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-all active:scale-95" 
-                           title="Click to see list"
-                         >
-                            <div className="flex -space-x-1 text-gray-800 dark:text-gray-200">
-                               {Array.from(new Set(reactions.map(r => r.emoji))).slice(0, 3).map(emoji => (
-                                  <span key={emoji} className="text-xs leading-none">{emoji}</span>
-                               ))}
+                                <div className="flex -space-x-1 text-gray-800 dark:text-gray-200">
+                                {Array.from(new Set(reactions.map(r => r.emoji))).slice(0, 3).map(emoji => (
+                                    <span key={emoji} className="text-xs leading-none">{emoji}</span>
+                                ))}
+                                </div>
+                                <span className="text-[10px] font-bold text-gray-600 dark:text-gray-400 ml-1">{reactions.length}</span>
                             </div>
-                            <span className="text-[10px] font-bold text-gray-600 dark:text-gray-400 ml-1">{reactions.length}</span>
-                         </div>
-                      </div>
-                   )}
-                </div>
+                        </div>
+                    )}
+                    </div>
 
-                <span className="text-[9px] text-gray-400 mt-2 mx-1 select-none">
-                  {new Date(msg.timestamp).toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' })}
-                </span>
-              </div>
-            </div>
-          );
-        })}
+                    <span className="text-[9px] text-gray-400 mt-2 mx-1 select-none font-medium">
+                    {new Date(msg.timestamp).toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                </div>
+                </div>
+            );
+            })}
+        </div>
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 shrink-0 relative z-20 pb-2">
+      <div className="bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 shrink-0 relative z-20 pb-2 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
         
         <div className="px-4 pt-2 pb-1 flex gap-2 overflow-x-auto scrollbar-hide">
            {QUICK_REPLIES.map((reply, idx) => (
               <button 
                 key={idx}
                 onClick={() => sendQuickReply(reply)}
-                className="bg-gray-100 dark:bg-gray-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-600 dark:hover:text-indigo-400 text-gray-600 dark:text-gray-300 px-3 py-1.5 rounded-full text-[10px] font-bold border border-transparent hover:border-indigo-100 dark:hover:border-indigo-800 transition-all whitespace-nowrap active:scale-95"
+                className="bg-gray-50 dark:bg-gray-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-600 dark:hover:text-indigo-400 text-gray-600 dark:text-gray-300 px-3 py-1.5 rounded-full text-[10px] font-bold border border-gray-200 dark:border-gray-700 hover:border-indigo-100 dark:hover:border-indigo-800 transition-all whitespace-nowrap active:scale-95"
               >
                  {reply}
               </button>

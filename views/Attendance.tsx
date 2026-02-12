@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { MapPin, Clock, Calendar, CheckCircle, XCircle, AlertTriangle, Fingerprint, UserCheck, ShieldCheck, Navigation, MonitorSmartphone, Search, FileText, X, RefreshCw, History, Map, Crosshair } from 'lucide-react';
+import { MapPin, Clock, Calendar, CheckCircle, XCircle, AlertTriangle, Fingerprint, UserCheck, ShieldCheck, Navigation, MonitorSmartphone, Search, FileText, X, RefreshCw, History, Map, Crosshair, Hourglass } from 'lucide-react';
 import { Staff, Attendance, UserRole } from '../types';
 import { OFFICE_START_TIME, WORK_LOCATIONS } from '../constants';
 
@@ -36,6 +36,53 @@ const AttendanceView: React.FC<AttendanceProps> = ({ staffList = [], attendanceL
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // --- WORK HOUR CALCULATION LOGIC (UPDATED FOR OVERTIME) ---
+  const calculateWorkStats = (checkInStr: string, checkOutStr?: string) => {
+    if (!checkOutStr) return { duration: null, shortage: null, overtime: null };
+
+    const start = new Date(checkInStr);
+    const end = new Date(checkOutStr);
+    
+    // Total worked milliseconds
+    const diffMs = end.getTime() - start.getTime();
+    
+    // Convert to hours and minutes
+    const workedHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const workedMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    
+    // Standard Office Time: 9 AM to 8 PM = 11 Hours
+    const standardWorkMs = 11 * 60 * 60 * 1000; 
+
+    let shortageData = null;
+    let overtimeData = null;
+
+    if (diffMs < standardWorkMs) {
+       // Shortage Logic
+       const shortageMs = standardWorkMs - diffMs;
+       const sHours = Math.floor(shortageMs / (1000 * 60 * 60));
+       const sMinutes = Math.floor((shortageMs % (1000 * 60 * 60)) / (1000 * 60));
+       
+       if (sHours > 0 || sMinutes > 0) {
+          shortageData = `${sHours}h ${sMinutes}m`;
+       }
+    } else if (diffMs > standardWorkMs) {
+       // Overtime Logic
+       const overtimeMs = diffMs - standardWorkMs;
+       const oHours = Math.floor(overtimeMs / (1000 * 60 * 60));
+       const oMinutes = Math.floor((overtimeMs % (1000 * 60 * 60)) / (1000 * 60));
+       
+       if (oHours > 0 || oMinutes > 0) {
+          overtimeData = `${oHours}h ${oMinutes}m`;
+       }
+    }
+
+    return {
+       duration: `${workedHours}h ${workedMinutes}m`,
+       shortage: shortageData,
+       overtime: overtimeData
+    };
+  };
 
   const targetLocations = useMemo(() => {
     const targets = [];
@@ -264,7 +311,7 @@ const AttendanceView: React.FC<AttendanceProps> = ({ staffList = [], attendanceL
       }
       
       if (!distanceInfo.isAllowed) {
-        alert(`চেক-ইন ব্যর্থ! ❌\n\nকারণ: আপনি নির্ধারিত স্থান থেকে দূরে আছেন।\n\nটার্গেট: ${distanceInfo.targetName}\nবর্তমান দূরত্ব: ${Math.round(distanceInfo.distance)} মিটার\nঅনুমোদিত দূরত্ব: ${distanceInfo.allowedRadius} মিটার\n\nদয়া করে লোকেশনের কাছাকাছি যান এবং পুনরায় চেষ্টা করুন।`);
+        alert(`চেক-আউট ব্যর্থ! ❌\n\nকারণ: আপনি নির্ধারিত স্থান থেকে দূরে আছেন।\n\nটার্গেট: ${distanceInfo.targetName}\nবর্তমান দূরত্ব: ${Math.round(distanceInfo.distance)} মিটার\nঅনুমোদিত দূরত্ব: ${distanceInfo.allowedRadius} মিটার\n\nদয়া করে লোকেশনের কাছাকাছি যান এবং পুনরায় চেষ্টা করুন।`);
         getLocation(false); // Try refreshing just in case
         return;
       }
@@ -646,11 +693,15 @@ const AttendanceView: React.FC<AttendanceProps> = ({ staffList = [], attendanceL
                        <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">চেক-ইন</th>
                        <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">চেক-আউট</th>
                        <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">স্ট্যাটাস</th>
-                       <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">লোকেশন</th>
+                       <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">কর্মঘণ্টা (Duration)</th>
+                       <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">অতিরিক্ত/কমতি (Over/Short)</th>
                     </tr>
                  </thead>
                  <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
-                    {(attendanceList || []).filter(a => a.date === today).map((record) => (
+                    {(attendanceList || []).filter(a => a.date === today).map((record) => {
+                       const workStats = calculateWorkStats(record.checkInTime, record.checkOutTime);
+                       
+                       return (
                        <tr key={record.id} className="hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition-colors group">
                           <td className="px-6 py-4">
                              <div className="flex items-center gap-3">
@@ -682,17 +733,37 @@ const AttendanceView: React.FC<AttendanceProps> = ({ staffList = [], attendanceL
                                 {record.status}
                              </span>
                           </td>
+                          <td className="px-6 py-4 text-center">
+                             {workStats.duration ? (
+                                <span className="text-xs font-bold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-lg">
+                                   {workStats.duration}
+                                </span>
+                             ) : (
+                                <span className="text-[10px] font-bold text-blue-500 animate-pulse flex items-center justify-center gap-1">
+                                   <Hourglass className="w-3 h-3" /> Running...
+                                </span>
+                             )}
+                          </td>
                           <td className="px-6 py-4 text-right">
-                             <div className="flex items-center justify-end gap-1 text-[10px] text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded-lg w-fit ml-auto">
-                                <MapPin className="w-3 h-3 text-indigo-400" />
-                                <span className="truncate max-w-[100px]" title={record.location?.address}>{record.location?.address || 'GPS Location'}</span>
-                             </div>
+                             {workStats.shortage ? (
+                                <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-1 rounded-lg border border-red-100">
+                                   -{workStats.shortage}
+                                </span>
+                             ) : workStats.overtime ? (
+                                <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-lg border border-green-100">
+                                   +{workStats.overtime}
+                                </span>
+                             ) : record.checkOutTime ? (
+                                <span className="text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded-lg">Perfect</span>
+                             ) : (
+                                <span className="text-gray-300">--</span>
+                             )}
                           </td>
                        </tr>
-                    ))}
+                    )})}
                     {(attendanceList || []).filter(a => a.date === today).length === 0 && (
                        <tr>
-                          <td colSpan={5} className="px-6 py-16 text-center text-gray-400">
+                          <td colSpan={6} className="px-6 py-16 text-center text-gray-400">
                              <div className="flex flex-col items-center gap-2 opacity-50">
                                 <History className="w-12 h-12" />
                                 <p className="text-sm font-medium">আজকের কোনো হাজিরা ডাটা পাওয়া যায়নি</p>
