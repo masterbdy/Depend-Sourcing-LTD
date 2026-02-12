@@ -353,26 +353,26 @@ const AttendanceView: React.FC<AttendanceProps> = ({ staffList = [], attendanceL
   return (
     <div className="space-y-8">
       
-      {/* --- ULTRA PREMIUM DARK CLOCK HEADER --- */}
-      <div className="relative overflow-hidden rounded-3xl bg-[#0B1120] border border-gray-800 shadow-2xl group">
+      {/* --- ULTRA PREMIUM DARK CLOCK HEADER (MOBILE OPTIMIZED) --- */}
+      <div className="relative overflow-hidden rounded-2xl md:rounded-3xl bg-[#0B1120] border border-gray-800 shadow-2xl group">
          {/* Background Effects */}
          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 z-0"></div>
          <div className="absolute top-[-50%] left-[-20%] w-[500px] h-[500px] bg-indigo-600/20 blur-[120px] rounded-full z-0 animate-pulse"></div>
          <div className="absolute bottom-[-50%] right-[-20%] w-[400px] h-[400px] bg-cyan-600/10 blur-[100px] rounded-full z-0"></div>
          
-         <div className="relative z-10 p-6 md:p-8 flex flex-col md:flex-row justify-between items-center gap-8">
+         <div className="relative z-10 p-4 md:p-8 flex flex-col md:flex-row justify-between items-center gap-4 md:gap-8">
             
             {/* Clock Section */}
-            <div className="text-center md:text-left space-y-2">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 backdrop-blur-md">
-                   <Calendar className="w-3.5 h-3.5 text-cyan-400" />
-                   <p className="text-xs font-bold text-gray-300 uppercase tracking-widest">
+            <div className="text-center md:text-left space-y-1 md:space-y-2">
+                <div className="inline-flex items-center gap-2 px-2.5 py-0.5 md:px-3 md:py-1 rounded-full bg-white/5 border border-white/10 backdrop-blur-md">
+                   <Calendar className="w-3 h-3 md:w-3.5 md:h-3.5 text-cyan-400" />
+                   <p className="text-[10px] md:text-xs font-bold text-gray-300 uppercase tracking-widest">
                       {currentTime.toLocaleDateString('bn-BD', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                    </p>
                 </div>
                 
                 <div className="relative">
-                   <h1 className="text-5xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-gray-200 to-gray-500 tracking-tight drop-shadow-2xl font-mono">
+                   <h1 className="text-4xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-gray-200 to-gray-500 tracking-tight drop-shadow-2xl font-mono">
                       {currentTime.toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                    </h1>
                    {/* Glow behind text */}
@@ -380,37 +380,37 @@ const AttendanceView: React.FC<AttendanceProps> = ({ staffList = [], attendanceL
                 </div>
 
                 <div className="flex items-center justify-center md:justify-start gap-2">
-                   <span className="relative flex h-2.5 w-2.5">
+                   <span className="relative flex h-2 w-2 md:h-2.5 md:w-2.5">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 md:h-2.5 md:w-2.5 bg-green-500"></span>
                    </span>
-                   <p className="text-xs font-bold text-gray-400 uppercase tracking-[0.2em]">Live Attendance System</p>
+                   <p className="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-[0.2em]">Live Attendance System</p>
                 </div>
             </div>
 
-            {/* Stats Cards (Glassmorphism) */}
-            <div className="flex gap-4">
+            {/* Stats Cards (Glassmorphism) - Compact on Mobile */}
+            <div className="flex w-full md:w-auto gap-3">
                {/* Present Card */}
-               <div className="relative group/card">
+               <div className="relative group/card flex-1 md:flex-none">
                   <div className="absolute inset-0 bg-green-500/20 blur-xl rounded-2xl opacity-0 group-hover/card:opacity-100 transition-opacity duration-500"></div>
-                  <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5 min-w-[110px] text-center relative z-10 transition-transform hover:-translate-y-1">
-                     <div className="w-8 h-8 mx-auto mb-2 rounded-full bg-green-500/20 flex items-center justify-center text-green-400 border border-green-500/30">
-                        <UserCheck className="w-4 h-4" />
+                  <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl md:rounded-2xl p-3 md:p-5 min-w-[100px] md:min-w-[110px] text-center relative z-10 transition-transform hover:-translate-y-1">
+                     <div className="w-6 h-6 md:w-8 md:h-8 mx-auto mb-1.5 md:mb-2 rounded-full bg-green-500/20 flex items-center justify-center text-green-400 border border-green-500/30">
+                        <UserCheck className="w-3.5 h-3.5 md:w-4 md:h-4" />
                      </div>
-                     <p className="text-2xl font-black text-white">{stats.totalPresent} <span className="text-xs text-gray-500 font-bold">/ {stats.totalStaff}</span></p>
-                     <p className="text-[10px] uppercase font-bold text-green-400 tracking-wider mt-1">উপস্থিত</p>
+                     <p className="text-xl md:text-2xl font-black text-white">{stats.totalPresent} <span className="text-[10px] md:text-xs text-gray-500 font-bold">/ {stats.totalStaff}</span></p>
+                     <p className="text-[9px] md:text-[10px] uppercase font-bold text-green-400 tracking-wider">উপস্থিত</p>
                   </div>
                </div>
 
                {/* Late Card */}
-               <div className="relative group/card">
+               <div className="relative group/card flex-1 md:flex-none">
                   <div className="absolute inset-0 bg-orange-500/20 blur-xl rounded-2xl opacity-0 group-hover/card:opacity-100 transition-opacity duration-500"></div>
-                  <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5 min-w-[110px] text-center relative z-10 transition-transform hover:-translate-y-1">
-                     <div className="w-8 h-8 mx-auto mb-2 rounded-full bg-orange-500/20 flex items-center justify-center text-orange-400 border border-orange-500/30">
-                        <Clock className="w-4 h-4" />
+                  <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl md:rounded-2xl p-3 md:p-5 min-w-[100px] md:min-w-[110px] text-center relative z-10 transition-transform hover:-translate-y-1">
+                     <div className="w-6 h-6 md:w-8 md:h-8 mx-auto mb-1.5 md:mb-2 rounded-full bg-orange-500/20 flex items-center justify-center text-orange-400 border border-orange-500/30">
+                        <Clock className="w-3.5 h-3.5 md:w-4 md:h-4" />
                      </div>
-                     <p className="text-2xl font-black text-white">{stats.late}</p>
-                     <p className="text-[10px] uppercase font-bold text-orange-400 tracking-wider mt-1">লেট (Late)</p>
+                     <p className="text-xl md:text-2xl font-black text-white">{stats.late}</p>
+                     <p className="text-[9px] md:text-[10px] uppercase font-bold text-orange-400 tracking-wider">লেট (Late)</p>
                   </div>
                </div>
             </div>

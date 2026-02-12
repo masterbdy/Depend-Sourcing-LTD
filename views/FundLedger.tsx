@@ -159,32 +159,35 @@ const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = 
   return (
     <div className="space-y-6">
       {/* Premium Compact Balance Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Changed to grid-cols-2 on mobile */}
+      <div className="grid grid-cols-2 gap-3 md:gap-4">
         
-        {/* Card 1: Total Fund (Credit) */}
-        <div className="relative overflow-hidden bg-white dark:bg-gray-800 rounded-2xl p-5 border border-b-4 border-r-4 border-blue-100 dark:border-blue-900 shadow-sm group">
+        {/* Card 1 */}
+        <div className="relative overflow-hidden bg-white dark:bg-gray-800 rounded-xl md:rounded-2xl p-4 md:p-5 border border-b-4 border-r-4 border-blue-100 dark:border-blue-900 shadow-sm group">
            {/* Background Decor */}
-           <Landmark className="absolute -right-6 -bottom-6 w-32 h-32 text-blue-50 dark:text-blue-900/30 rotate-12 group-hover:scale-110 transition-transform duration-500" />
-           <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-blue-500/10 to-transparent rounded-bl-full"></div>
+           <Landmark className="absolute -right-6 -bottom-6 w-24 h-24 md:w-32 md:h-32 text-blue-50 dark:text-blue-900/30 rotate-12 group-hover:scale-110 transition-transform duration-500" />
+           <div className="absolute top-0 right-0 w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-blue-500/10 to-transparent rounded-bl-full"></div>
 
            <div className="relative z-10 flex flex-col justify-between h-full">
-              <div className="flex items-center gap-2 mb-1">
-                 <div className="p-1.5 bg-blue-50 dark:bg-blue-900/50 rounded-lg text-blue-600 dark:text-blue-400">
-                    <TrendingUp className="w-4 h-4" />
+              <div className="flex items-center gap-1.5 mb-1">
+                 {/* Smaller icon container */}
+                 <div className="p-1 md:p-1.5 bg-blue-50 dark:bg-blue-900/50 rounded-lg text-blue-600 dark:text-blue-400">
+                    <TrendingUp className="w-3.5 h-3.5 md:w-4 md:h-4" />
                  </div>
-                 <p className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.15em]">Total Fund Received</p>
+                 <p className="text-[8px] md:text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Total Fund</p>
               </div>
               <div>
-                 <h3 className="text-3xl font-black text-gray-800 dark:text-white tracking-tight">৳ {totalFund.toLocaleString()}</h3>
-                 <p className="text-[9px] text-gray-400 dark:text-gray-500 font-medium mt-1">সর্বমোট প্রাপ্ত ফান্ড (MD)</p>
+                 {/* Smaller font for Amount on mobile */}
+                 <h3 className="text-xl md:text-3xl font-black text-gray-800 dark:text-white tracking-tight truncate">৳ {totalFund.toLocaleString()}</h3>
+                 <p className="text-[8px] md:text-[9px] text-gray-400 dark:text-gray-500 font-medium mt-0.5 md:mt-1 truncate">সর্বমোট প্রাপ্ত ফান্ড</p>
               </div>
            </div>
         </div>
 
-        {/* Card 2: Cash In Hand (Liquidity) */}
-        <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-5 border border-b-4 border-r-4 border-slate-950 shadow-xl group">
+        {/* Card 2 */}
+        <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 to-slate-800 rounded-xl md:rounded-2xl p-4 md:p-5 border border-b-4 border-r-4 border-slate-950 shadow-xl group">
            {/* Background Decor */}
-           <Wallet className="absolute -right-6 -bottom-6 w-32 h-32 text-white/5 rotate-12 group-hover:scale-110 transition-transform duration-500" />
+           <Wallet className="absolute -right-6 -bottom-6 w-24 h-24 md:w-32 md:h-32 text-white/5 rotate-12 group-hover:scale-110 transition-transform duration-500" />
            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 mix-blend-overlay"></div>
            
            {/* Glow Effect */}
@@ -192,21 +195,21 @@ const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = 
 
            <div className="relative z-10 flex flex-col justify-between h-full text-white">
               <div className="flex items-center justify-between mb-1">
-                 <div className="flex items-center gap-2">
-                    <div className="p-1.5 bg-white/10 rounded-lg text-emerald-400 backdrop-blur-md border border-white/10">
-                       <Sparkles className="w-4 h-4" />
+                 <div className="flex items-center gap-1.5">
+                    <div className="p-1 md:p-1.5 bg-white/10 rounded-lg text-emerald-400 backdrop-blur-md border border-white/10">
+                       <Sparkles className="w-3.5 h-3.5 md:w-4 md:h-4" />
                     </div>
-                    <p className="text-[10px] font-black text-emerald-400 uppercase tracking-[0.15em]">Cash Available</p>
+                    <p className="text-[8px] md:text-[10px] font-black text-emerald-400 uppercase tracking-widest">Cash In Hand</p>
                  </div>
-                 <span className="flex h-2 w-2 relative">
+                 <span className="flex h-1.5 w-1.5 md:h-2 md:w-2 relative">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 md:h-2 md:w-2 bg-emerald-500"></span>
                  </span>
               </div>
               <div>
-                 <h3 className="text-3xl font-black text-white tracking-tight drop-shadow-md">৳ {cashOnHand.toLocaleString()}</h3>
-                 <p className="text-[9px] text-slate-400 font-medium mt-1 flex items-center gap-1">
-                    বর্তমান ক্যাশ ব্যালেন্স (Liquid)
+                 <h3 className="text-xl md:text-3xl font-black text-white tracking-tight drop-shadow-md truncate">৳ {cashOnHand.toLocaleString()}</h3>
+                 <p className="text-[8px] md:text-[9px] text-slate-400 font-medium mt-0.5 md:mt-1 flex items-center gap-1 truncate">
+                    বর্তমান ক্যাশ ব্যালেন্স
                  </p>
               </div>
            </div>
