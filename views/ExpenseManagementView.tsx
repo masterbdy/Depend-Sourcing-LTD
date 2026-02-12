@@ -462,21 +462,21 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-2">
-        <h2 className="text-xl font-bold text-gray-800">খরচ ও ভাউচার ম্যানেজমেন্ট</h2>
+        <h2 className="text-xl font-bold text-gray-800 dark:text-white">খরচ ও ভাউচার ম্যানেজমেন্ট</h2>
         <div className="flex flex-wrap gap-2">
             {(role === UserRole.ADMIN || role === UserRole.MD) && (
-               <button onClick={handleBulkDownload} disabled={isBulkDownloading} className="h-9 px-4 rounded-full bg-white text-indigo-600 hover:bg-indigo-50 border border-indigo-100 font-bold text-[10px] uppercase tracking-wider transition-all shadow-sm flex items-center gap-2 outline-none disabled:opacity-50">
+               <button onClick={handleBulkDownload} disabled={isBulkDownloading} className="h-9 px-4 rounded-full bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-gray-700 border border-indigo-100 dark:border-gray-700 font-bold text-[10px] uppercase tracking-wider transition-all shadow-sm flex items-center gap-2 outline-none disabled:opacity-50">
                    {isBulkDownloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Images className="w-3.5 h-3.5" />} 
                    <span>{isBulkDownloading ? `Processing ${bulkProgress}...` : 'Daily Vouchers'}</span>
                </button>
             )}
             {(role === UserRole.ADMIN || role === UserRole.STAFF) && (
-              <button onClick={handleOpenSubmitModal} className="h-9 px-5 rounded-full bg-indigo-600 text-white hover:bg-indigo-700 font-bold text-[10px] uppercase tracking-wider transition-all shadow-lg shadow-indigo-200 flex items-center gap-2 outline-none active:scale-95">
+              <button onClick={handleOpenSubmitModal} className="h-9 px-5 rounded-full bg-indigo-600 text-white hover:bg-indigo-700 font-bold text-[10px] uppercase tracking-wider transition-all shadow-lg shadow-indigo-200 dark:shadow-none flex items-center gap-2 outline-none active:scale-95">
                 <Receipt className="w-3.5 h-3.5" /> <span className="whitespace-nowrap">New Bill</span>
               </button>
             )}
             {role === UserRole.MD && (
-              <button onClick={handleApproveAll} className="h-9 px-5 rounded-full bg-emerald-500 text-white hover:bg-emerald-600 font-bold text-[10px] uppercase tracking-wider transition-all shadow-lg shadow-emerald-200 flex items-center gap-2 outline-none active:scale-95">
+              <button onClick={handleApproveAll} className="h-9 px-5 rounded-full bg-emerald-500 text-white hover:bg-emerald-600 font-bold text-[10px] uppercase tracking-wider transition-all shadow-lg shadow-emerald-200 dark:shadow-none flex items-center gap-2 outline-none active:scale-95">
                 <CheckCheck className="w-3.5 h-3.5" /> <span className="whitespace-nowrap">Approve All</span>
               </button>
             )}
@@ -484,30 +484,30 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
       </div>
 
       {/* Filter Bar */}
-      <div className="bg-gradient-to-r from-indigo-50 to-blue-50 backdrop-blur-xl p-2 rounded-[2rem] shadow-sm shadow-indigo-100/50 border border-indigo-100/50 flex flex-col lg:flex-row items-center gap-2 mb-6 transition-all">
+      <div className="bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-gray-800 dark:to-gray-900 backdrop-blur-xl p-2 rounded-[2rem] shadow-sm shadow-indigo-100/50 dark:shadow-none border border-indigo-100/50 dark:border-gray-700 flex flex-col lg:flex-row items-center gap-2 mb-6 transition-all">
         <div className="relative flex-1 w-full lg:w-auto group">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-3.5 w-3.5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                <Search className="h-3.5 w-3.5 text-slate-400 dark:text-gray-500 group-focus-within:text-indigo-500 transition-colors" />
             </div>
-            <input type="text" placeholder="Search..." className="block w-full pl-9 pr-4 py-2 bg-white border-none rounded-full text-xs font-bold text-slate-600 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all placeholder:text-slate-400 outline-none h-9 shadow-sm" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            <input type="text" placeholder="Search..." className="block w-full pl-9 pr-4 py-2 bg-white dark:bg-gray-800 border-none rounded-full text-xs font-bold text-slate-600 dark:text-gray-300 focus:bg-white dark:focus:bg-gray-800 focus:ring-2 focus:ring-indigo-100 dark:focus:ring-gray-600 transition-all placeholder:text-slate-400 dark:placeholder:text-gray-600 outline-none h-9 shadow-sm" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
         </div>
         {(role === UserRole.ADMIN || role === UserRole.MD) && (
           <div className="relative w-full lg:w-40 group">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><User className="h-3.5 w-3.5 text-slate-400 group-focus-within:text-purple-500 transition-colors" /></div>
-              <select className="block w-full pl-9 pr-8 py-2 bg-white border-none rounded-full text-xs font-bold text-slate-600 focus:bg-white focus:ring-2 focus:ring-purple-100 transition-all appearance-none cursor-pointer outline-none h-9 shadow-sm" value={selectedStaffFilter} onChange={(e) => setSelectedStaffFilter(e.target.value)}>
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><User className="h-3.5 w-3.5 text-slate-400 dark:text-gray-500 group-focus-within:text-purple-500 transition-colors" /></div>
+              <select className="block w-full pl-9 pr-8 py-2 bg-white dark:bg-gray-800 border-none rounded-full text-xs font-bold text-slate-600 dark:text-gray-300 focus:bg-white dark:focus:bg-gray-800 focus:ring-2 focus:ring-purple-100 dark:focus:ring-gray-600 transition-all appearance-none cursor-pointer outline-none h-9 shadow-sm" value={selectedStaffFilter} onChange={(e) => setSelectedStaffFilter(e.target.value)}>
                 <option value="">All Staff</option>
                 {activeStaff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
               <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none"><ChevronDown className="h-3 w-3 text-slate-300" /></div>
           </div>
         )}
-        <div className="flex items-center bg-white rounded-full px-1 py-1 border border-indigo-50 h-9 w-full lg:w-auto shadow-sm">
-            <div className="relative flex-1 min-w-[100px]"><input type="date" className="block w-full pl-3 pr-1 py-1 bg-transparent border-none text-[10px] font-bold text-slate-500 focus:ring-0 cursor-pointer h-full outline-none" value={startDate} onChange={(e) => setStartDate(e.target.value)} /></div>
-            <span className="text-slate-300 text-[10px] font-bold px-1">to</span>
-            <div className="relative flex-1 min-w-[100px]"><input type="date" className="block w-full pl-1 pr-3 py-1 bg-transparent border-none text-[10px] font-bold text-slate-500 focus:ring-0 cursor-pointer h-full text-right outline-none" value={endDate} onChange={(e) => setEndDate(e.target.value)} /></div>
+        <div className="flex items-center bg-white dark:bg-gray-800 rounded-full px-1 py-1 border border-indigo-50 dark:border-gray-700 h-9 w-full lg:w-auto shadow-sm">
+            <div className="relative flex-1 min-w-[100px]"><input type="date" className="block w-full pl-3 pr-1 py-1 bg-transparent border-none text-[10px] font-bold text-slate-500 dark:text-gray-400 focus:ring-0 cursor-pointer h-full outline-none" value={startDate} onChange={(e) => setStartDate(e.target.value)} /></div>
+            <span className="text-slate-300 dark:text-gray-600 text-[10px] font-bold px-1">to</span>
+            <div className="relative flex-1 min-w-[100px]"><input type="date" className="block w-full pl-1 pr-3 py-1 bg-transparent border-none text-[10px] font-bold text-slate-500 dark:text-gray-400 focus:ring-0 cursor-pointer h-full text-right outline-none" value={endDate} onChange={(e) => setEndDate(e.target.value)} /></div>
         </div>
         <div className="flex items-center gap-1.5 w-full lg:w-auto justify-end">
-            <button onClick={clearFilters} className="w-9 h-9 flex items-center justify-center bg-white text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all border border-slate-100 shadow-sm outline-none" title="Reset Filters"><FilterX className="w-3.5 h-3.5" /></button>
+            <button onClick={clearFilters} className="w-9 h-9 flex items-center justify-center bg-white dark:bg-gray-800 text-slate-400 dark:text-gray-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-full transition-all border border-slate-100 dark:border-gray-700 shadow-sm outline-none" title="Reset Filters"><FilterX className="w-3.5 h-3.5" /></button>
         </div>
       </div>
 
@@ -518,57 +518,57 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
           const staffMember = staffList.find(s => s.id === expense.staffId);
 
           return (
-          <div key={expense.id} className={`bg-white rounded-2xl shadow-sm border overflow-hidden flex flex-col hover:shadow-md transition-all ${isDuplicate && (role === UserRole.ADMIN || role === UserRole.MD) ? 'border-red-300 ring-2 ring-red-100' : 'border-gray-100'}`}>
+          <div key={expense.id} className={`bg-white dark:bg-gray-800 rounded-2xl shadow-sm border overflow-hidden flex flex-col hover:shadow-md transition-all ${isDuplicate && (role === UserRole.ADMIN || role === UserRole.MD) ? 'border-red-300 ring-2 ring-red-100' : 'border-gray-100 dark:border-gray-700'}`}>
             <div className="p-5 flex-1">
               <div className="flex justify-between items-start mb-4">
-                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${expense.status === 'APPROVED' ? 'bg-green-100 text-green-700' : expense.status === 'REJECTED' ? 'bg-red-100 text-red-700' : expense.status === 'VERIFIED' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
+                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${expense.status === 'APPROVED' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : expense.status === 'REJECTED' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : expense.status === 'VERIFIED' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'}`}>
                   {expense.status === 'PENDING' ? 'পেন্ডিং' : expense.status === 'VERIFIED' ? 'ভেরিফাইড (MD)' : expense.status === 'APPROVED' ? 'অনুমোদিত' : 'প্রত্যাখ্যাত'}
                 </span>
                 <div className="flex items-center gap-2">
                   {/* EDIT Button Logic: MD can NOT edit Pending bills */}
                   {((role === UserRole.ADMIN && (expense.status === 'PENDING' || expense.status === 'VERIFIED')) || (role === UserRole.MD && expense.status === 'VERIFIED')) && (
-                    <button onClick={() => openCorrectionModal(expense)} className="text-orange-500 hover:text-orange-700 transition-colors p-1 hover:bg-orange-50 rounded-full" title="বিল সংশোধন করুন"><Edit3 className="w-4 h-4" /></button>
+                    <button onClick={() => openCorrectionModal(expense)} className="text-orange-500 hover:text-orange-700 transition-colors p-1 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-full" title="বিল সংশোধন করুন"><Edit3 className="w-4 h-4" /></button>
                   )}
                   {expense.voucherImage && (
-                    <button onClick={() => setViewingVoucher(expense.voucherImage!)} className="text-indigo-600 hover:text-indigo-800 transition-colors p-1 hover:bg-indigo-50 rounded-full" title="ভাউচার দেখুন"><Eye className="w-4 h-4" /></button>
+                    <button onClick={() => setViewingVoucher(expense.voucherImage!)} className="text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300 transition-colors p-1 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-full" title="ভাউচার দেখুন"><Eye className="w-4 h-4" /></button>
                   )}
-                  <p className="text-xs text-gray-400">{new Date(expense.createdAt).toLocaleDateString('bn-BD')}</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">{new Date(expense.createdAt).toLocaleDateString('bn-BD')}</p>
                 </div>
               </div>
-              <h4 className="text-lg font-bold text-gray-800 mb-1">৳ {expense.amount.toLocaleString()}</h4>
-              <p className="text-sm text-gray-600 mb-4 font-medium h-10 line-clamp-2">{expense.reason}</p>
+              <h4 className="text-lg font-bold text-gray-800 dark:text-white mb-1">৳ {expense.amount.toLocaleString()}</h4>
+              <p className="text-sm text-gray-600 dark:text-gray-300 mb-4 font-medium h-10 line-clamp-2">{expense.reason}</p>
               {isDuplicate && (role === UserRole.ADMIN || role === UserRole.MD) && (
                  <div className="mb-3 bg-red-100 text-red-700 px-3 py-2 rounded-lg text-[10px] font-black flex items-center gap-1.5 border border-red-200 animate-pulse"><AlertTriangle className="w-4 h-4" /> সতর্কতা: ডুপ্লিকেট এন্ট্রি!</div>
               )}
-              <div className="flex items-center gap-3 py-3 border-t border-gray-50">
-                <div onClick={() => onOpenProfile && onOpenProfile(expense.staffId)} className="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-xs cursor-pointer hover:ring-2 hover:ring-indigo-200 transition-all overflow-hidden">
+              <div className="flex items-center gap-3 py-3 border-t border-gray-50 dark:border-gray-700">
+                <div onClick={() => onOpenProfile && onOpenProfile(expense.staffId)} className="w-8 h-8 rounded-full bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold text-xs cursor-pointer hover:ring-2 hover:ring-indigo-200 transition-all overflow-hidden">
                   {staffMember && staffMember.photo ? <img src={staffMember.photo} alt={expense.staffName} className="w-full h-full object-cover" /> : expense.staffName[0]}
                 </div>
-                <div><p className="text-xs font-bold text-gray-700">{expense.staffName}</p><p className="text-[10px] text-gray-400">ID: {getStaffDisplayId(expense.staffId)}</p></div>
+                <div><p className="text-xs font-bold text-gray-700 dark:text-gray-200">{expense.staffName}</p><p className="text-[10px] text-gray-400">ID: {getStaffDisplayId(expense.staffId)}</p></div>
               </div>
               {expense.status === 'APPROVED' && (
                  <div className="mt-3 flex gap-2">
-                    <button onClick={() => handleDownloadPNG(expense)} disabled={downloadingId === expense.id} className="flex-1 bg-gray-900 text-white py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 hover:bg-black transition-all disabled:opacity-70 disabled:cursor-wait">
+                    <button onClick={() => handleDownloadPNG(expense)} disabled={downloadingId === expense.id} className="flex-1 bg-gray-900 dark:bg-black text-white py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 hover:bg-black dark:hover:bg-gray-900 transition-all disabled:opacity-70 disabled:cursor-wait">
                        {downloadingId === expense.id ? <span className="flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin"/> Downloading...</span> : <><ImageIcon className="w-3 h-3" /> PNG Voucher</>}
                     </button>
-                    <button onClick={() => handlePrintPDF(expense)} className="flex-1 bg-gray-100 text-gray-700 py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 hover:bg-gray-200 transition-all border border-gray-200"><Printer className="w-3 h-3" /> PDF/Print</button>
+                    <button onClick={() => handlePrintPDF(expense)} className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 hover:bg-gray-200 dark:hover:bg-gray-600 transition-all border border-gray-200 dark:border-gray-600"><Printer className="w-3 h-3" /> PDF/Print</button>
                  </div>
               )}
             </div>
-            <div className="bg-gray-50 p-3 flex gap-2 border-t border-gray-100">
+            <div className="bg-gray-50 dark:bg-gray-700/30 p-3 flex gap-2 border-t border-gray-100 dark:border-gray-700">
                {role === UserRole.ADMIN && (
                  <>
                    {expense.status === 'PENDING' && (
                      <>
                         <button onClick={() => updateStatus(expense.id, 'VERIFIED')} className="flex-[2] bg-indigo-600 text-white py-2 rounded-lg text-xs font-bold hover:bg-indigo-700 shadow-sm transition-colors">MD-র কাছে পাঠান</button>
-                        <button onClick={() => updateStatus(expense.id, 'REJECTED')} className="flex-1 bg-white text-red-600 border border-red-200 py-2 rounded-lg text-xs font-bold hover:bg-red-50 transition-colors">বাতিল</button>
-                        <button onClick={() => requestDelete(expense)} className="px-3 bg-white text-gray-400 border border-gray-200 py-2 rounded-lg hover:text-red-500 hover:border-red-200 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                        <button onClick={() => updateStatus(expense.id, 'REJECTED')} className="flex-1 bg-white dark:bg-gray-800 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/50 py-2 rounded-lg text-xs font-bold hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">বাতিল</button>
+                        <button onClick={() => requestDelete(expense)} className="px-3 bg-white dark:bg-gray-800 text-gray-400 border border-gray-200 dark:border-gray-700 py-2 rounded-lg hover:text-red-500 hover:border-red-200 transition-colors"><Trash2 className="w-4 h-4" /></button>
                      </>
                    )}
                    {expense.status === 'VERIFIED' && (
                      <>
-                        <button onClick={() => updateStatus(expense.id, 'PENDING')} className="flex-1 bg-orange-50 text-orange-700 border border-orange-200 py-2 rounded-lg text-xs font-bold hover:bg-orange-100 transition-colors flex items-center justify-center gap-2"><RotateCcw className="w-3.5 h-3.5" /> ফেরত আনুন</button>
-                        <button onClick={() => requestDelete(expense)} className="flex-1 bg-red-50 text-red-700 border border-red-200 py-2 rounded-lg text-xs font-bold hover:bg-red-100 transition-colors flex items-center justify-center gap-2"><Trash2 className="w-3.5 h-3.5" /> ডিলিট করুন</button>
+                        <button onClick={() => updateStatus(expense.id, 'PENDING')} className="flex-1 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800 py-2 rounded-lg text-xs font-bold hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors flex items-center justify-center gap-2"><RotateCcw className="w-3.5 h-3.5" /> ফেরত আনুন</button>
+                        <button onClick={() => requestDelete(expense)} className="flex-1 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800 py-2 rounded-lg text-xs font-bold hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors flex items-center justify-center gap-2"><Trash2 className="w-3.5 h-3.5" /> ডিলিট করুন</button>
                      </>
                    )}
                  </>
@@ -578,29 +578,29 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                    {expense.status === 'VERIFIED' && (
                       <>
                         <button type="button" onClick={() => updateStatus(expense.id, 'APPROVED')} className="flex-[2] bg-indigo-600 text-white py-2 rounded-lg text-xs font-bold hover:bg-indigo-700 shadow-sm transition-colors cursor-pointer active:scale-95"><CheckCircle className="w-4 h-4 inline mr-1"/> অ্যাপ্রুভ করুন</button>
-                        <button type="button" onClick={() => updateStatus(expense.id, 'REJECTED')} className="flex-1 bg-white text-red-600 border border-red-200 py-2 rounded-lg text-xs font-bold hover:bg-red-50 transition-colors cursor-pointer active:scale-95">বাতিল</button>
+                        <button type="button" onClick={() => updateStatus(expense.id, 'REJECTED')} className="flex-1 bg-white dark:bg-gray-800 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/50 py-2 rounded-lg text-xs font-bold hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors cursor-pointer active:scale-95">বাতিল</button>
                       </>
                    )}
                    {expense.status === 'PENDING' && (
-                      <div className="flex-[2] bg-gray-100 text-gray-400 border border-gray-200 py-2 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 cursor-not-allowed select-none">
+                      <div className="flex-[2] bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 border border-gray-200 dark:border-gray-700 py-2 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 cursor-not-allowed select-none">
                         <Clock className="w-3 h-3" /> অ্যাডমিন ভেরিফিকেশন বাকি
                       </div>
                    )}
                  </>
                )}
                {((role === UserRole.ADMIN || role === UserRole.MD) && (expense.status === 'APPROVED' || expense.status === 'REJECTED')) && (
-                  <button onClick={() => requestDelete(expense)} className="w-full bg-white text-gray-400 border border-gray-200 hover:border-red-200 hover:text-red-500 py-2 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-2"><Trash2 className="w-4 h-4" /> রেকর্ড মুছে ফেলুন</button>
+                  <button onClick={() => requestDelete(expense)} className="w-full bg-white dark:bg-gray-800 text-gray-400 border border-gray-200 dark:border-gray-700 hover:border-red-200 hover:text-red-500 py-2 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-2"><Trash2 className="w-4 h-4" /> রেকর্ড মুছে ফেলুন</button>
                )}
             </div>
           </div>
         )})}
-        {filteredExpenses.length === 0 && <div className="col-span-full py-12 text-center bg-white rounded-2xl border border-dashed border-gray-200 text-gray-400">কোনো বিল পাওয়া যায়নি</div>}
+        {filteredExpenses.length === 0 && <div className="col-span-full py-12 text-center bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-200 dark:border-gray-700 text-gray-400">কোনো বিল পাওয়া যায়নি</div>}
       </div>
 
       {isSubmitModalOpen && createPortal(
         <div className="fixed inset-0 z-[1001] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-indigo-600 text-white shrink-0">
+          <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-indigo-600 text-white shrink-0">
               <h3 className="font-bold text-xl">নতুন বিল জমা দিন</h3>
               <button onClick={() => setIsSubmitModalOpen(false)} className="text-indigo-200 hover:text-white transition-colors">×</button>
             </div>
@@ -608,14 +608,14 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
             <form id="expense-form" onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
                 <div className="overflow-y-auto p-4 custom-scrollbar flex-1 space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">স্টাফ নির্বাচন করুন</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">স্টাফ নির্বাচন করুন</label>
                     {role === UserRole.STAFF ? (
-                      <div className="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg font-bold text-gray-600 flex items-center justify-between cursor-not-allowed">
+                      <div className="w-full px-4 py-2 bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg font-bold text-gray-600 dark:text-gray-300 flex items-center justify-between cursor-not-allowed">
                          <span>{currentUser}</span>
-                         <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded uppercase">Self</span>
+                         <span className="text-[10px] bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300 px-2 py-0.5 rounded uppercase">Self</span>
                       </div>
                     ) : (
-                      <select required className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all" value={formData.staffId} onChange={(e) => setFormData({...formData, staffId: e.target.value})}>
+                      <select required className="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all" value={formData.staffId} onChange={(e) => setFormData({...formData, staffId: e.target.value})}>
                         <option value="">নির্বাচন করুন</option>
                         {activeStaff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                       </select>
@@ -625,26 +625,26 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                   <div className="grid grid-cols-2 gap-3">
                     {(role === UserRole.ADMIN || role === UserRole.MD) && (
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">তারিখ (Date)</label>
-                        <input type="date" required className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm font-bold" value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} />
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">তারিখ (Date)</label>
+                        <input type="date" required className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm font-bold" value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} />
                       </div>
                     )}
                     <div className={`${(role === UserRole.ADMIN || role === UserRole.MD) ? '' : 'col-span-2'}`}>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">টাকার পরিমাণ</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">টাকার পরিমাণ</label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">৳</span>
-                        <input required type="number" className="w-full pl-7 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-lg text-gray-800" placeholder="0.00" value={formData.amount || ''} onChange={(e) => setFormData({...formData, amount: Number(e.target.value)})} />
+                        <input required type="number" className="w-full pl-7 pr-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-lg text-gray-800 dark:text-white" placeholder="0.00" value={formData.amount || ''} onChange={(e) => setFormData({...formData, amount: Number(e.target.value)})} />
                       </div>
                     </div>
                   </div>
                   
                   {duplicateCheck.length > 0 && (
-                      <div className="p-3 bg-red-100 border border-red-200 rounded-xl flex flex-col gap-2 animate-in fade-in zoom-in duration-300">
-                          <div className="flex items-center gap-2 text-red-700 font-black text-xs uppercase tracking-widest"><AlertTriangle className="w-4 h-4" /> সতর্কতা: ডুপ্লিকেট এন্ট্রি!</div>
-                          <p className="text-xs font-bold text-red-600 leading-relaxed">এই স্টাফের নামের সাথে <u>{new Date(formData.date).toLocaleDateString('bn-BD')}</u> তারিখে ইতিমধ্যে <span className="text-lg">{duplicateCheck.length}</span> টি বিল আছে।</p>
-                          <div className="bg-white/50 p-2 rounded-lg max-h-24 overflow-y-auto custom-scrollbar">
+                      <div className="p-3 bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl flex flex-col gap-2 animate-in fade-in zoom-in duration-300">
+                          <div className="flex items-center gap-2 text-red-700 dark:text-red-400 font-black text-xs uppercase tracking-widest"><AlertTriangle className="w-4 h-4" /> সতর্কতা: ডুপ্লিকেট এন্ট্রি!</div>
+                          <p className="text-xs font-bold text-red-600 dark:text-red-300 leading-relaxed">এই স্টাফের নামের সাথে <u>{new Date(formData.date).toLocaleDateString('bn-BD')}</u> তারিখে ইতিমধ্যে <span className="text-lg">{duplicateCheck.length}</span> টি বিল আছে।</p>
+                          <div className="bg-white/50 dark:bg-black/20 p-2 rounded-lg max-h-24 overflow-y-auto custom-scrollbar">
                               {duplicateCheck.map(e => (
-                                  <div key={e.id} className="flex justify-between text-[10px] font-bold text-red-500 border-b border-red-100 last:border-0 py-1">
+                                  <div key={e.id} className="flex justify-between text-[10px] font-bold text-red-500 dark:text-red-400 border-b border-red-100 dark:border-red-800 last:border-0 py-1">
                                       <span>{e.reason.substring(0, 20)}...</span><span>৳ {e.amount}</span>
                                   </div>
                               ))}
@@ -653,15 +653,15 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                   )}
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1 flex justify-between">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex justify-between">
                       <span>খরচের কারণ ও বিবরণ</span>
-                      <span className="text-xs text-indigo-600 font-bold flex items-center gap-1"><Sparkles className="w-3 h-3"/> Auto Calculator</span>
+                      <span className="text-xs text-indigo-600 dark:text-indigo-400 font-bold flex items-center gap-1"><Sparkles className="w-3 h-3"/> Auto Calculator</span>
                     </label>
-                    <textarea required rows={2} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all" placeholder="যেমন: নাস্তা ৫০, রিক্সা ভাড়া ১০০..." value={formData.reason} onChange={handleReasonChange} />
+                    <textarea required rows={2} className="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all" placeholder="যেমন: নাস্তা ৫০, রিক্সা ভাড়া ১০০..." value={formData.reason} onChange={handleReasonChange} />
                     
                     {detectedTypos.length > 0 && (
-                       <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-lg animate-in fade-in zoom-in duration-200">
-                          <div className="flex items-center gap-1.5 text-yellow-800 text-[10px] font-bold uppercase mb-1.5">
+                       <div className="mt-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg animate-in fade-in zoom-in duration-200">
+                          <div className="flex items-center gap-1.5 text-yellow-800 dark:text-yellow-400 text-[10px] font-bold uppercase mb-1.5">
                              <Wand2 className="w-3 h-3" />
                              বানান সতর্কতা (Spelling Suggestion)
                           </div>
@@ -671,12 +671,12 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                                   key={idx}
                                   type="button" 
                                   onClick={() => fixTypo(typo.wrong, typo.correct)}
-                                  className="flex items-center gap-1 px-2 py-1 bg-white border border-yellow-300 rounded text-xs font-bold text-gray-700 hover:bg-yellow-100 transition-colors shadow-sm"
+                                  className="flex items-center gap-1 px-2 py-1 bg-white dark:bg-gray-800 border border-yellow-300 dark:border-yellow-700 rounded text-xs font-bold text-gray-700 dark:text-gray-300 hover:bg-yellow-100 dark:hover:bg-yellow-900/40 transition-colors shadow-sm"
                                   title="ক্লিক করে ঠিক করুন"
                                 >
                                    <span className="line-through text-red-400 opacity-70">{typo.wrong}</span>
                                    <span className="text-gray-400">→</span>
-                                   <span className="text-green-600">{typo.correct}</span>
+                                   <span className="text-green-600 dark:text-green-400">{typo.correct}</span>
                                 </button>
                              ))}
                           </div>
@@ -685,28 +685,28 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                   </div>
 
                   <div className="space-y-2">
-                     <label className="block text-sm font-medium text-gray-700">ভাউচার ছবি</label>
+                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">ভাউচার ছবি</label>
                      <div className="flex gap-2">
-                        <button type="button" onClick={() => fileInputRef.current?.click()} className="flex-1 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-gray-200 transition-colors"><ImageIcon className="w-4 h-4" /> গ্যালারি</button>
-                        <button type="button" onClick={() => cameraInputRef.current?.click()} className="flex-1 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-indigo-100 transition-colors"><Camera className="w-4 h-4" /> ক্যামেরা</button>
+                        <button type="button" onClick={() => fileInputRef.current?.click()} className="flex-1 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-gray-200 dark:border-gray-600 transition-colors"><ImageIcon className="w-4 h-4" /> গ্যালারি</button>
+                        <button type="button" onClick={() => cameraInputRef.current?.click()} className="flex-1 py-2 bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-indigo-100 dark:border-indigo-800 transition-colors"><Camera className="w-4 h-4" /> ক্যামেরা</button>
                      </div>
                      <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={handleImageUpload} />
                      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" hidden onChange={handleImageUpload} />
                      
                      {formData.voucherImage ? (
-                       <div className="relative h-24 w-full bg-gray-50 rounded-lg border border-gray-200 overflow-hidden">
+                       <div className="relative h-24 w-full bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
                          <img src={formData.voucherImage} alt="Preview" className="h-full w-full object-contain" />
                          <button type="button" onClick={removeImage} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full shadow-sm hover:bg-red-600 transition-colors"><X className="w-3 h-3" /></button>
                        </div>
                      ) : (
-                       <div className="h-24 w-full border-2 border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center bg-gray-50 text-gray-400">
+                       <div className="h-24 w-full border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 text-gray-400">
                           <p className="text-xs">কোনো ছবি নির্বাচন করা হয়নি</p>
                        </div>
                      )}
                   </div>
                 </div>
 
-                <div className="p-4 border-t border-gray-100 bg-gray-50 shrink-0">
+                <div className="p-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 shrink-0">
                     <button type="submit" className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all flex items-center justify-center gap-2 active:scale-95">
                         <MessageCircle className="w-4 h-4" /> সাবমিট করুন (Submit)
                     </button>
@@ -719,8 +719,8 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
 
       {isCorrectionModalOpen && correctionData && createPortal(
         <div className="fixed inset-0 z-[1001] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col max-h-[85vh]">
-             <div className="p-5 border-b border-gray-100 bg-orange-500 text-white flex justify-between items-center shrink-0">
+          <div className="bg-white dark:bg-gray-800 w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col max-h-[85vh]">
+             <div className="p-5 border-b border-gray-100 dark:border-gray-700 bg-orange-500 text-white flex justify-between items-center shrink-0">
                 <h3 className="font-bold text-lg">বিল সংশোধন (Correction)</h3>
                 <button onClick={() => setIsCorrectionModalOpen(false)} className="text-orange-100 hover:text-white"><X className="w-5 h-5"/></button>
              </div>
@@ -728,15 +728,15 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                  <form onSubmit={saveCorrection} className="space-y-4">
                     <div>
                       <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">তারিখ (Date)</label>
-                      <input type="date" required className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none font-bold text-gray-800" value={correctionData.date} onChange={(e) => setCorrectionData({...correctionData, date: e.target.value})} />
+                      <input type="date" required className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none font-bold text-gray-800 dark:text-white" value={correctionData.date} onChange={(e) => setCorrectionData({...correctionData, date: e.target.value})} />
                     </div>
                     <div>
                       <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">সঠিক টাকার পরিমাণ</label>
-                      <input type="number" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none font-bold text-xl text-gray-800" value={correctionData.amount} onChange={(e) => setCorrectionData({...correctionData, amount: Number(e.target.value)})} />
+                      <input type="number" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none font-bold text-xl text-gray-800 dark:text-white" value={correctionData.amount} onChange={(e) => setCorrectionData({...correctionData, amount: Number(e.target.value)})} />
                     </div>
                     <div>
                       <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">সংশোধিত কারণ/নোট</label>
-                      <textarea rows={4} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm font-medium" value={correctionData.reason} onChange={(e) => setCorrectionData({...correctionData, reason: e.target.value})} />
+                      <textarea rows={4} className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm font-medium dark:text-gray-200" value={correctionData.reason} onChange={(e) => setCorrectionData({...correctionData, reason: e.target.value})} />
                     </div>
                     <button type="submit" className="w-full bg-orange-500 text-white py-3 rounded-xl font-bold hover:bg-orange-600 shadow-lg shadow-orange-100 flex items-center justify-center gap-2"><Edit3 className="w-4 h-4" /> সেইভ করুন</button>
                  </form>
@@ -749,13 +749,13 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
       {/* Delete Confirmation Modal */}
       {deleteConfirmExpense && createPortal(
         <div className="fixed inset-0 z-[1002] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
+          <div className="bg-white dark:bg-gray-800 w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
             <div className="p-6 text-center">
-              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <AlertTriangle className="w-8 h-8 text-red-600" />
+              <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle className="w-8 h-8 text-red-600 dark:text-red-400" />
               </div>
-              <h3 className="text-xl font-black text-gray-800 mb-2">আপনি কি নিশ্চিত?</h3>
-              <p className="text-sm text-gray-500 mb-6">
+              <h3 className="text-xl font-black text-gray-800 dark:text-white mb-2">আপনি কি নিশ্চিত?</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
                 {deleteConfirmExpense.status === 'APPROVED' ? 
                   `আপনি ৳${deleteConfirmExpense.amount} টাকার একটি "অনুমোদিত" (Approved) বিল ডিলিট করতে চাচ্ছেন।` :
                  deleteConfirmExpense.status === 'PENDING' ?
@@ -768,7 +768,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                 }
               </p>
               <div className="flex gap-3">
-                <button onClick={() => setDeleteConfirmExpense(null)} className="flex-1 py-3 border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors">না, বাতিল করুন</button>
+                <button onClick={() => setDeleteConfirmExpense(null)} className="flex-1 py-3 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-bold rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">না, বাতিল করুন</button>
                 <button onClick={confirmDelete} className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 shadow-lg shadow-red-200 transition-colors">হ্যাঁ, ডিলিট করুন</button>
               </div>
             </div>

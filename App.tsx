@@ -224,6 +224,15 @@ const App: React.FC = () => {
     return safeGetItem('app_theme') === 'dark';
   });
 
+  // Apply dark mode class to HTML element for Portals support
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDarkMode]);
+
   const [appNotifications, setAppNotifications] = useState<AppNotification[]>(() => {
     try {
       const saved = safeGetItem('app_notifications');
