@@ -140,12 +140,19 @@ const App: React.FC = () => {
           (error) => {
              // Location Error - Block Access
              console.error("Location Monitor: Access Lost", error);
+             
+             // If Timeout (3), it means signal is weak, but location might still be ON.
+             // We shouldn't block the user immediately for weak signal.
+             if (error.code === 3) {
+                 return; // Do nothing, assume it's okay for now.
+             }
+             
              setIsLocationBlocked(true);
           },
           {
-             enableHighAccuracy: true,
-             timeout: 5000,
-             maximumAge: 0 // Do not use cached position
+             enableHighAccuracy: false, // Changed to false: We just need to know if location is ON, precision doesn't matter for this check.
+             timeout: 20000, // Increased to 20s
+             maximumAge: 1000 * 60 * 10 // Allow 10 minutes old cached position for permission check
           }
        );
     };
@@ -153,8 +160,8 @@ const App: React.FC = () => {
     // 1. Check immediately
     checkLocationStatus();
 
-    // 2. Check every 10 seconds
-    const intervalId = setInterval(checkLocationStatus, 10000);
+    // 2. Check every 30 seconds
+    const intervalId = setInterval(checkLocationStatus, 30000);
 
     // 3. Check when user returns to the tab/app
     const handleVisibilityChange = () => {
