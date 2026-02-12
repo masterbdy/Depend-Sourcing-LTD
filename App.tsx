@@ -285,6 +285,19 @@ const App: React.FC = () => {
   const [searchCount, setSearchCount] = useState<number>(0);
   const [visitCount, setVisitCount] = useState<number>(0); // New State for Visit Counter
 
+  // SEEN STATE TRACKING
+  const [seenItems, setSeenItems] = useState<{expenses: string[], complaints: string[], locations: string[]}>(() => {
+    try {
+        return {
+            expenses: JSON.parse(safeGetItem('seen_expenses', '[]')),
+            complaints: JSON.parse(safeGetItem('seen_complaints', '[]')),
+            locations: JSON.parse(safeGetItem('seen_locations', '[]'))
+        };
+    } catch {
+        return { expenses: [], complaints: [], locations: [] };
+    }
+  });
+
   const cleanArray = <T,>(data: any): T[] => {
     if (!data) return [];
     const array = typeof data === 'object' && !Array.isArray(data) ? Object.values(data) : data;
@@ -454,6 +467,58 @@ const App: React.FC = () => {
       setIsSyncing(false);
     }
   }, [firebaseConfig]);
+
+  // EFFECT: Mark items as seen when entering tab
+  useEffect(() => {
+    let updated = false;
+    const newState = { ...seenItems };
+
+    if (activeTab === 'expenses') {
+        const relevant = role === UserRole.ADMIN 
+            ? expenses.filter(e => !e.isDeleted && e.status === 'PENDING')
+            : role === UserRole.MD
+                ? expenses.filter(e => !e.isDeleted && e.status === 'VERIFIED')
+                : [];
+        const ids = relevant.map(e => e.id);
+        const newIds = ids.filter(id => !newState.expenses.includes(id));
+        if (newIds.length > 0) {
+            newState.expenses = [...newState.expenses, ...newIds];
+            safeSetItem('seen_expenses', JSON.stringify(newState.expenses));
+            updated = true;
+        }
+    }
+
+    if (activeTab === 'complaints') {
+        const relevant = (role === UserRole.ADMIN || role === UserRole.MD)
+            ? complaints.filter(c => !c.isDeleted && c.status === 'PENDING')
+            : [];
+        const ids = relevant.map(c => c.id);
+        const newIds = ids.filter(id => !newState.complaints.includes(id));
+        if (newIds.length > 0) {
+            newState.complaints = [...newState.complaints, ...newIds];
+            safeSetItem('seen_complaints', JSON.stringify(newState.complaints));
+            updated = true;
+        }
+    }
+
+    if (activeTab === 'live-location' && role === UserRole.ADMIN) {
+        const now = Date.now();
+        const active = Object.values(liveLocations).filter((l: any) => 
+            (now - new Date(l.timestamp).getTime()) < 5 * 60 * 1000
+        );
+        const ids = active.map((l: any) => l.staffId);
+        const newIds = ids.filter(id => !newState.locations.includes(id));
+        if (newIds.length > 0) {
+            newState.locations = [...newState.locations, ...newIds];
+            safeSetItem('seen_locations', JSON.stringify(newState.locations));
+            updated = true;
+        }
+    }
+
+    if (updated) {
+        setSeenItems(newState);
+    }
+  }, [activeTab, expenses, complaints, liveLocations, role]);
 
   useEffect(() => {
     const checkPermissions = async () => {
@@ -877,6 +942,42 @@ const App: React.FC = () => {
   };
 
   const unreadCount = appNotifications.filter(n => !n.isRead).length;
+
+  // --- DYNAMIC BADGE COUNTS (Updated to support 'Seen' state) ---
+  const badgeCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+
+    // 1. Expenses Badge (Unseen Only)
+    if (role === UserRole.ADMIN) {
+       counts['expenses'] = expenses.filter(e => !e.isDeleted && e.status === 'PENDING' && !seenItems.expenses.includes(e.id)).length;
+    } else if (role === UserRole.MD) {
+       counts['expenses'] = expenses.filter(e => !e.isDeleted && e.status === 'VERIFIED' && !seenItems.expenses.includes(e.id)).length;
+    }
+
+    // 2. Complaints Badge (Unseen Only)
+    if (role === UserRole.ADMIN || role === UserRole.MD) {
+       counts['complaints'] = complaints.filter(c => !c.isDeleted && c.status === 'PENDING' && !seenItems.complaints.includes(c.id)).length;
+    }
+
+    // 3. Live Location Badge (Active & Unseen Users)
+    if (role === UserRole.ADMIN) {
+       const now = Date.now();
+       counts['live-location'] = Object.values(liveLocations).filter((l: any) => 
+          (now - new Date(l.timestamp).getTime()) < 5 * 60 * 1000 && 
+          !seenItems.locations.includes(l.staffId)
+       ).length;
+    }
+    
+    // 4. Notices Badge (Standard logic works fine as NoticeBoardView updates the 'seen' state in data model)
+    if (currentUser) {
+        counts['notices'] = notices.filter(n => 
+          !n.isDeleted && 
+          !(n.reactions || []).some(r => r.userId === currentUser)
+        ).length;
+    }
+
+    return counts;
+  }, [expenses, complaints, liveLocations, notices, role, currentUser, seenItems]);
 
   const prevMessagesLength = useRef(0);
   useEffect(() => {
@@ -1452,6 +1553,8 @@ const App: React.FC = () => {
         <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto custom-scrollbar relative z-10">
           {allowedNavItems.map((item) => {
             const isActive = activeTab === item.id;
+            const badge = badgeCounts[item.id] || 0;
+
             return (
               <button
                 key={item.id}
@@ -1468,6 +1571,14 @@ const App: React.FC = () => {
                   }`}
                 />
                 <span className="relative z-10 flex-1 text-left tracking-wide">{item.label}</span>
+                
+                {/* NOTIFICATION BADGE (Uses memoized count) */}
+                {badge > 0 && (
+                   <span className="ml-auto relative z-10 bg-red-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full min-w-[1.2rem] text-center shadow-sm animate-pulse">
+                      {badge > 99 ? '99+' : badge}
+                   </span>
+                )}
+
                 {isActive && <div className="w-2 h-2 rounded-full bg-white shadow-[0_0_10px_white] animate-pulse" />}
               </button>
             );
@@ -1604,6 +1715,8 @@ const App: React.FC = () => {
       <div className="md:hidden fixed bottom-4 left-4 right-4 bg-gray-900/90 backdrop-blur-lg border border-white/10 rounded-2xl flex justify-around items-center px-2 h-16 z-50 shadow-2xl">
          {bottomNavItems.map((item) => {
             const isActive = activeTab === item.id;
+            const badge = badgeCounts[item.id] || 0;
+
             return (
             <button 
                key={item.id}
@@ -1616,6 +1729,13 @@ const App: React.FC = () => {
                      : 'w-10 h-10 text-gray-400 hover:text-gray-200'
                }`}>
                   <item.icon className={`transition-all ${isActive ? 'w-5 h-5 text-white' : 'w-5 h-5'}`} />
+                  
+                  {/* MOBILE BADGE (Uses memoized count) */}
+                  {badge > 0 && (
+                     <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-black px-1 rounded-full min-w-[1rem] h-4 flex items-center justify-center border border-gray-900">
+                        {badge > 9 ? '9+' : badge}
+                     </span>
+                  )}
                </div>
                <span className={`text-[10px] font-bold transition-all duration-300 absolute -bottom-1 ${isActive ? 'opacity-100 text-indigo-300 translate-y-0' : 'opacity-0 translate-y-2'}`}>
                   {item.label}
@@ -1667,7 +1787,10 @@ const App: React.FC = () => {
 
                <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1 custom-scrollbar">
                   <p className="px-3 text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Navigation</p>
-                  {mobileSidebarItems.map((item) => (
+                  {mobileSidebarItems.map((item) => {
+                     const badge = badgeCounts[item.id] || 0;
+
+                     return (
                      <button 
                         key={item.id}
                         onClick={() => { setActiveTab(item.id); setIsMoreMenuOpen(false); }}
@@ -1685,9 +1808,16 @@ const App: React.FC = () => {
                            <item.icon className={`w-4 h-4 ${item.color}`} />
                         </div>
                         <span className="flex-1 text-left">{item.label}</span>
-                        {activeTab === item.id && <ChevronRight className="w-4 h-4 opacity-50" />}
+                        
+                        {badge > 0 && (
+                           <span className="bg-red-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full min-w-[1.2rem] text-center">
+                              {badge > 99 ? '99+' : badge}
+                           </span>
+                        )}
+
+                        {activeTab === item.id && badge === 0 && <ChevronRight className="w-4 h-4 opacity-50" />}
                      </button>
-                  ))}
+                  )})}
                </div>
 
                <div className="p-4 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50">
