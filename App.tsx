@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   LayoutGrid, UsersRound, Footprints, Banknote, PieChart, Settings2, Recycle, 
@@ -78,6 +79,11 @@ const getDeviceInfo = () => {
   return device;
 };
 
+const DEFAULT_CERT_LOGOS = {
+  oeko: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/OEKO-TEX_STANDARD_100_logo.svg/320px-OEKO-TEX_STANDARD_100_logo.svg.png",
+  gscs: "https://cdn.worldvectorlogo.com/logos/global-recycled-standard-1.svg"
+};
+
 const App: React.FC = () => {
   const [role, setRole] = useState<UserRole | null>(null);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
@@ -108,6 +114,19 @@ const App: React.FC = () => {
     return Number(safeGetItem('allowed_backdate_days', '1'));
   });
 
+  const [certLogos, setCertLogos] = useState(() => {
+    try {
+        const saved = safeGetItem('cert_logos');
+        return saved ? JSON.parse(saved) : DEFAULT_CERT_LOGOS;
+    } catch {
+        return DEFAULT_CERT_LOGOS;
+    }
+  });
+
+  const [companyLogo, setCompanyLogo] = useState(() => {
+    return safeGetItem('company_logo') || '';
+  });
+
   const updateBackdateDays = (days: number) => {
     setAllowedBackdateDays(days);
     safeSetItem('allowed_backdate_days', String(days));
@@ -122,6 +141,37 @@ const App: React.FC = () => {
           console.error("Failed to sync settings", e);
        }
     }
+  };
+
+  const updateCertLogos = (key: 'oeko' | 'gscs', base64: string) => {
+      const newLogos = { ...certLogos, [key]: base64 };
+      setCertLogos(newLogos);
+      safeSetItem('cert_logos', JSON.stringify(newLogos));
+      
+      if (firebaseConfig && firebaseConfig.databaseURL) {
+          try {
+             const app = getApp();
+             const db = getDatabase(app, firebaseConfig.databaseURL);
+             set(ref(db, `app_settings/cert_logos/${key}`), base64);
+          } catch (e) {
+             console.error("Failed to sync cert logo", e);
+          }
+      }
+  };
+
+  const updateCompanyLogo = (base64: string) => {
+      setCompanyLogo(base64);
+      safeSetItem('company_logo', base64);
+      
+      if (firebaseConfig && firebaseConfig.databaseURL) {
+          try {
+             const app = getApp();
+             const db = getDatabase(app, firebaseConfig.databaseURL);
+             set(ref(db, `app_settings/company_logo`), base64);
+          } catch (e) {
+             console.error("Failed to sync company logo", e);
+          }
+      }
   };
   
   // PWA Install State
@@ -497,6 +547,25 @@ const App: React.FC = () => {
               setAllowedBackdateDays(Number(days));
               safeSetItem('allowed_backdate_days', String(days));
            }
+        });
+
+        // Listener for Cert Logos
+        const certRef = ref(dbInstance, 'app_settings/cert_logos');
+        onValue(certRef, (snapshot) => {
+            if (snapshot.exists()) {
+                setCertLogos(prev => ({ ...prev, ...snapshot.val() }));
+                safeSetItem('cert_logos', JSON.stringify(snapshot.val()));
+            }
+        });
+
+        // Listener for Company Logo
+        const logoRef = ref(dbInstance, 'app_settings/company_logo');
+        onValue(logoRef, (snapshot) => {
+            if (snapshot.exists()) {
+                const val = snapshot.val();
+                setCompanyLogo(val);
+                safeSetItem('company_logo', val);
+            }
         });
       }
     } catch (error: any) {
@@ -1379,7 +1448,7 @@ const App: React.FC = () => {
       case 'reports': return <ReportsView expenses={expenses} staffList={staffList} advances={advances} attendanceList={attendanceList} funds={funds} movements={movements} role={role!} />;
       case 'settings': return <SettingsView billingRules={billingRules} setBillingRules={updateBillingRules} role={role!} exportData={handleExport} importData={handleImport} cloudConfig={firebaseConfig} saveCloudConfig={(config) => { safeSetItem('fb_config', JSON.stringify(config)); alert('Settings saved! Reloading...'); window.location.reload(); }} staffList={staffList} productEditors={productEditors} setProductEditors={updateProductEditors} allowedBackdateDays={allowedBackdateDays} setAllowedBackdateDays={updateBackdateDays} />;
       case 'trash': return <TrashView staffList={staffList} setStaffList={updateStaffList} movements={movements} setMovements={updateMovements} expenses={expenses} setExpenses={updateExpenses} funds={funds} setFunds={updateFunds} notices={notices} setNotices={updateNotices} role={role!} />;
-      case 'products': return <ProductCatalogView onLogout={() => {}} products={products} setProducts={updateProducts} role={role!} productEditors={productEditors} currentStaffId={myStaffId} onTrackSearch={handleTrackSearch} visitCount={visitCount} setComplaints={updateComplaints} />; 
+      case 'products': return <ProductCatalogView onLogout={() => {}} products={products} setProducts={updateProducts} role={role!} productEditors={productEditors} currentStaffId={myStaffId} onTrackSearch={handleTrackSearch} visitCount={visitCount} setComplaints={updateComplaints} certLogos={certLogos} onUpdateCertLogo={updateCertLogos} companyLogo={companyLogo} onUpdateCompanyLogo={updateCompanyLogo} />; 
       default: return <DashboardView totalExpense={totalExpense} pendingApprovals={pendingApprovals} expenses={expenses} cloudError={cloudError} totalFund={totalFund} cashOnHand={cashOnHand} role={role!} staffList={staffList} advances={advances} currentUser={currentUser} onOpenProfile={openProfile} searchCount={searchCount} />;
     }
   };
@@ -1388,7 +1457,7 @@ const App: React.FC = () => {
 
   // --- GUEST VIEW RENDER ---
   if (role === UserRole.GUEST) {
-    return <ProductCatalogView onLogout={handleLogout} products={products} setProducts={updateProducts} role={role} productEditors={productEditors} currentStaffId={null} onTrackSearch={handleTrackSearch} visitCount={visitCount} setComplaints={updateComplaints} />;
+    return <ProductCatalogView onLogout={handleLogout} products={products} setProducts={updateProducts} role={role} productEditors={productEditors} currentStaffId={null} onTrackSearch={handleTrackSearch} visitCount={visitCount} setComplaints={updateComplaints} certLogos={certLogos} onUpdateCertLogo={updateCertLogos} companyLogo={companyLogo} onUpdateCompanyLogo={updateCompanyLogo} />;
   }
 
   // --- LOGIN SCREEN ---
