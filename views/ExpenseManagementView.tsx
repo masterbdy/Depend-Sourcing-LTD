@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Receipt, Camera, CheckCircle, XCircle, Clock, Eye, Trash2, Search, Calendar, FilterX, RotateCcw, CheckCheck, Sparkles, Image as ImageIcon, X, Edit3, Eraser, AlertTriangle, User, ChevronDown, Printer, Loader2, Images, MessageCircle, SpellCheck, Wand2 } from 'lucide-react';
+import { Receipt, Camera, CheckCircle, XCircle, Clock, Eye, Trash2, Search, Calendar, FilterX, RotateCcw, CheckCheck, Sparkles, Image as ImageIcon, X, Edit3, Eraser, AlertTriangle, User, ChevronDown, Printer, Loader2, Images, MessageCircle, SpellCheck, Wand2, BrainCircuit } from 'lucide-react';
+import { GoogleGenAI } from "@google/genai";
 import { Expense, Staff, UserRole, AppNotification, AdvanceLog } from '../types';
 
 interface ExpenseProps {
@@ -14,7 +15,7 @@ interface ExpenseProps {
   allowedBackdateDays?: number;
 }
 
-// Common Bengali Typos Dictionary
+// Common Bengali Typos Dictionary (Instant Local Check)
 const TYPO_DICTIONARY: Record<string, string> = {
   'লান্স': 'লাঞ্চ',
   'লান্চ': 'লাঞ্চ',
@@ -35,7 +36,7 @@ const TYPO_DICTIONARY: Record<string, string> = {
   'মোবাইল বিল': 'মোবাইল',
   'তেল': 'ফুয়েল',
   'পেটেল': 'পেট্রোল',
-  'পেট্রোল': 'অকটেন', // If needed strictly
+  'পেট্রোল': 'অকটেন',
   'সিএনজি': 'CNG',
   'বাইক': 'বাইক',
   'মালামাল': 'মালামাল',
@@ -64,6 +65,10 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [isBulkDownloading, setIsBulkDownloading] = useState(false);
   const [bulkProgress, setBulkProgress] = useState('');
+
+  // AI Spell Check State
+  const [isAiChecking, setIsAiChecking] = useState(false);
+  const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -106,15 +111,13 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
     );
   }, [expenses, formData.staffId, formData.date]);
 
-  // TYPO CHECKER LOGIC
+  // LOCAL TYPO CHECKER LOGIC (Instant)
   const detectedTypos = useMemo(() => {
-    const words = formData.reason.split(/[\s,]+/); // Split by space or comma
+    const words = formData.reason.split(/[\s,]+/); 
     const found: { wrong: string, correct: string }[] = [];
     
     words.forEach(word => {
-       // Simple check (can be improved with fuzzy search later)
        if (TYPO_DICTIONARY[word]) {
-          // Avoid duplicates
           if (!found.some(f => f.wrong === word)) {
              found.push({ wrong: word, correct: TYPO_DICTIONARY[word] });
           }
@@ -128,6 +131,47 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
         ...prev,
         reason: prev.reason.replace(new RegExp(wrong, 'g'), correct)
      }));
+  };
+
+  // --- GEMINI AI SPELL CHECKER ---
+  const handleAiSpellCheck = async () => {
+    if (!formData.reason.trim()) return;
+    
+    setIsAiChecking(true);
+    setAiSuggestion(null);
+
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: `You are a Bengali proofreader for an expense management system. 
+        Correct the spelling and grammar of the following text: "${formData.reason}". 
+        
+        Focus on correcting:
+        1. Place names (e.g., Mirpur, Gulshan, Tongi)
+        2. Vehicle names (e.g., Rickshaw, CNG, Bus)
+        3. Food items (e.g., Biryani, Tehari, Nasta)
+        4. Product names / Office items.
+        
+        Rules:
+        - Keep all numbers and amounts EXACTLY as they are.
+        - Return ONLY the corrected Bengali text string. Do not add any explanation or markdown.
+        - If the text is already correct, return it exactly as is.`,
+      });
+
+      const correctedText = response.text?.trim();
+      
+      if (correctedText && correctedText !== formData.reason) {
+        setAiSuggestion(correctedText);
+      } else {
+        alert("কোনো ভুল পাওয়া যায়নি (No spelling errors found by AI).");
+      }
+    } catch (error) {
+      console.error("AI Check Failed:", error);
+      alert("AI চেক ব্যর্থ হয়েছে। ইন্টারনেট সংযোগ চেক করুন।");
+    } finally {
+      setIsAiChecking(false);
+    }
   };
 
   // Helper: Get Financial Stats for a Staff (For Voucher)
@@ -410,6 +454,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
     
     setExpenses(prev => [newExpense, ...prev]);
     setIsSubmitModalOpen(false);
+    setAiSuggestion(null); // Clear AI suggestion
     
     setFormData({ 
       staffId: '', amount: 0, reason: '', voucherImage: '', 
@@ -419,7 +464,6 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
 
   const updateStatus = (id: string, status: Expense['status']) => {
     if (status === 'REJECTED' && !window.confirm('আপনি কি নিশ্চিত যে এই বিলটি বাতিল (Reject) করতে চান?')) return;
-    // Removed confirmation for APPROVE to make it instant/easier
     
     setExpenses(prevExpenses => prevExpenses.map(e => e.id === id ? { ...e, status } : e));
   };
@@ -447,6 +491,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
       if (myself) initialStaffId = myself.id;
     }
     setFormData({ staffId: initialStaffId, amount: 0, reason: '', voucherImage: '', date: new Date().toISOString().split('T')[0] });
+    setAiSuggestion(null);
     setIsSubmitModalOpen(true);
   };
 
@@ -679,17 +724,45 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                   )}
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex justify-between">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex justify-between items-center">
                       <span>খরচের কারণ ও বিবরণ</span>
-                      <span className="text-xs text-indigo-600 dark:text-indigo-400 font-bold flex items-center gap-1"><Sparkles className="w-3 h-3"/> Auto Calculator</span>
+                      <div className="flex gap-2">
+                         {/* AI BUTTON ADDED HERE */}
+                         <button 
+                           type="button" 
+                           onClick={handleAiSpellCheck} 
+                           disabled={isAiChecking || !formData.reason.trim()}
+                           className="text-[10px] bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/50 dark:text-purple-300 px-2 py-1 rounded font-bold flex items-center gap-1 transition-all disabled:opacity-50"
+                           title="Check spelling with AI"
+                         >
+                            {isAiChecking ? <Loader2 className="w-3 h-3 animate-spin"/> : <BrainCircuit className="w-3 h-3"/>}
+                            {isAiChecking ? 'Checking...' : 'AI বানান চেক'}
+                         </button>
+                         <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold flex items-center gap-1"><Sparkles className="w-3 h-3"/> Auto Calc</span>
+                      </div>
                     </label>
                     <textarea required rows={2} className="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all" placeholder="যেমন: নাস্তা ৫০, রিক্সা ভাড়া ১০০..." value={formData.reason} onChange={handleReasonChange} />
                     
-                    {detectedTypos.length > 0 && (
+                    {/* AI SUGGESTION BLOCK */}
+                    {aiSuggestion && (
+                        <div className="mt-2 p-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
+                            <div className="bg-white dark:bg-indigo-800 p-2 rounded-full shadow-sm text-indigo-600 dark:text-indigo-300"><Wand2 className="w-4 h-4" /></div>
+                            <div className="flex-1">
+                                <p className="text-xs font-bold text-indigo-900 dark:text-indigo-300 mb-1">AI সাজেস্ট করছে (সঠিক বানান):</p>
+                                <p className="text-sm text-gray-800 dark:text-gray-200 font-medium bg-white/50 dark:bg-black/20 p-2 rounded border border-indigo-100 dark:border-indigo-900/50">{aiSuggestion}</p>
+                                <div className="flex gap-2 mt-2">
+                                    <button type="button" onClick={() => { setFormData(prev => ({...prev, reason: aiSuggestion})); setAiSuggestion(null); }} className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg shadow-sm hover:bg-indigo-700 flex items-center gap-1"><CheckCheck className="w-3 h-3"/> ঠিক আছে (Apply)</button>
+                                    <button type="button" onClick={() => setAiSuggestion(null)} className="px-3 py-1.5 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 text-xs font-bold rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">দরকার নেই</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {detectedTypos.length > 0 && !aiSuggestion && (
                        <div className="mt-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg animate-in fade-in zoom-in duration-200">
                           <div className="flex items-center gap-1.5 text-yellow-800 dark:text-yellow-400 text-[10px] font-bold uppercase mb-1.5">
                              <Wand2 className="w-3 h-3" />
-                             বানান সতর্কতা (Spelling Suggestion)
+                             বানান সতর্কতা (Instant Fix)
                           </div>
                           <div className="flex flex-wrap gap-2">
                              {detectedTypos.map((typo, idx) => (

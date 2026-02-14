@@ -204,53 +204,53 @@ const ProductCatalogView: React.FC<ProductCatalogProps> = ({ onLogout, products 
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <div className="relative bg-[#0F172A] pt-32 pb-20 md:pt-40 md:pb-32 overflow-hidden rounded-b-[3rem] shadow-2xl">
+      {/* Hero Section - Compact Version */}
+      <div className="relative bg-[#0F172A] pt-24 pb-12 md:pt-32 md:pb-24 overflow-hidden rounded-b-[2.5rem] shadow-xl">
          {/* Abstract Background */}
          <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-indigo-600/30 rounded-full blur-[120px] animate-pulse"></div>
          <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-purple-600/20 rounded-full blur-[100px]"></div>
          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5"></div>
 
          <div className="max-w-7xl mx-auto px-4 relative z-10 text-center">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-200 text-xs font-bold mb-6 backdrop-blur-md animate-in slide-in-from-bottom-4 duration-700">
-               <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" /> Premium Quality Assured
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-200 text-[10px] font-bold mb-4 backdrop-blur-md animate-in slide-in-from-bottom-4 duration-700">
+               <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" /> Premium Quality Assured
             </div>
             
-            <h1 className="text-4xl md:text-6xl lg:text-7xl font-black text-white leading-tight mb-6 tracking-tight drop-shadow-sm animate-in slide-in-from-bottom-6 duration-700">
+            <h1 className="text-3xl md:text-5xl lg:text-6xl font-black text-white leading-tight mb-4 tracking-tight drop-shadow-sm animate-in slide-in-from-bottom-6 duration-700">
                Garment Raw Materials <br/>
                <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400">Sourcing Simplified.</span>
             </h1>
             
-            <p className="text-lg md:text-xl text-slate-300 max-w-2xl mx-auto mb-10 font-medium leading-relaxed animate-in slide-in-from-bottom-8 duration-700">
-               Access a curated catalog of export-quality Fabrics, Yarn, and Accessories. 
-               Direct from the best manufacturers to your production line.
+            <p className="text-sm md:text-base text-slate-300 max-w-xl mx-auto mb-6 font-medium leading-relaxed animate-in slide-in-from-bottom-8 duration-700">
+               Curated catalog of export-quality Fabrics, Yarn, and Accessories. 
+               Direct from best manufacturers.
             </p>
             
-            <div className="flex flex-col sm:flex-row justify-center gap-4 animate-in slide-in-from-bottom-10 duration-700">
-                <button onClick={() => document.getElementById('catalog')?.scrollIntoView({behavior: 'smooth'})} className="px-8 py-4 bg-white text-indigo-900 rounded-2xl font-bold shadow-[0_20px_50px_-12px_rgba(255,255,255,0.3)] hover:shadow-[0_20px_50px_-8px_rgba(255,255,255,0.5)] hover:scale-105 transition-all flex items-center justify-center gap-2">
-                    <Scissors className="w-5 h-5" /> Explore Collection
+            <div className="flex flex-col sm:flex-row justify-center gap-3 animate-in slide-in-from-bottom-10 duration-700">
+                <button onClick={() => document.getElementById('catalog')?.scrollIntoView({behavior: 'smooth'})} className="px-6 py-3 bg-white text-indigo-900 rounded-xl font-bold shadow-[0_20px_50px_-12px_rgba(255,255,255,0.3)] hover:shadow-[0_20px_50px_-8px_rgba(255,255,255,0.5)] hover:scale-105 transition-all flex items-center justify-center gap-2 text-sm">
+                    <Scissors className="w-4 h-4" /> Explore Collection
                 </button>
-                <button onClick={() => window.location.href = 'mailto:info@dependsourcing.com'} className="px-8 py-4 bg-white/10 text-white border border-white/20 rounded-2xl font-bold hover:bg-white/20 backdrop-blur-md transition-all flex items-center justify-center gap-2">
-                    <Mail className="w-5 h-5" /> Contact Supplier
+                <button onClick={() => window.location.href = 'mailto:info@dependsourcing.com'} className="px-6 py-3 bg-white/10 text-white border border-white/20 rounded-xl font-bold hover:bg-white/20 backdrop-blur-md transition-all flex items-center justify-center gap-2 text-sm">
+                    <Mail className="w-4 h-4" /> Contact Supplier
                 </button>
             </div>
          </div>
 
          {/* Stats Bar */}
-         <div className="absolute bottom-0 w-full bg-white/5 border-t border-white/10 backdrop-blur-md py-4">
+         <div className="absolute bottom-0 w-full bg-white/5 border-t border-white/10 backdrop-blur-md py-2.5">
             <div className="max-w-7xl mx-auto px-4 flex justify-around text-indigo-200">
-               <div className="flex items-center gap-2 text-xs md:text-sm font-bold"><Truck className="w-4 h-4 md:w-5 md:h-5 text-emerald-400" /> <span className="hidden md:inline">Fast Delivery</span></div>
-               <div className="flex items-center gap-2 text-xs md:text-sm font-bold"><ShieldCheck className="w-4 h-4 md:w-5 md:h-5 text-blue-400" /> <span className="hidden md:inline">Verified Quality</span></div>
-               <div className="flex items-center gap-2 text-xs md:text-sm font-bold"><Globe className="w-4 h-4 md:w-5 md:h-5 text-purple-400" /> <span className="hidden md:inline">Global Sourcing</span></div>
+               <div className="flex items-center gap-1.5 text-[10px] md:text-xs font-bold"><Truck className="w-3.5 h-3.5 md:w-4 md:h-4 text-emerald-400" /> <span className="hidden md:inline">Fast Delivery</span></div>
+               <div className="flex items-center gap-1.5 text-[10px] md:text-xs font-bold"><ShieldCheck className="w-3.5 h-3.5 md:w-4 md:h-4 text-blue-400" /> <span className="hidden md:inline">Verified Quality</span></div>
+               <div className="flex items-center gap-1.5 text-[10px] md:text-xs font-bold"><Globe className="w-3.5 h-3.5 md:w-4 md:h-4 text-purple-400" /> <span className="hidden md:inline">Global Sourcing</span></div>
             </div>
          </div>
       </div>
 
       {/* Main Content */}
-      <div id="catalog" className="max-w-7xl mx-auto px-4 py-12 -mt-10 relative z-20">
+      <div id="catalog" className="max-w-7xl mx-auto px-4 py-8 -mt-6 relative z-20">
          
          {/* Search & Filter Bar */}
-         <div className="bg-white p-4 rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 flex flex-col lg:flex-row items-center justify-between gap-4 mb-10 sticky top-24 z-30 transition-all">
+         <div className="bg-white p-4 rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 flex flex-col lg:flex-row items-center justify-between gap-4 mb-10 transition-all">
             <div className="flex items-center gap-2 overflow-x-auto w-full lg:w-auto scrollbar-hide pb-1 lg:pb-0">
                 <div className="bg-slate-100 p-1.5 rounded-xl flex gap-1">
                     {categories.map(cat => (
