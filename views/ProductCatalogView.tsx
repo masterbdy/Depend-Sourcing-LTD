@@ -77,6 +77,13 @@ const ProductCatalogView: React.FC<ProductCatalogProps> = ({
     if (e.target.value.length > 2) onTrackSearch();
   };
 
+  const handleContactUs = (productName?: string) => {
+    const emails = "dependsource@gmail.com,info@dependsourcingltd.com";
+    const subject = productName ? `Inquiry regarding: ${productName}` : "General Inquiry - Depend Sourcing";
+    const body = "Hello,\n\nI am interested in...";
+    window.location.href = `mailto:${emails}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  };
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -255,7 +262,7 @@ const ProductCatalogView: React.FC<ProductCatalogProps> = ({
                   <Gem className="w-4 h-4" /> Explore Collection
                </button>
                <button 
-                 onClick={() => setIsInquiryModalOpen(true)}
+                 onClick={() => handleContactUs()}
                  className="w-full sm:w-auto bg-[#1A1F36] border border-white/20 text-white px-6 py-3 rounded-xl font-bold hover:bg-white/5 transition-all flex items-center justify-center gap-2 active:scale-95 text-sm"
                >
                   <Mail className="w-4 h-4" /> Contact us
@@ -415,7 +422,7 @@ const ProductCatalogView: React.FC<ProductCatalogProps> = ({
                         <ul className="space-y-3 text-xs text-gray-500 dark:text-gray-400 font-medium">
                             <li><button onClick={() => window.scrollTo({top: 0, behavior: 'smooth'})} className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors text-left">Home</button></li>
                             <li><button onClick={() => document.getElementById('catalog-section')?.scrollIntoView({ behavior: 'smooth' })} className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors text-left">Product Catalog</button></li>
-                            <li><button onClick={() => setIsInquiryModalOpen(true)} className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors text-left">Send Inquiry</button></li>
+                            <li><button onClick={() => handleContactUs()} className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors text-left">Send Inquiry</button></li>
                         </ul>
                     </div>
 
@@ -433,7 +440,7 @@ const ProductCatalogView: React.FC<ProductCatalogProps> = ({
                             </li>
                             <li className="flex items-center gap-3">
                                 <Mail className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
-                                <span>info@dependsourcing.com</span>
+                                <a href="mailto:dependsource@gmail.com,info@dependsourcingltd.com" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">dependsource@gmail.com<br/>info@dependsourcingltd.com</a>
                             </li>
                         </ul>
                     </div>
@@ -496,7 +503,7 @@ const ProductCatalogView: React.FC<ProductCatalogProps> = ({
 
                   <div className="mt-auto flex flex-col gap-3">
                      <button 
-                       onClick={() => setIsInquiryModalOpen(true)}
+                       onClick={() => handleContactUs(viewingProduct.name)}
                        className="w-full bg-[#1A1F36] dark:bg-indigo-600 text-white py-4 rounded-xl font-bold hover:bg-black dark:hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg"
                      >
                         Contact for Pricing <ArrowRight className="w-4 h-4" />
