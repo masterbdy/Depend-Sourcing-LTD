@@ -87,6 +87,22 @@ const App: React.FC = () => {
   const [highlightStaffId, setHighlightStaffId] = useState<string | null>(null);
   const [isLocationBlocked, setIsLocationBlocked] = useState(false); // New state for blocking UI
   
+  const [firebaseConfig] = useState<any>(() => {
+    const saved = safeGetItem('fb_config');
+    let config;
+    try {
+      config = saved && saved !== 'null' ? JSON.parse(saved) : DEFAULT_FIREBASE_CONFIG;
+    } catch {
+      config = DEFAULT_FIREBASE_CONFIG;
+    }
+    if (config && config.projectId && (!config.databaseURL || config.databaseURL.includes('undefined'))) {
+      config.databaseURL = `https://${config.projectId}-default-rtdb.firebaseio.com`;
+    }
+    return config;
+  });
+
+  const [isCloudEnabled, setIsCloudEnabled] = useState(false);
+
   // App Settings
   const [allowedBackdateDays, setAllowedBackdateDays] = useState(() => {
     return Number(safeGetItem('allowed_backdate_days', '1'));
@@ -95,6 +111,17 @@ const App: React.FC = () => {
   const updateBackdateDays = (days: number) => {
     setAllowedBackdateDays(days);
     safeSetItem('allowed_backdate_days', String(days));
+    
+    // Sync to Firebase
+    if (firebaseConfig && firebaseConfig.databaseURL) {
+       try {
+          const app = getApp();
+          const db = getDatabase(app, firebaseConfig.databaseURL);
+          set(ref(db, 'app_settings/allowedBackdateDays'), days);
+       } catch (e) {
+          console.error("Failed to sync settings", e);
+       }
+    }
   };
   
   // PWA Install State
@@ -275,7 +302,6 @@ const App: React.FC = () => {
   const profileFileRef = useRef<HTMLInputElement>(null);
   const [showProfilePassword, setShowProfilePassword] = useState(false);
   
-  const [isCloudEnabled, setIsCloudEnabled] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [cloudError, setCloudError] = useState<string | null>(null);
   const [showDbHelp, setShowDbHelp] = useState(false);
@@ -322,20 +348,6 @@ const App: React.FC = () => {
     const array = typeof data === 'object' && !Array.isArray(data) ? Object.values(data) : data;
     return Array.isArray(array) ? array.filter(Boolean) as T[] : [];
   };
-
-  const [firebaseConfig] = useState<any>(() => {
-    const saved = safeGetItem('fb_config');
-    let config;
-    try {
-      config = saved && saved !== 'null' ? JSON.parse(saved) : DEFAULT_FIREBASE_CONFIG;
-    } catch {
-      config = DEFAULT_FIREBASE_CONFIG;
-    }
-    if (config && config.projectId && (!config.databaseURL || config.databaseURL.includes('undefined'))) {
-      config.databaseURL = `https://${config.projectId}-default-rtdb.firebaseio.com`;
-    }
-    return config;
-  });
 
   const loadLocalData = () => {
     const getLocal = (key: string, def: string) => {
@@ -477,6 +489,16 @@ const App: React.FC = () => {
            const count = snapshot.val() || 0;
            setSearchCount(count);
            safeSetItem('searchCount', String(count));
+        });
+
+        // Listener for App Settings (e.g., allowedBackdateDays)
+        const settingsRef = ref(dbInstance, 'app_settings/allowedBackdateDays');
+        onValue(settingsRef, (snapshot) => {
+           const days = snapshot.val();
+           if (days !== null && days !== undefined) {
+              setAllowedBackdateDays(Number(days));
+              safeSetItem('allowed_backdate_days', String(days));
+           }
         });
       }
     } catch (error: any) {
