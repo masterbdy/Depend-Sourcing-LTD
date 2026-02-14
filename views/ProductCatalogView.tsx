@@ -11,7 +11,6 @@ interface ProductCatalogProps {
   productEditors: string[];
   currentStaffId: string | null;
   onTrackSearch?: () => void;
-  visitCount?: number;
   setComplaints?: React.Dispatch<React.SetStateAction<Complaint[]>>;
   certLogos?: { oeko: string; gscs: string };
   onUpdateCertLogo?: (key: 'oeko' | 'gscs', base64: string) => void;
@@ -19,7 +18,7 @@ interface ProductCatalogProps {
   onUpdateCompanyLogo?: (base64: string) => void;
 }
 
-const ProductCatalogView: React.FC<ProductCatalogProps> = ({ onLogout, products = [], setProducts, role, productEditors = [], currentStaffId, onTrackSearch, visitCount, setComplaints, certLogos, onUpdateCertLogo, companyLogo, onUpdateCompanyLogo }) => {
+const ProductCatalogView: React.FC<ProductCatalogProps> = ({ onLogout, products = [], setProducts, role, productEditors = [], currentStaffId, onTrackSearch, setComplaints, certLogos, onUpdateCertLogo, companyLogo, onUpdateCompanyLogo }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [cart, setCart] = useState<string[]>([]);
@@ -225,14 +224,7 @@ const ProductCatalogView: React.FC<ProductCatalogProps> = ({ onLogout, products 
             </div>
             
             <div className="flex items-center gap-2 sm:gap-4">
-               {/* VISIT COUNT - NOW VISIBLE ON ALL SCREENS */}
-               {visitCount !== undefined && (
-                  <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold border shadow-sm ${isScrolled ? 'bg-gray-50 text-gray-600 border-gray-200' : 'bg-white/10 text-white border-white/20 backdrop-blur-sm'}`}>
-                     <Users className="w-3.5 h-3.5" />
-                     <span>{visitCount.toLocaleString()} <span className="hidden sm:inline">Views</span></span>
-                  </div>
-               )}
-
+               
                <button 
                  onClick={() => cart.length > 0 && setIsOrderModalOpen(true)}
                  className={`relative p-2.5 rounded-full transition-all hover:scale-105 active:scale-95 ${isScrolled ? 'hover:bg-gray-100 text-gray-600' : 'bg-white/10 hover:bg-white/20 text-white backdrop-blur-sm'}`}
@@ -285,8 +277,8 @@ const ProductCatalogView: React.FC<ProductCatalogProps> = ({ onLogout, products 
                 <button onClick={() => document.getElementById('catalog')?.scrollIntoView({behavior: 'smooth'})} className="px-5 py-2.5 bg-white text-indigo-900 rounded-xl font-bold shadow-[0_20px_50px_-12px_rgba(255,255,255,0.3)] hover:shadow-[0_20px_50px_-8px_rgba(255,255,255,0.5)] hover:scale-105 transition-all flex items-center justify-center gap-2 text-xs md:text-sm">
                     <Scissors className="w-4 h-4" /> Explore Collection
                 </button>
-                <button onClick={() => window.location.href = 'mailto:info@dependsourcing.com'} className="px-5 py-2.5 bg-white/10 text-white border border-white/20 rounded-xl font-bold hover:bg-white/20 backdrop-blur-md transition-all flex items-center justify-center gap-2 text-xs md:text-sm">
-                    <Mail className="w-4 h-4" /> Contact Supplier
+                <button onClick={() => window.location.href = 'mailto:info@dependsourcingltd.com,dependsource@gmail.com'} className="px-5 py-2.5 bg-white/10 text-white border border-white/20 rounded-xl font-bold hover:bg-white/20 backdrop-blur-md transition-all flex items-center justify-center gap-2 text-xs md:text-sm">
+                    <Mail className="w-4 h-4" /> Contact us
                 </button>
             </div>
 

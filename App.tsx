@@ -5,7 +5,7 @@ import {
   LogOut, Wallet, User, Cloud, WifiOff, Menu, X, Lock, ArrowRightLeft, XCircle, Landmark, Bell, Phone, Briefcase, Crown, UserCog, Camera, Save, KeyRound, CreditCard, MonitorSmartphone, Trophy, Gift, Sun, Moon, Loader2, BellRing, ChevronRight, Fingerprint, Megaphone, Radar, ShieldAlert, MessageCircleMore, Download, Sparkles, Eye, EyeOff, ShoppingBag, Package, Share2, MapPinOff, RefreshCw
 } from 'lucide-react';
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
-import { getDatabase, ref, onValue, set, runTransaction } from "firebase/database";
+import { getDatabase, ref, onValue, set, runTransaction, Unsubscribe } from "firebase/database";
 import { UserRole, Staff, MovementLog, Expense, BillingRule, FundEntry, Notice, AdvanceLog, Complaint, ChatMessage, Attendance, StaffLocation, AppNotification, Product } from './types';
 import { INITIAL_STAFF, INITIAL_BILLING_RULES, ROLE_LABELS, DEFAULT_FIREBASE_CONFIG, INITIAL_PRODUCTS } from './constants';
 import GlowingCursor from './GlowingCursor';
@@ -129,7 +129,8 @@ const App: React.FC = () => {
     return config;
   });
 
-  const [isCloudEnabled, setIsCloudEnabled] = useState(false);
+  // Initialize with browser connection status for instant feedback
+  const [isCloudEnabled, setIsCloudEnabled] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
 
   // App Settings
   const [allowedBackdateDays, setAllowedBackdateDays] = useState(() => {
@@ -203,7 +204,19 @@ const App: React.FC = () => {
       setDeferredPrompt(e);
     };
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    
+    // Instant Online/Offline check listener
+    const handleOnlineStatus = () => setIsCloudEnabled(true);
+    const handleOfflineStatus = () => setIsCloudEnabled(false);
+    
+    window.addEventListener('online', handleOnlineStatus);
+    window.addEventListener('offline', handleOfflineStatus);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('online', handleOnlineStatus);
+      window.removeEventListener('offline', handleOfflineStatus);
+    };
   }, []);
 
   useEffect(() => {
@@ -414,9 +427,8 @@ const App: React.FC = () => {
     }
   };
 
+  // --- EFFECT 1: Public/Auth Data Loading (Runs Once) ---
   useEffect(() => {
-    // Removed redundant loadLocalData call since we use lazy initialization
-
     if (!firebaseConfig || !firebaseConfig.apiKey || !firebaseConfig.projectId) {
       setCloudError("Firebase Config Missing");
       return;
@@ -433,94 +445,62 @@ const App: React.FC = () => {
       if (dbInstance) {
         setCloudError(null);
 
-        // VISIT COUNT LOGIC (Updated to increment on every load/refresh)
-        const visitRef = ref(dbInstance, 'analytics/visit_count');
-        
-        onValue(visitRef, (snapshot) => {
-           const count = snapshot.val() || 0;
-           setVisitCount(count);
-           safeSetItem('visitCount', String(count));
+        // Real-time Connection Status from Firebase (This confirms server connection)
+        const connectedRef = ref(dbInstance, ".info/connected");
+        onValue(connectedRef, (snap) => {
+          if (snap.val() === true) {
+            setIsCloudEnabled(true);
+          } else {
+            // If Firebase says disconnected, we verify with browser state to determine if it's user internet or firebase issue
+            setIsCloudEnabled(navigator.onLine);
+          }
         });
 
-        // Increment visit count on every page load (Removed sessionStorage check)
-        runTransaction(visitRef, (current) => (current || 0) + 1)
-             .catch(err => {
-                if (err.message !== 'disconnect' && !String(err).includes('disconnect')) {
-                    console.error("Visit tracking failed", err);
-                }
-             });
-
-        const handleSnapshot = (node: string, setter: any) => {
-          const dataRef = ref(dbInstance, node);
-          onValue(dataRef, (snapshot) => {
-            if (snapshot.exists()) {
-              const data = snapshot.val();
-              const arrayData = node === 'staff_locations' ? data : cleanArray(data); 
-              setter(arrayData);
-              if (node !== 'staff_locations') {
-                safeSetItem(node, JSON.stringify(arrayData));
-              }
-              setIsCloudEnabled(true);
-            } else {
-              setIsCloudEnabled(true);
-            }
-          }, (error) => {
-            console.error(`Sync error for ${node}:`, error);
-            if (error.message.includes("permission_denied")) {
-              setCloudError("Permission Denied");
-              setShowDbHelp(true);
-            } else {
-              setCloudError(error.message);
-            }
-            setIsCloudEnabled(false);
-          });
-        };
+        // --- PUBLIC DATA ---
         
-        handleSnapshot('staffList', setStaffList);
-        handleSnapshot('expenses', setExpenses);
-        handleSnapshot('movements', setMovements);
-        handleSnapshot('billingRules', setBillingRules);
-        handleSnapshot('funds', setFunds);
-        handleSnapshot('notices', setNotices);
-        handleSnapshot('advances', setAdvances);
-        handleSnapshot('complaints', setComplaints);
-        handleSnapshot('messages', setMessages);
-        handleSnapshot('attendanceList', setAttendanceList);
-        handleSnapshot('staff_locations', setLiveLocations);
-        handleSnapshot('products', setProducts);
-        handleSnapshot('productEditors', setProductEditors);
+        // Products
+        onValue(ref(dbInstance, 'products'), (snapshot) => {
+           if (snapshot.exists()) {
+              const data = cleanArray(snapshot.val());
+              setProducts(data as Product[]);
+              safeSetItem('products', JSON.stringify(data));
+           }
+        }, (err) => console.error(err));
 
-        const searchRef = ref(dbInstance, 'analytics/search_count');
-        onValue(searchRef, (snapshot) => {
-           const count = snapshot.val() || 0;
-           setSearchCount(count);
-           safeSetItem('searchCount', String(count));
+        // Staff List (Needed for Login)
+        onValue(ref(dbInstance, 'staffList'), (snapshot) => {
+           if (snapshot.exists()) {
+              const data = cleanArray(snapshot.val());
+              setStaffList(data as Staff[]);
+              safeSetItem('staffList', JSON.stringify(data));
+           }
+        }, (err) => console.error(err));
+
+        // Editors & Settings
+        onValue(ref(dbInstance, 'productEditors'), (snapshot) => {
+           if (snapshot.exists()) setProductEditors(cleanArray(snapshot.val()));
         });
 
-        const settingsRef = ref(dbInstance, 'app_settings/allowedBackdateDays');
-        onValue(settingsRef, (snapshot) => {
-           const days = snapshot.val();
-           if (days !== null && days !== undefined) {
-              setAllowedBackdateDays(Number(days));
-              safeSetItem('allowed_backdate_days', String(days));
+        // App Settings & Logos
+        onValue(ref(dbInstance, 'app_settings'), (snapshot) => {
+           if (snapshot.exists()) {
+              const val = snapshot.val();
+              if(val.allowedBackdateDays) setAllowedBackdateDays(Number(val.allowedBackdateDays));
+              if(val.cert_logos) setCertLogos(val.cert_logos);
+              if(val.company_logo) setCompanyLogo(val.company_logo);
            }
         });
 
-        const certRef = ref(dbInstance, 'app_settings/cert_logos');
-        onValue(certRef, (snapshot) => {
-            if (snapshot.exists()) {
-                setCertLogos(prev => ({ ...prev, ...snapshot.val() }));
-                safeSetItem('cert_logos', JSON.stringify(snapshot.val()));
-            }
+        // Search Analytics
+        onValue(ref(dbInstance, 'analytics/search_count'), (snapshot) => {
+           const count = snapshot.val() || 0;
+           setSearchCount(count);
         });
 
-        const logoRef = ref(dbInstance, 'app_settings/company_logo');
-        onValue(logoRef, (snapshot) => {
-            if (snapshot.exists()) {
-                const val = snapshot.val();
-                setCompanyLogo(val);
-                safeSetItem('company_logo', val);
-            }
+        // Visit Analytics
+        onValue(ref(dbInstance, 'analytics/visit_count'), (snapshot) => {
+           const count = snapshot.val() || 0;
+           setVisitCount(count);
         });
       }
     } catch (error: any) {
@@ -529,6 +509,57 @@ const App: React.FC = () => {
       setIsCloudEnabled(false);
     }
   }, [firebaseConfig]);
+
+  // --- EFFECT 2: Protected Data Loading (Runs Only When Logged In) ---
+  useEffect(() => {
+    if (!firebaseConfig || !firebaseConfig.apiKey) return;
+    if (!role || role === UserRole.GUEST) return; // SKIP HEAVY LOADING FOR GUESTS
+
+    let app: FirebaseApp;
+    try {
+      const apps = getApps();
+      app = apps.length === 0 ? initializeApp(firebaseConfig) : getApp();
+      const dbUrl = firebaseConfig.databaseURL || `https://${firebaseConfig.projectId}-default-rtdb.firebaseio.com`;
+      const dbInstance = getDatabase(app, dbUrl);
+
+      if (dbInstance) {
+         const unsubscribers: Unsubscribe[] = [];
+
+         const subscribe = (node: string, setter: any) => {
+            const unsub = onValue(ref(dbInstance, node), (snapshot) => {
+                if (snapshot.exists()) {
+                   const data = snapshot.val();
+                   const arrayData = node === 'staff_locations' ? data : cleanArray(data);
+                   setter(arrayData);
+                   if (node !== 'staff_locations') {
+                      safeSetItem(node, JSON.stringify(arrayData));
+                   }
+                }
+            }, (err) => console.error(`Sync error for ${node}:`, err));
+            unsubscribers.push(unsub);
+         };
+
+         // Load Heavy Data
+         subscribe('expenses', setExpenses);
+         subscribe('movements', setMovements);
+         subscribe('billingRules', setBillingRules);
+         subscribe('funds', setFunds);
+         subscribe('notices', setNotices);
+         subscribe('advances', setAdvances);
+         subscribe('complaints', setComplaints);
+         subscribe('messages', setMessages);
+         subscribe('attendanceList', setAttendanceList);
+         subscribe('staff_locations', setLiveLocations);
+
+         return () => {
+            // Cleanup listeners when role changes (e.g. logout)
+            unsubscribers.forEach(unsub => unsub());
+         };
+      }
+    } catch (e) {
+       console.error("Protected Data Sync Error", e);
+    }
+  }, [firebaseConfig, role]);
 
   useEffect(() => {
     let updated = false;
@@ -621,7 +652,7 @@ const App: React.FC = () => {
         }), {});
           
         await set(ref(db, node), dataToSave);
-        setIsCloudEnabled(true);
+        // setIsCloudEnabled(true); // Handled by .info/connected
         setCloudError(null);
       } catch (err: any) { 
         console.error(`Sync failed for ${node}:`, err);
@@ -1382,7 +1413,7 @@ const App: React.FC = () => {
       case 'reports': return <ReportsView expenses={expenses} staffList={staffList} advances={advances} attendanceList={attendanceList} funds={funds} movements={movements} role={role!} />;
       case 'settings': return <SettingsView billingRules={billingRules} setBillingRules={updateBillingRules} role={role!} exportData={handleExport} importData={handleImport} cloudConfig={firebaseConfig} saveCloudConfig={(config) => { safeSetItem('fb_config', JSON.stringify(config)); alert('Settings saved! Reloading...'); window.location.reload(); }} staffList={staffList} productEditors={productEditors} setProductEditors={updateProductEditors} allowedBackdateDays={allowedBackdateDays} setAllowedBackdateDays={updateBackdateDays} />;
       case 'trash': return <TrashView staffList={staffList} setStaffList={updateStaffList} movements={movements} setMovements={updateMovements} expenses={expenses} setExpenses={updateExpenses} funds={funds} setFunds={updateFunds} notices={notices} setNotices={updateNotices} role={role!} />;
-      case 'products': return <ProductCatalogView onLogout={() => {}} products={products} setProducts={updateProducts} role={role!} productEditors={productEditors} currentStaffId={myStaffId} onTrackSearch={handleTrackSearch} visitCount={visitCount} setComplaints={updateComplaints} certLogos={certLogos} onUpdateCertLogo={updateCertLogos} companyLogo={companyLogo} onUpdateCompanyLogo={updateCompanyLogo} />; 
+      case 'products': return <ProductCatalogView onLogout={() => {}} products={products} setProducts={updateProducts} role={role!} productEditors={productEditors} currentStaffId={myStaffId} onTrackSearch={handleTrackSearch} setComplaints={updateComplaints} certLogos={certLogos} onUpdateCertLogo={updateCertLogos} companyLogo={companyLogo} onUpdateCompanyLogo={updateCompanyLogo} />; 
       default: return <DashboardView totalExpense={totalExpense} pendingApprovals={pendingApprovals} expenses={expenses} cloudError={cloudError} totalFund={totalFund} cashOnHand={cashOnHand} role={role!} staffList={staffList} advances={advances} currentUser={currentUser} onOpenProfile={openProfile} searchCount={searchCount} />;
     }
   };
@@ -1390,7 +1421,7 @@ const App: React.FC = () => {
   const isStaffUser = role === UserRole.STAFF;
 
   if (role === UserRole.GUEST) {
-    return <ProductCatalogView onLogout={handleLogout} products={products} setProducts={updateProducts} role={role} productEditors={productEditors} currentStaffId={null} onTrackSearch={handleTrackSearch} visitCount={visitCount} setComplaints={updateComplaints} certLogos={certLogos} onUpdateCertLogo={updateCertLogos} companyLogo={companyLogo} onUpdateCompanyLogo={updateCompanyLogo} />;
+    return <ProductCatalogView onLogout={handleLogout} products={products} setProducts={updateProducts} role={role} productEditors={productEditors} currentStaffId={null} onTrackSearch={handleTrackSearch} setComplaints={updateComplaints} certLogos={certLogos} onUpdateCertLogo={updateCertLogos} companyLogo={companyLogo} onUpdateCompanyLogo={updateCompanyLogo} />;
   }
 
   if (!role) {
@@ -1538,7 +1569,7 @@ const App: React.FC = () => {
                className="w-full bg-white/5 border border-white/10 text-indigo-300 hover:text-white hover:bg-white/10 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all active:scale-95 text-xs uppercase tracking-wider group"
              >
                 <ShoppingBag className="w-4 h-4 group-hover:text-yellow-400 transition-colors" />
-                View Product Catalog (Guest Mode)
+                View Products
              </button>
           </div>
 
