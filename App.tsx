@@ -302,7 +302,7 @@ const App: React.FC = () => {
   const profileFileRef = useRef<HTMLInputElement>(null);
   const [showProfilePassword, setShowProfilePassword] = useState(false);
   
-  const [isSyncing, setIsSyncing] = useState(false);
+  // Removed global isSyncing loading state to prevent UI flicker on updates
   const [cloudError, setCloudError] = useState<string | null>(null);
   const [showDbHelp, setShowDbHelp] = useState(false);
 
@@ -420,7 +420,7 @@ const App: React.FC = () => {
       const dbInstance = getDatabase(app, dbUrl);
       
       if (dbInstance) {
-        setIsSyncing(true);
+        // Removed initial syncing state set to false immediately to prevent flicker
         setCloudError(null);
 
         // VISIT COUNT LOGIC (Session Based)
@@ -455,7 +455,6 @@ const App: React.FC = () => {
             } else {
               setIsCloudEnabled(true);
             }
-            setIsSyncing(false);
           }, (error) => {
             console.error(`Sync error for ${node}:`, error);
             if (error.message.includes("permission_denied")) {
@@ -465,7 +464,6 @@ const App: React.FC = () => {
               setCloudError(error.message);
             }
             setIsCloudEnabled(false);
-            setIsSyncing(false);
           });
         };
         
@@ -505,7 +503,6 @@ const App: React.FC = () => {
       console.error("Cloud Connection Error:", error);
       setCloudError(error.message);
       setIsCloudEnabled(false);
-      setIsSyncing(false);
     }
   }, [firebaseConfig]);
 
@@ -1653,7 +1650,7 @@ const App: React.FC = () => {
           <div className="flex items-center gap-4">
             <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest cursor-pointer ${isCloudEnabled ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-500'}`} title={cloudError || "System Normal"} onClick={() => !isCloudEnabled && setShowDbHelp(true)}>
               {isCloudEnabled ? <Cloud className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
-              <span>{isCloudEnabled ? (isSyncing ? 'Syncing...' : 'Online') : 'Offline'}</span>
+              <span>{isCloudEnabled ? 'Online' : 'Offline'}</span>
             </div>
             {/* ... other header items ... */}
           </div>
@@ -1736,7 +1733,7 @@ const App: React.FC = () => {
                className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold border-2 border-indigo-50 cursor-pointer hover:ring-2 hover:ring-indigo-300 transition-all overflow-hidden"
              >
                {myProfile && myProfile.photo ? (
-                 <img key={myProfile.updatedAt} src={myProfile.photo} alt="Profile" className="w-full h-full object-cover" />
+                 <img src={myProfile.photo} alt="Profile" className="w-full h-full object-cover" />
                ) : (
                  currentUser ? currentUser[0].toUpperCase() : <User className="w-5 h-5" />
                )}
