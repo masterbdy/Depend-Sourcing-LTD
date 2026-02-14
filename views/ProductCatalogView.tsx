@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { ShoppingBag, LogOut, Phone, Mail, Globe, Search, Filter, ShoppingCart, X, CheckCircle, ExternalLink, Package, Layers, Scissors, Plus, Edit3, Trash2, Save, Camera, Tag, AlertTriangle, Eye, Users, ArrowRight, Truck, ShieldCheck, Star, Send } from 'lucide-react';
 import { Product, UserRole, Complaint } from '../types';
@@ -171,10 +172,11 @@ const ProductCatalogView: React.FC<ProductCatalogProps> = ({ onLogout, products 
             </div>
             
             <div className="flex items-center gap-2 sm:gap-4">
+               {/* VISIT COUNT - NOW VISIBLE ON ALL SCREENS */}
                {visitCount !== undefined && (
-                  <div className={`hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold border shadow-sm ${isScrolled ? 'bg-gray-50 text-gray-600 border-gray-200' : 'bg-white/10 text-white border-white/20 backdrop-blur-sm'}`}>
+                  <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold border shadow-sm ${isScrolled ? 'bg-gray-50 text-gray-600 border-gray-200' : 'bg-white/10 text-white border-white/20 backdrop-blur-sm'}`}>
                      <Users className="w-3.5 h-3.5" />
-                     <span>{visitCount.toLocaleString()} Views</span>
+                     <span>{visitCount.toLocaleString()} <span className="hidden sm:inline">Views</span></span>
                   </div>
                )}
 
