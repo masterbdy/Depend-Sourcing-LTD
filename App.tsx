@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   LayoutGrid, UsersRound, Footprints, Banknote, PieChart, Settings2, Recycle, 
@@ -488,7 +487,12 @@ const App: React.FC = () => {
         if (!sessionStorage.getItem(sessionKey)) {
            runTransaction(visitRef, (current) => (current || 0) + 1)
              .then(() => sessionStorage.setItem(sessionKey, 'true'))
-             .catch(err => console.error("Visit tracking failed", err));
+             .catch(err => {
+                // Ignore disconnect errors to avoid console noise for non-critical features
+                if (err.message !== 'disconnect' && !String(err).includes('disconnect')) {
+                    console.error("Visit tracking failed", err);
+                }
+             });
         }
 
         const handleSnapshot = (node: string, setter: any) => {
