@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   LayoutGrid, UsersRound, Footprints, Banknote, PieChart, Settings2, Recycle, 
@@ -23,7 +24,7 @@ import GroupChatView from './views/GroupChat';
 import AttendanceView from './views/Attendance';
 import LiveLocationView from './views/LiveLocation';
 import LuckyDrawView from './views/LuckyDraw';
-import ProductCatalogView from './views/ProductCatalogView'; // New Import
+import ProductCatalogView from './views/ProductCatalogView';
 
 // Safe LocalStorage Helper
 const safeGetItem = (key: string, defaultValue: string | null = null) => {
@@ -40,6 +41,28 @@ const safeSetItem = (key: string, value: string) => {
     localStorage.setItem(key, value);
   } catch (e) {
     console.warn(`LocalStorage write failed for key: ${key}`);
+  }
+};
+
+const cleanArray = <T,>(data: any): T[] => {
+  if (!data) return [];
+  const array = typeof data === 'object' && !Array.isArray(data) ? Object.values(data) : data;
+  return Array.isArray(array) ? array.filter(Boolean) as T[] : [];
+};
+
+// Optimized Data Loader for Instant State Initialization
+const getLocalData = <T,>(key: string, fallback: any): T => {
+  try {
+    const saved = safeGetItem(key);
+    if (!saved) return fallback;
+    const parsed = JSON.parse(saved);
+    // If fallback is an array, ensure we return a clean array
+    if (Array.isArray(fallback)) {
+       return cleanArray(parsed) as T;
+    }
+    return parsed;
+  } catch {
+    return fallback;
   }
 };
 
@@ -90,7 +113,7 @@ const App: React.FC = () => {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false); 
   const [highlightStaffId, setHighlightStaffId] = useState<string | null>(null);
-  const [isLocationBlocked, setIsLocationBlocked] = useState(false); // New state for blocking UI
+  const [isLocationBlocked, setIsLocationBlocked] = useState(false); 
   
   const [firebaseConfig] = useState<any>(() => {
     const saved = safeGetItem('fb_config');
@@ -130,7 +153,6 @@ const App: React.FC = () => {
     setAllowedBackdateDays(days);
     safeSetItem('allowed_backdate_days', String(days));
     
-    // Sync to Firebase
     if (firebaseConfig && firebaseConfig.databaseURL) {
        try {
           const app = getApp();
@@ -173,7 +195,6 @@ const App: React.FC = () => {
       }
   };
   
-  // PWA Install State
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
   useEffect(() => {
@@ -185,7 +206,6 @@ const App: React.FC = () => {
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
   }, []);
 
-  // --- PERSISTENT LOGIN LOGIC (Auto-Login on Load) ---
   useEffect(() => {
     const savedSession = safeGetItem('active_session');
     if (savedSession) {
@@ -194,7 +214,6 @@ const App: React.FC = () => {
         if (sessionData && sessionData.role && sessionData.username) {
           setRole(sessionData.role);
           setCurrentUser(sessionData.username);
-          // Optional: Restore active tab if saved
           const lastTab = safeGetItem('last_active_tab');
           if (lastTab) setActiveTab(lastTab);
         }
@@ -204,9 +223,7 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // --- CONTINUOUS LOCATION MONITOR (BLOCKING LOGIC) ---
   useEffect(() => {
-    // Only monitor for STAFF and KIOSK roles
     if (!role || (role !== UserRole.STAFF && role !== UserRole.KIOSK)) {
        setIsLocationBlocked(false);
        return;
@@ -220,36 +237,26 @@ const App: React.FC = () => {
 
        navigator.geolocation.getCurrentPosition(
           (position) => {
-             // Location Found - Allow Access
              setIsLocationBlocked(false);
           },
           (error) => {
-             // Location Error - Block Access
              console.error("Location Monitor: Access Lost", error);
-             
-             // If Timeout (3), it means signal is weak, but location might still be ON.
-             // We shouldn't block the user immediately for weak signal.
              if (error.code === 3) {
-                 return; // Do nothing, assume it's okay for now.
+                 return; 
              }
-             
              setIsLocationBlocked(true);
           },
           {
-             enableHighAccuracy: false, // Changed to false: We just need to know if location is ON, precision doesn't matter for this check.
-             timeout: 20000, // Increased to 20s
-             maximumAge: 1000 * 60 * 10 // Allow 10 minutes old cached position for permission check
+             enableHighAccuracy: false,
+             timeout: 20000, 
+             maximumAge: 1000 * 60 * 10 
           }
        );
     };
 
-    // 1. Check immediately
     checkLocationStatus();
-
-    // 2. Check every 30 seconds
     const intervalId = setInterval(checkLocationStatus, 30000);
 
-    // 3. Check when user returns to the tab/app
     const handleVisibilityChange = () => {
        if (document.visibilityState === 'visible') {
           checkLocationStatus();
@@ -265,7 +272,6 @@ const App: React.FC = () => {
     };
   }, [role]);
 
-  // Save active tab on change
   useEffect(() => {
     if (activeTab) {
       safeSetItem('last_active_tab', activeTab);
@@ -310,7 +316,6 @@ const App: React.FC = () => {
     return safeGetItem('app_theme') === 'dark';
   });
 
-  // Apply dark mode class to HTML element for Portals support
   useEffect(() => {
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
@@ -339,7 +344,6 @@ const App: React.FC = () => {
      return safeGetItem('app_permissions_granted') === 'true';
   });
 
-  // Profile Edit State
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
   const [profileForm, setProfileForm] = useState({
     designation: '',
@@ -351,7 +355,6 @@ const App: React.FC = () => {
   const profileFileRef = useRef<HTMLInputElement>(null);
   const [showProfilePassword, setShowProfilePassword] = useState(false);
   
-  // Removed global isSyncing loading state to prevent UI flicker on updates
   const [cloudError, setCloudError] = useState<string | null>(null);
   const [showDbHelp, setShowDbHelp] = useState(false);
 
@@ -360,24 +363,26 @@ const App: React.FC = () => {
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false); 
-  const [rememberMe, setRememberMe] = useState(true); // Default to true for better UX
-  const [savedAccounts, setSavedAccounts] = useState<any[]>([]);
+  const [rememberMe, setRememberMe] = useState(true);
+  const [savedAccounts, setSavedAccounts] = useState<any[]>(() => getLocalData('saved_accounts', []));
 
-  const [staffList, setStaffList] = useState<Staff[]>([]);
-  const [movements, setMovements] = useState<MovementLog[]>([]);
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [billingRules, setBillingRules] = useState<BillingRule[]>([]);
-  const [funds, setFunds] = useState<FundEntry[]>([]);
-  const [notices, setNotices] = useState<Notice[]>([]);
-  const [advances, setAdvances] = useState<AdvanceLog[]>([]);
-  const [complaints, setComplaints] = useState<Complaint[]>([]);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [attendanceList, setAttendanceList] = useState<Attendance[]>([]);
-  const [liveLocations, setLiveLocations] = useState<Record<string, StaffLocation>>({});
-  const [products, setProducts] = useState<Product[]>([]);
-  const [productEditors, setProductEditors] = useState<string[]>([]);
-  const [searchCount, setSearchCount] = useState<number>(0);
-  const [visitCount, setVisitCount] = useState<number>(0); // New State for Visit Counter
+  // LAZY INITIALIZATION FOR INSTANT DATA LOAD
+  const [staffList, setStaffList] = useState<Staff[]>(() => getLocalData('staffList', INITIAL_STAFF));
+  const [movements, setMovements] = useState<MovementLog[]>(() => getLocalData('movements', []));
+  const [expenses, setExpenses] = useState<Expense[]>(() => getLocalData('expenses', []));
+  const [billingRules, setBillingRules] = useState<BillingRule[]>(() => getLocalData('billingRules', INITIAL_BILLING_RULES));
+  const [funds, setFunds] = useState<FundEntry[]>(() => getLocalData('funds', []));
+  const [notices, setNotices] = useState<Notice[]>(() => getLocalData('notices', []));
+  const [advances, setAdvances] = useState<AdvanceLog[]>(() => getLocalData('advances', []));
+  const [complaints, setComplaints] = useState<Complaint[]>(() => getLocalData('complaints', []));
+  const [messages, setMessages] = useState<ChatMessage[]>(() => getLocalData('messages', []));
+  const [attendanceList, setAttendanceList] = useState<Attendance[]>(() => getLocalData('attendanceList', []));
+  const [liveLocations, setLiveLocations] = useState<Record<string, StaffLocation>>({}); // Live data, no need to persist locally usually
+  const [products, setProducts] = useState<Product[]>(() => getLocalData('products', INITIAL_PRODUCTS));
+  const [productEditors, setProductEditors] = useState<string[]>(() => getLocalData('productEditors', []));
+  
+  const [searchCount, setSearchCount] = useState<number>(() => Number(safeGetItem('searchCount', '0')));
+  const [visitCount, setVisitCount] = useState<number>(() => Number(safeGetItem('visitCount', '0')));
 
   // SEEN STATE TRACKING
   const [seenItems, setSeenItems] = useState<{expenses: string[], complaints: string[], locations: string[]}>(() => {
@@ -392,48 +397,7 @@ const App: React.FC = () => {
     }
   });
 
-  const cleanArray = <T,>(data: any): T[] => {
-    if (!data) return [];
-    const array = typeof data === 'object' && !Array.isArray(data) ? Object.values(data) : data;
-    return Array.isArray(array) ? array.filter(Boolean) as T[] : [];
-  };
-
-  const loadLocalData = () => {
-    const getLocal = (key: string, def: string) => {
-      try {
-        const val = JSON.parse(safeGetItem(key) || def);
-        return cleanArray(val);
-      } catch {
-        return cleanArray(JSON.parse(def));
-      }
-    };
-
-    setStaffList(getLocal('staffList', JSON.stringify(INITIAL_STAFF)) as Staff[]);
-    setExpenses(getLocal('expenses', '[]') as Expense[]);
-    setMovements(getLocal('movements', '[]') as MovementLog[]);
-    setBillingRules(getLocal('billingRules', JSON.stringify(INITIAL_BILLING_RULES)) as BillingRule[]);
-    setFunds(getLocal('funds', '[]') as FundEntry[]);
-    setNotices(getLocal('notices', '[]') as Notice[]);
-    setAdvances(getLocal('advances', '[]') as AdvanceLog[]);
-    setComplaints(getLocal('complaints', '[]') as Complaint[]);
-    setMessages(getLocal('messages', '[]') as ChatMessage[]);
-    setAttendanceList(getLocal('attendanceList', '[]') as Attendance[]);
-    setProducts(getLocal('products', JSON.stringify(INITIAL_PRODUCTS)) as Product[]);
-    setProductEditors(getLocal('productEditors', '[]') as string[]);
-    setSearchCount(Number(safeGetItem('searchCount', '0')));
-    setVisitCount(Number(safeGetItem('visitCount', '0')));
-    
-    try {
-      const savedAcc = safeGetItem('saved_accounts');
-      if (savedAcc) setSavedAccounts(JSON.parse(savedAcc));
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  // Function to track searches
   const handleTrackSearch = () => {
-    // Optimistic Update
     setSearchCount(prev => prev + 1);
     
     if (firebaseConfig && firebaseConfig.databaseURL && isCloudEnabled) {
@@ -441,8 +405,6 @@ const App: React.FC = () => {
         const app = getApp();
         const db = getDatabase(app, firebaseConfig.databaseURL);
         const countRef = ref(db, 'analytics/search_count');
-        
-        // Use Transaction for safe increment
         runTransaction(countRef, (currentCount) => {
           return (currentCount || 0) + 1;
         });
@@ -453,7 +415,7 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    loadLocalData();
+    // Removed redundant loadLocalData call since we use lazy initialization
 
     if (!firebaseConfig || !firebaseConfig.apiKey || !firebaseConfig.projectId) {
       setCloudError("Firebase Config Missing");
@@ -469,31 +431,24 @@ const App: React.FC = () => {
       const dbInstance = getDatabase(app, dbUrl);
       
       if (dbInstance) {
-        // Removed initial syncing state set to false immediately to prevent flicker
         setCloudError(null);
 
-        // VISIT COUNT LOGIC (Session Based)
+        // VISIT COUNT LOGIC (Updated to increment on every load/refresh)
         const visitRef = ref(dbInstance, 'analytics/visit_count');
         
-        // Listen for updates
         onValue(visitRef, (snapshot) => {
            const count = snapshot.val() || 0;
            setVisitCount(count);
            safeSetItem('visitCount', String(count));
         });
 
-        // Increment visit count (Only once per session)
-        const sessionKey = 'has_visited_session';
-        if (!sessionStorage.getItem(sessionKey)) {
-           runTransaction(visitRef, (current) => (current || 0) + 1)
-             .then(() => sessionStorage.setItem(sessionKey, 'true'))
+        // Increment visit count on every page load (Removed sessionStorage check)
+        runTransaction(visitRef, (current) => (current || 0) + 1)
              .catch(err => {
-                // Ignore disconnect errors to avoid console noise for non-critical features
                 if (err.message !== 'disconnect' && !String(err).includes('disconnect')) {
                     console.error("Visit tracking failed", err);
                 }
              });
-        }
 
         const handleSnapshot = (node: string, setter: any) => {
           const dataRef = ref(dbInstance, node);
@@ -535,7 +490,6 @@ const App: React.FC = () => {
         handleSnapshot('products', setProducts);
         handleSnapshot('productEditors', setProductEditors);
 
-        // Separate listener for single value (search count)
         const searchRef = ref(dbInstance, 'analytics/search_count');
         onValue(searchRef, (snapshot) => {
            const count = snapshot.val() || 0;
@@ -543,7 +497,6 @@ const App: React.FC = () => {
            safeSetItem('searchCount', String(count));
         });
 
-        // Listener for App Settings (e.g., allowedBackdateDays)
         const settingsRef = ref(dbInstance, 'app_settings/allowedBackdateDays');
         onValue(settingsRef, (snapshot) => {
            const days = snapshot.val();
@@ -553,7 +506,6 @@ const App: React.FC = () => {
            }
         });
 
-        // Listener for Cert Logos
         const certRef = ref(dbInstance, 'app_settings/cert_logos');
         onValue(certRef, (snapshot) => {
             if (snapshot.exists()) {
@@ -562,7 +514,6 @@ const App: React.FC = () => {
             }
         });
 
-        // Listener for Company Logo
         const logoRef = ref(dbInstance, 'app_settings/company_logo');
         onValue(logoRef, (snapshot) => {
             if (snapshot.exists()) {
@@ -579,7 +530,6 @@ const App: React.FC = () => {
     }
   }, [firebaseConfig]);
 
-  // EFFECT: Mark items as seen when entering tab
   useEffect(() => {
     let updated = false;
     const newState = { ...seenItems };
@@ -680,8 +630,6 @@ const App: React.FC = () => {
     }
   };
 
-  // Robust State Updaters using Functional Updates
-  // This ensures we always work with the latest state when updating, preventing stale data overrides.
   const createUpdater = (key: string, setter: React.Dispatch<React.SetStateAction<any[]>>) => (val: any) => {
     setter(prev => {
       const next = typeof val === 'function' ? val(prev) : val;
@@ -780,14 +728,12 @@ const App: React.FC = () => {
     });
   };
 
-  // --- OPEN PROFILE LOGIC (GLOBAL) ---
   const openProfile = (targetStaffId?: string) => {
     let targetStaff: Staff | undefined;
 
     if (targetStaffId) {
       targetStaff = staffList.find(s => s.id === targetStaffId);
     } else {
-      // Default to current user (My Profile)
       targetStaff = staffList.find(s => s.name === currentUser);
     }
 
@@ -796,8 +742,6 @@ const App: React.FC = () => {
        return;
     }
 
-    // PERMISSION CHECK
-    // If I am STAFF, I can ONLY view my own profile.
     if (role === UserRole.STAFF) {
        const myself = staffList.find(s => s.name === currentUser);
        if (myself && myself.id !== targetStaff.id) {
@@ -806,7 +750,6 @@ const App: React.FC = () => {
        }
     }
 
-    // Populate Modal
     setEditingProfileId(targetStaff.id);
     setProfileForm({
       designation: targetStaff.designation || '',
@@ -908,7 +851,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!currentUser || !role || !firebaseConfig || !isCloudEnabled) return;
-    if (role === UserRole.ADMIN || role === UserRole.MD || role === UserRole.GUEST) return; // Skip for GUEST too
+    if (role === UserRole.ADMIN || role === UserRole.MD || role === UserRole.GUEST) return;
     if (!myStaffId) return;
 
     let watchId: number;
@@ -938,7 +881,7 @@ const App: React.FC = () => {
                 speed: position.coords.speed || 0,
                 // @ts-ignore
                 batteryLevel: (await navigator.getBattery?.())?.level || undefined,
-                deviceName: getDeviceInfo() // Sending detected device info
+                deviceName: getDeviceInfo() 
               };
               await set(ref(db, `staff_locations/${myStaffId}`), locationData);
             } catch (err) {
@@ -946,7 +889,7 @@ const App: React.FC = () => {
             }
           },
           (err) => console.error("GPS Error", err),
-          { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 } // Ensure fresh data
+          { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 } 
         );
       }
     };
@@ -971,7 +914,7 @@ const App: React.FC = () => {
   }, [currentUser, role, isCloudEnabled, myStaffId]);
 
   useEffect(() => {
-    if (!currentUser || !role || role === UserRole.MD || role === UserRole.GUEST) return; // Skip for GUEST
+    if (!currentUser || !role || role === UserRole.MD || role === UserRole.GUEST) return;
 
     const checkAttendance = () => {
       const today = new Date().toISOString().split('T')[0];
@@ -1054,23 +997,19 @@ const App: React.FC = () => {
 
   const unreadCount = appNotifications.filter(n => !n.isRead).length;
 
-  // --- DYNAMIC BADGE COUNTS (Updated to support 'Seen' state) ---
   const badgeCounts = useMemo(() => {
     const counts: Record<string, number> = {};
 
-    // 1. Expenses Badge (Unseen Only)
     if (role === UserRole.ADMIN) {
        counts['expenses'] = expenses.filter(e => !e.isDeleted && e.status === 'PENDING' && !seenItems.expenses.includes(e.id)).length;
     } else if (role === UserRole.MD) {
        counts['expenses'] = expenses.filter(e => !e.isDeleted && e.status === 'VERIFIED' && !seenItems.expenses.includes(e.id)).length;
     }
 
-    // 2. Complaints Badge (Unseen Only)
     if (role === UserRole.ADMIN || role === UserRole.MD) {
        counts['complaints'] = complaints.filter(c => !c.isDeleted && c.status === 'PENDING' && !seenItems.complaints.includes(c.id)).length;
     }
 
-    // 3. Live Location Badge (Active & Unseen Users)
     if (role === UserRole.ADMIN) {
        const now = Date.now();
        counts['live-location'] = Object.values(liveLocations).filter((l: any) => 
@@ -1079,7 +1018,6 @@ const App: React.FC = () => {
        ).length;
     }
     
-    // 4. Notices Badge (Standard logic works fine as NoticeBoardView updates the 'seen' state in data model)
     if (currentUser) {
         counts['notices'] = notices.filter(n => 
           !n.isDeleted && 
@@ -1092,7 +1030,7 @@ const App: React.FC = () => {
 
   const prevMessagesLength = useRef(0);
   useEffect(() => {
-    if (role === UserRole.GUEST) return; // Skip chat notifications for Guest
+    if (role === UserRole.GUEST) return;
 
     if (messages.length > 0 && prevMessagesLength.current > 0 && messages.length > prevMessagesLength.current) {
       const lastMsg = messages[messages.length - 1];
@@ -1112,7 +1050,7 @@ const App: React.FC = () => {
 
   const prevExpensesRef = useRef<Expense[]>([]);
   useEffect(() => {
-    if (role === UserRole.GUEST) return; // Skip expense notifications for Guest
+    if (role === UserRole.GUEST) return;
 
     const prev = prevExpensesRef.current;
     if (prev.length === 0 && expenses.length > 0) {
@@ -1191,17 +1129,13 @@ const App: React.FC = () => {
           setCurrentUser(authenticatedUser!.name);
           setIsLoggingIn(false); 
           
-          // Save session to localStorage for persistent login
           const sessionData = { role: authenticatedUser!.role, username: authenticatedUser!.name };
           safeSetItem('active_session', JSON.stringify(sessionData));
           
-          // DEVICE TRACKING ON LOGIN
           if (authenticatedUser!.role === UserRole.STAFF) {
              const deviceInfo = getDeviceInfo();
-             // Find user ID to update device info
              const myUser = staffList.find(s => s.name === authenticatedUser!.name);
              if (myUser) {
-                // We update state locally first, syncing handles the DB
                 setStaffList(prev => prev.map(s => s.id === myUser.id ? { ...s, lastDevice: deviceInfo, updatedAt: new Date().toISOString() } : s));
              }
           }
@@ -1282,7 +1216,7 @@ const App: React.FC = () => {
     setLoginPassword('');
     setLoginError('');
     setActiveTab('dashboard');
-    localStorage.removeItem('active_session'); // Clear persistent session
+    localStorage.removeItem('active_session');
   };
 
   const handleExport = () => {
@@ -1372,8 +1306,6 @@ const App: React.FC = () => {
     e.preventDefault();
     if (!currentUser) return;
 
-    // Use editingProfileId to find which staff to update
-    // If null, we shouldn't be here, but default to current user just in case
     const targetId = editingProfileId || staffList.find(s => s.name === currentUser)?.id;
     if (!targetId) return;
 
@@ -1398,7 +1330,6 @@ const App: React.FC = () => {
     return (staffList || []).find(s => s && !s.deletedAt && s.name === currentUser);
   }, [staffList, currentUser]);
 
-  // Profile Modal Data (for display)
   const modalProfileData = useMemo(() => {
      if (editingProfileId) {
         return staffList.find(s => s.id === editingProfileId);
@@ -1411,10 +1342,10 @@ const App: React.FC = () => {
     { id: 'attendance', label: 'হাজিরা', icon: Fingerprint, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF, UserRole.KIOSK], color: 'text-green-600', bgColor: 'bg-green-50' },
     { id: 'funds', label: 'ফান্ড লেজার', icon: Landmark, roles: [UserRole.ADMIN, UserRole.MD], color: 'text-emerald-600', bgColor: 'bg-emerald-50' },
     { id: 'expenses', label: 'বিল ও খরচ', icon: Banknote, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-rose-600', bgColor: 'bg-rose-50' },
-    { id: 'products', label: 'পণ্য তালিকা', icon: Package, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-pink-600', bgColor: 'bg-pink-50' }, // Added STAFF Role
+    { id: 'products', label: 'পণ্য তালিকা', icon: Package, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-pink-600', bgColor: 'bg-pink-50' },
     { id: 'notices', label: 'নোটিশ বোর্ড', icon: Megaphone, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF, UserRole.KIOSK], color: 'text-orange-600', bgColor: 'bg-orange-50' },
     { id: 'chat', label: 'টিম চ্যাট', icon: MessageCircleMore, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-violet-600', bgColor: 'bg-violet-50' },
-    { id: 'live-location', label: 'লাইভ ট্র্যাকিং', icon: Radar, roles: [UserRole.ADMIN], color: 'text-cyan-600', bgColor: 'bg-cyan-50' }, // REMOVED UserRole.MD
+    { id: 'live-location', label: 'লাইভ ট্র্যাকিং', icon: Radar, roles: [UserRole.ADMIN], color: 'text-cyan-600', bgColor: 'bg-cyan-50' },
     { id: 'lucky-draw', label: 'লাকি ড্র & গেম', icon: Gift, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-purple-600', bgColor: 'bg-purple-50' },
     { id: 'complaints', label: 'অভিযোগ বক্স', icon: ShieldAlert, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-red-600', bgColor: 'bg-red-50' },
     { id: 'staff', label: 'স্টাফ ম্যানেজমেন্ট', icon: UsersRound, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-indigo-600', bgColor: 'bg-indigo-50' },
@@ -1429,7 +1360,6 @@ const App: React.FC = () => {
   const bottomNavItems = allowedNavItems.slice(0, 4); 
   const mobileSidebarItems = allowedNavItems; 
 
-  // Helper to format large numbers
   const formatPoints = (num: number) => {
     if (num >= 100000) return (num / 100000).toFixed(1).replace(/\.0$/, '') + 'L';
     if (num >= 1000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
@@ -1457,28 +1387,22 @@ const App: React.FC = () => {
     }
   };
 
-  const isStaffUser = role === UserRole.STAFF; // Helper for conditional rendering
+  const isStaffUser = role === UserRole.STAFF;
 
-  // --- GUEST VIEW RENDER ---
   if (role === UserRole.GUEST) {
     return <ProductCatalogView onLogout={handleLogout} products={products} setProducts={updateProducts} role={role} productEditors={productEditors} currentStaffId={null} onTrackSearch={handleTrackSearch} visitCount={visitCount} setComplaints={updateComplaints} certLogos={certLogos} onUpdateCertLogo={updateCertLogos} companyLogo={companyLogo} onUpdateCompanyLogo={updateCompanyLogo} />;
   }
 
-  // --- LOGIN SCREEN ---
-  // ... (Login screen remains same) ...
   if (!role) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4 relative overflow-hidden">
-        {/* ... (Login Screen Content) ... */}
         
         <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-black to-blue-900 opacity-80 z-0"></div>
-        {/* Disable heavy animation on mobile for smoothness */}
         <div className="absolute inset-0 z-0 hidden md:block"><GlowingCursor /></div>
         
         <div className="bg-gray-900/40 backdrop-blur-xl rounded-3xl shadow-2xl p-8 w-full max-w-md border border-white/10 relative z-10 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-500">
           
           <div className="text-center mb-8 relative">
-            {/* Decorative Glow */}
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 bg-indigo-500/20 blur-[50px] rounded-full"></div>
             
             <div className="relative z-10">
@@ -1608,7 +1532,6 @@ const App: React.FC = () => {
             </button>
           </form>
 
-          {/* GUEST MODE BUTTON */}
           <div className="mt-4 border-t border-white/10 pt-4">
              <button 
                onClick={handleGuestLogin}
@@ -1637,14 +1560,10 @@ const App: React.FC = () => {
     );
   }
 
-  // ... (Rest of layout remains unchanged) ...
   return (
     <div className={`flex h-screen overflow-hidden font-['Hind_Siliguri'] relative ${isDarkMode ? 'dark' : ''} ${isDarkMode ? 'text-gray-100' : 'bg-gray-50 text-gray-900'}`}>
       
-      {/* ... (Sidebar & Mobile Menu remain unchanged) ... */}
-      {/* --- NEW GLASSMORPHISM SIDEBAR --- */}
       <aside className={`hidden md:flex flex-col w-72 h-full relative overflow-hidden bg-[#0f172a] text-white border-r border-white/5`}>
-        {/* Background Blobs for Glass Effect */}
         <div className="absolute top-[-100px] left-[-100px] w-64 h-64 bg-indigo-600/20 rounded-full blur-[80px] pointer-events-none"></div>
         <div className="absolute bottom-[-50px] right-[-50px] w-48 h-48 bg-purple-600/10 rounded-full blur-[60px] pointer-events-none"></div>
 
@@ -1682,7 +1601,6 @@ const App: React.FC = () => {
                 />
                 <span className="relative z-10 flex-1 text-left tracking-wide">{item.label}</span>
                 
-                {/* NOTIFICATION BADGE (Uses memoized count) */}
                 {badge > 0 && (
                    <span className="ml-auto relative z-10 bg-red-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full min-w-[1.2rem] text-center shadow-sm animate-pulse">
                       {badge > 99 ? '99+' : badge}
@@ -1725,7 +1643,6 @@ const App: React.FC = () => {
               {isCloudEnabled ? <Cloud className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
               <span>{isCloudEnabled ? 'Online' : 'Offline'}</span>
             </div>
-            {/* ... other header items ... */}
           </div>
           
           <div className="flex items-center gap-4">
@@ -1821,7 +1738,6 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      {/* ... (Mobile Menu & Profile Modal unchanged) ... */}
       <div className="md:hidden fixed bottom-4 left-4 right-4 bg-gray-900/90 backdrop-blur-lg border border-white/10 rounded-2xl flex justify-around items-center px-2 h-16 z-50 shadow-2xl">
          {bottomNavItems.map((item) => {
             const isActive = activeTab === item.id;
@@ -1840,7 +1756,6 @@ const App: React.FC = () => {
                }`}>
                   <item.icon className={`transition-all ${isActive ? 'w-5 h-5 text-white' : 'w-5 h-5'}`} />
                   
-                  {/* MOBILE BADGE (Uses memoized count) */}
                   {badge > 0 && (
                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-black px-1 rounded-full min-w-[1rem] h-4 flex items-center justify-center border border-gray-900">
                         {badge > 9 ? '9+' : badge}
@@ -1962,7 +1877,6 @@ const App: React.FC = () => {
          </div>
       )}
 
-      {/* LOCATION BLOCKING MODAL (New Feature) */}
       {isLocationBlocked && (role === UserRole.STAFF || role === UserRole.KIOSK) && (
          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-gray-900/95 backdrop-blur-md text-white text-center animate-in fade-in duration-300">
             <div className="max-w-md w-full">
