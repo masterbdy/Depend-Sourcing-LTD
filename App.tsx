@@ -87,6 +87,16 @@ const App: React.FC = () => {
   const [highlightStaffId, setHighlightStaffId] = useState<string | null>(null);
   const [isLocationBlocked, setIsLocationBlocked] = useState(false); // New state for blocking UI
   
+  // App Settings
+  const [allowedBackdateDays, setAllowedBackdateDays] = useState(() => {
+    return Number(safeGetItem('allowed_backdate_days', '1'));
+  });
+
+  const updateBackdateDays = (days: number) => {
+    setAllowedBackdateDays(days);
+    safeSetItem('allowed_backdate_days', String(days));
+  };
+  
   // PWA Install State
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
@@ -1346,9 +1356,9 @@ const App: React.FC = () => {
       case 'funds': return <FundLedgerView funds={funds} setFunds={updateFunds} expenses={expenses} advances={advances} totalFund={totalFund} cashOnHand={cashOnHand} role={role!} />;
       case 'staff': return <StaffManagementView staffList={staffList} setStaffList={updateStaffList} role={role!} expenses={expenses} advances={advances} setAdvances={updateAdvances} currentUser={currentUser} onUpdatePoints={handlePointUpdate} highlightStaffId={highlightStaffId} setHighlightStaffId={setHighlightStaffId} />;
       case 'movements': return <MovementLogView movements={movements} setMovements={updateMovements} staffList={staffList} billingRules={billingRules} role={role!} setMessages={updateMessages} currentUser={currentUser} onUpdatePoints={handlePointUpdate} />;
-      case 'expenses': return <ExpenseManagementView expenses={expenses} setExpenses={updateExpenses} staffList={staffList} role={role!} currentUser={currentUser} advances={advances} onOpenProfile={openProfile} />;
+      case 'expenses': return <ExpenseManagementView expenses={expenses} setExpenses={updateExpenses} staffList={staffList} role={role!} currentUser={currentUser} advances={advances} onOpenProfile={openProfile} allowedBackdateDays={allowedBackdateDays} />;
       case 'reports': return <ReportsView expenses={expenses} staffList={staffList} advances={advances} attendanceList={attendanceList} funds={funds} movements={movements} role={role!} />;
-      case 'settings': return <SettingsView billingRules={billingRules} setBillingRules={updateBillingRules} role={role!} exportData={handleExport} importData={handleImport} cloudConfig={firebaseConfig} saveCloudConfig={(config) => { safeSetItem('fb_config', JSON.stringify(config)); alert('Settings saved! Reloading...'); window.location.reload(); }} staffList={staffList} productEditors={productEditors} setProductEditors={updateProductEditors} />;
+      case 'settings': return <SettingsView billingRules={billingRules} setBillingRules={updateBillingRules} role={role!} exportData={handleExport} importData={handleImport} cloudConfig={firebaseConfig} saveCloudConfig={(config) => { safeSetItem('fb_config', JSON.stringify(config)); alert('Settings saved! Reloading...'); window.location.reload(); }} staffList={staffList} productEditors={productEditors} setProductEditors={updateProductEditors} allowedBackdateDays={allowedBackdateDays} setAllowedBackdateDays={updateBackdateDays} />;
       case 'trash': return <TrashView staffList={staffList} setStaffList={updateStaffList} movements={movements} setMovements={updateMovements} expenses={expenses} setExpenses={updateExpenses} funds={funds} setFunds={updateFunds} notices={notices} setNotices={updateNotices} role={role!} />;
       case 'products': return <ProductCatalogView onLogout={() => {}} products={products} setProducts={updateProducts} role={role!} productEditors={productEditors} currentStaffId={myStaffId} onTrackSearch={handleTrackSearch} visitCount={visitCount} setComplaints={updateComplaints} />; 
       default: return <DashboardView totalExpense={totalExpense} pendingApprovals={pendingApprovals} expenses={expenses} cloudError={cloudError} totalFund={totalFund} cashOnHand={cashOnHand} role={role!} staffList={staffList} advances={advances} currentUser={currentUser} onOpenProfile={openProfile} searchCount={searchCount} />;

@@ -13,9 +13,11 @@ interface SettingsProps {
   staffList: Staff[];
   productEditors: string[];
   setProductEditors: React.Dispatch<React.SetStateAction<string[]>>;
+  allowedBackdateDays: number;
+  setAllowedBackdateDays: (days: number) => void;
 }
 
-const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, role, exportData, importData, cloudConfig, saveCloudConfig, staffList = [], productEditors = [], setProductEditors }) => {
+const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, role, exportData, importData, cloudConfig, saveCloudConfig, staffList = [], productEditors = [], setProductEditors, allowedBackdateDays, setAllowedBackdateDays }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [configInput, setConfigInput] = useState(cloudConfig ? JSON.stringify(cloudConfig, null, 2) : '');
   const [parseError, setParseError] = useState<string | null>(null);
@@ -84,6 +86,40 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-12">
+      
+      {/* General Settings (ADMIN ONLY) */}
+      {role === UserRole.ADMIN && (
+        <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
+            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-50">
+                <div className="bg-teal-100 p-2.5 rounded-2xl text-teal-600"><Settings className="w-6 h-6" /></div>
+                <div>
+                    <h2 className="text-xl font-black text-gray-800">সাধারণ সেটিংস (General)</h2>
+                    <p className="text-xs text-gray-400">অ্যাপের বিভিন্ন গ্লোবাল সেটিংস নিয়ন্ত্রণ করুন।</p>
+                </div>
+            </div>
+            
+            <div className="space-y-4">
+               <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">স্টাফদের জন্য বিল সাবমিটের সময়সীমা (Backdate Limit)</label>
+                  <div className="flex items-center gap-3">
+                     <input 
+                       type="number" 
+                       min="0"
+                       className="w-24 px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 outline-none font-bold text-gray-700 text-center"
+                       value={allowedBackdateDays} 
+                       onChange={(e) => setAllowedBackdateDays(Number(e.target.value))} 
+                     />
+                     <span className="text-sm font-bold text-gray-500">দিন (Days)</span>
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-2 flex items-center gap-1">
+                     <InfoIcon className="w-3 h-3" /> 
+                     স্টাফরা বর্তমান তারিখ থেকে সর্বোচ্চ {allowedBackdateDays} দিন আগের বিল সাবমিট করতে পারবে। (0 = শুধু আজকের বিল)
+                  </p>
+               </div>
+            </div>
+        </div>
+      )}
+
       {/* Product Catalog Permissions (ADMIN ONLY) */}
       {role === UserRole.ADMIN && (
         <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
@@ -287,5 +323,10 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
     </div>
   );
 };
+
+// Helper Icon
+const InfoIcon = ({className}: {className: string}) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>
+);
 
 export default SettingsView;

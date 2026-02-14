@@ -11,7 +11,7 @@ interface ExpenseProps {
   currentUser: string | null;
   advances: AdvanceLog[];
   onOpenProfile?: (staffId: string) => void;
-  onNotify?: (title: string, message: string, type: AppNotification['type']) => void;
+  allowedBackdateDays?: number;
 }
 
 // Common Bengali Typos Dictionary
@@ -42,7 +42,7 @@ const TYPO_DICTIONARY: Record<string, string> = {
   'কুরিয়ার': 'কুরিয়ার'
 };
 
-const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, staffList, role, currentUser, advances = [], onOpenProfile }) => {
+const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, staffList, role, currentUser, advances = [], onOpenProfile, allowedBackdateDays = 1 }) => {
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [formData, setFormData] = useState({ 
     staffId: '', 
@@ -75,6 +75,14 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
   const [selectedStaffFilter, setSelectedStaffFilter] = useState('');
 
   const activeStaff = staffList.filter(s => !s.deletedAt && s.status === 'ACTIVE');
+
+  // Date Logic for Restrictions
+  const today = new Date();
+  const minDate = new Date(today);
+  minDate.setDate(minDate.getDate() - allowedBackdateDays);
+  
+  const maxDateStr = today.toISOString().split('T')[0];
+  const minDateStr = minDate.toISOString().split('T')[0];
 
   // Helper for safe date comparison
   const getSafeDateStr = (dateStr: string) => {
@@ -373,6 +381,18 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
     if (!formData.amount || Number(formData.amount) <= 0) { alert("টাকার সঠিক পরিমাণ লিখুন।"); return; }
     if (!formData.date) { alert("তারিখ নির্বাচন করুন।"); return; }
 
+    // Date Validation for Staff
+    if (role === UserRole.STAFF) {
+        if (formData.date < minDateStr) {
+            alert(`দুঃখিত! আপনি সর্বোচ্চ ${allowedBackdateDays} দিন আগের বিল সাবমিট করতে পারবেন।`);
+            return;
+        }
+        if (formData.date > maxDateStr) {
+             alert("ভবিষ্যতের তারিখের বিল সাবমিট করা যাবে না।");
+             return;
+        }
+    }
+
     const submitDate = new Date(formData.date);
     const now = new Date();
     submitDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
@@ -623,13 +643,19 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
-                    {(role === UserRole.ADMIN || role === UserRole.MD) && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">তারিখ (Date)</label>
-                        <input type="date" required className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm font-bold" value={formData.date} onChange={(e) => setFormData({...formData, date: e.target.value})} />
-                      </div>
-                    )}
-                    <div className={`${(role === UserRole.ADMIN || role === UserRole.MD) ? '' : 'col-span-2'}`}>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">তারিখ (Date)</label>
+                      <input 
+                        type="date" 
+                        required 
+                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm font-bold" 
+                        value={formData.date} 
+                        onChange={(e) => setFormData({...formData, date: e.target.value})}
+                        min={role === UserRole.STAFF ? minDateStr : undefined}
+                        max={maxDateStr}
+                      />
+                    </div>
+                    <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">টাকার পরিমাণ</label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">৳</span>
