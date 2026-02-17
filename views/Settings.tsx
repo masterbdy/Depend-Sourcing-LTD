@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Settings, Save, Clock, Download, Upload, Database, ShieldCheck, ExternalLink, HelpCircle, Code, Check, AlertTriangle, Package, UserCheck, X } from 'lucide-react';
+import { Settings, Save, Clock, Download, Upload, Database, ShieldCheck, ExternalLink, HelpCircle, Code, Check, AlertTriangle, Package, UserCheck, X, Image as ImageIcon, Trash2 } from 'lucide-react';
 import { BillingRule, UserRole, Staff } from '../types';
 
 interface SettingsProps {
@@ -15,10 +15,13 @@ interface SettingsProps {
   setProductEditors: React.Dispatch<React.SetStateAction<string[]>>;
   allowedBackdateDays: number;
   setAllowedBackdateDays: (days: number) => void;
+  festivalImage?: string;
+  setFestivalImage?: (base64: string) => void;
 }
 
-const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, role, exportData, importData, cloudConfig, saveCloudConfig, staffList = [], productEditors = [], setProductEditors, allowedBackdateDays, setAllowedBackdateDays }) => {
+const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, role, exportData, importData, cloudConfig, saveCloudConfig, staffList = [], productEditors = [], setProductEditors, allowedBackdateDays, setAllowedBackdateDays, festivalImage, setFestivalImage }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const festivalImageRef = useRef<HTMLInputElement>(null);
   const [configInput, setConfigInput] = useState(cloudConfig ? JSON.stringify(cloudConfig, null, 2) : '');
   const [parseError, setParseError] = useState<string | null>(null);
 
@@ -76,6 +79,36 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
     }
   };
 
+  const handleFestivalImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && setFestivalImage) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          const MAX_HEIGHT = 400; // Increased max size for better quality banners
+          let width = img.width;
+          let height = img.height;
+          
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          ctx?.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/png');
+          setFestivalImage(dataUrl);
+        };
+        img.src = event.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const toggleProductEditor = (staffId: string) => {
     if (productEditors.includes(staffId)) {
         setProductEditors(prev => prev.filter(id => id !== staffId));
@@ -98,7 +131,8 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
                 </div>
             </div>
             
-            <div className="space-y-4">
+            <div className="space-y-6">
+               {/* Backdate Limit */}
                <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">স্টাফদের জন্য বিল সাবমিটের সময়সীমা (Backdate Limit)</label>
                   <div className="flex items-center gap-3">
@@ -116,6 +150,42 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
                      স্টাফরা বর্তমান তারিখ থেকে সর্বোচ্চ {allowedBackdateDays} দিন আগের বিল সাবমিট করতে পারবে। (0 = শুধু আজকের বিল)
                   </p>
                </div>
+
+               {/* Festival / Greeting Banner */}
+               {setFestivalImage && (
+                   <div className="pt-6 border-t border-gray-50">
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">ফেস্টিভ্যাল / গ্রীটিং ব্যানার (Festival Image)</label>
+                      <div className="flex items-start gap-4">
+                          <div 
+                             onClick={() => festivalImageRef.current?.click()}
+                             className="w-full max-w-md h-32 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-teal-500 hover:bg-teal-50 transition-all group overflow-hidden relative bg-gray-50"
+                          >
+                             {festivalImage ? (
+                                <img src={festivalImage} alt="Festival" className="w-full h-full object-contain" />
+                             ) : (
+                                <div className="text-center p-2">
+                                   <ImageIcon className="w-8 h-8 text-gray-400 mx-auto mb-1 group-hover:text-teal-500" />
+                                   <span className="text-[10px] font-bold text-gray-400 group-hover:text-teal-600">Click to Upload Banner</span>
+                                </div>
+                             )}
+                          </div>
+                          
+                          {festivalImage && (
+                             <button 
+                               onClick={() => setFestivalImage('')}
+                               className="p-3 bg-red-50 text-red-500 rounded-xl hover:bg-red-100 transition-colors border border-red-100"
+                               title="Remove Image"
+                             >
+                                <Trash2 className="w-5 h-5" />
+                             </button>
+                          )}
+                      </div>
+                      <input ref={festivalImageRef} type="file" accept="image/*" hidden onChange={handleFestivalImageUpload} />
+                      <p className="text-[10px] text-gray-400 mt-2">
+                         * এই ছবিটি ড্যাশবোর্ডের হিরো সেকশনে ডানদিকে বড় আকারে দেখাবে। (Recommended: PNG with transparent background, High Quality)
+                      </p>
+                   </div>
+               )}
             </div>
         </div>
       )}

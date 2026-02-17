@@ -15,9 +15,10 @@ interface DashboardProps {
   currentUser: string | null;
   onOpenProfile?: (staffId: string) => void;
   searchCount?: number;
+  festivalImage?: string;
 }
 
-const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApprovals, expenses = [], cloudError, totalFund, cashOnHand, role, staffList = [], advances = [], currentUser, onOpenProfile, searchCount }) => {
+const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApprovals, expenses = [], cloudError, totalFund, cashOnHand, role, staffList = [], advances = [], currentUser, onOpenProfile, searchCount, festivalImage }) => {
   const recentActivities = useMemo(() => {
     return [...(expenses || [])].filter(e => !e.isDeleted).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 6);
   }, [expenses]);
@@ -173,40 +174,58 @@ const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApproval
         </div>
       )}
 
-      {/* ULTRA PREMIUM Header Banner - Compact Version */}
-      <div className="relative overflow-hidden rounded-2xl shadow-lg border border-gray-800 bg-[#0B1120] group">
+      {/* ULTRA PREMIUM Header Banner */}
+      <div className="relative overflow-hidden rounded-2xl shadow-lg border border-gray-800 bg-[#0B1120] group min-h-[180px] md:min-h-[220px] flex items-center">
          {/* Background Gradients & Glows */}
          <div className="absolute inset-0 bg-gradient-to-r from-slate-900 via-[#0f172a] to-indigo-950 z-0"></div>
          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-600/10 blur-[100px] rounded-full -mt-20 -mr-20 z-0"></div>
          <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-blue-600/10 blur-[80px] rounded-full -mb-10 -ml-10 z-0"></div>
          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-5 z-0 mix-blend-overlay"></div>
 
-         <div className="relative z-10 px-5 py-5 flex flex-col md:flex-row justify-between items-center gap-4">
-             <div className="text-center md:text-left">
-                 <div className="flex items-center justify-center md:justify-start gap-2 mb-1">
+         {/* FESTIVAL IMAGE (Background Cover) */}
+         {festivalImage && (
+            <div className="absolute right-0 top-0 bottom-0 h-full w-full md:w-[60%] lg:w-[50%] z-0 pointer-events-none">
+                {/* Gradient Mask to blend image left side into background */}
+                <div className="absolute inset-0 z-10 bg-gradient-to-r from-[#0B1120] via-[#0B1120]/50 to-transparent"></div>
+                <img 
+                  src={festivalImage} 
+                  alt="Festival Greeting" 
+                  className="w-full h-full object-cover object-center md:object-right opacity-90 transition-transform duration-700 hover:scale-105"
+                />
+            </div>
+         )}
+
+         {/* Main Content */}
+         <div className="relative z-10 px-6 py-6 w-full flex flex-col md:flex-row justify-between items-center gap-6">
+             
+             {/* Left Text Block */}
+             <div className={`flex-1 ${festivalImage ? 'text-left max-w-lg' : 'text-center md:text-left'}`}>
+                 <div className={`flex items-center gap-2 mb-2 ${festivalImage ? 'justify-start' : 'justify-center md:justify-start'}`}>
                     <span className="h-[1px] w-6 bg-indigo-500/50"></span>
-                    <p className="text-[9px] font-bold text-indigo-300 uppercase tracking-[0.3em]">Est. 2015</p>
+                    <p className="text-[10px] md:text-xs font-bold text-indigo-300 uppercase tracking-[0.3em]">Est. 2015</p>
                     <span className="h-[1px] w-6 bg-indigo-500/50"></span>
                  </div>
-                 <h2 className="text-xl md:text-3xl font-black tracking-tight text-white leading-tight drop-shadow-lg">
+                 <h2 className="text-2xl md:text-4xl lg:text-5xl font-black tracking-tight text-white leading-tight drop-shadow-lg">
                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-indigo-400">DEPEND</span> SOURCING
                  </h2>
-                 <p className="text-[9px] text-gray-400 font-medium tracking-[0.2em] mt-1 uppercase flex items-center justify-center md:justify-start gap-1">
-                   <Sparkles className="w-3 h-3 text-yellow-500" /> Promise Beyond Business
+                 <p className={`text-[10px] md:text-xs text-gray-400 font-medium tracking-[0.2em] mt-2 uppercase flex items-center gap-1 ${festivalImage ? 'justify-start' : 'justify-center md:justify-start'}`}>
+                   <Sparkles className="w-3.5 h-3.5 text-yellow-500" /> Promise Beyond Business
                  </p>
              </div>
              
-             {/* Glassmorphism Date Card - Compact */}
-             <div className="flex items-center gap-3 bg-white/5 backdrop-blur-xl px-4 py-2 rounded-xl border border-white/10 shadow-lg hover:bg-white/10 transition-colors">
-                <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg text-white shadow-lg shadow-indigo-500/30">
-                   <Calendar className="w-4 h-4" />
-                </div>
-                <div className="text-left">
-                   <p className="text-[8px] uppercase font-bold text-indigo-200 tracking-widest leading-none mb-0.5 opacity-80">Today</p>
-                   <p className="text-sm font-bold text-white leading-none">
-                     {new Date().toLocaleDateString('bn-BD', { day: 'numeric', month: 'short' })}
-                   </p>
-                </div>
+             {/* Right Side: Date Badge */}
+             <div className={`flex flex-col gap-3 ${festivalImage ? 'items-end self-start md:self-center' : 'items-center md:items-end'}`}>
+               <div className="flex items-center gap-3 bg-white/5 backdrop-blur-xl px-5 py-2.5 rounded-xl border border-white/10 shadow-lg hover:bg-white/10 transition-colors">
+                  <div className="p-2.5 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg text-white shadow-lg shadow-indigo-500/30">
+                     <Calendar className="w-5 h-5" />
+                  </div>
+                  <div className="text-left">
+                     <p className="text-[9px] uppercase font-bold text-indigo-200 tracking-widest leading-none mb-1 opacity-80">Today</p>
+                     <p className="text-sm md:text-base font-bold text-white leading-none">
+                       {new Date().toLocaleDateString('bn-BD', { day: 'numeric', month: 'long', year: 'numeric' })}
+                     </p>
+                  </div>
+               </div>
              </div>
          </div>
       </div>

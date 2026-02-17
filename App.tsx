@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   LayoutGrid, UsersRound, Footprints, Banknote, PieChart, Settings2, Recycle, 
@@ -150,6 +149,11 @@ const App: React.FC = () => {
     return safeGetItem('company_logo') || '';
   });
 
+  // NEW: Festival Image State
+  const [festivalImage, setFestivalImage] = useState(() => {
+    return safeGetItem('festival_image') || '';
+  });
+
   const updateBackdateDays = (days: number) => {
     setAllowedBackdateDays(days);
     safeSetItem('allowed_backdate_days', String(days));
@@ -192,6 +196,21 @@ const App: React.FC = () => {
              set(ref(db, `app_settings/company_logo`), base64);
           } catch (e) {
              console.error("Failed to sync company logo", e);
+          }
+      }
+  };
+
+  const updateFestivalImage = (base64: string) => {
+      setFestivalImage(base64);
+      safeSetItem('festival_image', base64);
+      
+      if (firebaseConfig && firebaseConfig.databaseURL) {
+          try {
+             const app = getApp();
+             const db = getDatabase(app, firebaseConfig.databaseURL);
+             set(ref(db, `app_settings/festival_image`), base64);
+          } catch (e) {
+             console.error("Failed to sync festival image", e);
           }
       }
   };
@@ -488,6 +507,7 @@ const App: React.FC = () => {
               if(val.allowedBackdateDays) setAllowedBackdateDays(Number(val.allowedBackdateDays));
               if(val.cert_logos) setCertLogos(val.cert_logos);
               if(val.company_logo) setCompanyLogo(val.company_logo);
+              if(val.festival_image) setFestivalImage(val.festival_image);
            }
         });
 
@@ -1399,7 +1419,7 @@ const App: React.FC = () => {
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'dashboard': return <DashboardView totalExpense={totalExpense} pendingApprovals={pendingApprovals} expenses={expenses} cloudError={cloudError} totalFund={totalFund} cashOnHand={cashOnHand} role={role!} staffList={staffList} advances={advances} currentUser={currentUser} onOpenProfile={openProfile} searchCount={searchCount} />;
+      case 'dashboard': return <DashboardView totalExpense={totalExpense} pendingApprovals={pendingApprovals} expenses={expenses} cloudError={cloudError} totalFund={totalFund} cashOnHand={cashOnHand} role={role!} staffList={staffList} advances={advances} currentUser={currentUser} onOpenProfile={openProfile} searchCount={searchCount} festivalImage={festivalImage} />;
       case 'chat': return <GroupChatView messages={messages} setMessages={updateMessages} currentUser={currentUser} role={role} onNavigate={(view) => setActiveTab(view)} onUpdatePoints={handlePointUpdate} staffList={staffList} onOpenProfile={openProfile} />;
       case 'attendance': return <AttendanceView staffList={staffList} attendanceList={attendanceList} setAttendanceList={updateAttendance} currentUser={currentUser} role={role!} />;
       case 'live-location': return <LiveLocationView staffList={staffList} liveLocations={liveLocations} />;
@@ -1411,10 +1431,10 @@ const App: React.FC = () => {
       case 'movements': return <MovementLogView movements={movements} setMovements={updateMovements} staffList={staffList} billingRules={billingRules} role={role!} setMessages={updateMessages} currentUser={currentUser} onUpdatePoints={handlePointUpdate} />;
       case 'expenses': return <ExpenseManagementView expenses={expenses} setExpenses={updateExpenses} staffList={staffList} role={role!} currentUser={currentUser} advances={advances} onOpenProfile={openProfile} allowedBackdateDays={allowedBackdateDays} />;
       case 'reports': return <ReportsView expenses={expenses} staffList={staffList} advances={advances} attendanceList={attendanceList} funds={funds} movements={movements} role={role!} />;
-      case 'settings': return <SettingsView billingRules={billingRules} setBillingRules={updateBillingRules} role={role!} exportData={handleExport} importData={handleImport} cloudConfig={firebaseConfig} saveCloudConfig={(config) => { safeSetItem('fb_config', JSON.stringify(config)); alert('Settings saved! Reloading...'); window.location.reload(); }} staffList={staffList} productEditors={productEditors} setProductEditors={updateProductEditors} allowedBackdateDays={allowedBackdateDays} setAllowedBackdateDays={updateBackdateDays} />;
+      case 'settings': return <SettingsView billingRules={billingRules} setBillingRules={updateBillingRules} role={role!} exportData={handleExport} importData={handleImport} cloudConfig={firebaseConfig} saveCloudConfig={(config) => { safeSetItem('fb_config', JSON.stringify(config)); alert('Settings saved! Reloading...'); window.location.reload(); }} staffList={staffList} productEditors={productEditors} setProductEditors={updateProductEditors} allowedBackdateDays={allowedBackdateDays} setAllowedBackdateDays={updateBackdateDays} festivalImage={festivalImage} setFestivalImage={updateFestivalImage} />;
       case 'trash': return <TrashView staffList={staffList} setStaffList={updateStaffList} movements={movements} setMovements={updateMovements} expenses={expenses} setExpenses={updateExpenses} funds={funds} setFunds={updateFunds} notices={notices} setNotices={updateNotices} role={role!} />;
       case 'products': return <ProductCatalogView onLogout={() => {}} products={products} setProducts={updateProducts} role={role!} productEditors={productEditors} currentStaffId={myStaffId} onTrackSearch={handleTrackSearch} setComplaints={updateComplaints} certLogos={certLogos} onUpdateCertLogo={updateCertLogos} companyLogo={companyLogo} onUpdateCompanyLogo={updateCompanyLogo} />; 
-      default: return <DashboardView totalExpense={totalExpense} pendingApprovals={pendingApprovals} expenses={expenses} cloudError={cloudError} totalFund={totalFund} cashOnHand={cashOnHand} role={role!} staffList={staffList} advances={advances} currentUser={currentUser} onOpenProfile={openProfile} searchCount={searchCount} />;
+      default: return <DashboardView totalExpense={totalExpense} pendingApprovals={pendingApprovals} expenses={expenses} cloudError={cloudError} totalFund={totalFund} cashOnHand={cashOnHand} role={role!} staffList={staffList} advances={advances} currentUser={currentUser} onOpenProfile={openProfile} searchCount={searchCount} festivalImage={festivalImage} />;
     }
   };
 

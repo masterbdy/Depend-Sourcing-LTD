@@ -575,8 +575,8 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                   {expense.status === 'PENDING' ? 'পেন্ডিং' : expense.status === 'VERIFIED' ? 'ভেরিফাইড (MD)' : expense.status === 'APPROVED' ? 'অনুমোদিত' : 'প্রত্যাখ্যাত'}
                 </span>
                 <div className="flex items-center gap-2">
-                  {/* EDIT Button Logic: MD can NOT edit Pending bills */}
-                  {((role === UserRole.ADMIN && (expense.status === 'PENDING' || expense.status === 'VERIFIED')) || (role === UserRole.MD && expense.status === 'VERIFIED')) && (
+                  {/* EDIT Button Logic: Admin can edit ALL, MD can only edit Verified */}
+                  {((role === UserRole.ADMIN) || (role === UserRole.MD && expense.status === 'VERIFIED')) && (
                     <button onClick={() => openCorrectionModal(expense)} className="text-orange-500 hover:text-orange-700 transition-colors p-1 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-full" title="বিল সংশোধন করুন"><Edit3 className="w-4 h-4" /></button>
                   )}
                   {expense.voucherImage && (
