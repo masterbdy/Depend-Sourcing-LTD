@@ -19,10 +19,10 @@ interface TrashProps {
 const TrashView: React.FC<TrashProps> = ({ staffList = [], setStaffList, movements = [], setMovements, expenses = [], setExpenses, funds = [], setFunds, notices = [], setNotices, role }) => {
   const [emptyTrashConfirm, setEmptyTrashConfirm] = useState(false);
 
-  const trashedStaff = (staffList || []).filter(s => s && !!s.deletedAt);
-  const trashedExpenses = (expenses || []).filter(e => e && !!e.isDeleted);
-  const trashedFunds = (funds || []).filter(f => f && !!f.isDeleted);
-  const trashedNotices = (notices || []).filter(n => n && !!n.isDeleted);
+  const trashedStaff = (staffList || []).filter(s => s && !!s.deletedAt && !s.isHardDeleted);
+  const trashedExpenses = (expenses || []).filter(e => e && !!e.isDeleted && !e.isHardDeleted);
+  const trashedFunds = (funds || []).filter(f => f && !!f.isDeleted && !f.isHardDeleted);
+  const trashedNotices = (notices || []).filter(n => n && !!n.isDeleted && !n.isHardDeleted);
 
   const restoreStaff = (id: string) => {
     setStaffList(prev => prev.map(s => s && s.id === id ? { ...s, deletedAt: undefined } : s));
@@ -48,11 +48,11 @@ const TrashView: React.FC<TrashProps> = ({ staffList = [], setStaffList, movemen
 
   // PERMANENT DELETE (EMPTY TRASH)
   const confirmEmptyTrash = () => {
-    setStaffList(prev => prev.filter(s => !s.deletedAt));
-    setExpenses(prev => prev.filter(e => !e.isDeleted));
-    setMovements(prev => prev.filter(m => !m.isDeleted));
-    setFunds(prev => prev.filter(f => !f.isDeleted));
-    setNotices(prev => prev.filter(n => !n.isDeleted));
+    setStaffList(prev => prev.map(s => s && s.deletedAt ? { ...s, isHardDeleted: true } : s));
+    setExpenses(prev => prev.map(e => e && e.isDeleted ? { ...e, isHardDeleted: true } : e));
+    setMovements(prev => prev.map(m => m && m.isDeleted ? { ...m, isHardDeleted: true } : m));
+    setFunds(prev => prev.map(f => f && f.isDeleted ? { ...f, isHardDeleted: true } : f));
+    setNotices(prev => prev.map(n => n && n.isDeleted ? { ...n, isHardDeleted: true } : n));
     setEmptyTrashConfirm(false);
     alert("রিসাইকেল বিন সফলভাবে খালি করা হয়েছে।");
   };

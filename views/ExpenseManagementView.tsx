@@ -162,11 +162,14 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
       ? `<img src="${staff.photo}" style="width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 2px solid #e5e7eb;" crossorigin="anonymous" />`
       : `<div style="width: 45px; height: 45px; border-radius: 50%; background: #f3f4f6; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #6b7280; font-size: 18px; border: 2px solid #e5e7eb;">${expense.staffName[0]}</div>`;
 
+    // STRICTLY ENFORCED FONT FAMILY for all elements
+    const fontStyle = "font-family: 'Noto Sans Bengali', sans-serif;";
+
     return `
-      <div style="width: 650px; padding: 40px; background: white; border: 1px solid #d1d5db; font-family: 'Hind Siliguri', sans-serif; color: #1f2937; position: relative; margin: auto; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+      <div style="width: 650px; padding: 40px; background: white; border: 1px solid #d1d5db; ${fontStyle} color: #1f2937; position: relative; margin: auto; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
          <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #111827; padding-bottom: 20px; margin-bottom: 30px;">
             <div>
-               <h1 style="font-size: 28px; font-weight: 900; margin: 0; color: #111827; text-transform: uppercase; letter-spacing: -0.5px; line-height: 1;">Depend Sourcing Ltd.</h1>
+               <h1 style="font-size: 28px; font-weight: 900; margin: 0; color: #111827; text-transform: uppercase; letter-spacing: -0.5px; line-height: 1; ${fontStyle}">Depend Sourcing Ltd.</h1>
                <p style="font-size: 11px; margin: 6px 0 0; letter-spacing: 3px; text-transform: uppercase; color: #6b7280; font-weight: 600;">Promise Beyond Business</p>
             </div>
             <div style="text-align: right;">
@@ -177,17 +180,17 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
          <div style="display: flex; justify-content: space-between; align-items: center; background: #f9fafb; padding: 20px; border-radius: 12px; border: 1px solid #f3f4f6; margin-bottom: 30px;">
             <div>
                <div style="color: #6b7280; font-size: 10px; text-transform: uppercase; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">Beneficiary / Payee</div>
-               <div style="font-size: 18px; font-weight: 800; color: #111827;">${expense.staffName}</div>
+               <div style="font-size: 18px; font-weight: 800; color: #111827; ${fontStyle}">${expense.staffName}</div>
                <div style="font-size: 12px; color: #4b5563; margin-top: 2px; font-weight: 500;">${designation} • ID: ${staffId}</div>
             </div>
             <div>${photoHTML}</div>
          </div>
          <div style="text-align: center; margin-bottom: 35px; padding: 30px 20px; border: 2px dashed #e5e7eb; border-radius: 16px; position: relative;">
             <div style="position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: white; padding: 0 10px; font-size: 10px; text-transform: uppercase; font-weight: 800; color: #9ca3af; letter-spacing: 1px;">Amount Authorized</div>
-            <div style="font-size: 48px; font-weight: 900; color: #111827; line-height: 1; letter-spacing: -1px;">৳ ${expense.amount.toLocaleString()}</div>
+            <div style="font-size: 48px; font-weight: 900; color: #111827; line-height: 1; letter-spacing: -1px; ${fontStyle}">৳ ${expense.amount.toLocaleString()}</div>
             <div style="font-size: 12px; font-weight: 600; color: #4b5563; margin-top: 5px; text-transform: uppercase; letter-spacing: 1px;">BDT Taka Only</div>
-            <div style="margin-top: 20px; font-size: 14px; font-weight: 500; color: #374151; background: #f3f4f6; padding: 10px 20px; border-radius: 50px; display: inline-block;">"${expense.reason}"</div>
-            <div style="margin-top: 10px; font-size: 10px; font-weight: 600; color: #9ca3af;">Date: ${dateStr}</div>
+            <div style="margin-top: 20px; font-size: 14px; font-weight: 500; color: #374151; background: #f3f4f6; padding: 10px 20px; border-radius: 50px; display: inline-block; ${fontStyle}">"${expense.reason}"</div>
+            <div style="margin-top: 10px; font-size: 10px; font-weight: 600; color: #9ca3af; ${fontStyle}">Date: ${dateStr}</div>
          </div>
          <div style="margin-bottom: 50px;">
             <div style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: #6b7280; margin-bottom: 10px; letter-spacing: 0.5px; padding-left: 5px;">Current Account Summary</div>
@@ -201,9 +204,9 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                </thead>
                <tbody>
                  <tr>
-                    <td style="padding: 15px; text-align: left; border-right: 1px solid #e5e7eb; font-weight: 600; font-size: 13px;">৳ ${stats.regularAdv.toLocaleString()}</td>
-                    <td style="padding: 15px; text-align: right; border-right: 1px solid #e5e7eb; font-weight: 600; font-size: 13px;">৳ ${stats.approvedExp.toLocaleString()}</td>
-                    <td style="padding: 15px; text-align: right; font-weight: 900; color: ${stats.balance < 0 ? '#dc2626' : '#059669'}; font-size: 14px;">${stats.balance < 0 ? 'Payable' : 'Cash'} ৳ ${Math.abs(stats.balance).toLocaleString()}</td>
+                    <td style="padding: 15px; text-align: left; border-right: 1px solid #e5e7eb; font-weight: 600; font-size: 13px; ${fontStyle}">৳ ${stats.regularAdv.toLocaleString()}</td>
+                    <td style="padding: 15px; text-align: right; border-right: 1px solid #e5e7eb; font-weight: 600; font-size: 13px; ${fontStyle}">৳ ${stats.approvedExp.toLocaleString()}</td>
+                    <td style="padding: 15px; text-align: right; font-weight: 900; color: ${stats.balance < 0 ? '#dc2626' : '#059669'}; font-size: 14px; ${fontStyle}">${stats.balance < 0 ? 'Payable' : 'Cash'} ৳ ${Math.abs(stats.balance).toLocaleString()}</td>
                  </tr>
                </tbody>
             </table>
@@ -226,6 +229,9 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
   const processVoucherDownload = async (expense: Expense) => {
     return new Promise<void>(async (resolve) => {
       try {
+        // Ensure fonts are ready before capturing
+        await document.fonts.ready;
+
         const htmlContent = generateVoucherHTML(expense);
         const container = document.createElement('div');
         container.innerHTML = htmlContent;
@@ -247,7 +253,8 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
         
         if (imagePromises.length > 0) await Promise.all(imagePromises);
         
-        await new Promise(r => setTimeout(r, 800));
+        // Slightly longer delay to ensure font rendering
+        await new Promise(r => setTimeout(r, 1000));
 
         // @ts-ignore
         if (window.html2canvas) {
@@ -307,7 +314,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
     const printWindow = window.open('', '_blank', 'width=900,height=800');
     if (printWindow) {
        printWindow.document.open();
-       printWindow.document.write(`<!DOCTYPE html><html><head><title>Voucher #${expense.id}</title><link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet"><style>body { background-color: #f3f4f6; display: flex; justify-content: center; padding-top: 40px; margin: 0; font-family: 'Hind Siliguri', sans-serif; } @media print { body { background-color: white; padding: 0; display: block; -webkit-print-color-adjust: exact; } .no-print { display: none; } }</style></head><body>${htmlContent}<script>window.onload = function() { setTimeout(function() { window.print(); }, 800); };</script></body></html>`);
+       printWindow.document.write(`<!DOCTYPE html><html><head><title>Voucher #${expense.id}</title><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap" rel="stylesheet"><style>body { background-color: #f3f4f6; display: flex; justify-content: center; padding-top: 40px; margin: 0; font-family: 'Noto Sans Bengali', sans-serif; } @media print { body { background-color: white; padding: 0; display: block; -webkit-print-color-adjust: exact; } .no-print { display: none; } }</style></head><body>${htmlContent}<script>window.onload = function() { setTimeout(function() { window.print(); }, 800); };</script></body></html>`);
        printWindow.document.close();
     } else { alert("Print popup blocked. Please allow popups for this site."); }
   };

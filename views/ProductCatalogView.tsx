@@ -64,6 +64,7 @@ const ProductCatalogView: React.FC<ProductCatalogProps> = ({
 
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
+      if ((p as any).isHardDeleted) return false;
       const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                             p.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
                             p.tags.some(t => t.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -156,7 +157,7 @@ const ProductCatalogView: React.FC<ProductCatalogProps> = ({
 
   const handleDeleteProduct = (id: string) => {
     if (confirm("Are you sure you want to delete this product?")) {
-       setProducts(prev => prev.filter(p => p.id !== id));
+       setProducts(prev => prev.map(p => p.id === id ? { ...p, isHardDeleted: true } : p));
        if (viewingProduct?.id === id) setViewingProduct(null);
     }
   };

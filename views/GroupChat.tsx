@@ -83,7 +83,7 @@ const GroupChatView: React.FC<GroupChatProps> = ({ messages = [], setMessages, c
 
   const deleteForEveryone = () => {
     if (!deleteModalMsgId) return;
-    setMessages(prev => prev.filter(m => m.id !== deleteModalMsgId));
+    setMessages(prev => prev.map(m => m.id === deleteModalMsgId ? { ...m, isHardDeleted: true } : m));
     setDeleteModalMsgId(null);
   };
 
@@ -149,7 +149,7 @@ const GroupChatView: React.FC<GroupChatProps> = ({ messages = [], setMessages, c
   };
 
   const sortedMessages = [...(messages || [])]
-    .filter(m => !m.hiddenFor?.includes(currentUser || ''))
+    .filter(m => !(m as any).isHardDeleted && !m.hiddenFor?.includes(currentUser || ''))
     .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
   const getRoleIcon = (userRole: UserRole) => {

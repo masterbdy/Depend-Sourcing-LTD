@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { TrendingDown, AlertCircle, Clock, ShieldAlert, Landmark, Wallet, Trophy, Crown, ArrowUpRight, Coins, Banknote, WalletCards, Calendar, Sparkles, PieChart } from 'lucide-react';
+import React, { useMemo, useEffect, useState } from 'react';
+import { TrendingDown, AlertCircle, Clock, ShieldAlert, Landmark, Wallet, Trophy, Crown, ArrowUpRight, Coins, Banknote, WalletCards, Calendar, Sparkles, PieChart, Cake, PartyPopper } from 'lucide-react';
 import { Expense, UserRole, Staff, AdvanceLog } from '../types';
 
 interface DashboardProps {
@@ -19,9 +19,37 @@ interface DashboardProps {
 }
 
 const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApprovals, expenses = [], cloudError, totalFund, cashOnHand, role, staffList = [], advances = [], currentUser, onOpenProfile, searchCount, festivalImage }) => {
+  const [showConfetti, setShowConfetti] = useState(false);
+
   const recentActivities = useMemo(() => {
     return [...(expenses || [])].filter(e => !e.isDeleted).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 6);
   }, [expenses]);
+
+  // Find My ID
+  const myStaffId = useMemo(() => {
+    return (staffList || []).find(s => s.name === currentUser)?.id;
+  }, [staffList, currentUser]);
+
+  const currentUserData = useMemo(() => {
+     return (staffList || []).find(s => s.name === currentUser);
+  }, [staffList, currentUser]);
+
+  // BIRTHDAY CHECK
+  const isBirthday = useMemo(() => {
+     if (!currentUserData || !currentUserData.dateOfBirth) return false;
+     const today = new Date();
+     const dob = new Date(currentUserData.dateOfBirth);
+     return today.getDate() === dob.getDate() && today.getMonth() === dob.getMonth();
+  }, [currentUserData]);
+
+  useEffect(() => {
+     if (isBirthday) {
+        setShowConfetti(true);
+        // Stop confetti after 8 seconds
+        const timer = setTimeout(() => setShowConfetti(false), 8000);
+        return () => clearTimeout(timer);
+     }
+  }, [isBirthday]);
 
   // --- STATS CALCULATION ---
   // Advance Breakdown
@@ -60,11 +88,6 @@ const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApproval
   const isStaff = role === UserRole.STAFF;
   const isManagement = role === UserRole.ADMIN || role === UserRole.MD;
 
-  // Find My ID
-  const myStaffId = useMemo(() => {
-    return (staffList || []).find(s => s.name === currentUser)?.id;
-  }, [staffList, currentUser]);
-
   // Helper to format large numbers
   const formatPoints = (num: number) => {
     if (num >= 100000) return (num / 100000).toFixed(1).replace(/\.0$/, '') + 'L';
@@ -90,8 +113,6 @@ const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApproval
     const salary = myAdvs.filter(a => a.type === 'SALARY').reduce((sum, a) => sum + Number(a.amount), 0);
 
     // Balance Logic: Regular Advance - Expenses
-    // Positive = Cash in Hand (Staff has cash)
-    // Negative = Payable (Office owes Staff)
     const balance = regular - myApproved;
 
     return {
@@ -159,8 +180,38 @@ const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApproval
   );
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 relative">
       
+      {/* CONFETTI OVERLAY */}
+      {showConfetti && (
+        <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
+           {[...Array(50)].map((_, i) => (
+              <div 
+                key={i}
+                className="absolute w-2 h-2 bg-red-500 rounded-full animate-confetti"
+                style={{
+                   left: `${Math.random() * 100}%`,
+                   top: `-10px`,
+                   backgroundColor: ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff'][Math.floor(Math.random() * 5)],
+                   animationDuration: `${Math.random() * 3 + 2}s`,
+                   animationDelay: `${Math.random() * 2}s`
+                }}
+              ></div>
+           ))}
+           <style>{`
+             @keyframes confetti {
+               0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+               100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+             }
+             .animate-confetti {
+               animation-name: confetti;
+               animation-timing-function: linear;
+               animation-iteration-count: infinite;
+             }
+           `}</style>
+        </div>
+      )}
+
       {/* Cloud Connection Error */}
       {cloudError && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 flex items-center gap-4">
@@ -174,24 +225,34 @@ const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApproval
         </div>
       )}
 
-      {/* ULTRA PREMIUM Header Banner */}
-      <div className="relative overflow-hidden rounded-2xl shadow-lg border border-gray-800 bg-[#0B1120] group min-h-[180px] md:min-h-[220px] flex items-center">
+      {/* ULTRA PREMIUM Header Banner (Dynamic: Birthday vs Normal) */}
+      <div className={`relative overflow-hidden rounded-2xl shadow-lg border border-gray-800 group min-h-[180px] md:min-h-[220px] flex items-center transition-all duration-1000 ${isBirthday ? 'bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600' : 'bg-[#0B1120]'}`}>
+         
          {/* Background Gradients & Glows */}
-         <div className="absolute inset-0 bg-gradient-to-r from-slate-900 via-[#0f172a] to-indigo-950 z-0"></div>
-         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-600/10 blur-[100px] rounded-full -mt-20 -mr-20 z-0"></div>
-         <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-blue-600/10 blur-[80px] rounded-full -mb-10 -ml-10 z-0"></div>
+         {!isBirthday && (
+            <>
+              <div className="absolute inset-0 bg-gradient-to-r from-slate-900 via-[#0f172a] to-indigo-950 z-0"></div>
+              <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-600/10 blur-[100px] rounded-full -mt-20 -mr-20 z-0"></div>
+              <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-blue-600/10 blur-[80px] rounded-full -mb-10 -ml-10 z-0"></div>
+            </>
+         )}
+         
+         {/* Birthday Specific Background */}
+         {isBirthday && (
+            <>
+               <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 z-0"></div>
+               <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-yellow-400/20 blur-[120px] rounded-full z-0 animate-pulse"></div>
+               <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-pink-500/20 blur-[100px] rounded-full z-0"></div>
+            </>
+         )}
+
          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-5 z-0 mix-blend-overlay"></div>
 
-         {/* FESTIVAL IMAGE (Background Cover) */}
-         {festivalImage && (
+         {/* FESTIVAL IMAGE or BIRTHDAY DECOR (Background Cover) */}
+         {(festivalImage && !isBirthday) && (
             <div className="absolute right-0 top-0 bottom-0 h-full w-full md:w-[60%] lg:w-[50%] z-0 pointer-events-none">
-                {/* Gradient Mask to blend image left side into background */}
                 <div className="absolute inset-0 z-10 bg-gradient-to-r from-[#0B1120] via-[#0B1120]/50 to-transparent"></div>
-                <img 
-                  src={festivalImage} 
-                  alt="Festival Greeting" 
-                  className="w-full h-full object-cover object-center md:object-right opacity-90 transition-transform duration-700 hover:scale-105"
-                />
+                <img src={festivalImage} alt="Festival Greeting" className="w-full h-full object-cover object-center md:object-right opacity-90 transition-transform duration-700 hover:scale-105" />
             </div>
          )}
 
@@ -199,28 +260,47 @@ const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApproval
          <div className="relative z-10 px-6 py-6 w-full flex flex-col md:flex-row justify-between items-center gap-6">
              
              {/* Left Text Block */}
-             <div className={`flex-1 ${festivalImage ? 'text-left max-w-lg' : 'text-center md:text-left'}`}>
-                 <div className={`flex items-center gap-2 mb-2 ${festivalImage ? 'justify-start' : 'justify-center md:justify-start'}`}>
-                    <span className="h-[1px] w-6 bg-indigo-500/50"></span>
-                    <p className="text-[10px] md:text-xs font-bold text-indigo-300 uppercase tracking-[0.3em]">Est. 2015</p>
-                    <span className="h-[1px] w-6 bg-indigo-500/50"></span>
-                 </div>
-                 <h2 className="text-2xl md:text-4xl lg:text-5xl font-black tracking-tight text-white leading-tight drop-shadow-lg">
-                   <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-indigo-400">DEPEND</span> SOURCING
-                 </h2>
-                 <p className={`text-[10px] md:text-xs text-gray-400 font-medium tracking-[0.2em] mt-2 uppercase flex items-center gap-1 ${festivalImage ? 'justify-start' : 'justify-center md:justify-start'}`}>
-                   <Sparkles className="w-3.5 h-3.5 text-yellow-500" /> Promise Beyond Business
-                 </p>
+             <div className={`flex-1 ${(festivalImage && !isBirthday) ? 'text-left max-w-lg' : 'text-center md:text-left'}`}>
+                 {isBirthday ? (
+                    // BIRTHDAY CONTENT
+                    <div className="animate-in slide-in-from-bottom-5 duration-700">
+                        <div className="inline-flex items-center gap-2 bg-white/20 px-4 py-1 rounded-full backdrop-blur-md border border-white/30 mb-3 shadow-lg">
+                           <Cake className="w-4 h-4 text-yellow-300" />
+                           <span className="text-xs font-bold text-white uppercase tracking-widest">It's Your Special Day!</span>
+                        </div>
+                        <h2 className="text-3xl md:text-5xl font-black tracking-tight text-white leading-tight drop-shadow-xl mb-2">
+                           শুভ জন্মদিন, <br/><span className="text-yellow-300">{currentUserData?.name?.split(' ')[0] || 'Friend'}!</span> 🎉
+                        </h2>
+                        <p className="text-sm md:text-base text-pink-100 font-medium tracking-wide mt-2 max-w-lg leading-relaxed">
+                           ডিপেন্ড সোর্সিং পরিবারের পক্ষ থেকে আপনাকে জানাই জন্মদিনের অনেক অনেক শুভেচ্ছা ও ভালোবাসা। 🎂🎈
+                        </p>
+                    </div>
+                 ) : (
+                    // NORMAL CONTENT
+                    <>
+                       <div className={`flex items-center gap-2 mb-2 ${(festivalImage) ? 'justify-start' : 'justify-center md:justify-start'}`}>
+                          <span className="h-[1px] w-6 bg-indigo-500/50"></span>
+                          <p className="text-[10px] md:text-xs font-bold text-indigo-300 uppercase tracking-[0.3em]">Est. 2015</p>
+                          <span className="h-[1px] w-6 bg-indigo-500/50"></span>
+                       </div>
+                       <h2 className="text-2xl md:text-4xl lg:text-5xl font-black tracking-tight text-white leading-tight drop-shadow-lg">
+                         <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-indigo-400">DEPEND</span> SOURCING
+                       </h2>
+                       <p className={`text-[10px] md:text-xs text-gray-400 font-medium tracking-[0.2em] mt-2 uppercase flex items-center gap-1 ${(festivalImage) ? 'justify-start' : 'justify-center md:justify-start'}`}>
+                         <Sparkles className="w-3.5 h-3.5 text-yellow-500" /> Promise Beyond Business
+                       </p>
+                    </>
+                 )}
              </div>
              
              {/* Right Side: Date Badge */}
-             <div className={`flex flex-col gap-3 ${festivalImage ? 'items-end self-start md:self-center' : 'items-center md:items-end'}`}>
-               <div className="flex items-center gap-3 bg-white/5 backdrop-blur-xl px-5 py-2.5 rounded-xl border border-white/10 shadow-lg hover:bg-white/10 transition-colors">
-                  <div className="p-2.5 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg text-white shadow-lg shadow-indigo-500/30">
-                     <Calendar className="w-5 h-5" />
+             <div className={`flex flex-col gap-3 ${(festivalImage && !isBirthday) ? 'items-end self-start md:self-center' : 'items-center md:items-end'}`}>
+               <div className={`flex items-center gap-3 bg-white/5 backdrop-blur-xl px-5 py-2.5 rounded-xl border border-white/10 shadow-lg hover:bg-white/10 transition-colors ${isBirthday ? 'bg-white/20 border-white/30' : ''}`}>
+                  <div className={`p-2.5 rounded-lg text-white shadow-lg ${isBirthday ? 'bg-gradient-to-br from-pink-500 to-orange-500 shadow-pink-500/30' : 'bg-gradient-to-br from-indigo-500 to-purple-600 shadow-indigo-500/30'}`}>
+                     {isBirthday ? <PartyPopper className="w-5 h-5" /> : <Calendar className="w-5 h-5" />}
                   </div>
                   <div className="text-left">
-                     <p className="text-[9px] uppercase font-bold text-indigo-200 tracking-widest leading-none mb-1 opacity-80">Today</p>
+                     <p className={`text-[9px] uppercase font-bold tracking-widest leading-none mb-1 opacity-80 ${isBirthday ? 'text-white' : 'text-indigo-200'}`}>Today</p>
                      <p className="text-sm md:text-base font-bold text-white leading-none">
                        {new Date().toLocaleDateString('bn-BD', { day: 'numeric', month: 'long', year: 'numeric' })}
                      </p>
@@ -231,7 +311,7 @@ const DashboardView: React.FC<DashboardProps> = ({ totalExpense, pendingApproval
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        
+        {/* ... [Rest of the dashboard remains the same] ... */}
         {/* Left Column: Stats & Activity */}
         <div className="lg:col-span-2 space-y-5">
           

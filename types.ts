@@ -31,6 +31,7 @@ export interface Staff {
   createdAt: string;
   updatedAt?: string;
   deletedAt?: string;
+  dateOfBirth?: string; // New: Birthday Field (YYYY-MM-DD)
   // Gamification Fields
   points?: number;
   pointsMonth?: string; // Format 'YYYY-MM' to track monthly resets
@@ -180,4 +181,16 @@ export interface Product {
   image: string;
   description: string;
   tags: string[];
+}
+
+export interface PhoneBookEntry {
+  id: string;
+  companyName: string;
+  contactPerson: string;
+  mobile: string;
+  email?: string;
+  address?: string;
+  note?: string;
+  category: 'CLIENT' | 'SUPPLIER' | 'PARTNER' | 'OTHER';
+  isDeleted?: boolean;
 }

@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   LayoutGrid, UsersRound, Footprints, Banknote, PieChart, Settings2, Recycle, 
-  LogOut, Wallet, User, Cloud, WifiOff, Menu, X, Lock, ArrowRightLeft, XCircle, Landmark, Bell, Phone, Briefcase, Crown, UserCog, Camera, Save, KeyRound, CreditCard, MonitorSmartphone, Trophy, Gift, Sun, Moon, Loader2, BellRing, ChevronRight, Fingerprint, Megaphone, Radar, ShieldAlert, MessageCircleMore, Download, Sparkles, Eye, EyeOff, ShoppingBag, Package, Share2, MapPinOff, RefreshCw
+  LogOut, Wallet, User, Cloud, WifiOff, Menu, X, Lock, ArrowRightLeft, XCircle, Landmark, Bell, Phone, Briefcase, Crown, UserCog, Camera, Save, KeyRound, CreditCard, MonitorSmartphone, Trophy, Gift, Sun, Moon, Loader2, BellRing, ChevronRight, Fingerprint, Megaphone, Radar, ShieldAlert, MessageCircleMore, Download, Sparkles, Eye, EyeOff, ShoppingBag, Package, Share2, MapPinOff, RefreshCw, WalletCards
 } from 'lucide-react';
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
-import { getDatabase, ref, onValue, set, runTransaction, Unsubscribe } from "firebase/database";
-import { UserRole, Staff, MovementLog, Expense, BillingRule, FundEntry, Notice, AdvanceLog, Complaint, ChatMessage, Attendance, StaffLocation, AppNotification, Product } from './types';
+import { getDatabase, ref, onValue, set, update, runTransaction, Unsubscribe } from "firebase/database";
+import { UserRole, Staff, MovementLog, Expense, BillingRule, FundEntry, Notice, AdvanceLog, Complaint, ChatMessage, Attendance, StaffLocation, AppNotification, Product, PhoneBookEntry } from './types';
 import { INITIAL_STAFF, INITIAL_BILLING_RULES, ROLE_LABELS, DEFAULT_FIREBASE_CONFIG, INITIAL_PRODUCTS } from './constants';
 import GlowingCursor from './GlowingCursor';
 
@@ -24,6 +24,7 @@ import AttendanceView from './views/Attendance';
 import LiveLocationView from './views/LiveLocation';
 import LuckyDrawView from './views/LuckyDraw';
 import ProductCatalogView from './views/ProductCatalogView';
+import PhoneBook from './views/PhoneBook';
 
 // Safe LocalStorage Helper
 const safeGetItem = (key: string, defaultValue: string | null = null) => {
@@ -412,6 +413,7 @@ const App: React.FC = () => {
   const [liveLocations, setLiveLocations] = useState<Record<string, StaffLocation>>({}); // Live data, no need to persist locally usually
   const [products, setProducts] = useState<Product[]>(() => getLocalData('products', INITIAL_PRODUCTS));
   const [productEditors, setProductEditors] = useState<string[]>(() => getLocalData('productEditors', []));
+  const [phoneBook, setPhoneBook] = useState<PhoneBookEntry[]>(() => getLocalData('phoneBook', []));
   
   const [searchCount, setSearchCount] = useState<number>(() => Number(safeGetItem('searchCount', '0')));
   const [visitCount, setVisitCount] = useState<number>(() => Number(safeGetItem('visitCount', '0')));
@@ -570,6 +572,7 @@ const App: React.FC = () => {
          subscribe('messages', setMessages);
          subscribe('attendanceList', setAttendanceList);
          subscribe('staff_locations', setLiveLocations);
+         subscribe('phoneBook', setPhoneBook);
 
          return () => {
             // Cleanup listeners when role changes (e.g. logout)
@@ -664,14 +667,21 @@ const App: React.FC = () => {
       try {
         const app = getApp();
         const db = getDatabase(app, firebaseConfig.databaseURL);
-        const safeData = JSON.parse(jsonString); 
         
-        const dataToSave = safeData.reduce((acc: any, curr: any) => ({ 
-          ...acc, 
-          [curr.id || Math.random().toString(36).substr(2, 9)]: curr 
-        }), {});
-          
-        await set(ref(db, node), dataToSave);
+        if (node === 'productEditors' || node === 'app_settings') {
+          const safeData = JSON.parse(jsonString); 
+          await set(ref(db, node), safeData);
+        } else {
+          const safeData = JSON.parse(jsonString); 
+          const dataToSave = safeData.reduce((acc: any, curr: any) => {
+            if (!curr.isHardDeleted) {
+              acc[curr.id || Math.random().toString(36).substr(2, 9)] = curr;
+            }
+            return acc;
+          }, {});
+            
+          await set(ref(db, node), dataToSave);
+        }
         // setIsCloudEnabled(true); // Handled by .info/connected
         setCloudError(null);
       } catch (err: any) { 
@@ -701,6 +711,7 @@ const App: React.FC = () => {
   const updateAttendance = createUpdater('attendanceList', setAttendanceList);
   const updateProducts = createUpdater('products', setProducts);
   const updateProductEditors = createUpdater('productEditors', setProductEditors);
+  const updatePhoneBook = createUpdater('phoneBook', setPhoneBook);
 
   useEffect(() => {
     if (currentUser && staffList.length > 0) {
@@ -1272,7 +1283,7 @@ const App: React.FC = () => {
 
   const handleExport = () => {
     const data = {
-      staffList, expenses, movements, billingRules, funds, notices, advances, complaints, messages, attendanceList, products, productEditors, searchCount, visitCount,
+      staffList, expenses, movements, billingRules, funds, notices, advances, complaints, messages, attendanceList, products, productEditors, searchCount, visitCount, phoneBook,
       exportDate: new Date().toISOString(),
       version: '1.0'
     };
@@ -1304,6 +1315,7 @@ const App: React.FC = () => {
       if (data.productEditors) updateProductEditors(data.productEditors);
       if (data.searchCount) setSearchCount(data.searchCount);
       if (data.visitCount) setVisitCount(data.visitCount);
+      if (data.phoneBook) updatePhoneBook(data.phoneBook);
       alert('ডাটা ইমপোর্ট সফল হয়েছে!');
     } catch (e) {
       console.error(e);
@@ -1388,6 +1400,28 @@ const App: React.FC = () => {
      return myProfile;
   }, [editingProfileId, staffList, myProfile]);
 
+  const profileFinancials = useMemo(() => {
+    if (!modalProfileData) return { totalBalance: 0, salaryAdv: 0, totalExpense: 0, regularAdv: 0, cashInHand: 0 };
+    
+    const userAdvances = advances.filter(a => a.staffId === modalProfileData.id && !a.isDeleted);
+    const userExpenses = expenses.filter(e => e.staffId === modalProfileData.id && !e.isDeleted && e.status === 'APPROVED');
+    
+    // Fix: Handle undefined type as REGULAR and ensure amounts are numbers
+    const regularAdv = userAdvances.filter(a => a.type !== 'SALARY').reduce((sum, a) => sum + Number(a.amount || 0), 0);
+    const salaryAdv = userAdvances.filter(a => a.type === 'SALARY').reduce((sum, a) => sum + Number(a.amount || 0), 0);
+    const totalExpense = userExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+    
+    const cashInHand = regularAdv - totalExpense;
+    
+    return {
+      totalBalance: 0, // Placeholder as per design
+      salaryAdv,
+      totalExpense,
+      regularAdv,
+      cashInHand
+    };
+  }, [modalProfileData, advances, expenses]);
+
   const allNavItems = useMemo(() => [
     { id: 'dashboard', label: 'ড্যাশবোর্ড', icon: LayoutGrid, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF, UserRole.KIOSK], color: 'text-sky-600', bgColor: 'bg-sky-50' },
     { id: 'attendance', label: 'হাজিরা', icon: Fingerprint, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF, UserRole.KIOSK], color: 'text-green-600', bgColor: 'bg-green-50' },
@@ -1396,6 +1430,7 @@ const App: React.FC = () => {
     { id: 'products', label: 'পণ্য তালিকা', icon: Package, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-pink-600', bgColor: 'bg-pink-50' },
     { id: 'notices', label: 'নোটিশ বোর্ড', icon: Megaphone, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF, UserRole.KIOSK], color: 'text-orange-600', bgColor: 'bg-orange-50' },
     { id: 'chat', label: 'টিম চ্যাট', icon: MessageCircleMore, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-violet-600', bgColor: 'bg-violet-50' },
+    { id: 'phone-book', label: 'ফোন বুক', icon: Phone, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-blue-600', bgColor: 'bg-blue-50' },
     { id: 'live-location', label: 'লাইভ ট্র্যাকিং', icon: Radar, roles: [UserRole.ADMIN], color: 'text-cyan-600', bgColor: 'bg-cyan-50' },
     { id: 'lucky-draw', label: 'লাকি ড্র & গেম', icon: Gift, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-purple-600', bgColor: 'bg-purple-50' },
     { id: 'complaints', label: 'অভিযোগ বক্স', icon: ShieldAlert, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-red-600', bgColor: 'bg-red-50' },
@@ -1421,6 +1456,7 @@ const App: React.FC = () => {
     switch (activeTab) {
       case 'dashboard': return <DashboardView totalExpense={totalExpense} pendingApprovals={pendingApprovals} expenses={expenses} cloudError={cloudError} totalFund={totalFund} cashOnHand={cashOnHand} role={role!} staffList={staffList} advances={advances} currentUser={currentUser} onOpenProfile={openProfile} searchCount={searchCount} festivalImage={festivalImage} />;
       case 'chat': return <GroupChatView messages={messages} setMessages={updateMessages} currentUser={currentUser} role={role} onNavigate={(view) => setActiveTab(view)} onUpdatePoints={handlePointUpdate} staffList={staffList} onOpenProfile={openProfile} />;
+      case 'phone-book': return <PhoneBook phoneBook={phoneBook} setPhoneBook={updatePhoneBook} role={role!} />;
       case 'attendance': return <AttendanceView staffList={staffList} attendanceList={attendanceList} setAttendanceList={updateAttendance} currentUser={currentUser} role={role!} />;
       case 'live-location': return <LiveLocationView staffList={staffList} liveLocations={liveLocations} />;
       case 'lucky-draw': return <LuckyDrawView staffList={staffList} currentUser={currentUser} onUpdatePoints={handlePointUpdate} onUpdateDrawTime={handleDrawTimeUpdate} role={role} />;
@@ -1951,130 +1987,229 @@ const App: React.FC = () => {
       )}
 
       {isProfileModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in duration-200 text-gray-900">
-          <div className="bg-white w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl border border-white/40 backdrop-blur-md relative dark:bg-gray-800 dark:border-gray-700">
-            <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-br from-indigo-600 to-purple-700 z-0"></div>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl animate-in fade-in zoom-in duration-300">
+          <div className="bg-[#0F172A] w-full max-w-md rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/10 relative max-h-[90vh] flex flex-col">
             
-            <button 
-                onClick={() => {
-                    if (modalProfileData?.id) {
-                        setHighlightStaffId(modalProfileData.id);
-                        setActiveTab('staff');
-                        setIsProfileModalOpen(false);
-                        setEditingProfileId(null);
-                    }
-                }} 
-                className="absolute top-4 left-4 text-white/80 hover:text-white z-10 p-1.5 bg-black/20 rounded-full transition-colors flex items-center justify-center shadow-lg active:scale-95"
-                title="Go to Staff Card"
-            >
-                <User className="w-5 h-5" />
-            </button>
+            {/* Header Background - Ultra Premium Gradient */}
+            <div className="absolute top-0 left-0 w-full h-48 bg-[url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop')] bg-cover bg-center z-0">
+               <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/60 to-[#0F172A]"></div>
+            </div>
+            
+            {/* Scrollable Content */}
+            <div className="overflow-y-auto flex-1 relative z-10 custom-scrollbar">
+                <div className="px-6 pt-6 pb-8 flex flex-col items-center">
+                    
+                    {/* Close Button */}
+                    <button onClick={() => { setIsProfileModalOpen(false); setEditingProfileId(null); }} className="absolute top-4 right-4 text-white/70 hover:text-white z-50 p-2 bg-black/40 backdrop-blur-md rounded-full transition-all hover:rotate-90 border border-white/10"><X className="w-5 h-5" /></button>
 
-            <button onClick={() => { setIsProfileModalOpen(false); setEditingProfileId(null); }} className="absolute top-4 right-4 text-white/80 hover:text-white z-10 p-1 bg-black/20 rounded-full transition-colors"><X className="w-5 h-5" /></button>
-
-            <form onSubmit={saveProfile} className="relative z-10 flex flex-col items-center mt-12 px-6 pb-8">
-               <div className="relative group cursor-pointer" onClick={() => profileFileRef.current?.click()}>
-                 <div className="w-28 h-28 rounded-full border-4 border-white shadow-xl overflow-hidden bg-white mb-4 relative z-10">
-                   {profileForm.photo ? (
-                      <img src={profileForm.photo} alt="Profile" className="w-full h-full object-cover" />
-                   ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-indigo-100 text-indigo-600 text-4xl font-black">
-                        {modalProfileData?.name ? modalProfileData.name[0].toUpperCase() : 'U'}
-                      </div>
-                   )}
-                 </div>
-                 <div className="absolute bottom-4 right-0 z-20 bg-indigo-600 text-white p-2 rounded-full shadow-lg border-2 border-white hover:bg-indigo-700 transition-colors">
-                   <Camera className="w-4 h-4" />
-                 </div>
-                 <input type="file" ref={profileFileRef} hidden accept="image/*" onChange={handleProfilePhotoUpload} />
-               </div>
-
-               <h2 className="text-2xl font-black text-gray-800 dark:text-gray-100 text-center">{modalProfileData?.name || 'User'}</h2>
-               <div className="flex items-center gap-2 mt-1 mb-6">
-                 {modalProfileData?.role === UserRole.MD && <span className="px-2 py-0.5 rounded text-[10px] font-black bg-purple-100 text-purple-700 uppercase flex items-center gap-1"><Crown className="w-3 h-3"/> Managing Director</span>}
-                 {modalProfileData?.role === UserRole.ADMIN && <span className="px-2 py-0.5 rounded text-[10px] font-black bg-blue-100 text-blue-700 uppercase flex items-center gap-1"><UserCog className="w-3 h-3"/> Manager</span>}
-                 {modalProfileData?.role === UserRole.STAFF && <span className="px-2 py-0.5 rounded text-[10px] font-black bg-indigo-100 text-indigo-700 uppercase flex items-center gap-1"><User className="w-3 h-3"/> Staff Member</span>}
-                 {modalProfileData?.role === UserRole.KIOSK && <span className="px-2 py-0.5 rounded text-[10px] font-black bg-orange-100 text-orange-700 uppercase flex items-center gap-1"><MonitorSmartphone className="w-3 h-3"/> Kiosk Mode</span>}
-               </div>
-
-               <div className="w-full space-y-3">
-                 <div className={`bg-white/80 dark:bg-gray-700/80 p-3 rounded-xl flex items-center gap-3 border border-gray-100 dark:border-gray-600 transition-all ${isStaffUser ? 'opacity-70 cursor-not-allowed' : 'focus-within:ring-2 focus-within:ring-indigo-500'}`}>
-                    <div className="bg-indigo-50 dark:bg-gray-600 p-2 rounded-lg text-indigo-600 dark:text-indigo-400"><Briefcase className="w-4 h-4" /></div>
-                    <div className="flex-1 relative">
-                      <p className="text-[9px] font-bold text-gray-400 dark:text-gray-400 uppercase tracking-wider">পদবী (Designation)</p>
-                      <input 
-                        type="text" 
-                        disabled={isStaffUser}
-                        className="w-full bg-transparent border-none p-0 text-sm font-bold text-gray-800 dark:text-gray-200 outline-none placeholder:text-gray-300 disabled:cursor-not-allowed"
-                        placeholder="Set Designation"
-                        value={profileForm.designation}
-                        onChange={(e) => setProfileForm({...profileForm, designation: e.target.value})}
-                      />
-                      {isStaffUser && <Lock className="w-3 h-3 text-gray-400 absolute right-0 top-1/2 -translate-y-1/2" />}
-                    </div>
-                 </div>
-                 
-                 <div className="bg-white/80 dark:bg-gray-700/80 p-3 rounded-xl flex items-center gap-3 border border-gray-100 dark:border-gray-600 focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-transparent transition-all">
-                    <div className="bg-indigo-50 dark:bg-gray-600 p-2 rounded-lg text-indigo-600 dark:text-indigo-400"><Phone className="w-4 h-4" /></div>
-                    <div className="flex-1">
-                      <p className="text-[9px] font-bold text-gray-400 dark:text-gray-400 uppercase tracking-wider">মোবাইল নাম্বার</p>
-                      <input 
-                        type="text" 
-                        className="w-full bg-transparent border-none p-0 text-sm font-bold text-gray-800 dark:text-gray-200 outline-none placeholder:text-gray-300"
-                        placeholder="Set Mobile No"
-                        value={profileForm.mobile}
-                        onChange={(e) => setProfileForm({...profileForm, mobile: e.target.value})}
-                      />
-                    </div>
-                 </div>
-                 
-                 <div className={`bg-white/80 dark:bg-gray-700/80 p-3 rounded-xl flex items-center gap-3 border border-gray-100 dark:border-gray-600 transition-all ${isStaffUser ? 'opacity-70 cursor-not-allowed' : 'focus-within:ring-2 focus-within:ring-indigo-500'}`}>
-                    <div className="bg-indigo-50 dark:bg-gray-600 p-2 rounded-lg text-indigo-600 dark:text-indigo-400"><CreditCard className="w-4 h-4" /></div>
-                    <div className="flex-1 relative">
-                      <p className="text-[9px] font-bold text-gray-400 dark:text-gray-400 uppercase tracking-wider">অফিস আইডি</p>
-                      <input 
-                        type="text" 
-                        disabled={isStaffUser}
-                        className="w-full bg-transparent border-none p-0 text-sm font-bold text-gray-800 dark:text-gray-200 outline-none placeholder:text-gray-300 disabled:cursor-not-allowed"
-                        placeholder="Set ID (e.g. ST-01)"
-                        value={profileForm.staffId}
-                        onChange={(e) => setProfileForm({...profileForm, staffId: e.target.value})}
-                      />
-                      {isStaffUser && <Lock className="w-3 h-3 text-gray-400 absolute right-0 top-1/2 -translate-y-1/2" />}
-                    </div>
-                 </div>
-
-                 <div className="bg-white/80 dark:bg-gray-700/80 p-3 rounded-xl flex items-center gap-3 border border-gray-100 dark:border-gray-600 focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-transparent transition-all relative">
-                    <div className="bg-indigo-50 dark:bg-gray-600 p-2 rounded-lg text-indigo-600 dark:text-indigo-400"><KeyRound className="w-4 h-4" /></div>
-                    <div className="flex-1 pr-8">
-                      <p className="text-[9px] font-bold text-gray-400 dark:text-gray-400 uppercase tracking-wider">পাসওয়ার্ড</p>
-                      <input 
-                        type={showProfilePassword ? "text" : "password"} 
-                        className="w-full bg-transparent border-none p-0 text-sm font-bold text-gray-800 dark:text-gray-200 outline-none placeholder:text-gray-300"
-                        placeholder="Set Password (Optional)"
-                        value={profileForm.password}
-                        onChange={(e) => setProfileForm({...profileForm, password: e.target.value})}
-                      />
-                    </div>
+                    {/* Go to Staff Card Button */}
                     <button 
-                      type="button"
-                      onClick={() => setShowProfilePassword(!showProfilePassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                        onClick={() => {
+                            if (modalProfileData?.id) {
+                                setHighlightStaffId(modalProfileData.id);
+                                setActiveTab('staff');
+                                setIsProfileModalOpen(false);
+                                setEditingProfileId(null);
+                            }
+                        }} 
+                        className="absolute top-4 left-4 text-white/70 hover:text-white z-50 p-2 bg-black/40 backdrop-blur-md rounded-full transition-all hover:scale-110 border border-white/10 flex items-center gap-2 pr-4 group"
+                        title="Go to Staff Card"
                     >
-                      {showProfilePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        <User className="w-4 h-4" />
+                        <span className="text-[10px] font-bold uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity -ml-2 group-hover:ml-0">View</span>
                     </button>
-                 </div>
-               </div>
 
-               <button type="submit" className="mt-6 w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 shadow-xl shadow-indigo-100 flex items-center justify-center gap-2 transition-all active:scale-95">
-                 <Save className="w-4 h-4" />
-                 প্রোফাইল সেভ করুন
-               </button>
+                    {/* Profile Image - Premium Glow */}
+                    <div className="relative group cursor-pointer mt-16 mb-4" onClick={() => profileFileRef.current?.click()}>
+                        <div className="w-32 h-32 rounded-full p-1 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 shadow-[0_0_40px_rgba(99,102,241,0.4)]">
+                            <div className="w-full h-full rounded-full border-4 border-[#0F172A] overflow-hidden bg-[#0F172A] relative">
+                                {profileForm.photo ? (
+                                    <img src={profileForm.photo} alt="Profile" className="w-full h-full object-cover" />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center bg-slate-800 text-slate-500 text-4xl font-black">
+                                        {modalProfileData?.name ? modalProfileData.name[0].toUpperCase() : 'U'}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        <div className="absolute bottom-1 right-1 z-20 bg-white text-indigo-600 p-2.5 rounded-full shadow-lg hover:scale-110 transition-transform">
+                            <Camera className="w-4 h-4" />
+                        </div>
+                        <input type="file" ref={profileFileRef} hidden accept="image/*" onChange={handleProfilePhotoUpload} />
+                    </div>
 
-               <div className="mt-4 text-center">
-                 <p className="text-[10px] text-gray-400">Joined: {modalProfileData?.createdAt ? new Date(modalProfileData.createdAt).toLocaleDateString() : 'Just Now'}</p>
-               </div>
-            </form>
+                    {/* Name & Role */}
+                    <h2 className="text-3xl font-black text-white text-center tracking-tight mb-2 drop-shadow-lg">{modalProfileData?.name || 'User'}</h2>
+                    
+                    <div className="flex items-center gap-2 mb-8">
+                        {modalProfileData?.role === UserRole.MD && <span className="px-3 py-1 rounded-full text-[10px] font-black bg-gradient-to-r from-purple-500 to-pink-600 text-white uppercase tracking-widest shadow-lg shadow-purple-900/50 flex items-center gap-1.5"><Crown className="w-3 h-3"/> Managing Director</span>}
+                        {modalProfileData?.role === UserRole.ADMIN && <span className="px-3 py-1 rounded-full text-[10px] font-black bg-gradient-to-r from-blue-500 to-cyan-500 text-white uppercase tracking-widest shadow-lg shadow-blue-900/50 flex items-center gap-1.5"><UserCog className="w-3 h-3"/> Manager</span>}
+                        {modalProfileData?.role === UserRole.STAFF && <span className="px-3 py-1 rounded-full text-[10px] font-black bg-gradient-to-r from-indigo-500 to-violet-500 text-white uppercase tracking-widest shadow-lg shadow-indigo-900/50 flex items-center gap-1.5"><User className="w-3 h-3"/> Staff Member</span>}
+                        {modalProfileData?.role === UserRole.KIOSK && <span className="px-3 py-1 rounded-full text-[10px] font-black bg-gradient-to-r from-orange-500 to-red-500 text-white uppercase tracking-widest shadow-lg shadow-orange-900/50 flex items-center gap-1.5"><MonitorSmartphone className="w-3 h-3"/> Kiosk Mode</span>}
+                    </div>
+
+                    {/* Financial Card - Ultra Premium Glass */}
+                    <div className="w-full mb-8 transform hover:scale-[1.02] transition-transform duration-300">
+                        <div className="bg-white/5 backdrop-blur-md rounded-3xl p-6 text-white shadow-2xl border border-white/10 relative overflow-hidden group">
+                            {/* Animated Gradient Background */}
+                            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-pink-500/10 opacity-50 group-hover:opacity-100 transition-opacity duration-500"></div>
+                            <div className="absolute -top-24 -right-24 w-48 h-48 bg-indigo-500/20 rounded-full blur-[60px]"></div>
+                            <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-purple-500/20 rounded-full blur-[60px]"></div>
+                            
+                            {/* Header */}
+                            <div className="flex justify-between items-start mb-8 relative z-10">
+                                <div className="flex gap-4">
+                                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+                                        <WalletCards className="w-6 h-6 text-white" />
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-black text-indigo-200 uppercase tracking-[0.2em]">Current Balance</p>
+                                        <p className="text-[10px] text-slate-400 font-medium mt-1">Real-time Financial Overview</p>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <span className="inline-flex items-center gap-1.5 bg-emerald-500/20 text-emerald-300 text-[9px] font-black px-3 py-1.5 rounded-full border border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.2)] uppercase tracking-wider">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                        Cash In Hand
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Grid */}
+                            <div className="grid grid-cols-2 gap-y-8 gap-x-6 relative z-10">
+                                {/* Total Balance */}
+                                <div className="col-span-2">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Balance</p>
+                                    <p className="text-5xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-slate-400 flex items-baseline gap-1 font-mono tracking-tighter">
+                                        <span className="text-xl text-indigo-400 font-bold opacity-60">৳</span> {profileFinancials.totalBalance.toLocaleString()}
+                                    </p>
+                                </div>
+
+                                {/* Salary Adv */}
+                                <div>
+                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Salary Advance</p>
+                                    <p className="text-2xl md:text-3xl font-bold text-white flex items-baseline gap-1 font-mono tracking-tighter">
+                                        <span className="text-xs text-slate-500 font-bold">৳</span> {profileFinancials.salaryAdv.toLocaleString()}
+                                    </p>
+                                </div>
+
+                                {/* Total Expense */}
+                                <div>
+                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Expense</p>
+                                    <p className="text-2xl md:text-3xl font-bold text-white flex items-baseline gap-1 font-mono tracking-tighter">
+                                        <span className="text-xs text-slate-500 font-bold">৳</span> {profileFinancials.totalExpense.toLocaleString()}
+                                    </p>
+                                </div>
+
+                                {/* Regular Adv */}
+                                <div>
+                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Regular Advance</p>
+                                    <p className="text-2xl md:text-3xl font-bold text-white flex items-baseline gap-1 font-mono tracking-tighter">
+                                        <span className="text-xs text-slate-500 font-bold">৳</span> {profileFinancials.regularAdv.toLocaleString()}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Form Fields - Minimalist Dark */}
+                    <form onSubmit={saveProfile} className="w-full space-y-4 relative z-10">
+                        <div className="group bg-white/5 hover:bg-white/10 p-4 rounded-2xl border border-white/5 hover:border-white/20 transition-all duration-300">
+                            <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-slate-400 group-hover:text-indigo-400 group-hover:scale-110 transition-all duration-300">
+                                    <Briefcase className="w-5 h-5" />
+                                </div>
+                                <div className="flex-1">
+                                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1">Designation</p>
+                                    <input 
+                                        type="text" 
+                                        disabled={isStaffUser}
+                                        className="w-full bg-transparent border-none p-0 text-sm font-bold text-slate-200 outline-none placeholder:text-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
+                                        placeholder="Set Designation"
+                                        value={profileForm.designation}
+                                        onChange={(e) => setProfileForm({...profileForm, designation: e.target.value})}
+                                    />
+                                </div>
+                                {isStaffUser && <Lock className="w-4 h-4 text-slate-600" />}
+                            </div>
+                        </div>
+                        
+                        <div className="group bg-white/5 hover:bg-white/10 p-4 rounded-2xl border border-white/5 hover:border-white/20 transition-all duration-300">
+                            <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-slate-400 group-hover:text-indigo-400 group-hover:scale-110 transition-all duration-300">
+                                    <Phone className="w-5 h-5" />
+                                </div>
+                                <div className="flex-1">
+                                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1">Mobile Number</p>
+                                    <input 
+                                        type="text" 
+                                        className="w-full bg-transparent border-none p-0 text-sm font-bold text-slate-200 outline-none placeholder:text-slate-600"
+                                        placeholder="Set Mobile No"
+                                        value={profileForm.mobile}
+                                        onChange={(e) => setProfileForm({...profileForm, mobile: e.target.value})}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div className="group bg-white/5 hover:bg-white/10 p-4 rounded-2xl border border-white/5 hover:border-white/20 transition-all duration-300">
+                            <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-slate-400 group-hover:text-indigo-400 group-hover:scale-110 transition-all duration-300">
+                                    <CreditCard className="w-5 h-5" />
+                                </div>
+                                <div className="flex-1">
+                                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1">Staff ID</p>
+                                    <input 
+                                        type="text" 
+                                        disabled={isStaffUser}
+                                        className="w-full bg-transparent border-none p-0 text-sm font-bold text-slate-200 outline-none placeholder:text-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
+                                        placeholder="Set ID (e.g. ST-01)"
+                                        value={profileForm.staffId}
+                                        onChange={(e) => setProfileForm({...profileForm, staffId: e.target.value})}
+                                    />
+                                </div>
+                                {isStaffUser && <Lock className="w-4 h-4 text-slate-600" />}
+                            </div>
+                        </div>
+
+                        <div className="group bg-white/5 hover:bg-white/10 p-4 rounded-2xl border border-white/5 hover:border-white/20 transition-all duration-300 relative">
+                            <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-slate-400 group-hover:text-indigo-400 group-hover:scale-110 transition-all duration-300">
+                                    <KeyRound className="w-5 h-5" />
+                                </div>
+                                <div className="flex-1 pr-8">
+                                    <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1">Password</p>
+                                    <input 
+                                        type={showProfilePassword ? "text" : "password"} 
+                                        className="w-full bg-transparent border-none p-0 text-sm font-bold text-slate-200 outline-none placeholder:text-slate-600"
+                                        placeholder="Set Password (Optional)"
+                                        value={profileForm.password}
+                                        onChange={(e) => setProfileForm({...profileForm, password: e.target.value})}
+                                    />
+                                </div>
+                            </div>
+                            <button 
+                                type="button"
+                                onClick={() => setShowProfilePassword(!showProfilePassword)}
+                                className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-white transition-colors"
+                            >
+                                {showProfilePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                        </div>
+
+                        <button type="submit" className="mt-8 w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-4 rounded-2xl font-black hover:from-indigo-500 hover:to-purple-500 shadow-xl shadow-indigo-900/40 flex items-center justify-center gap-3 transition-all active:scale-95 border border-white/10 group">
+                            <Save className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+                            SAVE CHANGES
+                        </button>
+
+                        <div className="mt-6 text-center pb-4">
+                            <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">
+                                Member Since: {modalProfileData?.createdAt ? new Date(modalProfileData.createdAt).toLocaleDateString() : 'Just Now'}
+                            </p>
+                        </div>
+                    </form>
+                </div>
+            </div>
           </div>
         </div>
       )}

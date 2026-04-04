@@ -115,7 +115,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
 
   // --- COMMON STYLES FOR PDF ---
   const getCommonStyle = () => `
-    body { font-family: 'Hind Siliguri', sans-serif; -webkit-print-color-adjust: exact; color: #1f2937; }
+    body { font-family: 'Noto Sans Bengali', sans-serif; -webkit-print-color-adjust: exact; color: #1f2937; }
     @page { size: A4; margin: 10mm; }
     .no-break { break-inside: avoid; }
     .watermark {
@@ -163,7 +163,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
         <meta charset="UTF-8">
         <title>Monthly Account Statement - ${monthName}</title>
         <script src="https://cdn.tailwindcss.com"></script>
-        <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@300;400;500;600;700&display=swap" rel="stylesheet">
         <style>
           ${getCommonStyle()}
           .theme-color { color: #0f172a; } 
@@ -308,9 +308,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
     printWindow.document.close();
   };
 
-  // ... (Attendance Report function remains unchanged)
   const generateAttendanceReport = () => {
-    // ... [existing logic]
     const start = reportStartDate ? new Date(reportStartDate).setHours(0, 0, 0, 0) : 0;
     const end = reportEndDate ? new Date(reportEndDate).setHours(23, 59, 59, 999) : Number.MAX_VALUE;
 
@@ -347,7 +345,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
         <meta charset="UTF-8">
         <title>Attendance Report</title>
         <script src="https://cdn.tailwindcss.com"></script>
-        <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@300;400;500;600;700&display=swap" rel="stylesheet">
         <style>
           ${getCommonStyle()}
           .theme-color { color: #166534; }
@@ -514,7 +512,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
         <meta charset="UTF-8">
         <title>Account Statement</title>
         <script src="https://cdn.tailwindcss.com"></script>
-        <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@300;400;500;600;700&display=swap" rel="stylesheet">
         <style>
           ${getCommonStyle()}
           .theme-color { color: #312e81; }
@@ -643,7 +641,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
         <meta charset="UTF-8">
         <title>Payable Ledger Report</title>
         <script src="https://cdn.tailwindcss.com"></script>
-        <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@300;400;500;600;700&display=swap" rel="stylesheet">
         <style>
           ${getCommonStyle()}
           .theme-color { color: #dc2626; }
