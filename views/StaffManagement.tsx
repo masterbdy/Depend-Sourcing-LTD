@@ -136,15 +136,15 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
   };
 
   // Helper for Premium Currency Formatting
-  const formatCurrency = (amount: number, isLarge: boolean = false) => {
+  const formatCurrency = (amount: number) => {
     const isNegative = amount < 0;
     const absAmount = Math.abs(amount).toLocaleString('en-US');
-    const textSize = isLarge ? 'text-4xl md:text-5xl' : 'text-2xl md:text-3xl';
+    const colorClass = isNegative ? 'text-red-400' : 'text-emerald-400';
     
     return (
-      <span className={`font-mono font-black tracking-tighter flex items-baseline ${textSize} ${isNegative ? 'text-red-400' : 'text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-gray-400'}`}>
-        {isNegative && <span className="mr-1 text-red-400">-</span>}
-        <span className={`font-sans font-bold opacity-60 mr-1 ${isLarge ? 'text-lg' : 'text-sm'} ${isNegative ? 'text-red-400' : 'text-indigo-300'}`}>৳</span>
+      <span className={`font-mono font-black tracking-tighter flex items-baseline truncate text-xl md:text-2xl ${colorClass}`} title={`৳${absAmount}`}>
+        {isNegative && <span className="mr-1">-</span>}
+        <span className="font-sans font-bold opacity-60 mr-1 text-xs">৳</span>
         {absAmount}
       </span>
     );
@@ -155,9 +155,9 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
     const absAmount = Math.abs(amount).toLocaleString('en-US');
     
     return (
-      <span className={`font-mono font-black text-2xl md:text-3xl tracking-tighter flex items-baseline ${colorClass}`}>
+      <span className={`font-mono font-black text-xl md:text-2xl tracking-tighter flex items-baseline truncate ${colorClass}`} title={`৳${absAmount}`}>
         {isNegative && <span className="mr-1">-</span>}
-        <span className="font-sans font-bold opacity-50 mr-1 text-sm">৳</span>
+        <span className="font-sans font-bold opacity-50 mr-1 text-xs">৳</span>
         {absAmount}
       </span>
     );
@@ -485,8 +485,8 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
                                   <div className="flex items-center gap-2 opacity-80"><div className="p-2 bg-white/10 rounded-lg backdrop-blur-md"><CreditCard className="w-5 h-5 text-indigo-300" /></div><div><span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-200 block">Current Balance</span><span className="text-[8px] font-bold text-gray-400">Real-time Data • Click for History</span></div></div>
                                   <div className="text-right"><p className="text-[9px] text-gray-400 font-black uppercase tracking-widest mb-0.5">Status</p><span className={`px-2 py-0.5 rounded text-[10px] font-black border ${balance < 0 ? 'bg-red-500/20 text-red-300 border-red-500/30' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'}`}>{balance < 0 ? 'PAYABLE' : 'CASH IN HAND'}</span></div>
                               </div>
-                              <div className="grid grid-cols-2 gap-6 relative z-10">
-                                  <div className="flex flex-col"><p className="text-[9px] font-extrabold text-gray-500 uppercase tracking-[0.1em] mb-1">Total Balance</p>{formatCurrency(balance, true)}</div>
+                              <div className="grid grid-cols-2 gap-4 relative z-10">
+                                  <div className="flex flex-col"><p className="text-[9px] font-extrabold text-gray-500 uppercase tracking-[0.1em] mb-1">Total Balance</p>{formatCurrency(balance)}</div>
                                   <div className="flex flex-col"><p className="text-[9px] font-extrabold text-gray-500 uppercase tracking-[0.1em] mb-1">Regular Adv</p>{formatCurrencyLight(totalRegularAdv, 'text-blue-300')}</div>
                                   <div className="flex flex-col"><p className="text-[9px] font-extrabold text-gray-500 uppercase tracking-[0.1em] mb-1">Total Expense</p>{formatCurrencyLight(approved, 'text-red-300')}</div>
                                   <div className="flex flex-col"><p className="text-[9px] font-extrabold text-gray-500 uppercase tracking-[0.1em] mb-1">Salary Adv</p>{formatCurrencyLight(totalSalaryAdv, 'text-purple-300')}</div>
@@ -893,16 +893,46 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
       {/* HISTORY MODAL (Showing full transaction list) */}
       {historyStaff && createPortal(
          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setHistoryStaff(null)}>
-            <div className="bg-white dark:bg-gray-800 w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()} style={{ fontFamily: "'Noto Sans Bengali', sans-serif" }}>
-               <div className="p-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex justify-between items-center">
-                  <div>
-                     <h3 className="font-bold text-gray-800 dark:text-white text-lg">{historyStaff.name}</h3>
-                     <p className="text-xs text-gray-500 dark:text-gray-400">Transaction History (Expenses & Advances)</p>
+            <div className="bg-white dark:bg-gray-800 w-full max-w-xl rounded-3xl shadow-2xl overflow-hidden max-h-[85vh] flex flex-col border border-gray-200 dark:border-gray-700" onClick={e => e.stopPropagation()} style={{ fontFamily: "'Noto Sans Bengali', sans-serif" }}>
+               <div className="p-5 border-b border-gray-100 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/80 backdrop-blur-xl flex justify-between items-center relative overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/10 to-purple-500/10 opacity-50"></div>
+                  <div className="relative z-10 flex items-center gap-4">
+                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-black text-xl shadow-lg border-2 border-white dark:border-gray-800">
+                        {historyStaff.name.charAt(0)}
+                     </div>
+                     <div>
+                        <h3 className="font-black text-gray-900 dark:text-white text-xl leading-tight">{historyStaff.name}</h3>
+                        <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">{historyStaff.designation}</p>
+                     </div>
                   </div>
-                  <button onClick={() => setHistoryStaff(null)} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors"><X className="w-5 h-5 text-gray-500"/></button>
+                  <button onClick={() => setHistoryStaff(null)} className="relative z-10 p-2 bg-white/50 dark:bg-gray-800/50 hover:bg-white dark:hover:bg-gray-700 rounded-full transition-all shadow-sm border border-gray-200 dark:border-gray-600 active:scale-95"><X className="w-5 h-5 text-gray-600 dark:text-gray-300"/></button>
                </div>
                
-               <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
+               <div className="flex-1 overflow-y-auto p-5 custom-scrollbar bg-gray-50/50 dark:bg-gray-800/50">
+                  {/* Financial Summary Card */}
+                  {(() => {
+                      const { balance, totalSalaryAdv, totalRegularAdv, approved } = getStaffFinancials(historyStaff.id);
+                      return (
+                          <div className="w-full bg-gradient-to-br from-gray-900 via-slate-800 to-gray-900 rounded-2xl p-5 text-white shadow-xl relative overflow-hidden group/card border border-white/5 mb-6">
+                              <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none group-hover/card:bg-white/10 transition-all duration-500"></div>
+                              <div className="flex justify-between items-start mb-8 relative z-10">
+                                  <div className="flex items-center gap-2 opacity-80"><div className="p-2 bg-white/10 rounded-lg backdrop-blur-md"><CreditCard className="w-5 h-5 text-indigo-300" /></div><div><span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-200 block">Current Balance</span><span className="text-[8px] font-bold text-gray-400">Real-time Data</span></div></div>
+                                  <div className="text-right"><p className="text-[9px] text-gray-400 font-black uppercase tracking-widest mb-0.5">Status</p><span className={`px-2 py-0.5 rounded text-[10px] font-black border ${balance < 0 ? 'bg-red-500/20 text-red-300 border-red-500/30' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'}`}>{balance < 0 ? 'PAYABLE' : 'CASH IN HAND'}</span></div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-4 relative z-10">
+                                  <div className="flex flex-col"><p className="text-[9px] font-extrabold text-gray-500 uppercase tracking-[0.1em] mb-1">Total Balance</p>{formatCurrency(balance)}</div>
+                                  <div className="flex flex-col"><p className="text-[9px] font-extrabold text-gray-500 uppercase tracking-[0.1em] mb-1">Regular Adv</p>{formatCurrencyLight(totalRegularAdv, 'text-blue-300')}</div>
+                                  <div className="flex flex-col"><p className="text-[9px] font-extrabold text-gray-500 uppercase tracking-[0.1em] mb-1">Total Expense</p>{formatCurrencyLight(approved, 'text-red-300')}</div>
+                                  <div className="flex flex-col"><p className="text-[9px] font-extrabold text-gray-500 uppercase tracking-[0.1em] mb-1">Salary Adv</p>{formatCurrencyLight(totalSalaryAdv, 'text-purple-300')}</div>
+                              </div>
+                          </div>
+                      );
+                  })()}
+
+                  <h4 className="text-xs font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                     <History className="w-4 h-4" /> Transaction History
+                  </h4>
+
                   {/* Calculate Transactions */}
                   {(() => {
                      const staffExpenses = expenses.filter(e => e.staffId === historyStaff.id && !e.isDeleted).map(e => ({ ...e, type: 'EXPENSE', date: e.createdAt }));
@@ -912,32 +942,32 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
 
                      if (historyItems.length === 0) {
                         return (
-                           <div className="flex flex-col items-center justify-center h-48 text-gray-400 text-sm">
-                              <History className="w-10 h-10 mb-2 opacity-50" />
-                              <p>কোনো লেনদেন রেকর্ড নেই</p>
+                           <div className="flex flex-col items-center justify-center h-48 text-gray-400 text-sm bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm">
+                              <History className="w-10 h-10 mb-2 opacity-30" />
+                              <p className="font-bold">কোনো লেনদেন রেকর্ড নেই</p>
                            </div>
                         );
                      }
 
                      return (
-                        <div className="space-y-2">
+                        <div className="space-y-3">
                            {historyItems.map((item: any) => (
-                              <div key={item.id} className="bg-gray-50 dark:bg-gray-700/30 p-3 rounded-xl border border-gray-100 dark:border-gray-700 flex justify-between items-center hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors">
+                              <div key={item.id} className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 flex justify-between items-center hover:shadow-md transition-all duration-300 group">
                                  <div>
-                                    <div className="flex items-center gap-2 mb-1">
-                                       <span className={`text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider ${item.type === 'EXPENSE' ? 'bg-orange-100 text-orange-700' : (item.type === 'SALARY' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700')}`}>
+                                    <div className="flex items-center gap-2 mb-1.5">
+                                       <span className={`text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider border ${item.type === 'EXPENSE' ? 'bg-orange-50 text-orange-600 border-orange-200' : (item.type === 'SALARY' ? 'bg-purple-50 text-purple-600 border-purple-200' : 'bg-blue-50 text-blue-600 border-blue-200')}`}>
                                           {item.type === 'EXPENSE' ? 'BILL' : (item.type === 'SALARY' ? 'SALARY ADV' : 'ADVANCE')}
                                        </span>
-                                       <span className="text-[10px] text-gray-400 font-medium">{new Date(item.date).toLocaleDateString('bn-BD')}</span>
+                                       <span className="text-[10px] text-gray-400 font-bold flex items-center gap-1"><Calendar className="w-3 h-3"/> {new Date(item.date).toLocaleDateString('bn-BD', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                                     </div>
-                                    <p className="text-xs font-bold text-gray-700 dark:text-gray-200 line-clamp-1">{item.reason || item.note || 'No description'}</p>
+                                    <p className="text-sm font-bold text-gray-800 dark:text-gray-200 line-clamp-1 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{item.reason || item.note || 'No description'}</p>
                                  </div>
                                  <div className="text-right">
-                                    <p className={`text-sm font-black ${item.type === 'EXPENSE' ? 'text-red-500' : 'text-green-600'}`}>
-                                       ৳ {item.amount.toLocaleString()}
+                                    <p className={`text-base font-black tracking-tight ${item.type === 'EXPENSE' ? 'text-red-500' : 'text-emerald-600'}`}>
+                                       ৳ {item.amount.toLocaleString('en-US')}
                                     </p>
                                     {item.type === 'EXPENSE' && (
-                                       <span className={`text-[8px] font-bold uppercase ${item.status === 'APPROVED' ? 'text-green-500' : item.status === 'REJECTED' ? 'text-red-500' : 'text-orange-500'}`}>
+                                       <span className={`text-[9px] font-black uppercase tracking-wider ${item.status === 'APPROVED' ? 'text-emerald-500' : item.status === 'REJECTED' ? 'text-red-500' : 'text-orange-500'}`}>
                                           {item.status}
                                        </span>
                                     )}

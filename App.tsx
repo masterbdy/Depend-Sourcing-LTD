@@ -1414,7 +1414,7 @@ const App: React.FC = () => {
     const cashInHand = regularAdv - totalExpense;
     
     return {
-      totalBalance: 0, // Placeholder as per design
+      totalBalance: cashInHand,
       salaryAdv,
       totalExpense,
       regularAdv,
@@ -2076,36 +2076,37 @@ const App: React.FC = () => {
                             </div>
 
                             {/* Grid */}
-                            <div className="grid grid-cols-2 gap-y-8 gap-x-6 relative z-10">
+                            <div className="grid grid-cols-2 gap-y-6 gap-x-6 relative z-10">
                                 {/* Total Balance */}
-                                <div className="col-span-2">
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Balance</p>
-                                    <p className="text-5xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-slate-400 flex items-baseline gap-1 font-mono tracking-tighter">
-                                        <span className="text-xl text-indigo-400 font-bold opacity-60">৳</span> {profileFinancials.totalBalance.toLocaleString()}
-                                    </p>
-                                </div>
-
-                                {/* Salary Adv */}
                                 <div>
-                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Salary Advance</p>
-                                    <p className="text-2xl md:text-3xl font-bold text-white flex items-baseline gap-1 font-mono tracking-tighter">
-                                        <span className="text-xs text-slate-500 font-bold">৳</span> {profileFinancials.salaryAdv.toLocaleString()}
-                                    </p>
-                                </div>
-
-                                {/* Total Expense */}
-                                <div>
-                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Expense</p>
-                                    <p className="text-2xl md:text-3xl font-bold text-white flex items-baseline gap-1 font-mono tracking-tighter">
-                                        <span className="text-xs text-slate-500 font-bold">৳</span> {profileFinancials.totalExpense.toLocaleString()}
+                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Balance</p>
+                                    <p className={`text-xl md:text-2xl font-black flex items-baseline gap-1 font-mono tracking-tighter ${profileFinancials.totalBalance < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                                        {profileFinancials.totalBalance < 0 && <span className="mr-0.5">-</span>}
+                                        <span className="text-xs font-bold opacity-60">৳</span> {Math.abs(profileFinancials.totalBalance).toLocaleString()}
                                     </p>
                                 </div>
 
                                 {/* Regular Adv */}
                                 <div>
                                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Regular Advance</p>
-                                    <p className="text-2xl md:text-3xl font-bold text-white flex items-baseline gap-1 font-mono tracking-tighter">
-                                        <span className="text-xs text-slate-500 font-bold">৳</span> {profileFinancials.regularAdv.toLocaleString()}
+                                    <p className="text-xl md:text-2xl font-black text-blue-300 flex items-baseline gap-1 font-mono tracking-tighter">
+                                        <span className="text-xs font-bold opacity-50">৳</span> {profileFinancials.regularAdv.toLocaleString()}
+                                    </p>
+                                </div>
+
+                                {/* Total Expense */}
+                                <div>
+                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Expense</p>
+                                    <p className="text-xl md:text-2xl font-black text-red-300 flex items-baseline gap-1 font-mono tracking-tighter">
+                                        <span className="text-xs font-bold opacity-50">৳</span> {profileFinancials.totalExpense.toLocaleString()}
+                                    </p>
+                                </div>
+
+                                {/* Salary Adv */}
+                                <div>
+                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Salary Advance</p>
+                                    <p className="text-xl md:text-2xl font-black text-purple-300 flex items-baseline gap-1 font-mono tracking-tighter">
+                                        <span className="text-xs font-bold opacity-50">৳</span> {profileFinancials.salaryAdv.toLocaleString()}
                                     </p>
                                 </div>
                             </div>
