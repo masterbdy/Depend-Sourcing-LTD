@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { 
   LayoutGrid, UsersRound, Footprints, Banknote, PieChart, Settings2, Recycle, 
   LogOut, Wallet, User, Cloud, WifiOff, Menu, X, Lock, ArrowRightLeft, XCircle, Landmark, Bell, Phone, Briefcase, Crown, UserCog, Camera, Save, KeyRound, CreditCard, MonitorSmartphone, Trophy, Gift, Sun, Moon, Loader2, BellRing, ChevronRight, Fingerprint, Megaphone, Radar, ShieldAlert, MessageCircleMore, Download, Sparkles, Eye, EyeOff, ShoppingBag, Package, Share2, MapPinOff, RefreshCw, WalletCards
@@ -219,6 +219,72 @@ const App: React.FC = () => {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
   useEffect(() => {
+    const processOfflineQueue = async () => {
+      if (navigator.onLine && firebaseConfig && firebaseConfig.databaseURL) {
+        const queueStr = safeGetItem('offline_sync_queue');
+        const simpleQueueStr = safeGetItem('offline_sync_queue_simple');
+        let processedAny = false;
+
+        try {
+          const app = getApp();
+          const db = getDatabase(app, firebaseConfig.databaseURL);
+
+          if (queueStr) {
+            const queue = JSON.parse(queueStr);
+            for (const node of Object.keys(queue)) {
+              const dataToSave = queue[node];
+              if (Object.keys(dataToSave).length > 0) {
+                await update(ref(db, node), dataToSave);
+                processedAny = true;
+              }
+            }
+            if (processedAny) safeSetItem('offline_sync_queue', '{}');
+          }
+
+          if (simpleQueueStr) {
+            const simpleQueue = JSON.parse(simpleQueueStr);
+            for (const node of Object.keys(simpleQueue)) {
+              await set(ref(db, node), simpleQueue[node]);
+              processedAny = true;
+            }
+            if (processedAny) safeSetItem('offline_sync_queue_simple', '{}');
+          }
+
+          if (processedAny) {
+            handleAddNotification(
+              'সিঙ্ক সম্পন্ন', 
+              'আপনার অফলাইনে সেভ করা ডাটা সফলভাবে সার্ভারে পাঠানো হয়েছে!', 
+              'SUCCESS'
+            );
+          }
+        } catch (err) {
+          console.error('Failed to process offline queue', err);
+        }
+      }
+    };
+
+    const handleOfflineWarning = () => {
+      handleAddNotification(
+        'ইন্টারনেট সংযোগ নেই!', 
+        'আপনার ডাটা অফলাইনে সেভ হয়েছে। পরবর্তীতে নেটওয়ার্ক পেলে এটি স্বয়ংক্রিয়ভাবে এডমিনের কাছে পাঠানো হবে।', 
+        'WARNING'
+      );
+    };
+
+    window.addEventListener('online', processOfflineQueue);
+    window.addEventListener('offline-sync-warning', handleOfflineWarning);
+    
+    if (navigator.onLine) {
+      setTimeout(processOfflineQueue, 2000);
+    }
+
+    return () => {
+      window.removeEventListener('online', processOfflineQueue);
+      window.removeEventListener('offline-sync-warning', handleOfflineWarning);
+    };
+  }, [firebaseConfig]);
+
+  useEffect(() => {
     const handleBeforeInstallPrompt = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
@@ -367,6 +433,40 @@ const App: React.FC = () => {
   });
   
   const [toasts, setToasts] = useState<AppNotification[]>([]); 
+  
+  const handleAddNotification = useCallback((title: string, message: string, type: AppNotification['type'] = 'INFO', link?: string) => {
+    const newNotif: AppNotification = {
+      id: Math.random().toString(36).substr(2, 9),
+      title,
+      message,
+      type,
+      timestamp: new Date().toISOString(),
+      isRead: false,
+      link
+    };
+    
+    setAppNotifications(prev => [newNotif, ...prev]);
+    setToasts(prev => [...prev, newNotif]); 
+
+    setTimeout(() => {
+       setToasts(prev => prev.filter(t => t.id !== newNotif.id));
+    }, 5000);
+
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try {
+        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+        audio.volume = 0.5;
+        audio.play().catch(() => {});
+      } catch (e) {}
+
+      new Notification(title, {
+        body: message,
+        icon: 'https://cdn-icons-png.flaticon.com/512/1041/1041916.png',
+        tag: 'depend-sourcing-msg'
+      });
+    }
+  }, []);
+
   const [isNotifDropdownOpen, setIsNotifDropdownOpen] = useState(false);
   
   useEffect(() => {
@@ -672,6 +772,13 @@ const App: React.FC = () => {
         
         if (node === 'productEditors' || node === 'app_settings') {
           const safeData = JSON.parse(jsonString); 
+          if (!navigator.onLine) {
+             const queue = JSON.parse(safeGetItem('offline_sync_queue_simple') || '{}');
+             queue[node] = safeData;
+             safeSetItem('offline_sync_queue_simple', JSON.stringify(queue));
+             window.dispatchEvent(new CustomEvent('offline-sync-warning'));
+             return;
+          }
           await set(ref(db, node), safeData);
         } else {
           const safeData = JSON.parse(jsonString); 
@@ -718,6 +825,14 @@ const App: React.FC = () => {
           }
             
           if (Object.keys(dataToSave).length > 0) {
+            if (!navigator.onLine) {
+               const queue = JSON.parse(safeGetItem('offline_sync_queue') || '{}');
+               if (!queue[node]) queue[node] = {};
+               Object.assign(queue[node], dataToSave);
+               safeSetItem('offline_sync_queue', JSON.stringify(queue));
+               window.dispatchEvent(new CustomEvent('offline-sync-warning'));
+               return;
+            }
             await update(ref(db, node), dataToSave);
           }
         }
@@ -1048,39 +1163,6 @@ const App: React.FC = () => {
   const requestNotificationPermission = () => {
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
-    }
-  };
-
-  const handleAddNotification = (title: string, message: string, type: AppNotification['type'] = 'INFO', link?: string) => {
-    const newNotif: AppNotification = {
-      id: Math.random().toString(36).substr(2, 9),
-      title,
-      message,
-      type,
-      timestamp: new Date().toISOString(),
-      isRead: false,
-      link
-    };
-    
-    setAppNotifications(prev => [newNotif, ...prev]);
-    setToasts(prev => [...prev, newNotif]); 
-
-    setTimeout(() => {
-       setToasts(prev => prev.filter(t => t.id !== newNotif.id));
-    }, 5000);
-
-    if ('Notification' in window && Notification.permission === 'granted') {
-      try {
-        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-        audio.volume = 0.5;
-        audio.play().catch(() => {});
-      } catch (e) {}
-
-      new Notification(title, {
-        body: message,
-        icon: 'https://cdn-icons-png.flaticon.com/512/1041/1041916.png',
-        tag: 'depend-sourcing-msg'
-      });
     }
   };
 
