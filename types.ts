@@ -31,6 +31,7 @@ export interface Staff {
   createdAt: string;
   updatedAt?: string;
   deletedAt?: string;
+  isHardDeleted?: boolean;
   dateOfBirth?: string; // New: Birthday Field (YYYY-MM-DD)
   // Gamification Fields
   points?: number;
@@ -57,6 +58,7 @@ export interface MovementLog {
   allowanceType?: 'LUNCH' | 'DINNER' | 'NIGHT' | 'HOLIDAY' | 'NONE'; // Added HOLIDAY
   amount?: number;
   isDeleted?: boolean;
+  isHardDeleted?: boolean;
 }
 
 export interface Attendance {
@@ -82,6 +84,7 @@ export interface Expense {
   status: 'PENDING' | 'VERIFIED' | 'APPROVED' | 'REJECTED';
   createdAt: string;
   isDeleted?: boolean;
+  isHardDeleted?: boolean;
 }
 
 export interface BillingRule {
@@ -98,6 +101,7 @@ export interface FundEntry {
   note: string;
   date: string;
   isDeleted?: boolean;
+  isHardDeleted?: boolean;
 }
 
 export interface Notice {
@@ -109,6 +113,7 @@ export interface Notice {
   role: string;
   date: string;
   isDeleted?: boolean;
+  isHardDeleted?: boolean;
   reactions?: Reaction[]; // Added reactions
 }
 
@@ -121,6 +126,7 @@ export interface AdvanceLog {
   date: string;
   givenBy: string;
   isDeleted?: boolean;
+  isHardDeleted?: boolean;
   type?: 'REGULAR' | 'SALARY'; 
 }
 
@@ -135,6 +141,7 @@ export interface Complaint {
   date: string;
   status: 'PENDING' | 'INVESTIGATING' | 'RESOLVED' | 'DISMISSED';
   isDeleted?: boolean;
+  isHardDeleted?: boolean;
   type?: 'COMPLAINT' | 'SUGGESTION'; // Added Type to distinguish
 }
 
@@ -181,6 +188,7 @@ export interface Product {
   image: string;
   description: string;
   tags: string[];
+  isHardDeleted?: boolean;
 }
 
 export interface PhoneBookEntry {
@@ -193,4 +201,5 @@ export interface PhoneBookEntry {
   note?: string;
   category: 'CLIENT' | 'SUPPLIER' | 'PARTNER' | 'OTHER';
   isDeleted?: boolean;
+  isHardDeleted?: boolean;
 }

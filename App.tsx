@@ -422,9 +422,9 @@ const App: React.FC = () => {
   const [seenItems, setSeenItems] = useState<{expenses: string[], complaints: string[], locations: string[]}>(() => {
     try {
         return {
-            expenses: JSON.parse(safeGetItem('seen_expenses', '[]')),
-            complaints: JSON.parse(safeGetItem('seen_complaints', '[]')),
-            locations: JSON.parse(safeGetItem('seen_locations', '[]'))
+            expenses: JSON.parse(safeGetItem('seen_expenses', '[]') || '[]'),
+            complaints: JSON.parse(safeGetItem('seen_complaints', '[]') || '[]'),
+            locations: JSON.parse(safeGetItem('seen_locations', '[]') || '[]')
         };
     } catch {
         return { expenses: [], complaints: [], locations: [] };
@@ -658,7 +658,7 @@ const App: React.FC = () => {
     safeSetItem('app_theme', newTheme ? 'dark' : 'light');
   };
 
-  const syncData = async (node: string, data: any) => {
+  const syncData = async (node: string, data: any, prevData?: any) => {
     const cleaned = cleanArray(data);
     const jsonString = JSON.stringify(cleaned);
     safeSetItem(node, jsonString);
@@ -673,14 +673,48 @@ const App: React.FC = () => {
           await set(ref(db, node), safeData);
         } else {
           const safeData = JSON.parse(jsonString); 
-          const dataToSave = safeData.reduce((acc: any, curr: any) => {
-            if (!curr.isHardDeleted) {
-              acc[curr.id || Math.random().toString(36).substr(2, 9)] = curr;
-            }
-            return acc;
-          }, {});
+          const safePrevData = prevData ? JSON.parse(JSON.stringify(cleanArray(prevData))) : [];
+          
+          const dataToSave: any = {};
+          
+          // Find items that were added or modified
+          safeData.forEach((curr: any) => {
+             const prevItem = safePrevData.find((p: any) => p.id === curr.id);
+             if (!prevItem || JSON.stringify(prevItem) !== JSON.stringify(curr)) {
+                const id = curr.id || Math.random().toString(36).substr(2, 9);
+                curr.id = id;
+                if (curr.isHardDeleted) {
+                   dataToSave[id] = null;
+                } else {
+                   dataToSave[id] = curr;
+                }
+             }
+          });
+          
+          // Find items that were hard deleted (in prev but not in next)
+          if (prevData) {
+              safePrevData.forEach((prevItem: any) => {
+                 const stillExists = safeData.find((c: any) => c.id === prevItem.id);
+                 if (!stillExists && prevItem.id) {
+                    dataToSave[prevItem.id] = null;
+                 }
+              });
+          } else {
+              // Fallback if no prevData provided (legacy behavior, send all)
+              safeData.forEach((curr: any) => {
+                if (curr.isHardDeleted) {
+                  if (curr.id) dataToSave[curr.id] = null;
+                } else {
+                  const id = curr.id || Math.random().toString(36).substr(2, 9);
+                  curr.id = id;
+                  dataToSave[id] = curr;
+                }
+              });
+          }
             
-          await set(ref(db, node), dataToSave);
+          if (Object.keys(dataToSave).length > 0) {
+            await update(ref(db, node), dataToSave);
+          }
         }
         // setIsCloudEnabled(true); // Handled by .info/connected
         setCloudError(null);
@@ -694,7 +728,7 @@ const App: React.FC = () => {
   const createUpdater = (key: string, setter: React.Dispatch<React.SetStateAction<any[]>>) => (val: any) => {
     setter(prev => {
       const next = typeof val === 'function' ? val(prev) : val;
-      syncData(key, next);
+      syncData(key, next, prev);
       return next;
     });
   };
@@ -766,7 +800,7 @@ const App: React.FC = () => {
          }
          return s;
        });
-       syncData('staffList', newList);
+       syncData('staffList', newList, prev);
        return newList;
     });
   };
@@ -785,7 +819,7 @@ const App: React.FC = () => {
          }
          return s;
        });
-       syncData('staffList', newList);
+       syncData('staffList', newList, prev);
        return newList;
     });
   };
@@ -868,7 +902,7 @@ const App: React.FC = () => {
                 }
                 return s;
              });
-             syncData('staffList', newList);
+             syncData('staffList', newList, prev);
              return newList;
           });
        }

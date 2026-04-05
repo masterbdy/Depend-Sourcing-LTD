@@ -47,8 +47,8 @@ const PhoneBook: React.FC<PhoneBookProps> = ({ phoneBook, setPhoneBook, role }) 
       setPhoneBook(updatedList);
     } else {
       const newEntry: PhoneBookEntry = {
-        id: Math.random().toString(36).substr(2, 9),
         ...formData as PhoneBookEntry,
+        id: Math.random().toString(36).substr(2, 9),
         isDeleted: false
       };
       setPhoneBook([newEntry, ...phoneBook]);

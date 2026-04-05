@@ -147,8 +147,8 @@ const ProductCatalogView: React.FC<ProductCatalogProps> = ({
        setProducts(prev => prev.map(p => p.id === editingProduct.id ? { ...p, ...formData } as Product : p));
     } else {
        const newProduct: Product = {
-          id: Math.random().toString(36).substr(2, 9),
-          ...formData as Product
+          ...formData as Product,
+          id: Math.random().toString(36).substr(2, 9)
        };
        setProducts(prev => [...prev, newProduct]);
     }
