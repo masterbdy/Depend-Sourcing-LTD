@@ -571,7 +571,9 @@ const App: React.FC = () => {
          subscribe('complaints', setComplaints);
          subscribe('messages', setMessages);
          subscribe('attendanceList', setAttendanceList);
-         subscribe('staff_locations', setLiveLocations);
+         if (role === UserRole.ADMIN) {
+             subscribe('staff_locations', setLiveLocations);
+         }
          subscribe('phoneBook', setPhoneBook);
 
          return () => {
@@ -677,9 +679,13 @@ const App: React.FC = () => {
           
           const dataToSave: any = {};
           
+          // Create a map for O(1) lookups
+          const prevDataMap = new Map(safePrevData.map((p: any) => [p.id, p]));
+          const newDataMap = new Map(safeData.map((c: any) => [c.id, c]));
+          
           // Find items that were added or modified
           safeData.forEach((curr: any) => {
-             const prevItem = safePrevData.find((p: any) => p.id === curr.id);
+             const prevItem = prevDataMap.get(curr.id);
              if (!prevItem || JSON.stringify(prevItem) !== JSON.stringify(curr)) {
                 const id = curr.id || Math.random().toString(36).substr(2, 9);
                 curr.id = id;
@@ -694,8 +700,7 @@ const App: React.FC = () => {
           // Find items that were hard deleted (in prev but not in next)
           if (prevData) {
               safePrevData.forEach((prevItem: any) => {
-                 const stillExists = safeData.find((c: any) => c.id === prevItem.id);
-                 if (!stillExists && prevItem.id) {
+                 if (!newDataMap.has(prevItem.id) && prevItem.id) {
                     dataToSave[prevItem.id] = null;
                  }
               });
@@ -800,7 +805,7 @@ const App: React.FC = () => {
          }
          return s;
        });
-       syncData('staffList', newList, prev);
+       syncData('staffList', newList, prevList);
        return newList;
     });
   };
@@ -819,7 +824,7 @@ const App: React.FC = () => {
          }
          return s;
        });
-       syncData('staffList', newList, prev);
+       syncData('staffList', newList, prevList);
        return newList;
     });
   };
@@ -902,7 +907,7 @@ const App: React.FC = () => {
                 }
                 return s;
              });
-             syncData('staffList', newList, prev);
+             syncData('staffList', newList, prevList);
              return newList;
           });
        }
@@ -951,6 +956,7 @@ const App: React.FC = () => {
     if (!myStaffId) return;
 
     let watchId: number;
+    let lastLocationUpdate = 0;
 
     const startTracking = () => {
       if (role === UserRole.STAFF || role === UserRole.KIOSK) {
@@ -960,6 +966,10 @@ const App: React.FC = () => {
       if ('geolocation' in navigator) {
         watchId = navigator.geolocation.watchPosition(
           async (position) => {
+            const now = Date.now();
+            if (now - lastLocationUpdate < 15000) return; // Throttle to 15 seconds
+            lastLocationUpdate = now;
+
             if (!permissionsGranted) {
                setPermissionsGranted(true);
                safeSetItem('app_permissions_granted', 'true');
@@ -1154,7 +1164,9 @@ const App: React.FC = () => {
         return;
     }
 
-    const newExpenses = expenses.filter(e => !prev.find(p => p.id === e.id));
+    const prevMap = new Map(prev.map(p => [p.id, p]));
+
+    const newExpenses = expenses.filter(e => !prevMap.has(e.id));
     newExpenses.forEach(e => {
         if (role === UserRole.ADMIN || role === UserRole.MD) {
             handleAddNotification('নতুন বিল সাবমিট', `${e.staffName} ৳${e.amount} টাকার বিল সাবমিট করেছেন।`, 'INFO', 'expenses');
@@ -1162,7 +1174,7 @@ const App: React.FC = () => {
     });
 
     const updatedExpenses = expenses.filter(e => {
-        const old = prev.find(p => p.id === e.id);
+        const old = prevMap.get(e.id);
         return old && old.status !== e.status;
     });
 
