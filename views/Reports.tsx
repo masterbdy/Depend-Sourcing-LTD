@@ -142,7 +142,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
     th { font-size: 9px; text-transform: uppercase; font-weight: 800; padding: 6px; text-align: left; background-color: #f3f4f6; border-bottom: 1px solid #d1d5db; color: #111827; }
     td { font-size: 10px; padding: 5px 6px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
     .amount-col { text-align: right; font-weight: 700; font-family: monospace; }
-    .footer { position: fixed; bottom: 0; left: 0; right: 0; border-top: 1px solid #e5e7eb; padding-top: 8px; display: flex; justify-content: space-between; align-items: flex-end; font-size: 9px; color: #9ca3af; }
+    .footer { margin-top: 40px; border-top: 1px solid #e5e7eb; padding-top: 8px; display: flex; justify-content: space-between; align-items: flex-end; font-size: 9px; color: #9ca3af; page-break-inside: avoid; }
     .summary-grid { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 20px; }
     .summary-box { flex: 1; border: 1px solid #e5e7eb; padding: 10px; border-radius: 5px; }
     .summary-label { font-size: 9px; text-transform: uppercase; font-weight: 700; color: #6b7280; display: block; margin-bottom: 4px; }
@@ -297,6 +297,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
           <div class="footer">
              <div><p>System Generated Report.</p></div>
              <div class="text-center" style="width: 200px; margin-left: auto;">
+                <div style="height: 60px;"></div>
                 <div class="h-px bg-gray-800 w-full mb-1"></div>
                 <p class="font-bold text-sm text-gray-800">Shariful Islam</p>
                 <p class="text-[10px] font-bold text-gray-500 uppercase">Managing Director</p>
@@ -438,6 +439,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
           <div class="footer">
              <div><p>Depend Sourcing Ltd. Internal Document.</p></div>
              <div class="text-center" style="width: 200px; margin-left: auto;">
+                <div style="height: 60px;"></div>
                 <div class="h-px bg-gray-800 w-full mb-1"></div>
                 <p class="font-bold text-sm text-gray-800">Authorized Signature</p>
              </div>
@@ -532,30 +534,34 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
       <body>
         <div class="watermark">ACCOUNT STATEMENT</div>
         <div class="max-w-[210mm] mx-auto">
-          <div class="header-section theme-border flex justify-between items-end">
-             <div class="flex items-center gap-3">
-               ${companyLogo ? `<img src="${companyLogo}" alt="Logo" class="w-16 h-16 object-contain" />` : ''}
-               <div><h1 class="company-name theme-color">Depend Sourcing Ltd.</h1><p class="tagline">Promise Beyond Business</p></div>
-             </div>
-             <div class="address-block"><p>Head Office: A-14/8, Johir Complex, Savar, Dhaka.</p></div>
-          </div>
-          <div class="report-title-box theme-light-bg border border-indigo-200">
-             <div>
-               <h2 class="report-title theme-color">${selectedStaffId ? 'INDIVIDUAL ACCOUNT STATEMENT' : 'ACCOUNT STATEMENT'}</h2>
-               <p class="meta-text text-gray-600">${selectedStaffId ? 'Staff Name: ' + selectedStaffName : 'Consolidated Expense & Advance Statement'}</p>
-             </div>
-             <div class="text-right meta-text"><p><strong>Period:</strong> ${reportStartDate ? new Date(reportStartDate).toLocaleDateString('en-GB') : 'Start'} — ${reportEndDate ? new Date(reportEndDate).toLocaleDateString('en-GB') : 'Today'}</p></div>
-          </div>
-          <div class="flex justify-between gap-4 mb-4 text-xs">
-            <div class="flex-1 bg-gray-50 p-2 rounded border border-gray-200 flex justify-between items-center">
-               <span class="font-bold text-gray-600 uppercase">Total Bill</span><span class="font-black text-indigo-900 text-sm">৳ ${totalExpenseAmount.toLocaleString()}</span>
-            </div>
-            <div class="flex-1 bg-gray-50 p-2 rounded border border-gray-200 flex justify-between items-center">
-               <span class="font-bold text-gray-600 uppercase">Total Advance</span><span class="font-black text-blue-800 text-sm">৳ ${totalAdvanceGiven.toLocaleString()}</span>
-            </div>
-          </div>
-          <table>
-            <thead>
+          <table style="width: 100%; border: none;">
+            <thead style="display: table-header-group;">
+              <tr>
+                <td colspan="6" style="border: none; padding: 0; background: white;">
+                  <div class="header-section theme-border flex justify-between items-end">
+                     <div class="flex items-center gap-3">
+                       ${companyLogo ? `<img src="${companyLogo}" alt="Logo" class="w-16 h-16 object-contain" />` : ''}
+                       <div><h1 class="company-name theme-color">Depend Sourcing Ltd.</h1><p class="tagline">Promise Beyond Business</p></div>
+                     </div>
+                     <div class="address-block"><p>Head Office: A-14/8, Johir Complex, Savar, Dhaka.</p></div>
+                  </div>
+                  <div class="report-title-box theme-light-bg border border-indigo-200">
+                     <div>
+                       <h2 class="report-title theme-color">${selectedStaffId ? 'INDIVIDUAL ACCOUNT STATEMENT' : 'ACCOUNT STATEMENT'}</h2>
+                       <p class="meta-text text-gray-600">${selectedStaffId ? 'Staff Name: ' + selectedStaffName : 'Consolidated Expense & Advance Statement'}</p>
+                     </div>
+                     <div class="text-right meta-text"><p><strong>Period:</strong> ${reportStartDate ? new Date(reportStartDate).toLocaleDateString('en-GB') : 'Start'} — ${reportEndDate ? new Date(reportEndDate).toLocaleDateString('en-GB') : 'Today'}</p></div>
+                  </div>
+                  <div class="flex justify-between gap-4 mb-4 text-xs">
+                    <div class="flex-1 bg-gray-50 p-2 rounded border border-gray-200 flex justify-between items-center">
+                       <span class="font-bold text-gray-600 uppercase">Total Bill</span><span class="font-black text-indigo-900 text-sm">৳ ${totalExpenseAmount.toLocaleString()}</span>
+                    </div>
+                    <div class="flex-1 bg-gray-50 p-2 rounded border border-gray-200 flex justify-between items-center">
+                       <span class="font-bold text-gray-600 uppercase">Total Advance</span><span class="font-black text-blue-800 text-sm">৳ ${totalAdvanceGiven.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </td>
+              </tr>
               <tr class="table-header">
                 <th class="text-center w-8 rounded-tl">SL</th>
                 <th class="text-left w-20">Date</th>
@@ -588,6 +594,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
           <div class="footer">
              <div><p>Depend Sourcing Ltd. Confidential.</p></div>
              <div class="text-center" style="width: 200px; margin-left: auto;">
+                <div style="height: 60px;"></div>
                 <div class="h-px bg-gray-800 w-full mb-1"></div>
                 <p class="font-bold text-sm text-gray-800">Shariful Islam</p>
                 <p class="text-[10px] font-bold text-gray-500 uppercase">Managing Director</p>
@@ -716,6 +723,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
           <div class="footer">
              <div><p>System Generated Report. Confidential.</p></div>
              <div class="text-center" style="width: 200px; margin-left: auto;">
+                <div style="height: 60px;"></div>
                 <div class="h-px bg-gray-800 w-full mb-1"></div>
                 <p class="font-bold text-sm text-gray-800">Authorized Signature</p>
              </div>

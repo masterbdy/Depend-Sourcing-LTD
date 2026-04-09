@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
-import { Settings, Save, Clock, Download, Upload, Database, ShieldCheck, ExternalLink, HelpCircle, Code, Check, AlertTriangle, Package, UserCheck, X, Image as ImageIcon, Trash2 } from 'lucide-react';
+import { Settings, Save, Clock, Download, Upload, Database, ShieldCheck, ExternalLink, HelpCircle, Code, Check, AlertTriangle, Package, UserCheck, X, Image as ImageIcon, Trash2, Info } from 'lucide-react';
 import { BillingRule, UserRole, Staff } from '../types';
+import packageJson from '../package.json';
 
 interface SettingsProps {
   billingRules: BillingRule[];
@@ -388,6 +389,20 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
             <span>ডাটা ইমপোর্ট (Import JSON)</span>
           </button>
           <input type="file" accept=".json" className="hidden" ref={fileInputRef} onChange={handleFileChange} />
+        </div>
+      </div>
+
+      {/* App Info */}
+      <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="bg-gray-100 p-2.5 rounded-2xl text-gray-600"><Info className="w-6 h-6" /></div>
+          <div>
+            <h2 className="text-lg font-black text-gray-800">অ্যাপ ভার্সন (App Version)</h2>
+            <p className="text-xs text-gray-500 font-medium mt-1">Current installed version of the application</p>
+          </div>
+        </div>
+        <div className="bg-indigo-50 px-4 py-2 rounded-xl border border-indigo-100">
+          <span className="text-indigo-700 font-mono font-bold">v{packageJson.version}</span>
         </div>
       </div>
     </div>
