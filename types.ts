@@ -42,6 +42,7 @@ export interface Staff {
   lastLuckyDrawTime?: string;
   luckyDrawCount?: number;
   lastDevice?: string; // New Field for Device Tracking
+  fcmToken?: string; // Firebase Cloud Messaging Token
 }
 
 export interface MovementLog {

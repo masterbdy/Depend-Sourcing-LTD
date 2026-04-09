@@ -24,6 +24,7 @@ import LiveLocationView from './views/LiveLocation';
 import LuckyDrawView from './views/LuckyDraw';
 import ProductCatalogView from './views/ProductCatalogView';
 import PhoneBook from './views/PhoneBook';
+import { getUserFCMToken } from './notifications';
 
 // Safe LocalStorage Helper
 const safeGetItem = (key: string, defaultValue: string | null = null) => {
@@ -1327,6 +1328,18 @@ const App: React.FC = () => {
              if (myUser) {
                 setStaffList(prev => prev.map(s => s.id === myUser.id ? { ...s, lastDevice: deviceInfo, updatedAt: new Date().toISOString() } : s));
              }
+          }
+
+          // Request FCM Token for push notifications
+          if (firebaseConfig && firebaseConfig.apiKey) {
+             getUserFCMToken(firebaseConfig).then(token => {
+                if (token && authenticatedUser!.role === UserRole.STAFF) {
+                   const myUser = staffList.find(s => s.name === authenticatedUser!.name);
+                   if (myUser && myUser.fcmToken !== token) {
+                      setStaffList(prev => prev.map(s => s.id === myUser.id ? { ...s, fcmToken: token, updatedAt: new Date().toISOString() } : s));
+                   }
+                }
+             });
           }
 
           if (authenticatedUser!.role === UserRole.KIOSK) {
