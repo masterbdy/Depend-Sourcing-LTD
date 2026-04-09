@@ -6,7 +6,9 @@ interface FundProps {
   funds: FundEntry[];
   setFunds: React.Dispatch<React.SetStateAction<FundEntry[]>>;
   expenses: Expense[];
+  setExpenses: React.Dispatch<React.SetStateAction<Expense[]>>;
   advances: AdvanceLog[];
+  setAdvances: React.Dispatch<React.SetStateAction<AdvanceLog[]>>;
   totalFund: number;
   cashOnHand: number;
   role: UserRole;
@@ -24,9 +26,10 @@ interface Transaction {
   displayType: string;
 }
 
-const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = [], advances = [], totalFund, cashOnHand, role }) => {
+const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = [], setExpenses, advances = [], setAdvances, totalFund, cashOnHand, role }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [deleteConfirmType, setDeleteConfirmType] = useState<'FUND' | 'EXPENSE' | 'ADVANCE' | null>(null);
   const [formData, setFormData] = useState({ 
     amount: 0, 
     note: '',
@@ -139,14 +142,22 @@ const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = 
     setFormData({ amount: 0, note: '', date: new Date().toISOString().split('T')[0] });
   };
 
-  const deleteEntry = (id: string) => {
+  const deleteEntry = (id: string, type: 'FUND' | 'EXPENSE' | 'ADVANCE') => {
     setDeleteConfirmId(id);
+    setDeleteConfirmType(type);
   };
 
   const confirmDelete = () => {
-    if (deleteConfirmId) {
-      setFunds(prev => prev.map(f => f.id === deleteConfirmId ? { ...f, isDeleted: true } : f));
+    if (deleteConfirmId && deleteConfirmType) {
+      if (deleteConfirmType === 'FUND') {
+        setFunds(prev => prev.map(f => f.id === deleteConfirmId ? { ...f, isDeleted: true } : f));
+      } else if (deleteConfirmType === 'EXPENSE') {
+        setExpenses(prev => prev.map(e => e.id === deleteConfirmId ? { ...e, isDeleted: true } : e));
+      } else if (deleteConfirmType === 'ADVANCE') {
+        setAdvances(prev => prev.map(a => a.id === deleteConfirmId ? { ...a, isDeleted: true } : a));
+      }
       setDeleteConfirmId(null);
+      setDeleteConfirmType(null);
     }
   };
 
@@ -311,7 +322,7 @@ const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = 
                             {(role === UserRole.ADMIN || role === UserRole.MD) && (
                                 <td className="px-4 py-2.5 text-right">
                                     <button 
-                                    onClick={() => deleteEntry(t.id)} 
+                                    onClick={() => deleteEntry(t.id, t.originalType)} 
                                     className="text-red-400 hover:text-red-600 bg-transparent hover:bg-red-50 dark:hover:bg-red-900/30 p-1 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
                                     title="Delete Fund Entry"
                                     >
@@ -365,6 +376,17 @@ const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = 
                             <td className="px-4 py-2.5 text-right text-xs font-black text-red-600 dark:text-red-400 whitespace-nowrap">
                                ৳ {t.amount.toLocaleString()}
                             </td>
+                            {(role === UserRole.ADMIN || role === UserRole.MD) && (
+                                <td className="px-4 py-2.5 text-right">
+                                    <button 
+                                    onClick={() => deleteEntry(t.id, t.originalType)} 
+                                    className="text-red-400 hover:text-red-600 bg-transparent hover:bg-red-50 dark:hover:bg-red-900/30 p-1 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                                    title="Delete Debit Entry"
+                                    >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                </td>
+                            )}
                          </tr>
                       ))}
                       {debitTransactions.length === 0 && (
@@ -432,11 +454,14 @@ const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = 
               </div>
               <h3 className="text-xl font-black text-gray-800 dark:text-white mb-2">আপনি কি নিশ্চিত?</h3>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-                আপনি এই ফান্ড রেকর্ডটি মুছে ফেলতে চাচ্ছেন। এটি রিসাইকেল বিনে জমা হবে।
+                আপনি এই রেকর্ডটি মুছে ফেলতে চাচ্ছেন। এটি রিসাইকেল বিনে জমা হবে।
               </p>
               <div className="flex gap-3">
                 <button 
-                  onClick={() => setDeleteConfirmId(null)}
+                  onClick={() => {
+                    setDeleteConfirmId(null);
+                    setDeleteConfirmType(null);
+                  }}
                   className="flex-1 py-3 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-bold rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                 >
                   না, বাতিল করুন

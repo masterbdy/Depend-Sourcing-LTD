@@ -7,7 +7,6 @@ import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { getDatabase, ref, onValue, set, update, runTransaction, Unsubscribe } from "firebase/database";
 import { UserRole, Staff, MovementLog, Expense, BillingRule, FundEntry, Notice, AdvanceLog, Complaint, ChatMessage, Attendance, StaffLocation, AppNotification, Product, PhoneBookEntry } from './types';
 import { INITIAL_STAFF, INITIAL_BILLING_RULES, ROLE_LABELS, DEFAULT_FIREBASE_CONFIG, INITIAL_PRODUCTS } from './constants';
-import GlowingCursor from './GlowingCursor';
 
 import DashboardView from './views/Dashboard';
 import StaffManagementView from './views/StaffManagement';
@@ -46,7 +45,7 @@ const safeSetItem = (key: string, value: string) => {
 
 const cleanArray = <T,>(data: any): T[] => {
   if (!data) return [];
-  const array = typeof data === 'object' && !Array.isArray(data) ? Object.values(data) : data;
+  const array = typeof data === 'object' ? Object.values(data) : data;
   return Array.isArray(array) ? array.filter(Boolean) as T[] : [];
 };
 
@@ -1500,18 +1499,19 @@ const App: React.FC = () => {
     const targetId = editingProfileId || staffList.find(s => s.name === currentUser)?.id;
     if (!targetId) return;
 
-    const existingProfileIndex = (staffList || []).findIndex(s => s.id === targetId);
-    
-    if (existingProfileIndex >= 0) {
-      const updatedList = [...staffList];
-      const updatedProfile = {
-        ...updatedList[existingProfileIndex],
-        ...profileForm,
-        updatedAt: new Date().toISOString()
-      };
-      updatedList[existingProfileIndex] = updatedProfile;
-      updateStaffList(updatedList);
-    }
+    updateStaffList(prev => {
+      const existingProfileIndex = prev.findIndex(s => s.id === targetId);
+      if (existingProfileIndex >= 0) {
+        const updatedList = [...prev];
+        updatedList[existingProfileIndex] = {
+          ...updatedList[existingProfileIndex],
+          ...profileForm,
+          updatedAt: new Date().toISOString()
+        };
+        return updatedList;
+      }
+      return prev;
+    });
     
     setIsProfileModalOpen(false);
     setEditingProfileId(null);
@@ -1594,7 +1594,7 @@ const App: React.FC = () => {
       case 'staff': return <StaffManagementView staffList={staffList} setStaffList={updateStaffList} role={role!} expenses={expenses} advances={advances} setAdvances={updateAdvances} currentUser={currentUser} onUpdatePoints={handlePointUpdate} highlightStaffId={highlightStaffId} setHighlightStaffId={setHighlightStaffId} />;
       case 'movements': return <MovementLogView movements={movements} setMovements={updateMovements} staffList={staffList} billingRules={billingRules} role={role!} setMessages={updateMessages} currentUser={currentUser} onUpdatePoints={handlePointUpdate} />;
       case 'expenses': return <ExpenseManagementView expenses={expenses} setExpenses={updateExpenses} staffList={staffList} role={role!} currentUser={currentUser} advances={advances} onOpenProfile={openProfile} allowedBackdateDays={allowedBackdateDays} />;
-      case 'reports': return <ReportsView expenses={expenses} staffList={staffList} advances={advances} attendanceList={attendanceList} funds={funds} movements={movements} role={role!} />;
+      case 'reports': return <ReportsView expenses={expenses} staffList={staffList} advances={advances} attendanceList={attendanceList} funds={funds} movements={movements} role={role!} companyLogo={companyLogo} />;
       case 'settings': return <SettingsView billingRules={billingRules} setBillingRules={updateBillingRules} role={role!} exportData={handleExport} importData={handleImport} cloudConfig={firebaseConfig} saveCloudConfig={(config) => { safeSetItem('fb_config', JSON.stringify(config)); alert('Settings saved! Reloading...'); window.location.reload(); }} staffList={staffList} productEditors={productEditors} setProductEditors={updateProductEditors} allowedBackdateDays={allowedBackdateDays} setAllowedBackdateDays={updateBackdateDays} festivalImage={festivalImage} setFestivalImage={updateFestivalImage} />;
       case 'trash': return <TrashView staffList={staffList} setStaffList={updateStaffList} movements={movements} setMovements={updateMovements} expenses={expenses} setExpenses={updateExpenses} funds={funds} setFunds={updateFunds} notices={notices} setNotices={updateNotices} role={role!} />;
       case 'products': return <ProductCatalogView onLogout={() => {}} products={products} setProducts={updateProducts} role={role!} productEditors={productEditors} currentStaffId={myStaffId} onTrackSearch={handleTrackSearch} setComplaints={updateComplaints} certLogos={certLogos} onUpdateCertLogo={updateCertLogos} companyLogo={companyLogo} onUpdateCompanyLogo={updateCompanyLogo} />; 
@@ -1613,7 +1613,6 @@ const App: React.FC = () => {
       <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4 relative overflow-hidden">
         
         <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-black to-blue-900 opacity-80 z-0"></div>
-        <div className="absolute inset-0 z-0 hidden md:block"><GlowingCursor /></div>
         
         <div className="bg-gray-900/40 backdrop-blur-xl rounded-3xl shadow-2xl p-8 w-full max-w-md border border-white/10 relative z-10 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-500">
           

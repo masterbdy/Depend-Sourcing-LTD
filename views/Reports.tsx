@@ -11,9 +11,10 @@ interface ReportsProps {
   funds?: FundEntry[];
   movements?: MovementLog[];
   role: UserRole;
+  companyLogo?: string;
 }
 
-const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], advances = [], attendanceList = [], funds = [], movements = [], role }) => {
+const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], advances = [], attendanceList = [], funds = [], movements = [], role, companyLogo }) => {
   const [reportStartDate, setReportStartDate] = useState('');
   const [reportEndDate, setReportEndDate] = useState('');
   
@@ -177,9 +178,12 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
         <div class="max-w-[210mm] mx-auto">
           
           <div class="header-section theme-border flex justify-between items-end">
-             <div>
+             <div class="flex items-center gap-3">
+               ${companyLogo ? `<img src="${companyLogo}" alt="Logo" class="w-16 h-16 object-contain" />` : ''}
+               <div>
                 <h1 class="company-name theme-color">Depend Sourcing Ltd.</h1>
                 <p class="tagline">Promise Beyond Business</p>
+               </div>
              </div>
              <div class="address-block">
                 <p>Monthly Account Statement</p>
@@ -360,7 +364,10 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
         <div class="max-w-[210mm] mx-auto">
           
           <div class="header-section theme-border flex justify-between items-end">
-             <div><h1 class="company-name theme-color">Depend Sourcing Ltd.</h1><p class="tagline">Promise Beyond Business</p></div>
+             <div class="flex items-center gap-3">
+               ${companyLogo ? `<img src="${companyLogo}" alt="Logo" class="w-16 h-16 object-contain" />` : ''}
+               <div><h1 class="company-name theme-color">Depend Sourcing Ltd.</h1><p class="tagline">Promise Beyond Business</p></div>
+             </div>
              <div class="address-block"><p>Head Office: A-14/8, Johir Complex, Savar, Dhaka.</p></div>
           </div>
 
@@ -526,7 +533,10 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
         <div class="watermark">ACCOUNT STATEMENT</div>
         <div class="max-w-[210mm] mx-auto">
           <div class="header-section theme-border flex justify-between items-end">
-             <div><h1 class="company-name theme-color">Depend Sourcing Ltd.</h1><p class="tagline">Promise Beyond Business</p></div>
+             <div class="flex items-center gap-3">
+               ${companyLogo ? `<img src="${companyLogo}" alt="Logo" class="w-16 h-16 object-contain" />` : ''}
+               <div><h1 class="company-name theme-color">Depend Sourcing Ltd.</h1><p class="tagline">Promise Beyond Business</p></div>
+             </div>
              <div class="address-block"><p>Head Office: A-14/8, Johir Complex, Savar, Dhaka.</p></div>
           </div>
           <div class="report-title-box theme-light-bg border border-indigo-200">
@@ -654,7 +664,10 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
         <div class="max-w-[210mm] mx-auto">
           
           <div class="header-section theme-border flex justify-between items-end">
-             <div><h1 class="company-name theme-color">Depend Sourcing Ltd.</h1><p class="tagline">Promise Beyond Business</p></div>
+             <div class="flex items-center gap-3">
+               ${companyLogo ? `<img src="${companyLogo}" alt="Logo" class="w-16 h-16 object-contain" />` : ''}
+               <div><h1 class="company-name theme-color">Depend Sourcing Ltd.</h1><p class="tagline">Promise Beyond Business</p></div>
+             </div>
              <div class="address-block"><p>Payable Bills Ledger</p><p>Generated: ${new Date().toLocaleDateString('en-GB')}</p></div>
           </div>
 

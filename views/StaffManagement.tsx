@@ -362,6 +362,67 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
   const stats = { total: (staffList || []).filter(s => s && !s.deletedAt).length, active: (staffList || []).filter(s => s && !s.deletedAt && s.status === 'ACTIVE').length, inactive: (staffList || []).filter(s => s && !s.deletedAt && s.status === 'DEACTIVATED').length };
   const getStaffFinancials = (staffId: string) => { const safeExpenses = expenses || []; const safeAdvances = advances || []; const staffExpenses = safeExpenses.filter(e => e && e.staffId === staffId && !e.isDeleted); const approved = staffExpenses.filter(e => e.status === 'APPROVED').reduce((sum, e) => sum + Number(e.amount || 0), 0); const staffAdvances = safeAdvances.filter(a => a && a.staffId === staffId && !a.isDeleted); const totalRegularAdv = staffAdvances.filter(a => a.type !== 'SALARY').reduce((sum, a) => sum + Number(a.amount || 0), 0); const totalSalaryAdv = staffAdvances.filter(a => a.type === 'SALARY').reduce((sum, a) => sum + Number(a.amount || 0), 0); const balance = totalRegularAdv - approved; return { balance, totalRegularAdv, totalSalaryAdv, approved }; };
 
+  const handleRecoverMissingStaff = () => {
+    const missingStaffIds = new Set<string>();
+    const missingStaffNames = new Map<string, string>();
+
+    // Check expenses
+    (expenses || []).forEach(e => {
+      if (e.staffId && !staffList.some(s => s.id === e.staffId && !s.isHardDeleted)) {
+        missingStaffIds.add(e.staffId);
+        missingStaffNames.set(e.staffId, e.staffName);
+      }
+    });
+
+    // Check advances
+    (advances || []).forEach(a => {
+      if (a.staffId && !staffList.some(s => s.id === a.staffId && !s.isHardDeleted)) {
+        missingStaffIds.add(a.staffId);
+        missingStaffNames.set(a.staffId, a.staffName);
+      }
+    });
+
+    if (missingStaffIds.size === 0) {
+      alert("কোনো হারানো প্রোফাইল পাওয়া যায়নি।");
+      return;
+    }
+
+    if (confirm(`${missingStaffIds.size} জন ইউজারের প্রোফাইল পাওয়া গেছে যা ডিলিট হয়ে গিয়েছিল। আপনি কি এগুলো রিকভার করতে চান?`)) {
+      const recoveredStaff: Staff[] = [];
+      
+      missingStaffIds.forEach(id => {
+        const existing = staffList.find(s => s.id === id);
+        if (existing) {
+          recoveredStaff.push({ ...existing, isHardDeleted: false, deletedAt: undefined });
+        } else {
+          recoveredStaff.push({
+            id: id,
+            name: missingStaffNames.get(id) || 'Unknown',
+            designation: 'Recovered Staff',
+            staffId: `REC-${id.substring(0,4)}`,
+            status: 'ACTIVE',
+            createdAt: new Date().toISOString()
+          });
+        }
+      });
+
+      setStaffList(prev => {
+        const updated = [...prev];
+        recoveredStaff.forEach(rs => {
+          const idx = updated.findIndex(s => s.id === rs.id);
+          if (idx >= 0) {
+            updated[idx] = rs;
+          } else {
+            updated.push(rs);
+          }
+        });
+        return updated;
+      });
+
+      alert("সফলভাবে রিকভার করা হয়েছে!");
+    }
+  };
+
   return (
     <div className="space-y-6">
       
@@ -375,11 +436,17 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
           <p className="text-xs text-gray-500 font-medium ml-8">ম্যানেজ করুন এবং মনিটর করুন</p>
         </div>
         {role === UserRole.ADMIN && (
-          <button onClick={() => setIsModalOpen(true)} className="group relative overflow-hidden bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-5 py-2.5 rounded-xl font-bold shadow-lg shadow-indigo-200 hover:shadow-indigo-300 transition-all active:scale-95 flex items-center gap-2">
-            <span className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></span>
-            <UserPlus className="w-4 h-4 relative z-10" /> 
-            <span className="relative z-10 text-sm">নতুন স্টাফ</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={handleRecoverMissingStaff} className="bg-amber-100 text-amber-700 px-4 py-2.5 rounded-xl font-bold shadow-sm hover:bg-amber-200 transition-all flex items-center gap-2" title="হারানো প্রোফাইল রিকভার করুন">
+              <RotateCcw className="w-4 h-4" />
+              <span className="hidden sm:inline text-sm">রিকভার প্রোফাইল</span>
+            </button>
+            <button onClick={() => setIsModalOpen(true)} className="group relative overflow-hidden bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-5 py-2.5 rounded-xl font-bold shadow-lg shadow-indigo-200 hover:shadow-indigo-300 transition-all active:scale-95 flex items-center gap-2">
+              <span className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></span>
+              <UserPlus className="w-4 h-4 relative z-10" /> 
+              <span className="relative z-10 text-sm">নতুন স্টাফ</span>
+            </button>
+          </div>
         )}
       </div>
 
@@ -816,6 +883,10 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
                       <option value="SALARY">বেতন অগ্রিম</option>
                    </select>
                 </div>
+                <div>
+                   <label className="block text-xs font-bold text-gray-500 mb-1">তারিখ</label>
+                   <input required type="date" className="w-full p-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 dark:text-white" value={advanceFormData.date} onChange={e => setAdvanceFormData({...advanceFormData, date: e.target.value})} />
+                </div>
                 <div className="flex gap-2 pt-2">
                    <button type="button" onClick={() => setIsAdvanceModalOpen(false)} className="flex-1 py-2 border rounded-lg text-gray-600 dark:text-gray-300">বাতিল</button>
                    <button type="submit" className="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">কনফার্ম</button>
@@ -845,6 +916,10 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
                       <option value="SALARY">বেতন থেকে</option>
                       <option value="REGULAR">রেগুলার ব্যালেন্স থেকে</option>
                    </select>
+                </div>
+                <div>
+                   <label className="block text-xs font-bold text-gray-500 mb-1">তারিখ</label>
+                   <input required type="date" className="w-full p-2 border rounded-lg dark:bg-gray-900 dark:border-gray-700 dark:text-white" value={repayFormData.date} onChange={e => setRepayFormData({...repayFormData, date: e.target.value})} />
                 </div>
                 <div className="flex gap-2 pt-2">
                    <button type="button" onClick={() => setIsRepayModalOpen(false)} className="flex-1 py-2 border rounded-lg text-gray-600 dark:text-gray-300">বাতিল</button>
