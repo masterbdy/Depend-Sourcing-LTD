@@ -179,7 +179,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
           
           <div class="header-section theme-border flex justify-between items-end">
              <div class="flex items-center gap-3">
-               ${companyLogo ? `<img src="${companyLogo}" alt="Logo" class="w-16 h-16 object-contain" />` : ''}
+               ${companyLogo ? `<img src="${companyLogo}" alt="Logo" class="w-24 h-24 object-contain" />` : ''}
                <div>
                 <h1 class="company-name theme-color">Depend Sourcing Ltd.</h1>
                 <p class="tagline">Promise Beyond Business</p>
@@ -297,7 +297,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
           <div class="footer">
              <div><p>System Generated Report.</p></div>
              <div class="text-center" style="width: 200px; margin-left: auto;">
-                <div style="height: 60px;"></div>
+                <div style="height: 100px;"></div>
                 <div class="h-px bg-gray-800 w-full mb-1"></div>
                 <p class="font-bold text-sm text-gray-800">Shariful Islam</p>
                 <p class="text-[10px] font-bold text-gray-500 uppercase">Managing Director</p>
@@ -439,7 +439,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
           <div class="footer">
              <div><p>Depend Sourcing Ltd. Internal Document.</p></div>
              <div class="text-center" style="width: 200px; margin-left: auto;">
-                <div style="height: 60px;"></div>
+                <div style="height: 100px;"></div>
                 <div class="h-px bg-gray-800 w-full mb-1"></div>
                 <p class="font-bold text-sm text-gray-800">Authorized Signature</p>
              </div>
@@ -594,7 +594,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
           <div class="footer">
              <div><p>Depend Sourcing Ltd. Confidential.</p></div>
              <div class="text-center" style="width: 200px; margin-left: auto;">
-                <div style="height: 60px;"></div>
+                <div style="height: 100px;"></div>
                 <div class="h-px bg-gray-800 w-full mb-1"></div>
                 <p class="font-bold text-sm text-gray-800">Shariful Islam</p>
                 <p class="text-[10px] font-bold text-gray-500 uppercase">Managing Director</p>
@@ -723,7 +723,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
           <div class="footer">
              <div><p>System Generated Report. Confidential.</p></div>
              <div class="text-center" style="width: 200px; margin-left: auto;">
-                <div style="height: 60px;"></div>
+                <div style="height: 100px;"></div>
                 <div class="h-px bg-gray-800 w-full mb-1"></div>
                 <p class="font-bold text-sm text-gray-800">Authorized Signature</p>
              </div>
