@@ -291,6 +291,18 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
     }
   };
 
+  const handleStatusChangeRequest = (id: string, currentStatus: 'ACTIVE' | 'DEACTIVATED') => {
+    if (isStaff) return;
+    setStatusConfirmData({ id, newStatus: currentStatus === 'ACTIVE' ? 'DEACTIVATED' : 'ACTIVE' });
+  };
+
+  const confirmStatusChange = () => {
+    if (statusConfirmData) {
+      setStaffList(prev => prev.map(s => s && s.id === statusConfirmData.id ? { ...s, status: statusConfirmData.newStatus, updatedAt: new Date().toISOString() } : s));
+      setStatusConfirmData(null);
+    }
+  };
+
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -577,7 +589,13 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
                                    </>
                                 )}
                                 {!isStaff && role === UserRole.ADMIN && (
-                                   <button onClick={(e) => { e.stopPropagation(); handleDeleteRequest(staff.id); }} className="flex-1 bg-red-50 dark:bg-red-900/20 hover:bg-red-600 hover:text-white text-red-500 dark:text-red-400 py-3 rounded-xl flex flex-col items-center justify-center gap-1 transition-all group"><Trash2 className="w-4 h-4 group-hover:scale-110 transition-transform" /><span className="text-[9px] font-bold">DELETE</span></button>
+                                   <>
+                                     <button onClick={(e) => { e.stopPropagation(); handleStatusChangeRequest(staff.id, staff.status || 'ACTIVE'); }} className={`flex-1 ${isActive ? 'bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-600 text-orange-500 dark:text-orange-400' : 'bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-600 text-emerald-500 dark:text-emerald-400'} hover:text-white py-3 rounded-xl flex flex-col items-center justify-center gap-1 transition-all group`}>
+                                        {isActive ? <UserX className="w-4 h-4 group-hover:scale-110 transition-transform" /> : <UserCheck className="w-4 h-4 group-hover:scale-110 transition-transform" />}
+                                        <span className="text-[9px] font-bold">{isActive ? 'SUSPEND' : 'ACTIVATE'}</span>
+                                     </button>
+                                     <button onClick={(e) => { e.stopPropagation(); handleDeleteRequest(staff.id); }} className="flex-1 bg-red-50 dark:bg-red-900/20 hover:bg-red-600 hover:text-white text-red-500 dark:text-red-400 py-3 rounded-xl flex flex-col items-center justify-center gap-1 transition-all group"><Trash2 className="w-4 h-4 group-hover:scale-110 transition-transform" /><span className="text-[9px] font-bold">DELETE</span></button>
+                                   </>
                                 )}
                              </div>
                           </div>
@@ -855,6 +873,39 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
                   className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 shadow-lg shadow-red-200 transition-colors"
                 >
                   হ্যাঁ, ডিলিট করুন
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* STATUS CHANGE CONFIRMATION MODAL */}
+      {statusConfirmData && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-gray-800 w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
+            <div className="p-6 text-center">
+              <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${statusConfirmData.newStatus === 'DEACTIVATED' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400' : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'}`}>
+                {statusConfirmData.newStatus === 'DEACTIVATED' ? <UserX className="w-8 h-8" /> : <UserCheck className="w-8 h-8" />}
+              </div>
+              <h3 className="text-xl font-black text-gray-800 dark:text-white mb-2">আপনি কি নিশ্চিত?</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                {statusConfirmData.newStatus === 'DEACTIVATED' 
+                  ? 'আপনি এই স্টাফ মেম্বারের একাউন্ট স্থগিত (Suspend) করতে চাচ্ছেন। তিনি আর লগইন করতে পারবেন না।' 
+                  : 'আপনি এই স্টাফ মেম্বারের একাউন্ট পুনরায় চালু (Activate) করতে চাচ্ছেন।'}
+              </p>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setStatusConfirmData(null)}
+                  className="flex-1 py-3 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-bold rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                  না, বাতিল করুন
+                </button>
+                <button 
+                  onClick={confirmStatusChange}
+                  className={`flex-1 py-3 text-white font-bold rounded-xl shadow-lg transition-colors ${statusConfirmData.newStatus === 'DEACTIVATED' ? 'bg-orange-500 hover:bg-orange-600 shadow-orange-200' : 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-200'}`}
+                >
+                  হ্যাঁ, নিশ্চিত করুন
                 </button>
               </div>
             </div>

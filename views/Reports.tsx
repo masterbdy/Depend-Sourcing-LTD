@@ -297,7 +297,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
           <div class="footer">
              <div><p>System Generated Report.</p></div>
              <div class="text-center" style="width: 200px; margin-left: auto;">
-                <div style="height: 100px;"></div>
+                <div style="height: 50px;"></div>
                 <div class="h-px bg-gray-800 w-full mb-1"></div>
                 <p class="font-bold text-sm text-gray-800">Shariful Islam</p>
                 <p class="text-[10px] font-bold text-gray-500 uppercase">Managing Director</p>
@@ -439,7 +439,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
           <div class="footer">
              <div><p>Depend Sourcing Ltd. Internal Document.</p></div>
              <div class="text-center" style="width: 200px; margin-left: auto;">
-                <div style="height: 100px;"></div>
+                <div style="height: 50px;"></div>
                 <div class="h-px bg-gray-800 w-full mb-1"></div>
                 <p class="font-bold text-sm text-gray-800">Authorized Signature</p>
              </div>
@@ -594,7 +594,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
           <div class="footer">
              <div><p>Depend Sourcing Ltd. Confidential.</p></div>
              <div class="text-center" style="width: 200px; margin-left: auto;">
-                <div style="height: 100px;"></div>
+                <div style="height: 50px;"></div>
                 <div class="h-px bg-gray-800 w-full mb-1"></div>
                 <p class="font-bold text-sm text-gray-800">Shariful Islam</p>
                 <p class="text-[10px] font-bold text-gray-500 uppercase">Managing Director</p>
@@ -723,7 +723,7 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
           <div class="footer">
              <div><p>System Generated Report. Confidential.</p></div>
              <div class="text-center" style="width: 200px; margin-left: auto;">
-                <div style="height: 100px;"></div>
+                <div style="height: 50px;"></div>
                 <div class="h-px bg-gray-800 w-full mb-1"></div>
                 <p class="font-bold text-sm text-gray-800">Authorized Signature</p>
              </div>

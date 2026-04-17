@@ -204,11 +204,11 @@ const ProductCatalogView: React.FC<ProductCatalogProps> = ({
             <div className="flex items-center gap-3">
                <div className="relative group cursor-pointer transition-transform active:scale-95" onClick={() => canEdit && (setUploadingTarget('company'), logoInputRef.current?.click())}>
                   {companyLogo ? (
-                     <img src={companyLogo} alt="Logo" className="w-8 h-8 object-contain bg-white rounded-lg p-1" />
+                     <img src={companyLogo} alt="Logo" className="w-10 h-10 sm:w-12 sm:h-12 object-contain bg-white rounded-xl p-1 shadow-sm" />
                   ) : (
-                     <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-[#1A1F36] font-black text-lg">D</div>
+                     <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-xl flex items-center justify-center text-[#1A1F36] font-black text-xl sm:text-2xl shadow-sm">D</div>
                   )}
-                  {canEdit && <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 rounded-lg transition-opacity"><Edit3 className="w-3 h-3 text-white"/></div>}
+                  {canEdit && <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 rounded-xl transition-opacity"><Edit3 className="w-4 h-4 text-white"/></div>}
                </div>
                <input ref={logoInputRef} type="file" hidden accept="image/*" onChange={handleImageUpload} />
                

@@ -1236,6 +1236,32 @@ const App: React.FC = () => {
     prevMessagesLength.current = messages.length;
   }, [messages, currentUser, role]);
 
+  const [latestAdvanceNotif, setLatestAdvanceNotif] = useState<AdvanceLog | null>(null);
+
+  useEffect(() => {
+    if (role === UserRole.STAFF && currentUser && advances.length > 0) {
+      const myProfile = staffList.find(s => s.name === currentUser);
+      if (myProfile) {
+        const myAdvances = advances.filter(a => a.staffId === myProfile.id && !a.isDeleted);
+        if (myAdvances.length > 0) {
+          myAdvances.sort((a, b) => new Date(b.createdAt || b.date).getTime() - new Date(a.createdAt || a.date).getTime());
+          const latest = myAdvances[0];
+          
+          const lastSeenAdvanceId = safeGetItem(`last_seen_advance_${myProfile.id}`);
+          if (lastSeenAdvanceId !== latest.id) {
+            setLatestAdvanceNotif(latest);
+            safeSetItem(`last_seen_advance_${myProfile.id}`, latest.id);
+            
+            const timer = setTimeout(() => {
+              setLatestAdvanceNotif(null);
+            }, 5000);
+            return () => clearTimeout(timer);
+          }
+        }
+      }
+    }
+  }, [currentUser, role, advances, staffList]);
+
   const prevExpensesRef = useRef<Expense[]>([]);
   useEffect(() => {
     if (role === UserRole.GUEST) return;
@@ -1301,6 +1327,11 @@ const App: React.FC = () => {
 
     const staffMember = (staffList || []).find(s => s && !s.deletedAt && s.name.toLowerCase() === username.toLowerCase());
     if (staffMember) {
+      if (staffMember.status === 'DEACTIVATED') {
+        setLoginError('আপনার একাউন্টটি স্থগিত করা হয়েছে। কর্তৃপক্ষের সাথে যোগাযোগ করুন।');
+        setIsLoggingIn(false);
+        return;
+      }
       const validPassword = staffMember.password || `${staffMember.name}@`;
       if (password === validPassword) {
         authenticatedUser = { role: staffMember.role || UserRole.STAFF, name: staffMember.name };
@@ -1410,6 +1441,17 @@ const App: React.FC = () => {
     setSavedAccounts(updated);
     safeSetItem('saved_accounts', JSON.stringify(updated));
   };
+
+  // Auto-logout suspended users
+  useEffect(() => {
+    if (role === UserRole.STAFF && currentUser) {
+      const myProfile = staffList.find(s => s.name === currentUser);
+      if (myProfile && myProfile.status === 'DEACTIVATED') {
+        handleLogout();
+        alert('আপনার একাউন্টটি স্থগিত করা হয়েছে।');
+      }
+    }
+  }, [staffList, currentUser, role]);
 
   const handleLogout = () => {
     setRole(null);
@@ -2350,6 +2392,36 @@ const App: React.FC = () => {
                         </div>
                     </form>
                 </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ADVANCE NOTIFICATION MODAL */}
+      {latestAdvanceNotif && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-3xl shadow-2xl overflow-hidden relative transform transition-all scale-100 animate-in zoom-in-95 duration-300">
+            <button 
+              onClick={() => setLatestAdvanceNotif(null)}
+              className="absolute top-4 right-4 p-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-gray-600 dark:text-gray-300 transition-colors z-10"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="p-8 text-center">
+              <div className="w-20 h-20 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+                <Banknote className="w-10 h-10 text-blue-600 dark:text-blue-400" />
+              </div>
+              <h2 className="text-2xl font-black text-gray-800 dark:text-white mb-2">নতুন এডভান্স!</h2>
+              <p className="text-gray-500 dark:text-gray-400 mb-6">আপনার একাউন্টে নতুন এডভান্স যুক্ত করা হয়েছে</p>
+              
+              <div className="bg-blue-50 dark:bg-blue-900/20 rounded-2xl p-6 border border-blue-100 dark:border-blue-800/30">
+                <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-1">পরিমাণ</p>
+                <p className="text-4xl font-black text-blue-600 dark:text-blue-400 mb-4">৳ {latestAdvanceNotif.amount.toLocaleString('en-US')}</p>
+                
+                <div className="flex justify-between items-center text-xs font-medium text-gray-600 dark:text-gray-400 border-t border-blue-100 dark:border-blue-800/30 pt-4">
+                  <span>{new Date(latestAdvanceNotif.date).toLocaleDateString('bn-BD', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                  <span className="px-2 py-1 bg-white dark:bg-gray-800 rounded-md shadow-sm border border-gray-100 dark:border-gray-700">{latestAdvanceNotif.type}</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>

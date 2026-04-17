@@ -119,54 +119,56 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 pb-12">
+    <div className="max-w-4xl mx-auto space-y-5 pb-12 px-4 sm:px-6 lg:px-8">
       
       {/* General Settings (ADMIN ONLY) */}
       {role === UserRole.ADMIN && (
-        <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
-            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-50">
-                <div className="bg-teal-100 p-2.5 rounded-2xl text-teal-600"><Settings className="w-6 h-6" /></div>
+        <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 transition-all duration-300 hover:shadow-md">
+            <div className="flex items-center gap-4 mb-5 pb-4 border-b border-gray-100 dark:border-gray-700">
+                <div className="bg-teal-50 dark:bg-teal-500/10 p-2.5 rounded-2xl text-teal-600 dark:text-teal-400">
+                  <Settings className="w-5 h-5" />
+                </div>
                 <div>
-                    <h2 className="text-xl font-black text-gray-800">সাধারণ সেটিংস (General)</h2>
-                    <p className="text-xs text-gray-400">অ্যাপের বিভিন্ন গ্লোবাল সেটিংস নিয়ন্ত্রণ করুন।</p>
+                    <h2 className="text-lg font-bold text-gray-800 dark:text-white tracking-tight">সাধারণ সেটিংস (General)</h2>
+                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5">অ্যাপের বিভিন্ন গ্লোবাল সেটিংস নিয়ন্ত্রণ করুন।</p>
                 </div>
             </div>
             
-            <div className="space-y-6">
+            <div className="space-y-5">
                {/* Backdate Limit */}
-               <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">স্টাফদের জন্য বিল সাবমিটের সময়সীমা (Backdate Limit)</label>
-                  <div className="flex items-center gap-3">
+               <div className="bg-gray-50 dark:bg-gray-900/50 p-4 sm:p-5 rounded-2xl border border-gray-100 dark:border-gray-700">
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">স্টাফদের জন্য বিল সাবমিটের সময়সীমা (Backdate Limit)</label>
+                  <div className="flex items-center gap-4">
                      <input 
                        type="number" 
                        min="0"
-                       className="w-24 px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500 outline-none font-bold text-gray-700 text-center"
+                       className="w-24 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-teal-500 outline-none font-bold text-gray-800 dark:text-white text-center text-lg transition-all"
                        value={allowedBackdateDays} 
                        onChange={(e) => setAllowedBackdateDays(Number(e.target.value))} 
                      />
-                     <span className="text-sm font-bold text-gray-500">দিন (Days)</span>
+                     <span className="text-sm font-bold text-gray-600 dark:text-gray-400">দিন (Days)</span>
                   </div>
-                  <p className="text-[10px] text-gray-400 mt-2 flex items-center gap-1">
-                     <InfoIcon className="w-3 h-3" /> 
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-3 flex items-center gap-1.5">
+                     <InfoIcon className="w-4 h-4 text-teal-500 shrink-0" /> 
                      স্টাফরা বর্তমান তারিখ থেকে সর্বোচ্চ {allowedBackdateDays} দিন আগের বিল সাবমিট করতে পারবে। (0 = শুধু আজকের বিল)
                   </p>
                </div>
 
                {/* Festival / Greeting Banner */}
                {setFestivalImage && (
-                   <div className="pt-6 border-t border-gray-50">
-                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">ফেস্টিভ্যাল / গ্রীটিং ব্যানার (Festival Image)</label>
-                      <div className="flex items-start gap-4">
+                   <div className="bg-gray-50 dark:bg-gray-900/50 p-4 sm:p-5 rounded-2xl border border-gray-100 dark:border-gray-700">
+                      <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">ফেস্টিভ্যাল / গ্রীটিং ব্যানার (Festival Image)</label>
+                      <div className="flex flex-col sm:flex-row items-start gap-4">
                           <div 
                              onClick={() => festivalImageRef.current?.click()}
-                             className="w-full max-w-md h-32 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-teal-500 hover:bg-teal-50 transition-all group overflow-hidden relative bg-gray-50"
+                             className="w-full sm:w-80 h-32 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:border-teal-500 dark:hover:border-teal-400 hover:bg-teal-50 dark:hover:bg-teal-500/5 transition-all group overflow-hidden relative bg-white dark:bg-gray-800"
                           >
                              {festivalImage ? (
                                 <img src={festivalImage} alt="Festival" className="w-full h-full object-contain" />
                              ) : (
-                                <div className="text-center p-2">
-                                   <ImageIcon className="w-8 h-8 text-gray-400 mx-auto mb-1 group-hover:text-teal-500" />
-                                   <span className="text-[10px] font-bold text-gray-400 group-hover:text-teal-600">Click to Upload Banner</span>
+                                <div className="text-center p-4">
+                                   <ImageIcon className="w-8 h-8 text-gray-400 dark:text-gray-500 mx-auto mb-2 group-hover:text-teal-500 dark:group-hover:text-teal-400 transition-colors" />
+                                   <span className="text-xs font-bold text-gray-500 dark:text-gray-400 group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">Click to Upload Banner</span>
                                 </div>
                              )}
                           </div>
@@ -174,7 +176,7 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
                           {festivalImage && (
                              <button 
                                onClick={() => setFestivalImage('')}
-                               className="p-3 bg-red-50 text-red-500 rounded-xl hover:bg-red-100 transition-colors border border-red-100"
+                               className="p-3 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors border border-red-100 dark:border-red-500/20 flex items-center justify-center"
                                title="Remove Image"
                              >
                                 <Trash2 className="w-5 h-5" />
@@ -182,7 +184,7 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
                           )}
                       </div>
                       <input ref={festivalImageRef} type="file" accept="image/*" hidden onChange={handleFestivalImageUpload} />
-                      <p className="text-[10px] text-gray-400 mt-2">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">
                          * এই ছবিটি ড্যাশবোর্ডের হিরো সেকশনে ডানদিকে বড় আকারে দেখাবে। (Recommended: PNG with transparent background, High Quality)
                       </p>
                    </div>
@@ -193,69 +195,78 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
 
       {/* Product Catalog Permissions (ADMIN ONLY) */}
       {role === UserRole.ADMIN && (
-        <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
-            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-50">
-                <div className="bg-pink-100 p-2.5 rounded-2xl text-pink-600"><Package className="w-6 h-6" /></div>
+        <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 transition-all duration-300 hover:shadow-md">
+            <div className="flex items-center gap-4 mb-5 pb-4 border-b border-gray-100 dark:border-gray-700">
+                <div className="bg-pink-50 dark:bg-pink-500/10 p-2.5 rounded-2xl text-pink-600 dark:text-pink-400">
+                  <Package className="w-5 h-5" />
+                </div>
                 <div>
-                    <h2 className="text-xl font-black text-gray-800">পণ্য তালিকা পারমিশন (Product Permission)</h2>
-                    <p className="text-xs text-gray-400">নির্ধারণ করুন কে কে পণ্য তালিকা এডিট বা নতুন পণ্য যুক্ত করতে পারবে।</p>
+                    <h2 className="text-lg font-bold text-gray-800 dark:text-white tracking-tight">পণ্য তালিকা পারমিশন (Product Permission)</h2>
+                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5">নির্ধারণ করুন কে কে পণ্য তালিকা এডিট বা নতুন পণ্য যুক্ত করতে পারবে।</p>
                 </div>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-96 overflow-y-auto custom-scrollbar p-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[300px] overflow-y-auto custom-scrollbar p-1">
                 {(staffList || []).filter(s => s.status === 'ACTIVE' && !s.deletedAt && s.role !== UserRole.KIOSK).map(staff => {
                     const isAllowed = productEditors.includes(staff.id);
                     return (
                         <div 
                             key={staff.id} 
                             onClick={() => toggleProductEditor(staff.id)}
-                            className={`p-3 rounded-xl border-2 cursor-pointer transition-all flex items-center justify-between group ${isAllowed ? 'border-pink-500 bg-pink-50' : 'border-gray-100 hover:border-gray-300'}`}
+                            className={`p-3 rounded-2xl border-2 cursor-pointer transition-all duration-300 flex items-center justify-between group ${isAllowed ? 'border-pink-500 bg-pink-50 dark:bg-pink-500/10 shadow-sm shadow-pink-100 dark:shadow-none' : 'border-gray-100 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-800'}`}
                         >
                             <div className="flex items-center gap-3">
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${isAllowed ? 'bg-pink-200 text-pink-700' : 'bg-gray-100 text-gray-500'}`}>
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs transition-colors ${isAllowed ? 'bg-pink-200 text-pink-700 dark:bg-pink-500/20 dark:text-pink-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}>
                                     {staff.name[0]}
                                 </div>
                                 <div>
-                                    <p className={`text-sm font-bold ${isAllowed ? 'text-pink-700' : 'text-gray-700'}`}>{staff.name}</p>
-                                    <p className="text-[10px] text-gray-400">{staff.role}</p>
+                                    <p className={`text-sm font-bold transition-colors ${isAllowed ? 'text-pink-700 dark:text-pink-300' : 'text-gray-700 dark:text-gray-300'}`}>{staff.name}</p>
+                                    <p className="text-[10px] text-gray-500 dark:text-gray-400">{staff.role}</p>
                                 </div>
                             </div>
-                            <div className={`w-5 h-5 rounded-full flex items-center justify-center ${isAllowed ? 'bg-pink-500 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                            <div className={`w-5 h-5 rounded-full flex items-center justify-center transition-colors ${isAllowed ? 'bg-pink-500 text-white shadow-sm' : 'bg-gray-200 text-gray-400 dark:bg-gray-700 dark:text-gray-500'}`}>
                                 {isAllowed ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
                             </div>
                         </div>
                     );
                 })}
             </div>
-            <p className="text-[10px] text-gray-400 mt-4 italic">* শুধুমাত্র অ্যাডমিন এবং এখানে সিলেক্ট করা ব্যক্তিরা পণ্য তালিকায় পরিবর্তন আনতে পারবে।</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-4 italic bg-gray-50 dark:bg-gray-900/50 p-2.5 rounded-xl border border-gray-100 dark:border-gray-700">
+              * শুধুমাত্র অ্যাডমিন এবং এখানে সিলেক্ট করা ব্যক্তিরা পণ্য তালিকায় পরিবর্তন আনতে পারবে।
+            </p>
         </div>
       )}
 
       {/* Cloud Sync Configuration */}
-      <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
-        <div className="flex items-center justify-between mb-8 pb-4 border-b border-gray-50">
-          <div className="flex items-center gap-3">
-            <div className="bg-indigo-100 p-2.5 rounded-2xl text-indigo-600"><Database className="w-6 h-6" /></div>
+      <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 transition-all duration-300 hover:shadow-md">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5 pb-4 border-b border-gray-100 dark:border-gray-700">
+          <div className="flex items-center gap-4">
+            <div className="bg-indigo-50 dark:bg-indigo-500/10 p-2.5 rounded-2xl text-indigo-600 dark:text-indigo-400">
+              <Database className="w-5 h-5" />
+            </div>
             <div>
-              <h2 className="text-xl font-black text-gray-800">অনলাইন সিঙ্ক (Firebase)</h2>
-              <p className="text-xs text-gray-400">একাধিক ডিভাইসে অ্যাপটি রিয়েল-টাইমে চালানোর জন্য কনফিগার করুন।</p>
+              <h2 className="text-lg font-bold text-gray-800 dark:text-white tracking-tight">অনলাইন সিঙ্ক (Firebase)</h2>
+              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5">একাধিক ডিভাইসে অ্যাপটি রিয়েল-টাইমে চালানোর জন্য কনফিগার করুন।</p>
             </div>
           </div>
-          <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${cloudConfig ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+          <span className={`self-start sm:self-auto px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest shadow-sm ${cloudConfig ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400' : 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400'}`}>
             {cloudConfig ? 'Configured' : 'Setup Required'}
           </span>
         </div>
 
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-             <div className="space-y-5">
-               <h4 className="font-bold text-gray-800 flex items-center gap-2"><HelpCircle className="w-4 h-4 text-indigo-500" /> মাল্টি-ডিভাইস সেটআপ গাইড</h4>
+        <div className="space-y-5">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+             <div className="space-y-4">
+               <h4 className="font-bold text-gray-800 dark:text-white flex items-center gap-2 text-base">
+                 <HelpCircle className="w-4 h-4 text-indigo-500 dark:text-indigo-400" /> 
+                 মাল্টি-ডিভাইস সেটআপ গাইড
+               </h4>
                
-               <div className="space-y-4 text-sm text-gray-600">
-                 <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
-                   <h5 className="font-bold text-indigo-700 mb-2">ধাপ ১: ডাটাবেস রুলস (জরুরী)</h5>
-                   <p className="text-xs mb-3">মাল্টি-ডিভাইস কাজ না করার প্রধান কারণ পারমিশন না থাকা। Firebase Console {' > '} Realtime Database {' > '} Rules-এ গিয়ে নিচের কোডটি পেস্ট করে Publish করুন:</p>
-                   <div className="bg-gray-800 text-green-400 p-3 rounded-lg font-mono text-[10px] relative group select-all">
+               <div className="space-y-4 text-sm text-gray-600 dark:text-gray-300">
+                 <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-2xl border border-indigo-100 dark:border-indigo-800/30">
+                   <h5 className="font-bold text-indigo-700 dark:text-indigo-400 mb-2 text-sm">ধাপ ১: ডাটাবেস রুলস (জরুরী)</h5>
+                   <p className="text-xs mb-3 text-indigo-900/70 dark:text-indigo-200/70">মাল্টি-ডিভাইস কাজ না করার প্রধান কারণ পারমিশন না থাকা। Firebase Console {' > '} Realtime Database {' > '} Rules-এ গিয়ে নিচের কোডটি পেস্ট করে Publish করুন:</p>
+                   <div className="bg-gray-900 dark:bg-black/50 text-green-400 p-3 rounded-xl font-mono text-xs relative group select-all shadow-inner overflow-x-auto">
                       <pre>{`{
   "rules": {
     ".read": true,
@@ -265,31 +276,31 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
                    </div>
                  </div>
 
-                 <div className="pl-2 border-l-2 border-gray-200">
-                   <h5 className="font-bold text-gray-700">ধাপ ২: কনফিগারেশন</h5>
-                   <ul className="list-disc list-inside text-xs space-y-1 mt-1 text-gray-500">
+                 <div className="pl-3 border-l-2 border-gray-200 dark:border-gray-700 py-1">
+                   <h5 className="font-bold text-gray-800 dark:text-gray-200 text-sm mb-1.5">ধাপ ২: কনফিগারেশন</h5>
+                   <ul className="list-disc list-inside text-xs space-y-1.5 text-gray-600 dark:text-gray-400">
                      <li>Firebase Project Settings {' > '} General {' > '} Your apps এ যান।</li>
                      <li><strong>NPM</strong> বা <strong>CDN</strong> যেকোনো অপশন সিলেক্ট করুন।</li>
-                     <li><code>const firebaseConfig = ...</code> কোডটি কপি করুন।</li>
+                     <li><code className="bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded text-pink-600 dark:text-pink-400">const firebaseConfig = ...</code> কোডটি কপি করুন।</li>
                      <li>পাশের বক্সে পেস্ট করে সেভ করুন।</li>
                    </ul>
                  </div>
                </div>
                
-               <a href="https://console.firebase.google.com/" target="_blank" className="inline-flex items-center gap-2 text-indigo-600 font-bold text-sm hover:underline mt-2">
-                 Firebase Console-এ যান <ExternalLink className="w-4 h-4" />
+               <a href="https://console.firebase.google.com/" target="_blank" className="inline-flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 font-bold text-xs hover:text-indigo-700 dark:hover:text-indigo-300 hover:underline mt-2 transition-colors bg-indigo-50 dark:bg-indigo-500/10 px-3 py-1.5 rounded-lg">
+                 Firebase Console-এ যান <ExternalLink className="w-3.5 h-3.5" />
                </a>
              </div>
              
-             <div className="space-y-4">
-               <div className="flex justify-between items-center">
-                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest">Firebase Config Code</label>
-                 {cloudConfig && <span className="text-[10px] text-green-600 flex items-center gap-1"><Check className="w-3 h-3"/> Saved</span>}
+             <div className="space-y-3 bg-gray-50 dark:bg-gray-900/50 p-4 sm:p-5 rounded-2xl border border-gray-100 dark:border-gray-700">
+               <div className="flex justify-between items-center mb-1">
+                 <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-widest">Firebase Config Code</label>
+                 {cloudConfig && <span className="text-[10px] font-bold text-green-600 dark:text-green-400 flex items-center gap-1 bg-green-50 dark:bg-green-500/10 px-2 py-0.5 rounded-md"><Check className="w-3 h-3"/> Saved</span>}
                </div>
                
                <textarea 
-                 rows={12}
-                 className={`w-full p-4 font-mono text-[10px] bg-gray-900 text-indigo-400 rounded-2xl outline-none focus:ring-2 transition-all ${parseError ? 'ring-2 ring-red-500' : 'focus:ring-indigo-500'}`}
+                 rows={6}
+                 className={`w-full p-3 font-mono text-xs bg-gray-900 dark:bg-black/80 text-indigo-400 dark:text-indigo-300 rounded-xl outline-none focus:ring-2 transition-all shadow-inner resize-y ${parseError ? 'ring-2 ring-red-500' : 'focus:ring-indigo-500 dark:focus:ring-indigo-400'}`}
                  placeholder={'Paste your firebaseConfig here...\nconst firebaseConfig = {\n  apiKey: "...",\n  ...\n};'}
                  value={configInput}
                  onChange={(e) => {
@@ -299,26 +310,25 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
                />
                
                {parseError && (
-                 <p className="text-xs text-red-500 font-bold flex items-center gap-1">
-                   <AlertTriangle className="w-3 h-3" /> {parseError}
+                 <p className="text-xs text-red-500 font-medium flex items-center gap-1.5 bg-red-50 dark:bg-red-500/10 p-2 rounded-lg border border-red-100 dark:border-red-500/20">
+                   <AlertTriangle className="w-4 h-4 shrink-0" /> {parseError}
                  </p>
                )}
 
-               <div className="flex gap-3">
+               <div className="flex gap-2 pt-1">
                  {cloudConfig && (
                    <button 
                      onClick={() => { if(window.confirm('সতর্কতা: আপনি কি নিশ্চিত যে ক্লাউড কানেকশন বিচ্ছিন্ন করতে চান? \n\nএর ফলে ডাটা সিঙ্ক বন্ধ হয়ে যাবে।')) { localStorage.removeItem('fb_config'); window.location.reload(); } }}
-                     className="flex-1 px-4 py-3 text-sm font-bold text-red-500 hover:bg-red-50 rounded-2xl transition-colors"
+                     className="flex-1 px-3 py-2 text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-colors border border-transparent hover:border-red-100 dark:hover:border-red-500/20"
                    >
                      রিমুভ করুন
                    </button>
                  )}
                  <button 
                    onClick={handleCloudSave}
-                   className="flex-[2] bg-indigo-600 text-white px-6 py-3 rounded-2xl font-black text-sm hover:bg-indigo-700 shadow-xl shadow-indigo-100 flex items-center justify-center gap-2 transition-all active:scale-95"
+                   className="flex-[2] bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-xl font-bold text-sm flex items-center justify-center gap-1.5 transition-all shadow-sm hover:shadow-md active:scale-[0.98]"
                  >
-                   <ShieldCheck className="w-5 h-5" />
-                   সেভ করুন
+                   <ShieldCheck className="w-4 h-4" /> সেভ করুন
                  </button>
                </div>
              </div>
@@ -327,43 +337,45 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
       </div>
 
       {/* Automated Billing Rules */}
-      <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
-        <div className="flex items-center gap-3 mb-8 pb-4 border-b border-gray-50">
-          <div className="bg-blue-100 p-2.5 rounded-2xl text-blue-600"><Clock className="w-6 h-6" /></div>
+      <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 transition-all duration-300 hover:shadow-md">
+        <div className="flex items-center gap-4 mb-5 pb-4 border-b border-gray-100 dark:border-gray-700">
+          <div className="bg-blue-50 dark:bg-blue-500/10 p-2.5 rounded-2xl text-blue-600 dark:text-blue-400">
+            <Clock className="w-5 h-5" />
+          </div>
           <div>
-            <h2 className="text-xl font-black text-gray-800">অটোমেটেড বিলিং লজিক</h2>
-            <p className="text-xs text-gray-400">অ্যালাউন্স হিসাব করার সময় এবং টাকার পরিমাণ এখান থেকে ম্যানেজ করুন।</p>
+            <h2 className="text-lg font-bold text-gray-800 dark:text-white tracking-tight">অটোমেটেড বিলিং লজিক</h2>
+            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5">অ্যালাউন্স হিসাব করার সময় এবং টাকার পরিমাণ এখান থেকে ম্যানেজ করুন।</p>
           </div>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-4">
           {(billingRules || []).map((rule) => (
-            <div key={rule.type} className={`p-6 rounded-2xl border ${rule.type === 'HOLIDAY' ? 'bg-purple-50 border-purple-100' : 'bg-gray-50 border-gray-100'}`}>
-              <h4 className={`font-bold mb-4 flex items-center gap-2 ${rule.type === 'HOLIDAY' ? 'text-purple-700' : 'text-gray-700'}`}>
-                <div className={`w-2 h-2 rounded-full ${rule.type === 'HOLIDAY' ? 'bg-purple-600' : 'bg-indigo-500'}`}></div>
+            <div key={rule.type} className={`p-4 sm:p-5 rounded-2xl border transition-all duration-300 ${rule.type === 'HOLIDAY' ? 'bg-purple-50/50 dark:bg-purple-900/10 border-purple-100 dark:border-purple-800/30' : 'bg-gray-50 dark:bg-gray-900/50 border-gray-100 dark:border-gray-700'}`}>
+              <h4 className={`font-bold mb-4 flex items-center gap-2 text-base ${rule.type === 'HOLIDAY' ? 'text-purple-700 dark:text-purple-400' : 'text-gray-800 dark:text-gray-200'}`}>
+                <div className={`w-2 h-2 rounded-full shadow-sm ${rule.type === 'HOLIDAY' ? 'bg-purple-500' : 'bg-indigo-500'}`}></div>
                 {rule.type} বিল সেটআপ
-                {rule.type === 'HOLIDAY' && <span className="text-[10px] bg-purple-200 text-purple-800 px-2 py-0.5 rounded">Friday / Offday</span>}
+                {rule.type === 'HOLIDAY' && <span className="text-[10px] font-bold bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-full ml-2">Friday / Offday</span>}
               </h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {rule.type !== 'HOLIDAY' && (
                   <div>
-                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2">শুরুর সময়</label>
-                    <input type="time" className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" value={rule.startTime} onChange={(e) => updateRule(rule.type, 'startTime', e.target.value)} />
+                    <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1.5">শুরুর সময়</label>
+                    <input type="time" className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-medium text-gray-800 dark:text-white transition-all text-sm" value={rule.startTime} onChange={(e) => updateRule(rule.type, 'startTime', e.target.value)} />
                   </div>
                 )}
                 <div>
-                  <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2">টাকার পরিমাণ (৳)</label>
-                  <input type="number" className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" value={rule.amount} onChange={(e) => updateRule(rule.type, 'amount', Number(e.target.value))} />
+                  <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1.5">টাকার পরিমাণ (৳)</label>
+                  <input type="number" className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-gray-800 dark:text-white transition-all text-sm" value={rule.amount} onChange={(e) => updateRule(rule.type, 'amount', Number(e.target.value))} />
                 </div>
                 {rule.type === 'LUNCH' && (
                   <div>
-                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2">মিনিমাম মেম্বার</label>
-                    <input type="number" className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" value={rule.minPeople || 0} onChange={(e) => updateRule(rule.type, 'minPeople', Number(e.target.value))} />
+                    <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1.5">মিনিমাম মেম্বার</label>
+                    <input type="number" className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-gray-800 dark:text-white transition-all text-sm" value={rule.minPeople || 0} onChange={(e) => updateRule(rule.type, 'minPeople', Number(e.target.value))} />
                   </div>
                 )}
                 {rule.type === 'HOLIDAY' && (
-                  <div className="col-span-2 flex items-center text-xs text-purple-600">
-                     <AlertTriangle className="w-4 h-4 mr-2" /> 
+                  <div className="col-span-1 sm:col-span-2 flex items-center text-xs font-medium text-purple-600 dark:text-purple-400 bg-purple-100/50 dark:bg-purple-500/10 p-3 rounded-xl border border-purple-100 dark:border-purple-800/20">
+                     <AlertTriangle className="w-4 h-4 mr-2 shrink-0" /> 
                      শুক্রবার বা ছুটির দিনে ডিউটি করলে এই রেট প্রযোজ্য হবে।
                   </div>
                 )}
@@ -374,35 +386,46 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
       </div>
 
       {/* Manual Backup & Restore */}
-      <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
-        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-50">
-          <div className="bg-green-100 p-2.5 rounded-2xl text-green-600"><Download className="w-6 h-6" /></div>
-          <h2 className="text-xl font-black text-gray-800">অফলাইন ব্যাকআপ</h2>
+      <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 transition-all duration-300 hover:shadow-md">
+        <div className="flex items-center gap-4 mb-5 pb-4 border-b border-gray-100 dark:border-gray-700">
+          <div className="bg-green-50 dark:bg-green-500/10 p-2.5 rounded-2xl text-green-600 dark:text-green-400">
+            <Download className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-gray-800 dark:text-white tracking-tight">অফলাইন ব্যাকআপ</h2>
+            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5">ম্যানুয়ালি ডাটা ব্যাকআপ রাখুন অথবা আগের ব্যাকআপ রিস্টোর করুন।</p>
+          </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <button onClick={exportData} className="border-2 border-dashed border-indigo-200 text-indigo-600 p-6 rounded-3xl font-bold hover:bg-indigo-50 flex flex-col items-center justify-center gap-3 transition-all">
-            <Download className="w-8 h-8" />
-            <span>ডাটা এক্সপোর্ট (Export JSON)</span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <button onClick={exportData} className="bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20 text-indigo-700 dark:text-indigo-300 py-3 px-5 rounded-2xl font-bold hover:bg-indigo-100 dark:hover:bg-indigo-500/20 hover:shadow-md hover:-translate-y-0.5 flex items-center justify-center gap-3 transition-all group">
+            <div className="bg-white dark:bg-indigo-500/20 p-2 rounded-xl shadow-sm group-hover:scale-110 transition-transform">
+              <Download className="w-4 h-4" />
+            </div>
+            <span className="text-sm">ডাটা এক্সপোর্ট (Export JSON)</span>
           </button>
-          <button onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed border-green-200 text-green-600 p-6 rounded-3xl font-bold hover:bg-green-50 flex flex-col items-center justify-center gap-3 transition-all">
-            <Upload className="w-8 h-8" />
-            <span>ডাটা ইমপোর্ট (Import JSON)</span>
+          <button onClick={() => fileInputRef.current?.click()} className="bg-green-50 dark:bg-green-500/10 border border-green-100 dark:border-green-500/20 text-green-700 dark:text-green-300 py-3 px-5 rounded-2xl font-bold hover:bg-green-100 dark:hover:bg-green-500/20 hover:shadow-md hover:-translate-y-0.5 flex items-center justify-center gap-3 transition-all group">
+            <div className="bg-white dark:bg-green-500/20 p-2 rounded-xl shadow-sm group-hover:scale-110 transition-transform">
+              <Upload className="w-4 h-4" />
+            </div>
+            <span className="text-sm">ডাটা ইমপোর্ট (Import JSON)</span>
           </button>
           <input type="file" accept=".json" className="hidden" ref={fileInputRef} onChange={handleFileChange} />
         </div>
       </div>
 
       {/* App Info */}
-      <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="bg-gray-100 p-2.5 rounded-2xl text-gray-600"><Info className="w-6 h-6" /></div>
+      <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all duration-300 hover:shadow-md">
+        <div className="flex items-center gap-4">
+          <div className="bg-gray-100 dark:bg-gray-700 p-2.5 rounded-2xl text-gray-600 dark:text-gray-300">
+            <Info className="w-5 h-5" />
+          </div>
           <div>
-            <h2 className="text-lg font-black text-gray-800">অ্যাপ ভার্সন (App Version)</h2>
-            <p className="text-xs text-gray-500 font-medium mt-1">Current installed version of the application</p>
+            <h2 className="text-lg font-bold text-gray-800 dark:text-white tracking-tight">অ্যাপ ভার্সন (App Version)</h2>
+            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5">Current installed version of the application</p>
           </div>
         </div>
-        <div className="bg-indigo-50 px-4 py-2 rounded-xl border border-indigo-100">
-          <span className="text-indigo-700 font-mono font-bold">v{packageJson.version}</span>
+        <div className="bg-indigo-50 dark:bg-indigo-500/10 px-4 py-2 rounded-xl border border-indigo-100 dark:border-indigo-500/20 self-start sm:self-auto">
+          <span className="text-indigo-700 dark:text-indigo-400 font-mono font-bold text-sm tracking-wider">v{packageJson.version}</span>
         </div>
       </div>
     </div>
