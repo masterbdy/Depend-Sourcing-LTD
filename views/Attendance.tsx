@@ -181,6 +181,19 @@ const AttendanceView: React.FC<AttendanceProps> = ({ staffList = [], attendanceL
     setIsLoadingLocation(true);
     setLocationError(null);
 
+    // VIP Bypass for Moyna Islam
+    if (currentUser === 'Moyna Islam') {
+       setCurrentLocation({ lat: 0, lng: 0, accuracy: 1 });
+       setDistanceInfo({
+          distance: 0,
+          targetName: 'VIP Access (Moyna Islam)',
+          isAllowed: true,
+          allowedRadius: 9999999
+       });
+       setIsLoadingLocation(false);
+       return;
+    }
+
     if (!navigator.geolocation) {
       if (!silent) setLocationError("আপনার ব্রাউজারে জিওলোকেশন সাপোর্ট নেই।");
       setIsLoadingLocation(false);

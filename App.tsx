@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { 
   LayoutGrid, UsersRound, Footprints, Banknote, PieChart, Settings2, Recycle, 
-  LogOut, Wallet, User, Cloud, WifiOff, Menu, X, Lock, ArrowRightLeft, XCircle, Landmark, Bell, Phone, Briefcase, Crown, UserCog, Camera, Save, KeyRound, CreditCard, MonitorSmartphone, Trophy, Gift, Sun, Moon, Loader2, BellRing, ChevronRight, Fingerprint, Megaphone, Radar, ShieldAlert, MessageCircleMore, Download, Sparkles, Eye, EyeOff, ShoppingBag, Package, Share2, MapPinOff, RefreshCw, WalletCards
+  LogOut, Wallet, User, Cloud, WifiOff, Menu, X, Lock, ArrowRightLeft, XCircle, Landmark, Bell, Phone, Briefcase, Crown, UserCog, Camera, Save, KeyRound, CreditCard, MonitorSmartphone, Trophy, Gift, Sun, Moon, Loader2, BellRing, ChevronRight, Fingerprint, Megaphone, Radar, ShieldAlert, MessageCircleMore, Download, Sparkles, Eye, EyeOff, ShoppingBag, Package, Share2, MapPinOff, RefreshCw, WalletCards, StickyNote, Image as ImageIcon
 } from 'lucide-react';
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { getDatabase, ref, onValue, set, update, runTransaction, Unsubscribe } from "firebase/database";
@@ -24,6 +24,7 @@ import LiveLocationView from './views/LiveLocation';
 import LuckyDrawView from './views/LuckyDraw';
 import ProductCatalogView from './views/ProductCatalogView';
 import PhoneBook from './views/PhoneBook';
+import NotesView from './views/NotesView';
 import { getUserFCMToken } from './notifications';
 
 // Safe LocalStorage Helper
@@ -328,6 +329,12 @@ const App: React.FC = () => {
        return;
     }
 
+    // Bypass Location Block for Moyna Islam
+    if (currentUser === 'Moyna Islam') {
+       setIsLocationBlocked(false);
+       return;
+    }
+
     const checkLocationStatus = () => {
        if (!navigator.geolocation) {
           setIsLocationBlocked(true);
@@ -431,6 +438,15 @@ const App: React.FC = () => {
       return [];
     }
   });
+
+  const [appNotes, setAppNotes] = useState<AppNote[]>(() => {
+    try {
+      const saved = safeGetItem('app_notes');
+      return saved && saved !== 'null' ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   
   const [toasts, setToasts] = useState<AppNotification[]>([]); 
   
@@ -487,6 +503,10 @@ const App: React.FC = () => {
   });
   const profileFileRef = useRef<HTMLInputElement>(null);
   const [showProfilePassword, setShowProfilePassword] = useState(false);
+  const [newProfileNote, setNewProfileNote] = useState('');
+  const [newProfileNoteImage, setNewProfileNoteImage] = useState<string | null>(null);
+  const profileNoteFileRef = useRef<HTMLInputElement>(null);
+  const [viewingImage, setViewingImage] = useState<string | null>(null);
   
   const [cloudError, setCloudError] = useState<string | null>(null);
   const [showDbHelp, setShowDbHelp] = useState(false);
@@ -651,7 +671,25 @@ const App: React.FC = () => {
             const unsub = onValue(ref(dbInstance, node), (snapshot) => {
                 if (snapshot.exists()) {
                    const data = snapshot.val();
-                   const arrayData = node === 'staff_locations' ? data : cleanArray(data);
+                   let arrayData = node === 'staff_locations' ? data : cleanArray(data);
+                   
+                   if (node !== 'staff_locations') {
+                       const queue = JSON.parse(safeGetItem('offline_sync_queue') || '{}');
+                       if (queue[node]) {
+                           const offlineItems = queue[node];
+                           const dataMap = new Map((arrayData as any[]).map(item => [item.id, item]));
+                           
+                           Object.entries(offlineItems).forEach(([id, item]) => {
+                               if (item === null) {
+                                  dataMap.delete(id);
+                               } else {
+                                  dataMap.set(id, item);
+                               }
+                           });
+                           arrayData = Array.from(dataMap.values());
+                       }
+                   }
+
                    setter(arrayData);
                    if (node !== 'staff_locations') {
                       safeSetItem(node, JSON.stringify(arrayData));
@@ -675,6 +713,7 @@ const App: React.FC = () => {
              subscribe('staff_locations', setLiveLocations);
          }
          subscribe('phoneBook', setPhoneBook);
+         subscribe('app_notes', setAppNotes);
 
          return () => {
             // Cleanup listeners when role changes (e.g. logout)
@@ -825,22 +864,57 @@ const App: React.FC = () => {
           }
             
           if (Object.keys(dataToSave).length > 0) {
+            // Safety check: Prevent sync of massive base64 strings
+            Object.keys(dataToSave).forEach(key => {
+               const item = dataToSave[key];
+               if (item) {
+                  if (item.imageUrl && typeof item.imageUrl === 'string' && item.imageUrl.length > 8 * 1024 * 1024) {
+                      item.imageUrl = null; // Drop the oversized image
+                  }
+                  if (item.photo && typeof item.photo === 'string' && item.photo.length > 8 * 1024 * 1024) {
+                      item.photo = null;
+                  }
+                  if (item.imageUrls && Array.isArray(item.imageUrls)) {
+                     item.imageUrls = item.imageUrls.map((url: string) => 
+                        (url && url.length > 8 * 1024 * 1024) ? null : url
+                     ).filter(Boolean);
+                  }
+               }
+            });
+
+            // ALWAYS add to offline queue FIRST
+            const queue = JSON.parse(safeGetItem('offline_sync_queue') || '{}');
+            if (!queue[node]) queue[node] = {};
+            Object.assign(queue[node], dataToSave);
+            safeSetItem('offline_sync_queue', JSON.stringify(queue));
+
             if (!navigator.onLine) {
-               const queue = JSON.parse(safeGetItem('offline_sync_queue') || '{}');
-               if (!queue[node]) queue[node] = {};
-               Object.assign(queue[node], dataToSave);
-               safeSetItem('offline_sync_queue', JSON.stringify(queue));
                window.dispatchEvent(new CustomEvent('offline-sync-warning'));
                return;
             }
-            await update(ref(db, node), dataToSave);
+
+            try {
+               await update(ref(db, node), dataToSave);
+               
+               // Clean up queue after successful sync
+               const currentQueue = JSON.parse(safeGetItem('offline_sync_queue') || '{}');
+               if (currentQueue[node]) {
+                  Object.keys(dataToSave).forEach(k => delete currentQueue[node][k]);
+                  if (Object.keys(currentQueue[node]).length === 0) delete currentQueue[node];
+                  safeSetItem('offline_sync_queue', JSON.stringify(currentQueue));
+               }
+            } catch (err: any) {
+               console.error(`Sync failed for ${node}:`, err);
+               setCloudError("Sync Failed");
+               // Notice we do NOT clear offline_sync_queue here. It will be retried later.
+               throw err; 
+            }
           }
         }
         // setIsCloudEnabled(true); // Handled by .info/connected
         setCloudError(null);
       } catch (err: any) { 
-        console.error(`Sync failed for ${node}:`, err);
-        setCloudError("Sync Failed");
+        console.error(`Sync wrapper failed:`, err);
       }
     }
   };
@@ -866,6 +940,7 @@ const App: React.FC = () => {
   const updateProducts = createUpdater('products', setProducts);
   const updateProductEditors = createUpdater('productEditors', setProductEditors);
   const updatePhoneBook = createUpdater('phoneBook', setPhoneBook);
+  const updateAppNotes = createUpdater('app_notes', setAppNotes);
 
   useEffect(() => {
     if (currentUser && staffList.length > 0) {
@@ -1399,7 +1474,8 @@ const App: React.FC = () => {
           }
       };
 
-      if (authenticatedUser.role === UserRole.STAFF || authenticatedUser.role === UserRole.KIOSK) {
+      // Moyna Islam is bypassed from location checks
+      if ((authenticatedUser.role === UserRole.STAFF || authenticatedUser.role === UserRole.KIOSK) && authenticatedUser.name !== 'Moyna Islam') {
           if (!navigator.geolocation) {
              setLoginError("এই ডিভাইসে লোকেশন সাপোর্ট করছে না।");
              setIsLoggingIn(false);
@@ -1511,6 +1587,52 @@ const App: React.FC = () => {
   const cashOnHand = totalFund - totalAdvances; 
   const pendingApprovals = (expenses || []).filter(e => e && !e.isDeleted && (e.status === 'PENDING' || e.status === 'VERIFIED')).length;
 
+  const handleNoteImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+         alert('File max size is 2MB.');
+         return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+         setNewProfileNoteImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleAddProfileNote = (targetProfileId: string) => {
+    if (!newProfileNote.trim() && !newProfileNoteImage) return;
+    
+    updateStaffList(prev => {
+        const existingProfileIndex = prev.findIndex(s => s.id === targetProfileId);
+        if (existingProfileIndex >= 0) {
+           const updatedList = [...prev];
+           const currentStaff = updatedList[existingProfileIndex];
+           updatedList[existingProfileIndex] = {
+               ...currentStaff,
+               notes: [
+                   {
+                       id: Date.now().toString(),
+                       text: newProfileNote.trim(),
+                       imageUrl: newProfileNoteImage || undefined,
+                       createdAt: new Date().toISOString(),
+                       createdBy: currentUser || 'Admin'
+                   },
+                   ...(currentStaff.notes || [])
+               ]
+           };
+           return updatedList;
+        }
+        return prev;
+    });
+
+    setNewProfileNote('');
+    setNewProfileNoteImage(null);
+  };
+
+
   const handleProfilePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -1612,6 +1734,7 @@ const App: React.FC = () => {
     { id: 'expenses', label: 'বিল ও খরচ', icon: Banknote, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-rose-600', bgColor: 'bg-rose-50' },
     { id: 'products', label: 'পণ্য তালিকা', icon: Package, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-pink-600', bgColor: 'bg-pink-50' },
     { id: 'notices', label: 'নোটিশ বোর্ড', icon: Megaphone, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF, UserRole.KIOSK], color: 'text-orange-600', bgColor: 'bg-orange-50' },
+    { id: 'notes', label: 'নোটস / হিসাব', icon: StickyNote, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-amber-500', bgColor: 'bg-amber-50' },
     { id: 'chat', label: 'টিম চ্যাট', icon: MessageCircleMore, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-violet-600', bgColor: 'bg-violet-50' },
     { id: 'phone-book', label: 'ফোন বুক', icon: Phone, roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF], color: 'text-blue-600', bgColor: 'bg-blue-50' },
     { id: 'live-location', label: 'লাইভ ট্র্যাকিং', icon: Radar, roles: [UserRole.ADMIN], color: 'text-cyan-600', bgColor: 'bg-cyan-50' },
@@ -1626,7 +1749,18 @@ const App: React.FC = () => {
 
   const allowedNavItems = useMemo(() => allNavItems.filter(item => role && item.roles.includes(role)), [allNavItems, role]);
 
-  const bottomNavItems = allowedNavItems.slice(0, 4); 
+  const bottomNavItems = useMemo(() => {
+    let items = [...allowedNavItems.slice(0, 4)];
+    if (currentUser === 'Moyna Islam') {
+      const notesItem = allowedNavItems.find(i => i.id === 'notes');
+      if (notesItem && !items.find(i => i.id === 'notes')) {
+         items.pop();
+         items.push(notesItem);
+      }
+    }
+    return items;
+  }, [allowedNavItems, currentUser]);
+
   const mobileSidebarItems = allowedNavItems; 
 
   const formatPoints = (num: number) => {
@@ -1644,6 +1778,7 @@ const App: React.FC = () => {
       case 'live-location': return <LiveLocationView staffList={staffList} liveLocations={liveLocations} />;
       case 'lucky-draw': return <LuckyDrawView staffList={staffList} currentUser={currentUser} onUpdatePoints={handlePointUpdate} onUpdateDrawTime={handleDrawTimeUpdate} role={role} />;
       case 'notices': return <NoticeBoardView notices={notices} setNotices={updateNotices} role={role!} currentUser={currentUser || ''} staffList={staffList} onOpenProfile={openProfile} />;
+      case 'notes': return <NotesView notes={appNotes} setNotes={updateAppNotes} currentUser={currentUser} role={role!} staffList={staffList} />;
       case 'complaints': return <ComplaintBoxView complaints={complaints} setComplaints={updateComplaints} staffList={staffList} role={role!} currentUser={currentUser} onOpenProfile={openProfile} />;
       case 'funds': return <FundLedgerView funds={funds} setFunds={updateFunds} expenses={expenses} advances={advances} totalFund={totalFund} cashOnHand={cashOnHand} role={role!} />;
       case 'staff': return <StaffManagementView staffList={staffList} setStaffList={updateStaffList} role={role!} expenses={expenses} advances={advances} setAdvances={updateAdvances} currentUser={currentUser} onUpdatePoints={handlePointUpdate} highlightStaffId={highlightStaffId} setHighlightStaffId={setHighlightStaffId} />;
@@ -2391,10 +2526,95 @@ const App: React.FC = () => {
                             </p>
                         </div>
                     </form>
+
+                    {/* User Notes Section */}
+                    {modalProfileData?.id && (
+                        <div className="mt-8 pt-8 border-t border-white/10 relative z-10 w-full pb-8">
+                            <h3 className="text-sm font-bold text-slate-300 mb-4 uppercase tracking-widest flex items-center gap-2">
+                               <StickyNote className="w-4 h-4 text-indigo-400" />
+                               Profile Notes
+                            </h3>
+                            
+                            {/* Note input */}
+                            <div className="bg-white/5 rounded-2xl p-4 border border-white/5 mb-6">
+                                <textarea 
+                                    className="w-full bg-transparent text-sm text-slate-200 outline-none resize-none placeholder:text-slate-600 mb-3"
+                                    placeholder="Write a note about this user..."
+                                    rows={3}
+                                    value={newProfileNote}
+                                    onChange={(e) => setNewProfileNote(e.target.value)}
+                                ></textarea>
+                                {newProfileNoteImage && (
+                                    <div className="relative inline-block mb-3">
+                                        <img src={newProfileNoteImage} alt="Note Attachment" className="h-20 rounded-lg object-cover border border-white/10" />
+                                        <button onClick={() => setNewProfileNoteImage(null)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg hover:scale-110 transition-transform">
+                                            <X className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                )}
+                                <div className="flex items-center justify-between border-t border-white/5 pt-3">
+                                    <button 
+                                        type="button"
+                                        onClick={() => profileNoteFileRef.current?.click()}
+                                        className="text-slate-400 hover:text-indigo-400 transition-colors p-2 rounded-lg hover:bg-white/5 flex items-center gap-2 text-xs font-bold"
+                                    >
+                                        <ImageIcon className="w-4 h-4" /> Add Image
+                                    </button>
+                                    <input type="file" hidden accept="image/*" ref={profileNoteFileRef} onChange={handleNoteImageUpload} />
+                                    <button 
+                                        type="button"
+                                        onClick={() => handleAddProfileNote(modalProfileData.id)}
+                                        disabled={!newProfileNote.trim() && !newProfileNoteImage}
+                                        className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-lg"
+                                    >
+                                        Save Note
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            {/* Notes List */}
+                            <div className="space-y-4">
+                                {modalProfileData?.notes?.map(note => (
+                                    <div key={note.id} className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <span className="text-[10px] font-bold text-indigo-400 uppercase">{note.createdBy}</span>
+                                            <span className="text-[10px] text-slate-500">{new Date(note.createdAt).toLocaleDateString()}</span>
+                                        </div>
+                                        <p className="text-sm text-slate-300 whitespace-pre-wrap">{note.text}</p>
+                                        {note.imageUrl && (
+                                            <img 
+                                                src={note.imageUrl} 
+                                                alt="Note Attachment" 
+                                                className="mt-3 max-w-[200px] h-auto rounded-xl border border-white/10 cursor-pointer hover:opacity-90 transition-opacity" 
+                                                onClick={() => setViewingImage(note.imageUrl as string)}
+                                            />
+                                        )}
+                                    </div>
+                                ))}
+                                {(!modalProfileData?.notes || modalProfileData.notes.length === 0) && (
+                                    <div className="text-center py-6 text-slate-500 text-sm font-medium">No notes available.</div>
+                                )}
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
           </div>
         </div>
+      )}
+      {/* Full Size Image Modal */}
+      {viewingImage && (
+          <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/90 p-4" onClick={() => setViewingImage(null)}>
+              <div className="relative max-w-4xl w-full h-full flex justify-center items-center">
+                 <button 
+                    className="absolute top-4 right-4 bg-white/10 hover:bg-white/20 text-white rounded-full p-2 transition-colors z-[301]"
+                    onClick={(e) => { e.stopPropagation(); setViewingImage(null); }}
+                 >
+                    <X className="w-6 h-6" />
+                 </button>
+                 <img src={viewingImage} alt="Full View" className="max-w-full max-h-full object-contain rounded-xl shadow-2xl" onClick={e => e.stopPropagation()} />
+              </div>
+          </div>
       )}
       {/* ADVANCE NOTIFICATION MODAL */}
       {latestAdvanceNotif && (

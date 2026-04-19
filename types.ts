@@ -13,6 +13,27 @@ export interface Reaction {
   emoji: string;
 }
 
+export interface AppNote {
+  id: string;
+  title: string;
+  content: string;
+  imageUrl?: string;
+  imageUrls?: string[];
+  date: string;
+  createdBy: string;
+  isDeleted?: boolean;
+  purchasePrice?: number;
+  sellingPrice?: number;
+}
+
+export interface StaffNote {
+  id: string;
+  text: string;
+  imageUrl?: string;
+  createdAt: string;
+  createdBy: string;
+}
+
 export interface Staff {
   id: string;
   name: string;
@@ -43,6 +64,7 @@ export interface Staff {
   luckyDrawCount?: number;
   lastDevice?: string; // New Field for Device Tracking
   fcmToken?: string; // Firebase Cloud Messaging Token
+  notes?: StaffNote[]; // Profile Notes
 }
 
 export interface MovementLog {

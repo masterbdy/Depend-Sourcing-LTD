@@ -41,17 +41,16 @@ const PhoneBook: React.FC<PhoneBookProps> = ({ phoneBook, setPhoneBook, role }) 
     e.preventDefault();
     
     if (editingEntry) {
-      const updatedList = phoneBook.map(p => 
+      setPhoneBook(prev => prev.map(p => 
         p.id === editingEntry.id ? { ...p, ...formData } as PhoneBookEntry : p
-      );
-      setPhoneBook(updatedList);
+      ));
     } else {
       const newEntry: PhoneBookEntry = {
         ...formData as PhoneBookEntry,
         id: Math.random().toString(36).substr(2, 9),
         isDeleted: false
       };
-      setPhoneBook([newEntry, ...phoneBook]);
+      setPhoneBook(prev => [newEntry, ...prev]);
     }
     closeModal();
   };
