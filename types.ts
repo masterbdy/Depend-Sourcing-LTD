@@ -13,6 +13,13 @@ export interface Reaction {
   emoji: string;
 }
 
+export interface NoteProduct {
+  id: string; // Unique ID for mapping in UI
+  code?: string;
+  purchasePrice?: number;
+  sellingPrice?: number;
+}
+
 export interface AppNote {
   id: string;
   title: string;
@@ -22,8 +29,10 @@ export interface AppNote {
   date: string;
   createdBy: string;
   isDeleted?: boolean;
-  purchasePrice?: number;
-  sellingPrice?: number;
+  purchasePrice?: number; // legacy
+  sellingPrice?: number;  // legacy
+  productCode?: string;   // legacy
+  products?: NoteProduct[];
 }
 
 export interface StaffNote {
