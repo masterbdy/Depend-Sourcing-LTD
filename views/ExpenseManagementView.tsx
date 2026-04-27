@@ -454,11 +454,26 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
     });
   };
 
-  const updateStatus = (id: string, status: Expense['status']) => {
+  const updateStatus = async (id: string, status: Expense['status']) => {
     if (status === 'REJECTED' && !window.confirm('আপনি কি নিশ্চিত যে এই বিলটি বাতিল (Reject) করতে চান?')) return;
     // Removed confirmation for APPROVE to make it instant/easier
     
     setExpenses(prevExpenses => prevExpenses.map(e => e.id === id ? { ...e, status } : e));
+
+    // Send email notification to user
+    const expense = expenses.find(e => e.id === id);
+    if (expense) {
+      const staff = staffList.find(s => s.id === expense.staffId);
+      if (staff) {
+        // Importing sendBillStatusEmailToStaff inside component since it's an async side effect
+        import('../services/emailService').then(({ sendBillStatusEmailToStaff }) => {
+          // If staff has no email property, we guess it from name or they configure it in settings.
+          // Using a placeholder or parsing from existing data (like `staff.email` if it exists)
+          const targetEmail = staff.email || `${staff.name.replace(/\s+/g, '').toLowerCase()}@depend.com`;
+          sendBillStatusEmailToStaff(targetEmail, staff.name, expense.amount, expense.reason, status);
+        });
+      }
+    }
   };
 
   const requestDelete = (expense: Expense) => setDeleteConfirmExpense(expense);
@@ -469,11 +484,20 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
     } 
   };
 
-  const handleApproveAll = () => {
+  const handleApproveAll = async () => {
     const pendingCount = expenses.filter(e => !e.isDeleted && (e.status === 'PENDING' || e.status === 'VERIFIED')).length;
     if (pendingCount === 0) { alert('কোনো পেন্ডিং বা ভেরিফাইড বিল নেই।'); return; }
     if (window.confirm(`আপনি কি নিশ্চিত যে ${pendingCount} টি বিল একসাথে অ্যাপ্রুভ করতে চান?`)) {
       setExpenses(prevExpenses => prevExpenses.map(e => (!e.isDeleted && (e.status === 'PENDING' || e.status === 'VERIFIED')) ? { ...e, status: 'APPROVED' } : e));
+      
+      const { sendBillStatusEmailToStaff } = await import('../services/emailService');
+      expenses.filter(e => !e.isDeleted && (e.status === 'PENDING' || e.status === 'VERIFIED')).forEach(expense => {
+        const staff = staffList.find(s => s.id === expense.staffId);
+        if (staff) {
+          const targetEmail = staff.email || `${staff.name.replace(/\s+/g, '').toLowerCase()}@depend.com`;
+          sendBillStatusEmailToStaff(targetEmail, staff.name, expense.amount, expense.reason, 'APPROVED');
+        }
+      });
     }
   };
 

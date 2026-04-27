@@ -49,6 +49,7 @@ export interface Staff {
   designation: string;
   staffId: string;
   mobile?: string;
+  email?: string; // New Field 
   basicSalary?: number;
   password?: string;
   photo?: string;

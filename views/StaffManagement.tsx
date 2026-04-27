@@ -52,6 +52,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
     staffId: '', 
     designation: '', 
     mobile: '', 
+    email: '',
     basicSalary: 0, 
     password: '', 
     photo: '',
@@ -261,6 +262,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
         staffId: formData.staffId,
         designation: formData.designation,
         mobile: formData.mobile,
+        email: formData.email,
         basicSalary: formData.basicSalary,
         password: formData.password || `${formData.name}@`,
         photo: formData.photo,
@@ -286,7 +288,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
     setEditingStaff(null);
     setShowPassword(false);
     setFormData({ 
-      name: '', staffId: '', designation: '', mobile: '', basicSalary: 0, password: '', photo: '', role: UserRole.STAFF, 
+      name: '', staffId: '', designation: '', mobile: '', email: '', basicSalary: 0, password: '', photo: '', role: UserRole.STAFF, 
       workLocation: 'HEAD_OFFICE', requiresCheckOutLocation: true, dateOfBirth: '',
       customLat: 0, customLng: 0, customRadius: 200, customLocName: '',
       hasSecondLoc: false, customLat2: 0, customLng2: 0, customRadius2: 200, customLocName2: ''
@@ -305,6 +307,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
       staffId: staff.staffId, 
       designation: staff.designation,
       mobile: staff.mobile || '',
+      email: staff.email || '',
       basicSalary: staff.basicSalary || 0,
       password: staff.password || '',
       photo: staff.photo || '',
@@ -418,7 +421,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
   
   // Filter Logic
   const clearFilters = () => { setSearchTerm(''); setStartDate(''); setEndDate(''); setSortBy('newest'); };
-  const filteredStaff = useMemo(() => { let result = (staffList || []).filter(s => { if (!s || s.deletedAt) return false; if (isStaff && s.name !== currentUser) return false; const searchLower = searchTerm.toLowerCase(); const matchesSearch = (s.name || '').toLowerCase().includes(searchLower) || (s.staffId || '').toLowerCase().includes(searchLower) || (s.mobile && s.mobile.includes(searchLower)) || (s.designation || '').toLowerCase().includes(searchLower); const createdAt = new Date(s.createdAt).setHours(0, 0, 0, 0); const start = startDate ? new Date(startDate).setHours(0, 0, 0, 0) : null; const end = endDate ? new Date(endDate).setHours(23, 59, 59, 999) : null; const matchesDate = (!start || createdAt >= start) && (!end || createdAt <= end); return matchesSearch && matchesDate; }); if (sortBy === 'newest') result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()); else if (sortBy === 'oldest') result.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()); else if (sortBy === 'name') result.sort((a, b) => (a.name || '').localeCompare(b.name || '')); else if (sortBy === 'salary') result.sort((a, b) => (b.basicSalary || 0) - (a.basicSalary || 0)); return result; }, [staffList, searchTerm, startDate, endDate, sortBy, isStaff, currentUser]);
+  const filteredStaff = useMemo(() => { let result = (staffList || []).filter(s => { if (!s || s.deletedAt) return false; if (isStaff && s.name !== currentUser) return false; const searchLower = searchTerm.toLowerCase(); const matchesSearch = (s.name || '').toLowerCase().includes(searchLower) || (s.staffId || '').toLowerCase().includes(searchLower) || (s.mobile && s.mobile.includes(searchLower)) || (s.email && s.email.includes(searchLower)) || (s.designation || '').toLowerCase().includes(searchLower); const createdAt = new Date(s.createdAt).setHours(0, 0, 0, 0); const start = startDate ? new Date(startDate).setHours(0, 0, 0, 0) : null; const end = endDate ? new Date(endDate).setHours(23, 59, 59, 999) : null; const matchesDate = (!start || createdAt >= start) && (!end || createdAt <= end); return matchesSearch && matchesDate; }); if (sortBy === 'newest') result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()); else if (sortBy === 'oldest') result.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()); else if (sortBy === 'name') result.sort((a, b) => (a.name || '').localeCompare(b.name || '')); else if (sortBy === 'salary') result.sort((a, b) => (b.basicSalary || 0) - (a.basicSalary || 0)); return result; }, [staffList, searchTerm, startDate, endDate, sortBy, isStaff, currentUser]);
   const stats = { total: (staffList || []).filter(s => s && !s.deletedAt).length, active: (staffList || []).filter(s => s && !s.deletedAt && s.status === 'ACTIVE').length, inactive: (staffList || []).filter(s => s && !s.deletedAt && s.status === 'DEACTIVATED').length };
   const getStaffFinancials = (staffId: string) => { const safeExpenses = expenses || []; const safeAdvances = advances || []; const staffExpenses = safeExpenses.filter(e => e && e.staffId === staffId && !e.isDeleted); const approved = staffExpenses.filter(e => e.status === 'APPROVED').reduce((sum, e) => sum + Number(e.amount || 0), 0); const staffAdvances = safeAdvances.filter(a => a && a.staffId === staffId && !a.isDeleted); const totalRegularAdv = staffAdvances.filter(a => a.type !== 'SALARY').reduce((sum, a) => sum + Number(a.amount || 0), 0); const totalSalaryAdv = staffAdvances.filter(a => a.type === 'SALARY').reduce((sum, a) => sum + Number(a.amount || 0), 0); const balance = totalRegularAdv - approved; return { balance, totalRegularAdv, totalSalaryAdv, approved }; };
 
@@ -621,6 +624,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
                           </div>
                           <div className="grid grid-cols-2 gap-4">
                               <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-100 dark:border-gray-600 flex items-center gap-3"><div className="bg-white dark:bg-gray-600 p-2 rounded-lg text-indigo-500 shadow-sm"><Phone className="w-4 h-4"/></div><div><p className="text-[9px] text-gray-400 font-bold uppercase">Contact</p><p className="text-xs font-bold text-gray-800 dark:text-gray-200">{staff.mobile || 'N/A'}</p></div></div>
+                              <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-100 dark:border-gray-600 flex items-center gap-3 flex-wrap"><div className="bg-white dark:bg-gray-600 p-2 rounded-lg text-slate-500 shadow-sm"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg></div><div><p className="text-[9px] text-gray-400 font-bold uppercase">Email</p><p className="text-xs font-bold text-gray-800 dark:text-gray-200 break-all">{staff.email || 'N/A'}</p></div></div>
                               <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-100 dark:border-gray-600 flex items-center gap-3"><div className="bg-white dark:bg-gray-600 p-2 rounded-lg text-pink-500 shadow-sm"><Cake className="w-4 h-4"/></div><div><p className="text-[9px] text-gray-400 font-bold uppercase">Birthday</p><p className="text-xs font-bold text-gray-800 dark:text-gray-200">{staff.dateOfBirth ? new Date(staff.dateOfBirth).toLocaleDateString('bn-BD', {day:'numeric', month:'short'}) : 'N/A'}</p></div></div>
                               <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-100 dark:border-gray-600 flex items-center gap-3"><div className="bg-white dark:bg-gray-600 p-2 rounded-lg text-blue-500 shadow-sm"><Calendar className="w-4 h-4"/></div><div><p className="text-[9px] text-gray-400 font-bold uppercase">Joined</p><p className="text-xs font-bold text-gray-800 dark:text-gray-200">{joinDate}</p></div></div>
                               <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-100 dark:border-gray-600 flex items-center gap-3"><div className="bg-white dark:bg-gray-600 p-2 rounded-lg text-orange-500 shadow-sm"><Laptop className="w-4 h-4"/></div><div><p className="text-[9px] text-gray-400 font-bold uppercase">Device</p><p className="text-xs font-bold text-gray-800 dark:text-gray-200 truncate max-w-[100px]" title={staff.lastDevice}>{staff.lastDevice || 'Unknown'}</p></div></div>
@@ -782,6 +786,13 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
                       <label className="block text-xs font-bold text-gray-700 mb-1">মোবাইল নাম্বার</label>
                       <input type="tel" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-semibold" value={formData.mobile} onChange={(e) => setFormData({...formData, mobile: e.target.value})} placeholder="017..." />
                     </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">ইমেইল <span className="font-normal text-gray-400 font-sans tracking-normal ml-1">(Optional)</span></label>
+                      <input type="email" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} placeholder="example@email.com" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-gray-700 mb-1">জন্ম তারিখ</label>
                       <div className="relative">

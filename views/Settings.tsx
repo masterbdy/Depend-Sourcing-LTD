@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Settings, Save, Clock, Download, Upload, Database, ShieldCheck, ExternalLink, HelpCircle, Code, Check, AlertTriangle, Package, UserCheck, X, Image as ImageIcon, Trash2, Info } from 'lucide-react';
+import { Settings, Save, Clock, Download, Upload, Database, ShieldCheck, ExternalLink, HelpCircle, Code, Check, AlertTriangle, Package, UserCheck, X, Image as ImageIcon, Trash2, Info, Mail } from 'lucide-react';
 import { BillingRule, UserRole, Staff } from '../types';
 import packageJson from '../package.json';
 
@@ -25,6 +25,22 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
   const festivalImageRef = useRef<HTMLInputElement>(null);
   const [configInput, setConfigInput] = useState(cloudConfig ? JSON.stringify(cloudConfig, null, 2) : '');
   const [parseError, setParseError] = useState<string | null>(null);
+
+  const [smtpConfig, setSmtpConfig] = useState(() => {
+    try {
+      const saved = localStorage.getItem('smtp_config');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return { host: 'smtp.gmail.com', port: '587', secure: false, user: '', pass: '', from: '' };
+  });
+
+  const [showSmtpSuccess, setShowSmtpSuccess] = useState(false);
+
+  const saveSmtpConfig = () => {
+    localStorage.setItem('smtp_config', JSON.stringify(smtpConfig));
+    setShowSmtpSuccess(true);
+    setTimeout(() => setShowSmtpSuccess(false), 3000);
+  };
 
   const handleCloudSave = () => {
     setParseError(null);
@@ -335,6 +351,72 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
           </div>
         </div>
       </div>
+
+      {/* SMTP Email Configuration (ADMIN ONLY) */}
+      {role === UserRole.ADMIN && (
+        <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 transition-all duration-300 hover:shadow-md">
+          <div className="flex items-center gap-4 mb-5 pb-4 border-b border-gray-100 dark:border-gray-700">
+            <div className="bg-orange-50 dark:bg-orange-500/10 p-2.5 rounded-2xl text-orange-600 dark:text-orange-400">
+              <Mail className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-gray-800 dark:text-white tracking-tight">ইমেইল নোটিফিকেশন সেটআপ (SMTP)</h2>
+              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5">অটোমেটিক ইমেইল পাঠানোর জন্য আপনার ইমেইল এবং অ্যাপ পাসওয়ার্ড প্রদান করুন।</p>
+            </div>
+          </div>
+          
+          <div className="space-y-4">
+             <div className="bg-gray-50 dark:bg-gray-900/50 p-4 sm:p-5 rounded-2xl border border-gray-100 dark:border-gray-700">
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <div>
+                   <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">ইমেইল এড্রেস (Sender Email)</label>
+                   <input 
+                     type="email" 
+                     placeholder="e.g. your_email@gmail.com"
+                     className="w-full px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm transition-all"
+                     value={smtpConfig.user}
+                     onChange={(e) => setSmtpConfig({...smtpConfig, user: e.target.value})}
+                   />
+                 </div>
+                 <div>
+                   <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wide">অ্যাপ পাসওয়ার্ড (App Password)</label>
+                   <input 
+                     type="password" 
+                     placeholder="e.g. abcd efgh ijkl mnop"
+                     className="w-full px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm transition-all"
+                     value={smtpConfig.pass}
+                     onChange={(e) => setSmtpConfig({...smtpConfig, pass: e.target.value})}
+                   />
+                 </div>
+               </div>
+               <p className="text-xs text-gray-500 dark:text-gray-400 mt-3 flex items-start gap-1.5 leading-relaxed">
+                 <InfoIcon className="w-4 h-4 text-orange-500 shrink-0 mt-0.5" /> 
+                 <span>
+                   জিমেইলের ক্ষেত্রে সাধারণ পাসওয়ার্ড দিয়ে লগইন হবে না। আপনাকে <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" className="text-orange-500 hover:text-orange-600 underline font-bold">Google Account App Passwords</a> থেকে একটি ১৬ অঙ্কের অ্যাপ পাসওয়ার্ড তৈরি করে এখানে দিতে হবে।
+                 </span>
+               </p>
+               <div className="mt-4 flex justify-end">
+                  <button 
+                    onClick={saveSmtpConfig}
+                    className="bg-orange-600 hover:bg-orange-700 text-white font-bold py-2 px-5 rounded-xl text-sm flex items-center justify-center gap-2 transition-all shadow-sm hover:shadow-md"
+                  >
+                    <Save className="w-4 h-4" /> সেভ করুন 
+                  </button>
+               </div>
+             </div>
+          </div>
+
+          {/* Success Popup */}
+          {showSmtpSuccess && (
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded-2xl shadow-xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4 z-50">
+              <div className="bg-green-500 rounded-full p-1">
+                <Check className="w-4 h-4 text-white" />
+              </div>
+              <span className="font-semibold text-sm">SMTP Settings saved successfully!</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Automated Billing Rules */}
       <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 transition-all duration-300 hover:shadow-md">

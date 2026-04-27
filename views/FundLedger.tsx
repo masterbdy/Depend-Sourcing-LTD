@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { PlusCircle, History, Landmark, Wallet, ArrowUpCircle, Trash2, Search, Calendar, FilterX, Info, ArrowDownLeft, ArrowUpRight, Banknote, AlertTriangle, TrendingUp, Sparkles } from 'lucide-react';
 import { FundEntry, UserRole, Expense, AdvanceLog } from '../types';
+import { sendFundAddedEmailToMD } from '../services/emailService';
 
 interface FundProps {
   funds: FundEntry[];
@@ -124,7 +125,7 @@ const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = 
 
   const isFilterActive = searchTerm !== '' || startDate !== '' || endDate !== '';
 
-  const handleAddFund = (e: React.FormEvent) => {
+  const handleAddFund = async (e: React.FormEvent) => {
     e.preventDefault();
     
     const submitDate = new Date(formData.date);
@@ -138,6 +139,10 @@ const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = 
       date: submitDate.toISOString()
     };
     setFunds(prev => [...prev, newEntry]);
+    
+    // Notify MD
+    await sendFundAddedEmailToMD(newEntry.amount, 'Office Funds App', 'Admin');
+
     setIsModalOpen(false);
     setFormData({ amount: 0, note: '', date: new Date().toISOString().split('T')[0] });
   };

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Notification System</title>
+    <!-- Tailwind CSS for clean, modern UI -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- EmailJS SDK -->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+    
+    <script type="text/javascript">
+        // --- 1. CONFIGURATION ---
+        // Replace these with your actual EmailJS credentials
+        const PUBLIC_KEY = "YOUR_PUBLIC_KEY"; // e.g. "user_xxxxxxxxxxxx"
+        const SERVICE_ID = "YOUR_SERVICE_ID"; // e.g. "service_xxxxxxx"
+        const USER_TEMPLATE_ID = "YOUR_USER_TEMPLATE_ID"; // Template for user fund
+        const COMPANY_TEMPLATE_ID = "YOUR_COMPANY_TEMPLATE_ID"; // Template for company fund
+        const MD_EMAIL = "md@example.com"; // Fixed MD Email
+        
+        // Initialize EmailJS
+        (function() {
+            emailjs.init(PUBLIC_KEY);
+        })();
+
+        // --- 2. SEND USER FUND EMAIL ---
+        function sendUserFundEmail(event) {
+            event.preventDefault();
+            
+            const userName = document.getElementById('userName').value;
+            const userEmail = document.getElementById('userEmail').value;
+            const amount = document.getElementById('amount').value;
+            
+            if(!userName || !userEmail || !amount) {
+                alert("Please fill out Name, Email, and Amount to send to User.");
+                return;
+            }
+
+            const templateParams = {
+                to_email: userEmail,
+                user_name: userName,
+                amount: amount
+            };
+
+            const btn = document.getElementById('btnUser');
+            btn.innerText = "Sending...";
+            btn.disabled = true;
+
+            emailjs.send(SERVICE_ID, USER_TEMPLATE_ID, templateParams)
+                .then(function(response) {
+                    alert("✅ Successfully sent email to User!");
+                    btn.innerText = "Add Fund to User";
+                    btn.disabled = false;
+                }, function(error) {
+                    alert("❌ Failed to send email: " + JSON.stringify(error));
+                    btn.innerText = "Add Fund to User";
+                    btn.disabled = false;
+                });
+        }
+
+        // --- 3. SEND COMPANY FUND EMAIL ---
+        function sendCompanyFundEmail(event) {
+            event.preventDefault();
+            
+            const amount = document.getElementById('amount').value;
+            
+            if(!amount) {
+                alert("Please enter the Amount to send to Company.");
+                return;
+            }
+
+            const templateParams = {
+                to_email: MD_EMAIL,
+                amount: amount
+            };
+
+            const btn = document.getElementById('btnCompany');
+            btn.innerText = "Sending...";
+            btn.disabled = true;
+
+            emailjs.send(SERVICE_ID, COMPANY_TEMPLATE_ID, templateParams)
+                .then(function(response) {
+                    alert("✅ Successfully sent email to Managing Director!");
+                    btn.innerText = "Add Fund to Company";
+                    btn.disabled = false;
+                }, function(error) {
+                    alert("❌ Failed to send email: " + JSON.stringify(error));
+                    btn.innerText = "Add Fund to Company";
+                    btn.disabled = false;
+                });
+        }
+    </script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-8">
+        <div class="text-center mb-8">
+            <h1 class="text-2xl font-bold text-gray-800">Fund Management</h1>
+            <p class="text-gray-500 text-sm mt-1">Send EmailJS Notifications</p>
+        </div>
+
+        <form class="space-y-5">
+            <!-- User Name -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">User Name</label>
+                <input type="text" id="userName" placeholder="e.g. John Doe" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all">
+            </div>
+
+            <!-- User Email -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">User Email</label>
+                <input type="email" id="userEmail" placeholder="e.g. john@example.com" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all">
+            </div>
+
+            <!-- Amount -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Amount (BDT)</label>
+                <input type="number" id="amount" placeholder="e.g. 5000" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all">
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="pt-4 flex flex-col gap-3">
+                <button type="button" id="btnUser" onclick="sendUserFundEmail(event)" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition-all active:scale-95">
+                    Add Fund to User
+                </button>
+                
+                <button type="button" id="btnCompany" onclick="sendCompanyFundEmail(event)" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition-all active:scale-95">
+                    Add Fund to Company
+                </button>
+            </div>
+        </form>
+    </div>
+
+</body>
+</html>

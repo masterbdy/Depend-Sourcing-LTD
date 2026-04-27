@@ -187,31 +187,35 @@ const GroupChatView: React.FC<GroupChatProps> = ({ messages = [], setMessages, c
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-140px)] bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden relative" onClick={() => { setActiveReactionId(null); setShowEmojiPicker(false); }}>
+    <div className="flex flex-col h-[calc(100vh-140px)] bg-white dark:bg-gray-900 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100 dark:border-gray-800 overflow-hidden relative" onClick={() => { setActiveReactionId(null); setShowEmojiPicker(false); }}>
       {/* Chat Header */}
-      <div className="p-4 bg-indigo-600 dark:bg-indigo-900 text-white flex items-center justify-between shrink-0 shadow-md z-10">
-        <div className="flex items-center gap-3">
-          <div className="relative">
+      <div className="p-4 sm:p-5 bg-gradient-to-r from-indigo-600 to-violet-600 dark:from-indigo-900 dark:to-violet-900 text-white flex items-center justify-between shrink-0 shadow-[0_4px_20px_rgba(79,70,229,0.3)] z-20 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl pointer-events-none -mt-20 -mr-20"></div>
+        <div className="absolute bottom-0 left-0 w-32 h-32 bg-black/10 rounded-full blur-2xl pointer-events-none -mb-10 -ml-10"></div>
+        
+        <div className="flex items-center gap-4 relative z-10">
+          <div className="relative group">
+            <div className="absolute -inset-1 bg-gradient-to-r from-white/50 to-white/10 rounded-full blur opacity-100 group-hover:opacity-100 transition duration-500"></div>
             <img 
               src="https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=100&q=80" 
               alt="Team Group" 
-              className="w-11 h-11 rounded-full object-cover border-2 border-white/30 shadow-sm" 
+              className="w-12 h-12 rounded-full object-cover border-2 border-white/50 shadow-[0_4px_10px_rgba(0,0,0,0.2)] relative z-10" 
             />
-            <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-indigo-600 rounded-full"></div>
+            <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-400 border-2 border-indigo-600 rounded-full z-20 shadow-sm"></div>
           </div>
           <div>
-            <h3 className="font-bold text-lg leading-tight">অফিস টিম চ্যাট</h3>
-            <p className="text-xs text-indigo-200 font-medium">সকল স্টাফ, অ্যাডমিন এবং এমডি</p>
+            <h3 className="font-black text-xl leading-tight drop-shadow-md">অফিস টিম চ্যাট</h3>
+            <p className="text-xs text-indigo-100/90 font-bold tracking-wide mt-0.5">সকল স্টাফ, অ্যাডমিন এবং এমডি</p>
           </div>
         </div>
         
         <button 
           onClick={openWhatsApp}
-          className="bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded-xl flex items-center gap-2 text-xs font-bold transition-all shadow-lg active:scale-95"
+          className="relative z-10 bg-[#25D366] hover:bg-[#20bd5a] text-white px-4 py-2.5 rounded-xl flex items-center gap-2 text-xs font-black shadow-[0_4px_0_#128c7e,0_10px_20px_rgba(37,211,102,0.4)] transition-all active:translate-y-[4px] active:shadow-[0_0px_0_#128c7e,0_0px_0px_rgba(37,211,102,0.4)] border-b-2 border-[#128c7e] active:border-b-0"
           title="Open WhatsApp Group"
         >
-          <MessageCircle className="w-4 h-4" />
-          <span className="hidden sm:inline">WhatsApp Group</span>
+          <MessageCircle className="w-5 h-5 drop-shadow-sm" />
+          <span className="hidden sm:inline drop-shadow-sm">WhatsApp Group</span>
         </button>
       </div>
 
@@ -329,13 +333,13 @@ const GroupChatView: React.FC<GroupChatProps> = ({ messages = [], setMessages, c
                     )}
 
                     <div 
-                        className={`px-5 py-3 rounded-2xl text-sm leading-relaxed shadow-sm relative z-0 backdrop-blur-sm ${
+                        className={`px-5 py-3 rounded-[20px] text-sm leading-relaxed relative z-0 transition-all ${
                         isMe 
-                            ? 'bg-gradient-to-br from-indigo-600 to-indigo-700 text-white rounded-tr-none shadow-indigo-200 dark:shadow-none border border-indigo-500' 
-                            : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700 rounded-tl-none shadow-sm'
+                            ? 'bg-gradient-to-b from-indigo-500 to-indigo-600 text-white rounded-tr-sm shadow-[0_4px_15px_rgba(79,70,229,0.3),inset_0_2px_4px_rgba(255,255,255,0.2)] border border-indigo-400/50' 
+                            : 'bg-gradient-to-b from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 text-gray-800 dark:text-gray-200 rounded-tl-sm shadow-[0_4px_15px_rgba(0,0,0,0.05),inset_0_2px_4px_rgba(255,255,255,0.5)] dark:shadow-[0_4px_15px_rgba(0,0,0,0.2),inset_0_2px_4px_rgba(255,255,255,0.05)] border border-gray-100 dark:border-gray-700'
                         }`}
                     >
-                        {msg.text}
+                        <span className="relative z-10 drop-shadow-sm">{msg.text}</span>
                     </div>
 
                     {reactions.length > 0 && (
@@ -370,14 +374,14 @@ const GroupChatView: React.FC<GroupChatProps> = ({ messages = [], setMessages, c
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 shrink-0 relative z-20 pb-2 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+      <div className="bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 shrink-0 relative z-20 pb-2 shadow-[0_-10px_30px_rgba(0,0,0,0.05)]">
         
-        <div className="px-4 pt-2 pb-1 flex gap-2 overflow-x-auto scrollbar-hide">
+        <div className="px-4 pt-3 pb-2 flex gap-2 overflow-x-auto scrollbar-hide">
            {QUICK_REPLIES.map((reply, idx) => (
               <button 
                 key={idx}
                 onClick={() => sendQuickReply(reply)}
-                className="bg-gray-50 dark:bg-gray-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-600 dark:hover:text-indigo-400 text-gray-600 dark:text-gray-300 px-3 py-1.5 rounded-full text-[10px] font-bold border border-gray-200 dark:border-gray-700 hover:border-indigo-100 dark:hover:border-indigo-800 transition-all whitespace-nowrap active:scale-95"
+                className="bg-gradient-to-b from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 shadow-[0_2px_5px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.8)] dark:shadow-[0_2px_5px_rgba(0,0,0,0.2),inset_0_1px_1px_rgba(255,255,255,0.1)] hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-600 dark:hover:text-indigo-400 text-gray-600 dark:text-gray-300 px-3.5 py-1.5 rounded-full text-[10px] font-bold border border-gray-200 dark:border-gray-700 hover:border-indigo-200 dark:hover:border-indigo-800 transition-all whitespace-nowrap active:translate-y-[1px] active:shadow-none"
               >
                  {reply}
               </button>
@@ -387,12 +391,12 @@ const GroupChatView: React.FC<GroupChatProps> = ({ messages = [], setMessages, c
         <div className="px-3 pb-1 flex items-end gap-2 relative">
           
           {showEmojiPicker && (
-             <div className="absolute bottom-full left-2 mb-2 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 p-3 grid grid-cols-6 gap-2 animate-in zoom-in duration-200 w-64 z-50" onClick={(e) => e.stopPropagation()}>
+             <div className="absolute bottom-full left-2 mb-2 bg-gradient-to-b from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.15)] border border-gray-200 dark:border-gray-700 p-3 grid grid-cols-6 gap-2 animate-in zoom-in duration-200 w-64 z-50 transform origin-bottom-left" onClick={(e) => e.stopPropagation()}>
                 {QUICK_EMOJIS.map(emoji => (
                    <button 
                      key={emoji} 
                      onClick={() => addEmoji(emoji)}
-                     className="w-8 h-8 flex items-center justify-center text-xl hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                     className="w-8 h-8 flex items-center justify-center text-xl hover:bg-indigo-50 dark:hover:bg-indigo-900/50 hover:scale-125 rounded-lg transition-all"
                    >
                       {emoji}
                    </button>
@@ -403,15 +407,15 @@ const GroupChatView: React.FC<GroupChatProps> = ({ messages = [], setMessages, c
           <button 
             type="button" 
             onClick={(e) => { e.stopPropagation(); setShowEmojiPicker(!showEmojiPicker); }}
-            className={`p-3 rounded-full transition-colors ${showEmojiPicker ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+            className={`p-3 rounded-full transition-colors shadow-sm ${showEmojiPicker ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 inset-shadow-sm' : 'bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
           >
-             <Smile className="w-5 h-5" />
+             <Smile className="w-5 h-5 drop-shadow-sm" />
           </button>
 
-          <form onSubmit={handleSendMessage} className="flex-1 flex gap-2 items-center bg-gray-50 dark:bg-gray-800 rounded-3xl px-2 py-1 border border-gray-200 dark:border-gray-700 focus-within:border-indigo-400 focus-within:ring-4 focus-within:ring-indigo-100 dark:focus-within:ring-indigo-900/30 focus-within:bg-white dark:focus-within:bg-gray-900 transition-all shadow-inner">
+          <form onSubmit={handleSendMessage} className="flex-1 flex gap-2 items-center bg-gray-50 dark:bg-gray-800 rounded-3xl px-2 py-1 shadow-[inset_0_2px_4px_rgba(0,0,0,0.05)] border-2 border-transparent focus-within:border-indigo-400/50 focus-within:shadow-[inset_0_2px_4px_rgba(79,70,229,0.05),0_0_0_4px_rgba(79,70,229,0.1)] focus-within:bg-white dark:focus-within:bg-gray-900 transition-all min-w-0">
             <input
               type="text"
-              className="flex-1 px-4 py-3 bg-transparent border-none outline-none font-medium text-gray-800 dark:text-white placeholder:text-gray-400"
+              className="flex-1 min-w-0 px-3 sm:px-4 py-3 bg-transparent border-none outline-none font-bold text-gray-800 dark:text-white placeholder:text-gray-400"
               placeholder="মেসেজ লিখুন..."
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
@@ -419,9 +423,9 @@ const GroupChatView: React.FC<GroupChatProps> = ({ messages = [], setMessages, c
             <button 
               type="submit" 
               disabled={!inputText.trim()}
-              className="p-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-indigo-200 dark:shadow-none active:scale-95 m-1"
+              className="shrink-0 p-2 sm:p-2.5 bg-gradient-to-b from-indigo-500 to-indigo-600 text-white rounded-2xl hover:bg-indigo-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_4px_10px_rgba(79,70,229,0.3)] disabled:shadow-none active:translate-y-[2px] active:shadow-none m-0.5 sm:m-1 border border-indigo-400 flex items-center justify-center min-w-[40px] min-h-[40px]"
             >
-              <Send className="w-4 h-4" />
+              <Send className="w-5 h-5 drop-shadow-sm ml-0.5" />
             </button>
           </form>
         </div>
