@@ -40,6 +40,20 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
     localStorage.setItem('smtp_config', JSON.stringify(smtpConfig));
     setShowSmtpSuccess(true);
     setTimeout(() => setShowSmtpSuccess(false), 3000);
+
+    if (cloudConfig && cloudConfig.databaseURL) {
+      import('firebase/database').then(({ getDatabase, ref, set }) => {
+        import('firebase/app').then(({ getApp }) => {
+          try {
+            const app = getApp();
+            const db = getDatabase(app, cloudConfig.databaseURL);
+            set(ref(db, 'app_settings/smtp_config'), smtpConfig);
+          } catch (e) {
+            console.error('Failed to sync smtp to cloud', e);
+          }
+        });
+      });
+    }
   };
 
   const handleCloudSave = () => {

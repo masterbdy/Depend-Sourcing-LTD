@@ -630,6 +630,7 @@ const App: React.FC = () => {
               if(val.cert_logos) setCertLogos(val.cert_logos);
               if(val.company_logo) setCompanyLogo(val.company_logo);
               if(val.festival_image) setFestivalImage(val.festival_image);
+              if(val.smtp_config) safeSetItem('smtp_config', JSON.stringify(val.smtp_config));
            }
         });
 
