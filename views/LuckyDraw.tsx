@@ -223,7 +223,7 @@ const LuckyDrawView: React.FC<LuckyDrawProps> = ({ staffList = [], currentUser, 
                  else rankBadge = <span className="text-gray-400 font-bold text-xs">#{index + 1}</span>;
 
                  return (
-                    <div key={staff.id} className={`flex items-center gap-3 p-3 rounded-xl mb-1 ${staff.name === currentUser ? 'bg-indigo-50 border border-indigo-100' : 'hover:bg-gray-50'}`}>
+                    <div key={`${staff.id}-${index}`} className={`flex items-center gap-3 p-3 rounded-xl mb-1 ${staff.name === currentUser ? 'bg-indigo-50 border border-indigo-100' : 'hover:bg-gray-50'}`}>
                        <div className="w-8 flex justify-center">{rankBadge}</div>
                        <div className="relative">
                           {staff.photo ? (

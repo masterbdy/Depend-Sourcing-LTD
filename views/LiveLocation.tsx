@@ -37,13 +37,13 @@ const LiveLocationView: React.FC<LiveLocationProps> = ({ staffList = [], liveLoc
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {activeStaff.map(staff => {
+        {activeStaff.map((staff, index) => {
           const location = liveLocations[staff.id];
           const hasLocation = !!location;
           const { color, text, label } = hasLocation ? getStatus(location.timestamp) : { color: 'bg-gray-300', text: 'text-gray-400', label: 'No Data' };
 
           return (
-            <div key={staff.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow">
+            <div key={`${staff.id}-${index}`} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow">
               <div className="p-5">
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex items-center gap-3">

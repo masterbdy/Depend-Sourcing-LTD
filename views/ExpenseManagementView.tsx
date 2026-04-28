@@ -577,7 +577,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><User className="h-3.5 w-3.5 text-slate-400 dark:text-gray-500 group-focus-within:text-purple-500 transition-colors" /></div>
               <select className="block w-full pl-9 pr-8 py-2 bg-white dark:bg-gray-800 border-none rounded-full text-xs font-bold text-slate-600 dark:text-gray-300 focus:bg-white dark:focus:bg-gray-800 focus:ring-2 focus:ring-purple-100 dark:focus:ring-gray-600 transition-all appearance-none cursor-pointer outline-none h-9 shadow-sm" value={selectedStaffFilter} onChange={(e) => setSelectedStaffFilter(e.target.value)}>
                 <option value="">All Staff</option>
-                {activeStaff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                {activeStaff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
               <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none"><ChevronDown className="h-3 w-3 text-slate-300" /></div>
           </div>
@@ -698,7 +698,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                     ) : (
                       <select required className="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all" value={formData.staffId} onChange={(e) => setFormData({...formData, staffId: e.target.value})}>
                         <option value="">নির্বাচন করুন</option>
-                        {activeStaff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        {activeStaff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                       </select>
                     )}
                   </div>
@@ -730,7 +730,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                           <div className="flex items-center gap-2 text-red-700 dark:text-red-400 font-black text-xs uppercase tracking-widest"><AlertTriangle className="w-4 h-4" /> সতর্কতা: ডুপ্লিকেট এন্ট্রি!</div>
                           <p className="text-xs font-bold text-red-600 dark:text-red-300 leading-relaxed">এই স্টাফের নামের সাথে <u>{new Date(formData.date).toLocaleDateString('bn-BD')}</u> তারিখে ইতিমধ্যে <span className="text-lg">{duplicateCheck.length}</span> টি বিল আছে।</p>
                           <div className="bg-white/50 dark:bg-black/20 p-2 rounded-lg max-h-24 overflow-y-auto custom-scrollbar">
-                              {duplicateCheck.map(e => (
+                              {duplicateCheck.map((e) => (
                                   <div key={e.id} className="flex justify-between text-[10px] font-bold text-red-500 dark:text-red-400 border-b border-red-100 dark:border-red-800 last:border-0 py-1">
                                       <span>{e.reason.substring(0, 20)}...</span><span>৳ {e.amount}</span>
                                   </div>

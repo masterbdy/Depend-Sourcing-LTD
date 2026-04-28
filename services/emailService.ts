@@ -3,14 +3,57 @@
  * Makes a POST request to our Custom Node.js Express server.
  */
 
-export const initEmailJs = () => {
-  // Kept for backwards compatibility if needed, but not used anymore.
+export const sendOTPEmail = async (email: string, otpCode: string, name: string) => {
+  const subject = 'Password Reset OTP - Depend Sourcing Ltd';
+  const html = `
+    <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; border: 1px solid #e5e7eb; padding: 20px; border-radius: 8px;">
+      <h2 style="color: #ea580c; text-align: center;">Password Reset Request</h2>
+      <p>Hello <strong>${name}</strong>,</p>
+      <p>We received a request to reset your password. Use the following OTP code to verify your identity:</p>
+      <div style="background-color: #f3f4f6; padding: 15px; border-radius: 6px; text-align: center; margin: 20px 0;">
+        <span style="font-size: 24px; font-weight: bold; letter-spacing: 5px; color: #1f2937;">${otpCode}</span>
+      </div>
+      <p style="color: #ef4444; font-size: 14px;"><strong>Note:</strong> This code is valid for 5 minutes. Do not share this code with anyone.</p>
+      <p>If you did not request a password reset, please ignore this email.</p>
+      <br>
+      <p>Visit app:- <a href="https://depend-sourcing-ltd.vercel.app">depend-sourcing-ltd.vercel.app</a></p>
+    </div>
+  `;
+
+  const getSmtpConfig = () => {
+    try {
+      const saved = localStorage.getItem('smtp_config');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return null;
+  };
+
+  try {
+    const response = await fetch('/api/send-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        to: email,
+        subject,
+        html,
+        smtpConfig: getSmtpConfig()
+      }),
+    });
+    
+    if (!response.ok) {
+        throw new Error('Failed to send OTP over SMTP');
+    }
+    console.log('OTP email sent successfully');
+  } catch (error) {
+    console.error('Failed to send OTP email via API (fallback to UI console)', error);
+    throw error;
+  }
 };
 
 /**
  * Sends an email notification to the MD when funds are added.
  */
-export const sendFundAddedEmailToMD = async (amount: number, source: string, addedBy: string, mdEmail: string = 'md@mdabidhasan.com') => {
+export const sendFundAddedEmailToMD = async (amount: number, source: string, addedBy: string, mdEmail: string = 'dependsource@gmail.com') => {
   const date = new Date().toLocaleString('en-US', { timeZone: 'Asia/Dhaka' });
   const subject = 'Company Fund Added';
   const html = `

@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { PlusCircle, History, Landmark, Wallet, ArrowUpCircle, Trash2, Search, Calendar, FilterX, Info, ArrowDownLeft, ArrowUpRight, Banknote, AlertTriangle, TrendingUp, Sparkles } from 'lucide-react';
-import { FundEntry, UserRole, Expense, AdvanceLog } from '../types';
+import { FundEntry, UserRole, Expense, AdvanceLog, Staff } from '../types';
 import { sendFundAddedEmailToMD } from '../services/emailService';
 
 interface FundProps {
@@ -13,6 +13,7 @@ interface FundProps {
   totalFund: number;
   cashOnHand: number;
   role: UserRole;
+  staffList: Staff[];
 }
 
 // Unified Transaction Type for Display
@@ -27,7 +28,7 @@ interface Transaction {
   displayType: string;
 }
 
-const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = [], setExpenses, advances = [], setAdvances, totalFund, cashOnHand, role }) => {
+const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = [], setExpenses, advances = [], setAdvances, totalFund, cashOnHand, role, staffList }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [deleteConfirmType, setDeleteConfirmType] = useState<'FUND' | 'EXPENSE' | 'ADVANCE' | null>(null);
@@ -141,7 +142,9 @@ const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = 
     setFunds(prev => [...prev, newEntry]);
     
     // Notify MD
-    await sendFundAddedEmailToMD(newEntry.amount, 'Office Funds App', 'Admin');
+    const md = staffList.find(s => s.role === UserRole.MD);
+    const mdEmail = md?.email || 'dependsource@gmail.com';
+    await sendFundAddedEmailToMD(newEntry.amount, 'Office Funds App', 'Admin', mdEmail);
 
     setIsModalOpen(false);
     setFormData({ amount: 0, note: '', date: new Date().toISOString().split('T')[0] });

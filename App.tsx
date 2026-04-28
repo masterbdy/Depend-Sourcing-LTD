@@ -48,7 +48,19 @@ const safeSetItem = (key: string, value: string) => {
 const cleanArray = <T,>(data: any): T[] => {
   if (!data) return [];
   const array = typeof data === 'object' ? Object.values(data) : data;
-  return Array.isArray(array) ? array.filter(Boolean) as T[] : [];
+  const filtered = Array.isArray(array) ? array.filter(Boolean) as T[] : [];
+  
+  if (filtered.length > 0 && typeof filtered[0] === 'object' && filtered[0] !== null && 'id' in filtered[0]) {
+    const map = new Map<string, T>();
+    for (const item of filtered as any[]) {
+      if (item && item.id) {
+        map.set(item.id, item as T);
+      }
+    }
+    return Array.from(map.values());
+  }
+  
+  return filtered;
 };
 
 // Optimized Data Loader for Instant State Initialization
@@ -518,6 +530,15 @@ const App: React.FC = () => {
   const [isLoggingIn, setIsLoggingIn] = useState(false); 
   const [rememberMe, setRememberMe] = useState(true);
   const [savedAccounts, setSavedAccounts] = useState<any[]>(() => getLocalData('saved_accounts', []));
+
+  // Forgot Password State
+  const [forgotMode, setForgotMode] = useState<'none' | 'email' | 'otp' | 'new_password'>('none');
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotOtpSent, setForgotOtpSent] = useState('');
+  const [forgotOtpInput, setForgotOtpInput] = useState('');
+  const [forgotNewPwd, setForgotNewPwd] = useState('');
+  const [forgotError, setForgotError] = useState('');
+  const [isForgotLoading, setIsForgotLoading] = useState(false);
 
   // LAZY INITIALIZATION FOR INSTANT DATA LOAD
   const [staffList, setStaffList] = useState<Staff[]>(() => getLocalData('staffList', INITIAL_STAFF));
@@ -1384,6 +1405,89 @@ const App: React.FC = () => {
     }
   }, [role]);
 
+  const handleForgotRequestOTP = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotError('');
+    setIsForgotLoading(true);
+
+    const emailInput = forgotEmail.trim().toLowerCase();
+    if (!emailInput) {
+      setForgotError('অনুগ্রহ করে আপনার ইমেইল দিন।');
+      setIsForgotLoading(false);
+      return;
+    }
+
+    const staffMember = staffList.find(s => s && s.email && s.email.toLowerCase() === emailInput);
+    if (!staffMember) {
+      setForgotError('এই ইমেইলের সাথে কোন একাউন্ট পাওয়া যায়নি।');
+      setIsForgotLoading(false);
+      return;
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    try {
+      const { sendOTPEmail } = await import('./services/emailService');
+      await sendOTPEmail(emailInput, otp, staffMember.name);
+      setForgotOtpSent(otp);
+      setForgotMode('otp');
+    } catch (err) {
+      console.error(err);
+      setForgotError('ইমেইল পাঠাতে সমস্যা হয়েছে। সেটিংসে ইমেইল কনফিগারেশন চেক করুন।');
+    } finally {
+      setIsForgotLoading(false);
+    }
+  };
+
+  const handleForgotVerifyOTP = (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotError('');
+    if (forgotOtpInput.trim() === forgotOtpSent) {
+      setForgotMode('new_password');
+    } else {
+      setForgotError('ভুল কনফার্মেশন কোড।');
+    }
+  };
+
+  const handleForgotResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotError('');
+    setIsForgotLoading(true);
+
+    const pwd = forgotNewPwd.trim();
+    if (pwd.length < 4) {
+      setForgotError('পাসওয়ার্ড কমপক্ষে ৪ অক্ষরের হতে হবে।');
+      setIsForgotLoading(false);
+      return;
+    }
+
+    const staffMember = staffList.find(s => s && s.email && s.email.toLowerCase() === forgotEmail.trim().toLowerCase());
+    if (staffMember) {
+      const updatedStaffList = staffList.map(s => s.id === staffMember.id ? { ...s, password: pwd } : s);
+      updateStaffList(updatedStaffList);
+      
+      // Attempt to save to cloud directly just in case normal sync takes time
+      if (firebaseConfig && firebaseConfig.databaseURL) {
+        try {
+          const { getApp } = await import('firebase/app');
+          const { getDatabase, ref, set } = await import('firebase/database');
+          const app = getApp();
+          const db = getDatabase(app, firebaseConfig.databaseURL);
+          await set(ref(db, `staffList`), updatedStaffList);
+        } catch (err) {
+          console.error("Failed to sync password reset to cloud inline", err);
+        }
+      }
+
+      alert('পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে। এখন নতুন পাসওয়ার্ড দিয়ে লগইন করুন।');
+      setForgotMode('none');
+      setLoginUsername(staffMember.name);
+      setLoginPassword('');
+    } else {
+      setForgotError('কিছু একটা সমস্যা হয়েছে। আবার চেষ্টা করুন।');
+    }
+    setIsForgotLoading(false);
+  };
+
   const handleGuestLogin = () => {
     setRole(UserRole.GUEST);
     setCurrentUser('Guest User');
@@ -1781,7 +1885,7 @@ const App: React.FC = () => {
       case 'notices': return <NoticeBoardView notices={notices} setNotices={updateNotices} role={role!} currentUser={currentUser || ''} staffList={staffList} onOpenProfile={openProfile} />;
       case 'notes': return <NotesView notes={appNotes} setNotes={updateAppNotes} currentUser={currentUser} role={role!} staffList={staffList} />;
       case 'complaints': return <ComplaintBoxView complaints={complaints} setComplaints={updateComplaints} staffList={staffList} role={role!} currentUser={currentUser} onOpenProfile={openProfile} />;
-      case 'funds': return <FundLedgerView funds={funds} setFunds={updateFunds} expenses={expenses} advances={advances} totalFund={totalFund} cashOnHand={cashOnHand} role={role!} />;
+      case 'funds': return <FundLedgerView funds={funds} setFunds={updateFunds} expenses={expenses} advances={advances} totalFund={totalFund} cashOnHand={cashOnHand} role={role!} staffList={staffList} />;
       case 'staff': return <StaffManagementView staffList={staffList} setStaffList={updateStaffList} role={role!} expenses={expenses} advances={advances} setAdvances={updateAdvances} currentUser={currentUser} onUpdatePoints={handlePointUpdate} highlightStaffId={highlightStaffId} setHighlightStaffId={setHighlightStaffId} />;
       case 'movements': return <MovementLogView movements={movements} setMovements={updateMovements} staffList={staffList} billingRules={billingRules} role={role!} setMessages={updateMessages} currentUser={currentUser} onUpdatePoints={handlePointUpdate} />;
       case 'expenses': return <ExpenseManagementView expenses={expenses} setExpenses={updateExpenses} staffList={staffList} role={role!} currentUser={currentUser} advances={advances} onOpenProfile={openProfile} allowedBackdateDays={allowedBackdateDays} />;
@@ -1855,87 +1959,221 @@ const App: React.FC = () => {
             </div>
           )}
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">ইউজারনেম / নাম</label>
-              <div className="relative group">
-                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-indigo-400 transition-colors duration-300" />
+          {forgotMode === 'none' ? (
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">ইউজারনেম / নাম</label>
+                <div className="relative group">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-indigo-400 transition-colors duration-300" />
+                  <input 
+                    required 
+                    type="text" 
+                    disabled={isLoggingIn}
+                    className="w-full pl-10 pr-4 py-2.5 bg-white/10 border border-white/10 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all font-bold text-gray-100 text-sm placeholder:text-gray-500 hover:bg-white/20 focus:bg-white/20 backdrop-blur-md disabled:opacity-50"
+                    placeholder="Username..."
+                    value={loginUsername}
+                    onChange={(e) => setLoginUsername(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">পাসওয়ার্ড</label>
+                <div className="relative group">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-indigo-400 transition-colors duration-300" />
+                  <input 
+                    required 
+                    type={showLoginPassword ? "text" : "password"}
+                    disabled={isLoggingIn}
+                    className="w-full pl-10 pr-12 py-2.5 bg-white/10 border border-white/10 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all font-bold text-gray-100 text-sm placeholder:text-gray-500 hover:bg-white/20 focus:bg-white/20 backdrop-blur-md disabled:opacity-50"
+                    placeholder="Password..."
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                  />
+                  <button 
+                    type="button"
+                    disabled={isLoggingIn}
+                    onClick={() => setShowLoginPassword(!showLoginPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-all"
+                  >
+                    {showLoginPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between py-1">
+                <div className="flex items-center gap-2">
+                   <input 
+                     type="checkbox" 
+                     id="rememberMe" 
+                     disabled={isLoggingIn}
+                     className="w-4 h-4 rounded border-gray-600 bg-white/10 text-indigo-500 focus:ring-indigo-500"
+                     checked={rememberMe}
+                     onChange={(e) => setRememberMe(e.target.checked)}
+                   />
+                   <label htmlFor="rememberMe" className="text-xs font-bold text-gray-400 cursor-pointer select-none hover:text-gray-200 transition-colors">
+                     একাউন্ট সেভ করুন
+                   </label>
+                </div>
+                <button
+                  type="button"
+                  className="text-xs font-bold text-indigo-400 hover:text-indigo-300 transition-colors"
+                  onClick={() => {
+                     setForgotMode('email');
+                     setForgotError('');
+                     setForgotEmail('');
+                  }}
+                >
+                  পাসওয়ার্ড ভুলে গেছেন?
+                </button>
+              </div>
+
+              {loginError && (
+                <div className="bg-red-500/10 text-red-400 p-3 rounded-xl text-xs font-bold flex items-center gap-2 border border-red-500/20 animate-pulse">
+                  <XCircle className="w-4 h-4 shrink-0" /> <span className="flex-1">{loginError}</span>
+                </div>
+              )}
+
+              <button 
+                type="submit" 
+                disabled={isLoggingIn}
+                className={`w-full bg-indigo-600 text-white py-3 rounded-xl font-black shadow-lg shadow-indigo-500/40 hover:bg-indigo-50 transition-all active:scale-95 flex items-center justify-center gap-2 text-sm relative overflow-hidden group border border-indigo-400/20 hover:border-indigo-400/50 ${isLoggingIn ? 'opacity-70 cursor-wait' : ''}`}
+              >
+                <span className="relative z-10 flex items-center gap-2">
+                  {isLoggingIn ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      যাচাই করা হচ্ছে...
+                    </>
+                  ) : (
+                    <>
+                      প্রবেশ করুন <ArrowRightLeft className="w-4 h-4 rotate-90 group-hover:translate-x-1 transition-transform" />
+                    </>
+                  )}
+                </span>
+                {!isLoggingIn && <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>}
+              </button>
+            </form>
+          ) : forgotMode === 'email' ? (
+            <form onSubmit={handleForgotRequestOTP} className="space-y-4">
+              <h3 className="text-lg font-bold text-white mb-2 text-center">আপনার ইমেইল দিন</h3>
+              <p className="text-xs text-gray-400 text-center mb-4">একটি ভেরিফিকেশন কোড পাঠানো হবে</p>
+              
+              <div>
+                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">ইমেইল</label>
+                <input 
+                  required 
+                  type="email" 
+                  disabled={isForgotLoading}
+                  className="w-full px-4 py-2.5 bg-white/10 border border-white/10 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-gray-100 text-sm placeholder:text-gray-500"
+                  placeholder="your@email.com"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                />
+              </div>
+
+              {forgotError && (
+                <div className="bg-red-500/10 text-red-400 p-3 rounded-xl text-xs font-bold flex items-center gap-2 border border-red-500/20 animate-pulse">
+                  <XCircle className="w-4 h-4 shrink-0" /> <span className="flex-1">{forgotError}</span>
+                </div>
+              )}
+
+              <button 
+                type="submit" 
+                disabled={isForgotLoading}
+                className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2"
+              >
+                {isForgotLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'কোড পাঠান'}
+              </button>
+
+              <button 
+                type="button"
+                onClick={() => setForgotMode('none')}
+                className="w-full mt-2 bg-transparent text-gray-400 py-2 font-bold text-sm hover:text-white"
+              >
+                লগইন পেজে ফিরে যান
+              </button>
+            </form>
+          ) : forgotMode === 'otp' ? (
+            <form onSubmit={handleForgotVerifyOTP} className="space-y-4">
+              <h3 className="text-lg font-bold text-white mb-2 text-center">কোড ভেরিফাই করুন</h3>
+              <p className="text-xs text-gray-400 text-center mb-4">{forgotEmail} তে একটি কোড পাঠানো হয়েছে</p>
+              
+              <div>
+                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">ভেরিফিকেশন কোড</label>
                 <input 
                   required 
                   type="text" 
-                  disabled={isLoggingIn}
-                  className="w-full pl-10 pr-4 py-2.5 bg-white/10 border border-white/10 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all font-bold text-gray-100 text-sm placeholder:text-gray-500 hover:bg-white/20 focus:bg-white/20 backdrop-blur-md disabled:opacity-50"
-                  placeholder="Username..."
-                  value={loginUsername}
-                  onChange={(e) => setLoginUsername(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-white/10 border border-white/10 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-gray-100 text-sm text-center tracking-widest"
+                  placeholder="000000"
+                  value={forgotOtpInput}
+                  onChange={(e) => setForgotOtpInput(e.target.value)}
                 />
               </div>
-            </div>
 
-            <div>
-              <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">পাসওয়ার্ড</label>
-              <div className="relative group">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-indigo-400 transition-colors duration-300" />
-                <input 
-                  required 
-                  type={showLoginPassword ? "text" : "password"}
-                  disabled={isLoggingIn}
-                  className="w-full pl-10 pr-12 py-2.5 bg-white/10 border border-white/10 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all font-bold text-gray-100 text-sm placeholder:text-gray-500 hover:bg-white/20 focus:bg-white/20 backdrop-blur-md disabled:opacity-50"
-                  placeholder="Password..."
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                />
-                <button 
-                  type="button"
-                  disabled={isLoggingIn}
-                  onClick={() => setShowLoginPassword(!showLoginPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-all"
-                >
-                  {showLoginPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
+              {forgotError && (
+                <div className="bg-red-500/10 text-red-400 p-3 rounded-xl text-xs font-bold flex items-center gap-2 border border-red-500/20 animate-pulse">
+                  <XCircle className="w-4 h-4 shrink-0" /> <span className="flex-1">{forgotError}</span>
+                </div>
+              )}
+
+              <button 
+                type="submit" 
+                className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2"
+              >
+                ভেরিফাই করুন
+              </button>
+
+              <button 
+                type="button"
+                onClick={() => setForgotMode('email')}
+                className="w-full mt-2 bg-transparent text-gray-400 py-2 font-bold text-sm hover:text-white"
+              >
+                ইমেইল পরিবর্তন করুন
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleForgotResetPassword} className="space-y-4">
+              <h3 className="text-lg font-bold text-white mb-2 text-center">নতুন পাসওয়ার্ড দিন</h3>
+              
+              <div>
+                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">নতুন পাসওয়ার্ড</label>
+                <div className="relative group">
+                  <input 
+                    required 
+                    type={showLoginPassword ? "text" : "password"}
+                    disabled={isForgotLoading}
+                    className="w-full pl-4 pr-12 py-2.5 bg-white/10 border border-white/10 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-gray-100 text-sm"
+                    placeholder="New Password..."
+                    value={forgotNewPwd}
+                    onChange={(e) => setForgotNewPwd(e.target.value)}
+                  />
+                  <button 
+                    type="button"
+                    disabled={isForgotLoading}
+                    onClick={() => setShowLoginPassword(!showLoginPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-white"
+                  >
+                    {showLoginPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
-            </div>
 
-            <div className="flex items-center gap-2 py-1">
-               <input 
-                 type="checkbox" 
-                 id="rememberMe" 
-                 disabled={isLoggingIn}
-                 className="w-4 h-4 rounded border-gray-600 bg-white/10 text-indigo-500 focus:ring-indigo-500"
-                 checked={rememberMe}
-                 onChange={(e) => setRememberMe(e.target.checked)}
-               />
-               <label htmlFor="rememberMe" className="text-xs font-bold text-gray-400 cursor-pointer select-none hover:text-gray-200 transition-colors">
-                 একাউন্ট সেভ করুন (Remember Me)
-               </label>
-            </div>
+              {forgotError && (
+                <div className="bg-red-500/10 text-red-400 p-3 rounded-xl text-xs font-bold flex items-center gap-2 border border-red-500/20 animate-pulse">
+                  <XCircle className="w-4 h-4 shrink-0" /> <span className="flex-1">{forgotError}</span>
+                </div>
+              )}
 
-            {loginError && (
-              <div className="bg-red-500/10 text-red-400 p-3 rounded-xl text-xs font-bold flex items-center gap-2 border border-red-500/20 animate-pulse">
-                <XCircle className="w-4 h-4 shrink-0" /> <span className="flex-1">{loginError}</span>
-              </div>
-            )}
-
-            <button 
-              type="submit" 
-              disabled={isLoggingIn}
-              className={`w-full bg-indigo-600 text-white py-3 rounded-xl font-black shadow-lg shadow-indigo-500/40 hover:bg-indigo-50 transition-all active:scale-95 flex items-center justify-center gap-2 text-sm relative overflow-hidden group border border-indigo-400/20 hover:border-indigo-400/50 ${isLoggingIn ? 'opacity-70 cursor-wait' : ''}`}
-            >
-              <span className="relative z-10 flex items-center gap-2">
-                {isLoggingIn ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    যাচাই করা হচ্ছে...
-                  </>
-                ) : (
-                  <>
-                    প্রবেশ করুন <ArrowRightLeft className="w-4 h-4 rotate-90 group-hover:translate-x-1 transition-transform" />
-                  </>
-                )}
-              </span>
-              {!isLoggingIn && <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>}
-            </button>
-          </form>
+              <button 
+                type="submit" 
+                disabled={isForgotLoading}
+                className="w-full bg-green-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2"
+              >
+                {isForgotLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'পাসওয়ার্ড সেভ করুন'}
+              </button>
+            </form>
+          )}
 
           <div className="mt-4 border-t border-white/10 pt-4">
              <button 

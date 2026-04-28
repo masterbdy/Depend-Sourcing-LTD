@@ -592,13 +592,13 @@ const AttendanceView: React.FC<AttendanceProps> = ({ staffList = [], attendanceL
            </div>
 
            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-              {kioskStaffList.map(staff => {
+              {kioskStaffList.map((staff, index) => {
                  const record = (attendanceList || []).find(a => a.date === today && a.staffId === staff.id);
                  const isCheckedIn = !!record;
                  
                  return (
                     <div 
-                      key={staff.id}
+                      key={`${staff.id}-${index}`}
                       onClick={() => {
                          if (!distanceInfo?.isAllowed) {
                             alert("ডিভাইস লোকেশনের বাইরে আছে। হাজিরা দেওয়া যাবে না।");

@@ -256,6 +256,17 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
          return;
       }
 
+      // Check for duplicate user by name or phone/staffId
+      const isDuplicate = staffList.some(s => 
+        (s.name.trim().toLowerCase() === formData.name.trim().toLowerCase()) || 
+        (formData.mobile && s.mobile === formData.mobile)
+      );
+
+      if (isDuplicate) {
+        const confirmAdd = window.confirm("এই নামের বা নাম্বারের একজন মেম্বার বা ডুপ্লিকেট ইতিমধ্যে সিস্টেমে থাকতে পারে! আপনি কি তারপরও নতুন যুক্ত করতে চান?");
+        if (!confirmAdd) return;
+      }
+
       const newStaff: Staff = {
         id: Math.random().toString(36).substr(2, 9),
         name: formData.name,
@@ -569,7 +580,7 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
 
       {/* Grid View */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-        {filteredStaff.map((staff) => {
+        {filteredStaff.map((staff, index) => {
           if (!staff) return null;
           const { balance, totalSalaryAdv, totalRegularAdv, approved } = getStaffFinancials(staff.id);
           const safeName = staff.name || 'Unknown';
@@ -674,8 +685,8 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
                               </div>
 
                               <div className="space-y-3 max-h-48 overflow-y-auto custom-scrollbar pr-1">
-                                  {staff.notes?.map(note => (
-                                      <div key={note.id} className="bg-white dark:bg-gray-900 rounded-lg p-3 border border-gray-100 dark:border-gray-800 shadow-sm">
+                                  {staff.notes?.map((note, index) => (
+                                      <div key={`${note.id}-${index}`} className="bg-white dark:bg-gray-900 rounded-lg p-3 border border-gray-100 dark:border-gray-800 shadow-sm">
                                           <div className="flex justify-between items-center mb-1">
                                               <span className="text-[9px] font-bold text-indigo-500 uppercase">{note.createdBy}</span>
                                               <span className="text-[9px] text-gray-500">{new Date(note.createdAt).toLocaleDateString()}</span>
@@ -1204,8 +1215,8 @@ const StaffManagementView: React.FC<StaffProps> = ({ staffList = [], setStaffLis
 
                      return (
                         <div className="space-y-3">
-                           {historyItems.map((item: any) => (
-                              <div key={item.id} className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 flex justify-between items-center hover:shadow-md transition-all duration-300 group">
+                           {historyItems.map((item: any, index: number) => (
+                              <div key={`${item.id}-${index}`} className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 flex justify-between items-center hover:shadow-md transition-all duration-300 group">
                                  <div>
                                     <div className="flex items-center gap-2 mb-1.5">
                                        <span className={`text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider border ${item.type === 'EXPENSE' ? 'bg-orange-50 text-orange-600 border-orange-200' : (item.type === 'SALARY' ? 'bg-purple-50 text-purple-600 border-purple-200' : 'bg-blue-50 text-blue-600 border-blue-200')}`}>

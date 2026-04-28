@@ -237,11 +237,11 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[300px] overflow-y-auto custom-scrollbar p-1">
-                {(staffList || []).filter(s => s.status === 'ACTIVE' && !s.deletedAt && s.role !== UserRole.KIOSK).map(staff => {
+                {(staffList || []).filter(s => s.status === 'ACTIVE' && !s.deletedAt && s.role !== UserRole.KIOSK).map((staff, index) => {
                     const isAllowed = productEditors.includes(staff.id);
                     return (
                         <div 
-                            key={staff.id} 
+                            key={`${staff.id}-${index}`} 
                             onClick={() => toggleProductEditor(staff.id)}
                             className={`p-3 rounded-2xl border-2 cursor-pointer transition-all duration-300 flex items-center justify-between group ${isAllowed ? 'border-pink-500 bg-pink-50 dark:bg-pink-500/10 shadow-sm shadow-pink-100 dark:shadow-none' : 'border-gray-100 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-800'}`}
                         >
