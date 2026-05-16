@@ -1,8 +1,45 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+@layer utilities {
+  .animate-pulse-slow {
+    animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  .animate-bounce-slow {
+    animation: bounce 3s infinite;
+  }
+  .animate-progress {
+    animation: progress 2.5s ease-in-out forwards;
+  }
+  .animate-fade-in-up {
+    animation: fadeInUp 0.8s ease-out forwards;
+  }
+}
+
+@keyframes progress {
+  0% {
+    transform: scaleX(0);
+  }
+  50% {
+    transform: scaleX(0.7);
+  }
+  100% {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 body {
-  font-family: 'Noto Sans Bengali', 'Hind Siliguri', sans-serif;
+  font-family: "Noto Sans Bengali", "Hind Siliguri", sans-serif;
 }

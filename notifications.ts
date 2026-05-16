@@ -52,7 +52,18 @@ export const registerServiceWorkerAndGetToken = async (firebaseConfig: any): Pro
             icon: '/pwa-192x192.png',
             badge: '/pwa-192x192.png',
           };
-          new Notification(title, options);
+          try {
+            if (registration && registration.showNotification) {
+              registration.showNotification(title, options).catch((e) => {
+                 console.error("SW notification error", e);
+                 try { new Notification(title, options); } catch(ex){}
+              });
+            } else {
+              new Notification(title, options);
+            }
+          } catch (e) {
+            console.error("Notification display error", e);
+          }
         }
       });
 

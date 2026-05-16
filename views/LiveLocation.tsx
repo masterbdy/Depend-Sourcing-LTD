@@ -1,6 +1,17 @@
-import React from 'react';
-import { Map, Navigation, Battery, SignalHigh, ExternalLink, Clock, Laptop } from 'lucide-react';
+import React, { useState } from 'react';
+import { Map as MapIcon, Navigation, Battery, SignalHigh, ExternalLink, Clock, Laptop } from 'lucide-react';
 import { Staff, StaffLocation, UserRole } from '../types';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+
+// Fix for default marker icons in Leaflet with webpack/vite
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
 
 interface LiveLocationProps {
   staffList: Staff[];
@@ -19,12 +30,17 @@ const LiveLocationView: React.FC<LiveLocationProps> = ({ staffList = [], liveLoc
     return { status: 'OFFLINE', color: 'bg-gray-400', text: 'text-gray-500', label: `${minutes > 60 ? Math.floor(minutes/60)+'h' : minutes+'m'} ago` };
   };
 
+  const staffWithLocations = activeStaff.filter(staff => !!liveLocations[staff.id]);
+  const defaultCenter = staffWithLocations.length > 0 
+    ? [liveLocations[staffWithLocations[0].id].lat, liveLocations[staffWithLocations[0].id].lng] as [number, number]
+    : [23.8103, 90.4125] as [number, number]; // Dhaka defaults
+
   return (
     <div className="space-y-6">
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
         <div>
           <h2 className="text-2xl font-black text-gray-800 flex items-center gap-3">
-            <Map className="w-6 h-6 text-indigo-600" />
+            <MapIcon className="w-6 h-6 text-indigo-600" />
             লাইভ স্টাফ ট্র্যাকিং
           </h2>
           <p className="text-sm text-gray-500 mt-1">কর্মরত স্টাফদের বর্তমান অবস্থান দেখুন (Real-time)</p>
@@ -34,6 +50,53 @@ const LiveLocationView: React.FC<LiveLocationProps> = ({ staffList = [], liveLoc
            <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-orange-500"></div> Idle</div>
            <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-gray-300"></div> Offline</div>
         </div>
+      </div>
+
+      <div className="rounded-2xl border border-gray-200 overflow-hidden shadow-sm h-[450px] relative z-0">
+        <MapContainer center={defaultCenter} zoom={16} maxZoom={22} style={{ height: '100%', width: '100%' }}>
+          <TileLayer
+            attribution='&copy; Google Maps'
+            url="https://mt1.google.com/vt/lyrs=y&hl=bn&x={x}&y={y}&z={z}"
+            maxZoom={22}
+          />
+          {staffWithLocations.map(staff => {
+            const loc = liveLocations[staff.id];
+            
+            const diff = new Date().getTime() - new Date(loc.timestamp).getTime();
+            const minutes = Math.floor(diff / 60000);
+            const borderColor = minutes < 2 ? '#22c55e' : minutes < 15 ? '#f97316' : '#9ca3af';
+            
+            const innerHtml = staff.photo 
+               ? `<img src="${staff.photo}" style="width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 3px solid ${borderColor}; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);" />`
+               : `<div style="width: 36px; height: 36px; border-radius: 50%; border: 3px solid ${borderColor}; background: white; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #4f46e5; font-size: 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">${staff.name.charAt(0)}</div>`;
+
+            const customIcon = L.divIcon({
+                className: 'custom-staff-marker',
+                html: innerHtml,
+                iconSize: [36, 36],
+                iconAnchor: [18, 18],
+                popupAnchor: [0, -18],
+            });
+
+            return (
+              <Marker key={staff.id} position={[loc.lat, loc.lng]} icon={customIcon}>
+                <Popup>
+                  <div className="flex items-center gap-2">
+                     {staff.photo ? (
+                       <img src={staff.photo} alt={staff.name} className="w-8 h-8 rounded-full object-cover" />
+                     ) : (
+                       <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs">{staff.name.charAt(0)}</div>
+                     )}
+                     <div>
+                       <strong className="block text-sm text-gray-800 m-0">{staff.name}</strong>
+                       <span className="text-[10px] text-gray-500">{new Date(loc.timestamp).toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit'})}</span>
+                     </div>
+                  </div>
+                </Popup>
+              </Marker>
+            );
+          })}
+        </MapContainer>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

@@ -42,5 +42,8 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false
+  },
+  define: {
+    'process.env.GOOGLE_MAPS_PLATFORM_KEY': JSON.stringify(process.env.GOOGLE_MAPS_PLATFORM_KEY || '')
   }
 });

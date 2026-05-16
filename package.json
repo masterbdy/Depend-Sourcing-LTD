@@ -11,16 +11,22 @@
   },
   "dependencies": {
     "@emailjs/browser": "^4.4.1",
+    "@vis.gl/react-google-maps": "^1.8.3",
+    "bangla-date-converter": "^1.0.5",
     "express": "^5.2.1",
     "firebase": "^10.8.1",
+    "leaflet": "^1.9.4",
     "lucide-react": "^0.344.0",
+    "motion": "^12.38.0",
     "nodemailer": "^8.0.6",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-leaflet": "^4.2.1",
     "recharts": "^2.12.2"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
+    "@types/leaflet": "^1.9.21",
     "@types/nodemailer": "^8.0.0",
     "@types/react": "^18.2.64",
     "@types/react-dom": "^18.2.21",

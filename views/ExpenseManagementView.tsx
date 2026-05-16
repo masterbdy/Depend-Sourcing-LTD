@@ -12,37 +12,35 @@ interface ExpenseProps {
   advances: AdvanceLog[];
   onOpenProfile?: (staffId: string) => void;
   allowedBackdateDays?: number;
+  typoDictionary?: Record<string, string>;
+  setTypoDictionary?: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  typoSuggestions?: any[];
+  setTypoSuggestions?: React.Dispatch<React.SetStateAction<any[]>>;
 }
 
-// Common Bengali Typos Dictionary
-const TYPO_DICTIONARY: Record<string, string> = {
-  'লান্স': 'লাঞ্চ',
-  'লান্চ': 'লাঞ্চ',
-  'লাঞ্চ বিল': 'লাঞ্চ',
-  'রিস্কা': 'রিকশা',
-  'রিকসা': 'রিকশা',
-  'রিক্সা': 'রিকশা',
-  'ভারা': 'ভাড়া',
-  'গারি': 'গাড়ি',
-  'বিল্ল': 'বিল',
-  'নাষ্তা': 'নাস্তা',
-  'নাশ্তা': 'নাস্তা',
-  'খাবাড়': 'খাবার',
-  'লেত': 'লেট',
-  'লেঠ': 'লেট',
-  'ওভারটাইম': 'ওভারটাইম',
-  'ওভার টাইম': 'ওভারটাইম',
-  'মোবাইল বিল': 'মোবাইল',
-  'তেল': 'ফুয়েল',
-  'পেটেল': 'পেট্রোল',
-  'পেট্রোল': 'অকটেন', // If needed strictly
-  'সিএনজি': 'CNG',
-  'বাইক': 'বাইক',
-  'মালামাল': 'মালামাল',
-  'কুরিয়ার': 'কুরিয়ার'
-};
+function getLevenshteinDistance(a: string, b: string): number {
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+  const matrix = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
+  for (let i = 0; i <= a.length; i++) matrix[i][0] = i;
+  for (let j = 0; j <= b.length; j++) matrix[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+      for (let j = 1; j <= b.length; j++) {
+          if (a[i - 1] === b[j - 1]) {
+              matrix[i][j] = matrix[i - 1][j - 1];
+          } else {
+              matrix[i][j] = Math.min(
+                  matrix[i - 1][j - 1] + 1,
+                  matrix[i][j - 1] + 1,
+                  matrix[i - 1][j] + 1
+              );
+          }
+      }
+  }
+  return matrix[a.length][b.length];
+}
 
-const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, staffList, role, currentUser, advances = [], onOpenProfile, allowedBackdateDays = 1 }) => {
+const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, staffList, role, currentUser, advances = [], onOpenProfile, allowedBackdateDays = 1, typoDictionary = {}, setTypoDictionary, typoSuggestions = [], setTypoSuggestions }) => {
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [formData, setFormData] = useState({ 
     staffId: '', 
@@ -77,6 +75,10 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedStaffFilter, setSelectedStaffFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [isTypoModalOpen, setIsTypoModalOpen] = useState(false);
+  const [editingSuggId, setEditingSuggId] = useState<string | null>(null);
+  const [editingSuggText, setEditingSuggText] = useState('');
 
   const activeStaff = staffList.filter(s => !s.deletedAt && s.status === 'ACTIVE');
 
@@ -112,20 +114,45 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
 
   // TYPO CHECKER LOGIC
   const detectedTypos = useMemo(() => {
-    const words = formData.reason.split(/[\s,]+/); // Split by space or comma
+    const words = formData.reason.split(/[\s,\-\.\/?!;'":\(\)\[\]{}|\\_]+/).filter(Boolean); // Split by spaces and punctuation
     const found: { wrong: string, correct: string }[] = [];
+    const baseWords = Array.from(new Set(Object.values(typoDictionary || {})));
     
     words.forEach(word => {
-       // Simple check (can be improved with fuzzy search later)
-       if (TYPO_DICTIONARY[word]) {
+       if (word.length < 3) return; // Ignore very short words
+       if (/^[০-৯0-9.,]+$/.test(word)) return; // Ignore numbers
+       
+       // 1. Exact match in dictionary
+       if (typoDictionary && typoDictionary[word]) {
           // Avoid duplicates
           if (!found.some(f => f.wrong === word)) {
-             found.push({ wrong: word, correct: TYPO_DICTIONARY[word] });
+             found.push({ wrong: word, correct: typoDictionary[word] });
+          }
+          return;
+       }
+       
+       // 2. Exact match with a known correct word (no typo)
+       if (baseWords.includes(word)) return;
+       
+       // 3. Fuzzy match against known correct words
+       let bestMatch = null;
+       let minDistance = 999;
+       for (const bw of baseWords) {
+          const d = getLevenshteinDistance(word, bw);
+          if (d < minDistance) {
+             minDistance = d;
+             bestMatch = bw;
+          }
+       }
+       
+       if (minDistance > 0 && minDistance <= 2 && bestMatch) {
+          if (!found.some(f => f.wrong === word)) {
+             found.push({ wrong: word, correct: bestMatch });
           }
        }
     });
     return found;
-  }, [formData.reason]);
+  }, [formData.reason, typoDictionary]);
 
   const fixTypo = (wrong: string, correct: string) => {
      setFormData(prev => ({
@@ -153,6 +180,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
   const generateVoucherHTML = (expense: Expense) => {
     const stats = getStaffFinancials(expense.staffId);
     const dateStr = new Date(expense.createdAt).toLocaleDateString('bn-BD', { day: 'numeric', month: 'long', year: 'numeric' });
+    const timeStr = new Date(expense.createdAt).toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' });
     const staff = staffList.find(s => s.id === expense.staffId);
     const designation = staff?.designation || 'N/A';
     const staffId = staff?.staffId || 'N/A';
@@ -190,7 +218,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
             <div style="font-size: 48px; font-weight: 900; color: #111827; line-height: 1; letter-spacing: -1px; ${fontStyle}">৳ ${expense.amount.toLocaleString()}</div>
             <div style="font-size: 12px; font-weight: 600; color: #4b5563; margin-top: 5px; text-transform: uppercase; letter-spacing: 1px;">BDT Taka Only</div>
             <div style="margin-top: 20px; font-size: 14px; font-weight: 500; color: #374151; background: #f3f4f6; padding: 10px 20px; border-radius: 50px; display: inline-block; ${fontStyle}">"${expense.reason}"</div>
-            <div style="margin-top: 10px; font-size: 10px; font-weight: 600; color: #9ca3af; ${fontStyle}">Date: ${dateStr}</div>
+            <div style="margin-top: 10px; font-size: 10px; font-weight: 600; color: #9ca3af; ${fontStyle}">Date: ${dateStr} - ${timeStr}</div>
          </div>
          <div style="margin-bottom: 50px;">
             <div style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: #6b7280; margin-bottom: 10px; letter-spacing: 0.5px; padding-left: 5px;">Current Account Summary</div>
@@ -324,6 +352,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
       if (e.isDeleted) return false;
       if (role === UserRole.STAFF && currentUser) { if (e.staffName !== currentUser) return false; }
       if (selectedStaffFilter && e.staffId !== selectedStaffFilter) return false;
+      if (statusFilter && e.status !== statusFilter) return false;
       
       const matchesSearch = e.reason.toLowerCase().includes(searchTerm.toLowerCase()) || e.staffName.toLowerCase().includes(searchTerm.toLowerCase());
       const expenseDate = new Date(e.createdAt).setHours(0, 0, 0, 0);
@@ -333,7 +362,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
       return matchesSearch && matchesDate;
     })
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [expenses, searchTerm, startDate, endDate, role, currentUser, selectedStaffFilter]);
+  }, [expenses, searchTerm, startDate, endDate, role, currentUser, selectedStaffFilter, statusFilter]);
 
   const handleReasonChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const text = e.target.value;
@@ -445,6 +474,48 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
       createdAt: submitDate.toISOString()
     };
     
+    // Fuzzy Matching Tracking
+    if (setTypoSuggestions) {
+      const words = formData.reason.split(/[\s,\-\.\/?!;'":\(\)\[\]{}|\\_]+/).filter(Boolean);
+      const baseWords = Array.from(new Set(Object.values(typoDictionary || {})));
+      const newSuggestions: any[] = [];
+      words.forEach(word => {
+         if (word.length < 3) return; // Ignore very short words
+         if (/^[০-৯0-9.,]+$/.test(word)) return; // Ignore numbers
+         if (typoDictionary && typoDictionary[word]) return; // Known typo
+         if (baseWords.includes(word)) return; // Known correct word
+         if (typoSuggestions.some(s => s.wrong === word && s.status === 'PENDING')) return; // Already suggested
+         
+         let bestMatch = null;
+         let minDistance = 999;
+         // Try to find a fuzzy match among known correct words
+         for (const bw of baseWords) {
+            const d = getLevenshteinDistance(word, bw);
+            if (d < minDistance) {
+               minDistance = d;
+               bestMatch = bw;
+            }
+         }
+         
+         // If a word is somewhat close to a known word (distance 1 or 2), suggest it.
+         // If it's completely unknown (distance > 2), still ask the admin to confirm it.
+         if (minDistance > 0 || baseWords.length === 0) {
+            newSuggestions.push({
+               id: Math.random().toString(36).substr(2, 9),
+               wrong: word,
+               suggested: minDistance <= 2 && bestMatch ? bestMatch : word,
+               status: 'PENDING',
+               staffName: staff.name, // Useful context
+               timestamp: new Date().toISOString()
+            });
+         }
+      });
+      
+      if (newSuggestions.length > 0) {
+         setTypoSuggestions(prev => [...prev, ...newSuggestions]);
+      }
+    }
+
     setExpenses(prev => [newExpense, ...prev]);
     setIsSubmitModalOpen(false);
     
@@ -533,7 +604,24 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
     setIsCorrectionModalOpen(false); setCorrectionData(null);
   };
 
-  const clearFilters = () => { setSearchTerm(''); setStartDate(''); setEndDate(''); setSelectedStaffFilter(''); };
+  const handleApproveSuggestion = (suggId: string, wrongWord: string, correctWord: string) => {
+    if (setTypoDictionary) setTypoDictionary(prev => ({ ...prev, [wrongWord]: correctWord }));
+    if (setTypoSuggestions) setTypoSuggestions(prev => prev.map(s => s.id === suggId ? { ...s, status: 'APPROVED' } : s));
+    setEditingSuggId(null);
+  };
+  
+  const handleRejectSuggestion = (suggId: string) => {
+    if (setTypoSuggestions) setTypoSuggestions(prev => prev.map(s => s.id === suggId ? { ...s, status: 'REJECTED' } : s));
+  };
+
+  const handleEditSuggestion = (suggId: string, wrongWord: string, customCorrectWord: string) => {
+    if (!customCorrectWord.trim()) return;
+    if (setTypoDictionary) setTypoDictionary(prev => ({ ...prev, [wrongWord]: customCorrectWord.trim() }));
+    if (setTypoSuggestions) setTypoSuggestions(prev => prev.map(s => s.id === suggId ? { ...s, status: 'APPROVED' } : s));
+    setEditingSuggId(null);
+  };
+
+  const clearFilters = () => { setSearchTerm(''); setStartDate(''); setEndDate(''); setSelectedStaffFilter(''); setStatusFilter(''); };
 
   const getStaffDisplayId = (staffId: string) => {
     const staff = staffList.find(s => s.id === staffId);
@@ -582,12 +670,27 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
               <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none"><ChevronDown className="h-3 w-3 text-slate-300" /></div>
           </div>
         )}
+        <div className="relative w-full lg:w-32 group">
+            <select className="block w-full pl-4 pr-8 py-2 bg-white dark:bg-gray-800 border-none rounded-full text-xs font-bold text-slate-600 dark:text-gray-300 focus:bg-white dark:focus:bg-gray-800 focus:ring-2 focus:ring-indigo-100 dark:focus:ring-gray-600 transition-all appearance-none cursor-pointer outline-none h-9 shadow-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+              <option value="">All Status</option>
+              <option value="PENDING">Pending</option>
+              {(role === UserRole.ADMIN || role === UserRole.MD) && <option value="VERIFIED">Verified</option>}
+              <option value="APPROVED">Approved</option>
+              <option value="REJECTED">Rejected</option>
+            </select>
+            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none"><ChevronDown className="h-3 w-3 text-slate-300" /></div>
+        </div>
         <div className="flex items-center bg-white dark:bg-gray-800 rounded-full px-1 py-1 border border-indigo-50 dark:border-gray-700 h-9 w-full lg:w-auto shadow-sm">
             <div className="relative flex-1 min-w-[100px]"><input type="date" className="block w-full pl-3 pr-1 py-1 bg-transparent border-none text-[10px] font-bold text-slate-500 dark:text-gray-400 focus:ring-0 cursor-pointer h-full outline-none" value={startDate} onChange={(e) => setStartDate(e.target.value)} /></div>
             <span className="text-slate-300 dark:text-gray-600 text-[10px] font-bold px-1">to</span>
             <div className="relative flex-1 min-w-[100px]"><input type="date" className="block w-full pl-1 pr-3 py-1 bg-transparent border-none text-[10px] font-bold text-slate-500 dark:text-gray-400 focus:ring-0 cursor-pointer h-full text-right outline-none" value={endDate} onChange={(e) => setEndDate(e.target.value)} /></div>
         </div>
         <div className="flex items-center gap-1.5 w-full lg:w-auto justify-end">
+            {(role === UserRole.ADMIN || role === UserRole.MD) && (
+              <button onClick={() => setIsTypoModalOpen(true)} className="px-3 h-9 flex items-center justify-center bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 font-bold text-xs hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-full transition-all border border-indigo-100 dark:border-indigo-900/50 shadow-sm outline-none gap-2" title="শব্দ সাজেশন">
+                 <Wand2 className="w-3.5 h-3.5" /> অবোধ্য শব্দ ({typoSuggestions?.filter(s => s.status === 'PENDING').length || 0})
+              </button>
+            )}
             <button onClick={clearFilters} className="w-9 h-9 flex items-center justify-center bg-white dark:bg-gray-800 text-slate-400 dark:text-gray-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-full transition-all border border-slate-100 dark:border-gray-700 shadow-sm outline-none" title="Reset Filters"><FilterX className="w-3.5 h-3.5" /></button>
         </div>
       </div>
@@ -606,14 +709,17 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                   {expense.status === 'PENDING' ? 'পেন্ডিং' : expense.status === 'VERIFIED' ? 'ভেরিফাইড (MD)' : expense.status === 'APPROVED' ? 'অনুমোদিত' : 'প্রত্যাখ্যাত'}
                 </span>
                 <div className="flex items-center gap-2">
-                  {/* EDIT Button Logic: Admin can edit ALL, MD can only edit Verified */}
-                  {((role === UserRole.ADMIN) || (role === UserRole.MD && expense.status === 'VERIFIED')) && (
+                  {/* EDIT Button Logic: Admin can edit ALL, MD can only edit Verified, Staff can edit own PENDING */}
+                  {((role === UserRole.ADMIN) || (role === UserRole.MD && expense.status === 'VERIFIED') || (role === UserRole.STAFF && expense.staffName === currentUser && expense.status === 'PENDING')) && (
                     <button onClick={() => openCorrectionModal(expense)} className="text-orange-500 hover:text-orange-700 transition-colors p-1 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-full" title="বিল সংশোধন করুন"><Edit3 className="w-4 h-4" /></button>
                   )}
                   {expense.voucherImage && (
                     <button onClick={() => setViewingVoucher(expense.voucherImage!)} className="text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300 transition-colors p-1 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-full" title="ভাউচার দেখুন"><Eye className="w-4 h-4" /></button>
                   )}
-                  <p className="text-xs text-gray-400 dark:text-gray-500">{new Date(expense.createdAt).toLocaleDateString('bn-BD')}</p>
+                  <div className="text-right">
+                    <p className="text-xs text-gray-400 dark:text-gray-500 font-bold">{new Date(expense.createdAt).toLocaleDateString('bn-BD', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                    <p className="text-[10px] text-gray-400 dark:text-gray-500 opacity-80">{new Date(expense.createdAt).toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' })}</p>
+                  </div>
                 </div>
               </div>
               <h4 className="text-lg font-bold text-gray-800 dark:text-white mb-1">৳ {expense.amount.toLocaleString()}</h4>
@@ -891,6 +997,72 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
           <div className="relative max-w-3xl w-full max-h-screen p-2">
              <button onClick={() => setViewingVoucher(null)} className="absolute -top-12 right-0 text-white hover:text-red-400 transition-colors"><X className="w-8 h-8" /></button>
              <img src={viewingVoucher} alt="Voucher Full View" className="w-full h-auto max-h-[85vh] object-contain rounded-lg shadow-2xl bg-white" />
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Typo Suggestions Modal */}
+      {isTypoModalOpen && createPortal(
+        <div className="fixed inset-0 z-[1002] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-gray-800 w-full max-w-2xl max-h-[90vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+            <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800">
+               <div>
+                  <h3 className="text-lg font-black text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                     <Wand2 className="w-5 h-5 text-indigo-500" /> অবোধ্য শব্দ ও সাজেশন
+                  </h3>
+                  <p className="text-[10px] text-gray-500 font-bold mt-1 uppercase tracking-wider">বিল থেকে অটো ডিটেক্ট করা নতুন শব্দগুলো</p>
+               </div>
+               <button onClick={() => {setIsTypoModalOpen(false); setEditingSuggId(null);}} className="p-2 text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors"><X className="w-5 h-5" /></button>
+            </div>
+            
+            <div className="p-4 overflow-y-auto flex-1 bg-white dark:bg-gray-900 custom-scrollbar space-y-3">
+               {typoSuggestions && typoSuggestions.filter(s => s.status === 'PENDING').length > 0 ? (
+                  typoSuggestions.filter(s => s.status === 'PENDING').map(s => (
+                     <div key={s.id} className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+                        <div>
+                           {s.wrong === s.suggested ? (
+                              <div className="flex items-center gap-2 mb-1">
+                                 <span className="text-blue-600 dark:text-blue-400 font-bold">{s.wrong}</span>
+                                 <span className="text-[10px] text-gray-500 bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">New Word</span>
+                              </div>
+                           ) : (
+                              <div className="flex items-center gap-2 mb-1">
+                                 <span className="text-red-500 font-bold line-through">{s.wrong}</span>
+                                 <span className="text-gray-400 dark:text-gray-500">→</span>
+                                 <span className="text-green-600 dark:text-green-400 font-bold">{s.suggested}</span>
+                              </div>
+                           )}
+                           <p className="text-[10px] text-gray-500 max-w-xs truncate" title={s.staffName}>Staff: {s.staffName}</p>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                           {editingSuggId === s.id ? (
+                              <div className="flex items-center gap-2 w-full sm:w-auto">
+                                 <input type="text" autoFocus className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-900 dark:text-white" value={editingSuggText} onChange={e => setEditingSuggText(e.target.value)} />
+                                 <button onClick={() => handleEditSuggestion(s.id, s.wrong, editingSuggText)} className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700">Save</button>
+                                 <button onClick={() => setEditingSuggId(null)} className="px-2 py-1.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg text-xs font-bold hover:bg-gray-300 dark:hover:bg-gray-600">Cancel</button>
+                              </div>
+                           ) : (
+                              <>
+                                 <button onClick={() => handleApproveSuggestion(s.id, s.wrong, s.suggested)} className="px-3 py-1.5 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded-lg text-xs font-bold flex flex-1 items-center justify-center gap-1 hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors"><CheckCircle className="w-3.5 h-3.5" /> Ok</button>
+                                 <button onClick={() => { setEditingSuggId(s.id); setEditingSuggText(s.suggested); }} className="px-3 py-1.5 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 rounded-lg text-xs font-bold flex flex-1 items-center justify-center gap-1 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors"><Edit3 className="w-3.5 h-3.5" /> Edit</button>
+                                 <button onClick={() => handleRejectSuggestion(s.id)} className="px-3 py-1.5 bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400 rounded-lg text-xs font-bold flex flex-1 items-center justify-center gap-1 hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"><Trash2 className="w-3.5 h-3.5" /> Reject</button>
+                              </>
+                           )}
+                        </div>
+                     </div>
+                  ))
+               ) : (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                     <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4">
+                        <CheckCheck className="w-8 h-8 text-green-500" />
+                     </div>
+                     <h4 className="text-gray-800 dark:text-gray-200 font-bold mb-1">কোনো নতুন শব্দ নেই</h4>
+                     <p className="text-xs text-gray-500 dark:text-gray-400">সব নতুন শব্দ রিভিউ করা হয়েছে</p>
+                  </div>
+               )}
+            </div>
           </div>
         </div>,
         document.body

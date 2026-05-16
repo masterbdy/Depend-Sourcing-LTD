@@ -14,10 +14,12 @@ interface TrashProps {
   notices: Notice[];
   setNotices: React.Dispatch<React.SetStateAction<Notice[]>>;
   role: UserRole;
+  currentUser: string | null;
 }
 
-const TrashView: React.FC<TrashProps> = ({ staffList = [], setStaffList, movements = [], setMovements, expenses = [], setExpenses, funds = [], setFunds, notices = [], setNotices, role }) => {
+const TrashView: React.FC<TrashProps> = ({ staffList = [], setStaffList, movements = [], setMovements, expenses = [], setExpenses, funds = [], setFunds, notices = [], setNotices, role, currentUser }) => {
   const [emptyTrashConfirm, setEmptyTrashConfirm] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
 
   const trashedStaff = (staffList || []).filter(s => s && !!s.deletedAt && !s.isHardDeleted);
   const trashedExpenses = (expenses || []).filter(e => e && !!e.isDeleted && !e.isHardDeleted);
@@ -46,14 +48,33 @@ const TrashView: React.FC<TrashProps> = ({ staffList = [], setStaffList, movemen
     setNotices(prev => prev.map(n => n.id === id ? { ...n, isDeleted: false } : n));
   };
 
-  // PERMANENT DELETE (EMPTY TRASH)
   const confirmEmptyTrash = () => {
+    let isValid = false;
+    
+    if (currentUser) {
+        const adminStaff = staffList.find(s => s && s.name === currentUser);
+        if (adminStaff) {
+           const validPassword = adminStaff.password || `${adminStaff.name}@`;
+           if (deletePassword === validPassword) isValid = true;
+        } else if (currentUser.toLowerCase() === 'ispa' && deletePassword === 'ayaan') {
+           isValid = true;
+        } else if (currentUser.toLowerCase() === 'mehedi' && deletePassword === 'mehedi@60') {
+           isValid = true;
+        }
+    }
+
+    if (!isValid) {
+       alert('সঠিক পাসওয়ার্ড দিন!');
+       return;
+    }
+
     setStaffList(prev => prev.map(s => s && s.deletedAt ? { ...s, isHardDeleted: true } : s));
     setExpenses(prev => prev.map(e => e && e.isDeleted ? { ...e, isHardDeleted: true } : e));
     setMovements(prev => prev.map(m => m && m.isDeleted ? { ...m, isHardDeleted: true } : m));
     setFunds(prev => prev.map(f => f && f.isDeleted ? { ...f, isHardDeleted: true } : f));
     setNotices(prev => prev.map(n => n && n.isDeleted ? { ...n, isHardDeleted: true } : n));
     setEmptyTrashConfirm(false);
+    setDeletePassword('');
     alert("রিসাইকেল বিন সফলভাবে খালি করা হয়েছে।");
   };
 
@@ -154,7 +175,7 @@ const TrashView: React.FC<TrashProps> = ({ staffList = [], setStaffList, movemen
                   <div>
                     <p className="font-bold text-gray-800">৳ {e.amount.toLocaleString()}</p>
                     <p className="text-xs text-gray-400">{e.reason} • {e.staffName}</p>
-                    <span className="text-[10px] bg-gray-100 px-2 py-0.5 rounded text-gray-500">{new Date(e.createdAt).toLocaleDateString('bn-BD')}</span>
+                    <span className="text-[10px] bg-gray-100 px-2 py-0.5 rounded text-gray-500">{new Date(e.createdAt).toLocaleDateString('bn-BD')} {new Date(e.createdAt).toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
                   <button onClick={() => restoreExpense(e.id)} className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100">
                     <RotateCcw className="w-3.5 h-3.5" /> রিস্টোর
@@ -199,12 +220,23 @@ const TrashView: React.FC<TrashProps> = ({ staffList = [], setStaffList, movemen
                 <AlertTriangle className="w-8 h-8 text-red-600" />
               </div>
               <h3 className="text-xl font-black text-gray-800 mb-2">আপনি কি নিশ্চিত?</h3>
-              <p className="text-sm text-gray-500 mb-6">
+              <p className="text-sm text-gray-500 mb-4">
                 রিসাইকেল বিনের সকল তথ্য স্থায়ীভাবে মুছে ফেলা হবে। এটি আর কখনোই ফিরিয়ে আনা যাবে না।
               </p>
+
+              <div className="mb-6">
+                 <input 
+                    type="password" 
+                    placeholder="আপনার পাসওয়ার্ড দিন" 
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-red-500"
+                    value={deletePassword}
+                    onChange={(e) => setDeletePassword(e.target.value)}
+                 />
+              </div>
+
               <div className="flex gap-3">
                 <button 
-                  onClick={() => setEmptyTrashConfirm(false)}
+                  onClick={() => { setEmptyTrashConfirm(false); setDeletePassword(''); }}
                   className="flex-1 py-3 border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors"
                 >
                   না, বাতিল করুন

@@ -331,7 +331,7 @@ const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = 
                                 <td className="px-4 py-2.5 text-right">
                                     <button 
                                     onClick={() => deleteEntry(t.id, t.originalType)} 
-                                    className="text-red-400 hover:text-red-600 bg-transparent hover:bg-red-50 dark:hover:bg-red-900/30 p-1 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                                    className="text-red-400 hover:text-red-600 bg-transparent hover:bg-red-50 dark:hover:bg-red-900/30 p-1 rounded-lg transition-colors md:opacity-0 group-hover:opacity-100"
                                     title="Delete Fund Entry"
                                     >
                                     <Trash2 className="w-3.5 h-3.5" />
@@ -388,7 +388,7 @@ const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = 
                                 <td className="px-4 py-2.5 text-right">
                                     <button 
                                     onClick={() => deleteEntry(t.id, t.originalType)} 
-                                    className="text-red-400 hover:text-red-600 bg-transparent hover:bg-red-50 dark:hover:bg-red-900/30 p-1 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                                    className="text-red-400 hover:text-red-600 bg-transparent hover:bg-red-50 dark:hover:bg-red-900/30 p-1 rounded-lg transition-colors md:opacity-0 group-hover:opacity-100"
                                     title="Delete Debit Entry"
                                     >
                                     <Trash2 className="w-3.5 h-3.5" />

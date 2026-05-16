@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { MapPin, Clock, Calendar, CheckCircle, XCircle, AlertTriangle, Fingerprint, UserCheck, ShieldCheck, Navigation, MonitorSmartphone, Search, FileText, X, RefreshCw, History, Map, Crosshair, Hourglass } from 'lucide-react';
+import { MapPin, Clock, Calendar, CheckCircle, XCircle, AlertTriangle, Fingerprint, UserCheck, ShieldCheck, Navigation, MonitorSmartphone, Search, FileText, X, RefreshCw, History, Map as MapIcon, Crosshair, Hourglass } from 'lucide-react';
 import { Staff, Attendance, UserRole } from '../types';
 import { OFFICE_START_TIME, WORK_LOCATIONS } from '../constants';
 

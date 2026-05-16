@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Settings, Save, Clock, Download, Upload, Database, ShieldCheck, ExternalLink, HelpCircle, Code, Check, AlertTriangle, Package, UserCheck, X, Image as ImageIcon, Trash2, Info, Mail } from 'lucide-react';
+import { Settings, Save, Clock, Download, Upload, Database, ShieldCheck, ExternalLink, HelpCircle, Code, Check, AlertTriangle, Package, UserCheck, X, Image as ImageIcon, Trash2, Info, Mail, ShieldAlert, RefreshCw } from 'lucide-react';
 import { BillingRule, UserRole, Staff } from '../types';
 import packageJson from '../package.json';
 
@@ -18,11 +18,19 @@ interface SettingsProps {
   setAllowedBackdateDays: (days: number) => void;
   festivalImage?: string;
   setFestivalImage?: (base64: string) => void;
+  companyLogo?: string;
+  setCompanyLogo?: (base64: string) => void;
+  setStaffList?: React.Dispatch<React.SetStateAction<Staff[]>>;
+  expenses?: any[];
+  movements?: any[];
+  advances?: any[];
+  attendanceList?: any[];
 }
 
-const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, role, exportData, importData, cloudConfig, saveCloudConfig, staffList = [], productEditors = [], setProductEditors, allowedBackdateDays, setAllowedBackdateDays, festivalImage, setFestivalImage }) => {
+const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, role, exportData, importData, cloudConfig, saveCloudConfig, staffList = [], productEditors = [], setProductEditors, allowedBackdateDays, setAllowedBackdateDays, festivalImage, setFestivalImage, companyLogo, setCompanyLogo, setStaffList, expenses = [], movements = [], advances = [], attendanceList = [] }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const festivalImageRef = useRef<HTMLInputElement>(null);
+  const companyLogoRef = useRef<HTMLInputElement>(null);
   const [configInput, setConfigInput] = useState(cloudConfig ? JSON.stringify(cloudConfig, null, 2) : '');
   const [parseError, setParseError] = useState<string | null>(null);
 
@@ -97,6 +105,149 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
     }
   };
 
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanResult, setScanResult] = useState<any>(null);
+  const [successInfo, setSuccessInfo] = useState<string | null>(null);
+  const [selectedRecoveryIds, setSelectedRecoveryIds] = useState<string[]>([]);
+
+  const handleRecoverMissingStaff = async () => {
+    try {
+        if (!setStaffList) {
+            setSuccessInfo("setStaffList is missing");
+            return;
+        }
+        setIsScanning(true);
+        setSuccessInfo(null);
+        
+        // Fake delay for visual feedback
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        // Find missing staff IDs inside all transactions
+        const foundStaffMap = new Map<string, { id: string, name: string, reason: string }>();
+        
+        let totalTrans = 0;
+        let foundActive = 0;
+
+        const maybeAdd = (id: string, name: string) => {
+            if (!id || !name || id === 'admin' || name === 'Mehedi' || name.toLowerCase() === 'admin') return;
+            totalTrans++;
+            
+            const existingById = (staffList || []).find(s => s && s.id === id);
+            const existingByName = (staffList || []).find(s => s && s.name && s.name.toLowerCase() === name.toLowerCase());
+
+            let needsRecovery = false;
+            let reason = '';
+
+            // If not found at all
+            if (!existingById && !existingByName) {
+                needsRecovery = true;
+                reason = 'missing';
+            } 
+            // Or if exist but hard deleted
+            else if (existingById?.isHardDeleted || existingByName?.isHardDeleted) {
+                needsRecovery = true;
+                reason = 'hard_deleted';
+            }
+            // Or if exist but soft deleted (in trash)
+            else if (existingById?.deletedAt || existingByName?.deletedAt) {
+                needsRecovery = true;
+                reason = 'in_trash';
+            } else {
+                foundActive++;
+            }
+
+            if (needsRecovery) {
+               foundStaffMap.set(id, { 
+                   id: existingById?.id || existingByName?.id || id, 
+                   name: existingById?.name || existingByName?.name || name,
+                   reason
+               });
+            }
+        }
+
+        (expenses || []).forEach(e => maybeAdd(e.staffId, e.staffName));
+        (movements || []).forEach(m => maybeAdd(m.staffId, m.staffName));
+        (advances || []).forEach(a => maybeAdd(a.staffId, a.staffName));
+        (attendanceList || []).forEach(a => maybeAdd(a.staffId, a.staffName));
+        
+        // Also check if there are people inside staffList itself who are just hard deleted but we want to recover them
+        (staffList || []).forEach(s => {
+           if (s && (s.isHardDeleted || s.deletedAt)) {
+              maybeAdd(s.id, s.name);
+           }
+        });
+
+        if (foundStaffMap.size === 0) {
+            setScanResult({ totalTrans, foundActive, missingList: [], inTrashList: [] });
+            return;
+        }
+
+        const missingOrHard = Array.from(foundStaffMap.values()).filter(x => x.reason === 'missing' || x.reason === 'hard_deleted');
+        const inTrash = Array.from(foundStaffMap.values()).filter(x => x.reason === 'in_trash');
+
+        setScanResult({
+            totalTrans,
+            foundActive,
+            missingList: missingOrHard,
+            inTrashList: inTrash,
+            foundStaffMap
+        });
+        setSelectedRecoveryIds(Array.from(foundStaffMap.values()).map(x => (x as any).id));
+    } catch (error: any) {
+        setSuccessInfo(`Error: ${error?.message || 'Unknown error'}`);
+        console.error(error);
+    } finally {
+        setIsScanning(false);
+    }
+  };
+
+  const toggleRecoverySelection = (id: string) => {
+      setSelectedRecoveryIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const executeRecovery = () => {
+    if (!scanResult || !scanResult.foundStaffMap || !setStaffList) return;
+    if (selectedRecoveryIds.length === 0) {
+        alert('অনুগ্রহ করে অন্তত একজন স্টাফ নির্বাচন করুন।');
+        return;
+    }
+    
+    try {
+        setStaffList(prev => {
+            const nextList = [...prev];
+            Array.from(scanResult.foundStaffMap.values() as any[])
+                .filter(rs => selectedRecoveryIds.includes(rs.id))
+                .forEach(rs => {
+                   const existingIdx = nextList.findIndex(s => s && (s.id === rs.id || (s.name && s.name.toLowerCase() === rs.name.toLowerCase())));
+               if (existingIdx >= 0) {
+                   // Recover the deleted one
+                   nextList[existingIdx] = {
+                       ...nextList[existingIdx],
+                       isHardDeleted: false,
+                       deletedAt: undefined,
+                       status: 'DEACTIVATED'
+                   };
+               } else {
+                   // Create new entry from transaction
+                   nextList.push({
+                       id: rs.id,
+                       name: rs.name,
+                       staffId: 'REC-' + Math.floor(1000 + Math.random() * 9000),
+                       designation: 'Recovered',
+                       status: 'DEACTIVATED',
+                       createdAt: new Date().toISOString()
+                   });
+               }
+            });
+            return nextList;
+        });
+        setScanResult(null);
+        setSuccessInfo("সফলভাবে রিকভার করা হয়েছে! আপনি 'স্টাফ ম্যানেজমেন্ট' এ গিয়ে তাদের স্ট্যাটাস 'ACTIVE' করতে পারবেন।");
+    } catch(err: any) {
+        setSuccessInfo("Error during recovery: " + err.message);
+    }
+  };
+
   const updateRule = (type: BillingRule['type'], field: keyof BillingRule, value: any) => {
     setBillingRules(prev => prev.map(r => r.type === type ? { ...r, [field]: value } : r));
   };
@@ -133,6 +284,39 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
           ctx?.drawImage(img, 0, 0, width, height);
           const dataUrl = canvas.toDataURL('image/png');
           setFestivalImage(dataUrl);
+        };
+        img.src = event.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleCompanyLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && setCompanyLogo) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          const MAX_SIZE = 400; // Keep it reasonable for logos
+          let width = img.width;
+          let height = img.height;
+          
+          if (width > MAX_SIZE) {
+            height *= MAX_SIZE / width;
+            width = MAX_SIZE;
+          }
+          if (height > MAX_SIZE) {
+            width *= MAX_SIZE / height;
+            height = MAX_SIZE;
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          ctx?.drawImage(img, 0, 0, width, height);
+          setCompanyLogo(canvas.toDataURL('image/png'));
         };
         img.src = event.target?.result as string;
       };
@@ -216,6 +400,41 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
                       <input ref={festivalImageRef} type="file" accept="image/*" hidden onChange={handleFestivalImageUpload} />
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">
                          * এই ছবিটি ড্যাশবোর্ডের হিরো সেকশনে ডানদিকে বড় আকারে দেখাবে। (Recommended: PNG with transparent background, High Quality)
+                      </p>
+                   </div>
+               )}
+
+               {setCompanyLogo && (
+                   <div className="bg-gray-50 dark:bg-gray-900/50 p-4 sm:p-5 rounded-2xl border border-gray-100 dark:border-gray-700 mt-4">
+                      <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">অ্যাপ লোগো (কোম্পানি লোগো)</label>
+                      <div className="flex flex-col sm:flex-row items-start gap-4">
+                          <div 
+                             onClick={() => companyLogoRef.current?.click()}
+                             className="w-full sm:w-48 h-48 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:border-indigo-500 dark:hover:border-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/5 transition-all group overflow-hidden relative bg-white dark:bg-gray-800"
+                          >
+                             {companyLogo ? (
+                                <img src={companyLogo} alt="Company Logo" className="w-[80%] h-[80%] object-contain" />
+                             ) : (
+                                <div className="text-center p-4">
+                                   <ImageIcon className="w-8 h-8 text-gray-400 dark:text-gray-500 mx-auto mb-2 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 transition-colors" />
+                                   <span className="text-xs font-bold text-gray-500 dark:text-gray-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Click to Upload Logo</span>
+                                </div>
+                             )}
+                          </div>
+                          
+                          {companyLogo && (
+                             <button 
+                               onClick={() => setCompanyLogo('')}
+                               className="p-3 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors border border-red-100 dark:border-red-500/20 flex items-center justify-center"
+                               title="Remove Image"
+                             >
+                                <Trash2 className="w-5 h-5" />
+                             </button>
+                          )}
+                      </div>
+                      <input ref={companyLogoRef} type="file" accept="image/*" hidden onChange={handleCompanyLogoUpload} />
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">
+                         * এই লোগোটি ইন্ট্রো স্প্ল্যাশ স্ক্রিন এবং প্রোডাক্ট ক্যাটালগের হেডারে দেখা যাবে।
                       </p>
                    </div>
                )}
@@ -445,8 +664,8 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
         </div>
 
         <div className="space-y-4">
-          {(billingRules || []).map((rule) => (
-            <div key={rule.type} className={`p-4 sm:p-5 rounded-2xl border transition-all duration-300 ${rule.type === 'HOLIDAY' ? 'bg-purple-50/50 dark:bg-purple-900/10 border-purple-100 dark:border-purple-800/30' : 'bg-gray-50 dark:bg-gray-900/50 border-gray-100 dark:border-gray-700'}`}>
+          {(billingRules || []).map((rule, index) => (
+            <div key={`${rule.type}-${index}`} className={`p-4 sm:p-5 rounded-2xl border transition-all duration-300 ${rule.type === 'HOLIDAY' ? 'bg-purple-50/50 dark:bg-purple-900/10 border-purple-100 dark:border-purple-800/30' : 'bg-gray-50 dark:bg-gray-900/50 border-gray-100 dark:border-gray-700'}`}>
               <h4 className={`font-bold mb-4 flex items-center gap-2 text-base ${rule.type === 'HOLIDAY' ? 'text-purple-700 dark:text-purple-400' : 'text-gray-800 dark:text-gray-200'}`}>
                 <div className={`w-2 h-2 rounded-full shadow-sm ${rule.type === 'HOLIDAY' ? 'bg-purple-500' : 'bg-indigo-500'}`}></div>
                 {rule.type} বিল সেটআপ
@@ -508,6 +727,109 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
           <input type="file" accept=".json" className="hidden" ref={fileInputRef} onChange={handleFileChange} />
         </div>
       </div>
+
+      {/* System Data Recovery */}
+      {role === UserRole.ADMIN && (
+      <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 transition-all duration-300 hover:shadow-md">
+        <div className="flex items-center gap-4 mb-5 pb-4 border-b border-gray-100 dark:border-gray-700">
+          <div className="bg-orange-50 dark:bg-orange-500/10 p-2.5 rounded-2xl text-orange-600 dark:text-orange-400">
+            <ShieldAlert className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-gray-800 dark:text-white tracking-tight">ডাটাবেস রিকভারি (Data Recovery)</h2>
+            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5">যদি কোনো স্টাফের প্রোফাইল ডিলিট হয়ে গিয়ে থাকে, তবে ট্রানজেকশন হিস্ট্রি থেকে তাদের রিকভার করুন।</p>
+          </div>
+        </div>
+        <div>
+          <button onClick={handleRecoverMissingStaff} disabled={isScanning} className="w-full sm:w-auto bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/20 text-orange-700 dark:text-orange-400 py-3 px-6 rounded-2xl font-bold hover:bg-orange-100 dark:hover:bg-orange-500/20 hover:shadow-md transition-all flex items-center justify-center gap-3 disabled:opacity-75 disabled:cursor-wait">
+            <div className="bg-white dark:bg-orange-500/20 p-2 rounded-xl shadow-sm">
+              <RefreshCw className={`w-4 h-4 ${isScanning ? 'animate-spin' : ''}`} />
+            </div>
+            <span>{isScanning ? 'স্ক্যান করা হচ্ছে...' : 'হারানো স্টাফ ডাটা খুঁজুন (Find Missing Staff)'}</span>
+          </button>
+        </div>
+      </div>
+      )}
+
+      {successInfo && (
+          <div className="bg-blue-50 border border-blue-100 text-blue-800 p-4 rounded-2xl text-sm font-semibold flex items-center justify-between">
+              <span>{successInfo}</span>
+              <button onClick={() => setSuccessInfo(null)} className="p-1 hover:bg-blue-100 rounded-full"><X className="w-4 h-4"/></button>
+          </div>
+      )}
+
+      {scanResult && (
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-3xl shadow-lg">
+              <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-bold text-gray-800 dark:text-white">স্ক্যান রেজাল্ট</h3>
+                  <button onClick={() => setScanResult(null)} className="p-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-xl">
+                      <X className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                  </button>
+              </div>
+
+              <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                      <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-2xl">
+                          <p className="text-xs text-gray-500 dark:text-gray-400 uppercase font-bold tracking-wider mb-1">মোট স্ক্যান</p>
+                          <p className="text-2xl font-black text-gray-800 dark:text-white">{scanResult.totalTrans}</p>
+                      </div>
+                      <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-2xl">
+                          <p className="text-xs text-gray-500 dark:text-gray-400 uppercase font-bold tracking-wider mb-1">অ্যাক্টিভ পাওয়া গেছে</p>
+                          <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{scanResult.foundActive}</p>
+                      </div>
+                  </div>
+
+                  {(scanResult.missingList?.length > 0 || scanResult.inTrashList?.length > 0) ? (
+                      <div className="bg-orange-50 dark:bg-orange-500/10 border border-orange-100 dark:border-orange-500/20 p-4 rounded-2xl space-y-4">
+                          {scanResult.missingList?.length > 0 && (
+                              <div>
+                                  <h4 className="font-bold text-orange-800 dark:text-orange-400 mb-2">সম্পূর্ণ মুছে যাওয়া স্টাফ ({scanResult.missingList.length}):</h4>
+                                  <div className="flex flex-wrap gap-2">
+                                      {scanResult.missingList.map((s: any) => (
+                                          <label key={s.id} className={`cursor-pointer flex items-center gap-2 bg-white dark:bg-gray-800 px-3 py-2 rounded-lg text-sm font-semibold border shadow-sm transition-colors ${selectedRecoveryIds.includes(s.id) ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/40 text-orange-700 dark:text-orange-200' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}>
+                                              <input type="checkbox" className="w-4 h-4 rounded text-orange-600 focus:ring-orange-500 bg-gray-100 border-gray-300 dark:bg-gray-700 dark:border-gray-600 cursor-pointer" checked={selectedRecoveryIds.includes(s.id)} onChange={() => toggleRecoverySelection(s.id)} />
+                                              <span>{s.name}</span>
+                                          </label>
+                                      ))}
+                                  </div>
+                              </div>
+                          )}
+                          {scanResult.inTrashList?.length > 0 && (
+                              <div>
+                                  <h4 className="font-bold text-orange-800 dark:text-orange-400 mb-2">রিসাইকেল বিন বা ট্র্যাশে আছে ({scanResult.inTrashList.length}):</h4>
+                                  <div className="flex flex-wrap gap-2">
+                                      {scanResult.inTrashList.map((s: any) => (
+                                          <label key={s.id} className={`cursor-pointer flex items-center gap-2 bg-white dark:bg-gray-800 px-3 py-2 rounded-lg text-sm font-semibold border shadow-sm transition-colors ${selectedRecoveryIds.includes(s.id) ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/40 text-orange-700 dark:text-orange-200' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}>
+                                              <input type="checkbox" className="w-4 h-4 rounded text-orange-600 focus:ring-orange-500 bg-gray-100 border-gray-300 dark:bg-gray-700 dark:border-gray-600 cursor-pointer" checked={selectedRecoveryIds.includes(s.id)} onChange={() => toggleRecoverySelection(s.id)} />
+                                              <span>{s.name}</span>
+                                          </label>
+                                      ))}
+                                  </div>
+                              </div>
+                          )}
+                          
+                          <div className="pt-2 flex flex-col sm:flex-row items-center gap-3">
+                              <button onClick={() => setSelectedRecoveryIds(
+                                  selectedRecoveryIds.length === (scanResult.missingList.length + scanResult.inTrashList.length) 
+                                  ? [] 
+                                  : [...scanResult.missingList, ...scanResult.inTrashList].map((x: any) => x.id)
+                              )} className="text-sm font-bold text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                                  {selectedRecoveryIds.length === (scanResult.missingList.length + scanResult.inTrashList.length) ? 'সব ডি-সিলেক্ট করুন' : 'সব সিলেক্ট করুন'}
+                              </button>
+                              
+                              <button onClick={executeRecovery} disabled={selectedRecoveryIds.length === 0} className="w-full sm:w-auto flex-1 bg-orange-600 hover:bg-orange-700 disabled:bg-gray-400 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-orange-200 dark:shadow-none flex items-center justify-center gap-2 transition-all">
+                                  {selectedRecoveryIds.length > 0 ? `নির্বাচিত ${selectedRecoveryIds.length} জনকে রিকভার করুন` : 'কাউকে নির্বাচন করা হয়নি'}
+                              </button>
+                          </div>
+                      </div>
+                  ) : (
+                      <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 p-4 rounded-2xl text-center">
+                          <p className="text-emerald-700 dark:text-emerald-400 font-bold">কোনো হারানো বা ডিলিট হওয়া স্টাফ ডাটাবেসে পাওয়া যায়নি।</p>
+                      </div>
+                  )}
+              </div>
+          </div>
+      )}
 
       {/* App Info */}
       <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all duration-300 hover:shadow-md">
