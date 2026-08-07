@@ -1,6 +1,47 @@
 
 import React, { ReactNode } from 'react';
 import ReactDOM from 'react-dom/client';
+
+// Global intervention: QuotaExceededError recovery
+try {
+  let totalSize = 0;
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k) {
+      totalSize += (localStorage.getItem(k) || "").length;
+    }
+  }
+  // Clear heavy items aggressively if we are over 2MB, to ensure Firebase has room
+  if (totalSize > 2 * 1024 * 1024) {
+    console.warn(`[Intervention] LocalStorage is ${Math.round(totalSize / 1024 / 1024)}MB. Clearing non-critical heavy items to prevent QuotaExceededError.`);
+    const criticalKeys = [
+      "auth_token",
+      "user_role",
+      "current_user",
+      "offline_sync_queue",
+      "offline_sync_queue_simple",
+      "saved_accounts",
+      "app_theme",
+      "app_permissions_granted",
+      "hasSeenWelcome",
+      "company_logo",
+      "app_settings"
+    ];
+    const toRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && !criticalKeys.includes(k) && !k.startsWith("firebase:")) {
+        toRemove.push(k);
+      }
+    }
+    for (const k of toRemove) {
+      localStorage.removeItem(k);
+    }
+  }
+} catch (e) {
+  console.error("Failed to clear local storage", e);
+}
+
 import App from './App';
 import './index.css';
 

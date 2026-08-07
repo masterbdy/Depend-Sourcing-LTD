@@ -74,6 +74,11 @@ export interface Staff {
   luckyDrawCount?: number;
   lastDevice?: string; // New Field for Device Tracking
   fcmToken?: string; // Firebase Cloud Messaging Token
+  webAuthnCredential?: {
+    id: string; // Base64URL encoded credential ID
+    rawId: string; // Base64URL encoded rawId
+    publicKey?: string; // Optional, might need later, actually passkeys in pure client side might just use ID
+  };
   notes?: StaffNote[]; // Profile Notes
 }
 
@@ -235,4 +240,14 @@ export interface PhoneBookEntry {
   category: 'CLIENT' | 'SUPPLIER' | 'PARTNER' | 'OTHER';
   isDeleted?: boolean;
   isHardDeleted?: boolean;
+}
+
+export interface CustomPopup {
+  id: string;
+  targetUserId: string; // The staffId of the targeted user
+  title: string;
+  message: string;
+  icon?: string;
+  timestamp: string;
+  seenBy?: string[]; // To track who saw it
 }

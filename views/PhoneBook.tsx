@@ -4,7 +4,7 @@ import { PhoneBookEntry, UserRole } from '../types';
 
 interface PhoneBookProps {
   phoneBook: PhoneBookEntry[];
-  setPhoneBook: (data: PhoneBookEntry[]) => void;
+  setPhoneBook: any;
   role: UserRole;
 }
 
@@ -41,7 +41,7 @@ const PhoneBook: React.FC<PhoneBookProps> = ({ phoneBook, setPhoneBook, role }) 
     e.preventDefault();
     
     if (editingEntry) {
-      setPhoneBook(prev => prev.map(p => 
+      setPhoneBook((prev: PhoneBookEntry[]) => prev.map((p: PhoneBookEntry) => 
         p.id === editingEntry.id ? { ...p, ...formData } as PhoneBookEntry : p
       ));
     } else {
@@ -50,7 +50,7 @@ const PhoneBook: React.FC<PhoneBookProps> = ({ phoneBook, setPhoneBook, role }) 
         id: Math.random().toString(36).substr(2, 9),
         isDeleted: false
       };
-      setPhoneBook(prev => [newEntry, ...prev]);
+      setPhoneBook((prev: PhoneBookEntry[]) => [newEntry, ...prev]);
     }
     closeModal();
   };

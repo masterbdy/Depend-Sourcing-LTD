@@ -57,6 +57,7 @@ import {
   StickyNote,
   RefreshCw,
   KeyRound,
+  BellRing,
 } from "lucide-react";
 import {
   Staff,
@@ -65,8 +66,10 @@ import {
   AdvanceLog,
   StaffNote,
   MovementLog,
+  CustomPopup,
 } from "../types";
 import { ROLE_LABELS } from "../constants";
+import { registerBiometrics } from "../webAuthn";
 
 interface StaffProps {
   staffList: Staff[];
@@ -78,6 +81,8 @@ interface StaffProps {
   setAdvances: React.Dispatch<React.SetStateAction<AdvanceLog[]>>;
   movements?: MovementLog[];
   setMovements?: React.Dispatch<React.SetStateAction<MovementLog[]>>;
+  customPopups?: CustomPopup[];
+  setCustomPopups?: React.Dispatch<React.SetStateAction<CustomPopup[]>>;
   currentUser: string | null;
   onUpdatePoints?: (staffId: string, points: number, reason: string) => void;
   highlightStaffId?: string | null;
@@ -94,6 +99,8 @@ const StaffManagementView: React.FC<StaffProps> = ({
   setAdvances,
   movements = [],
   setMovements,
+  customPopups = [],
+  setCustomPopups,
   currentUser,
   onUpdatePoints,
   highlightStaffId,
@@ -200,6 +207,10 @@ const StaffManagementView: React.FC<StaffProps> = ({
     points: number;
   }>({ staffId: "", points: 5 });
   const [pointMode, setPointMode] = useState<"GIFT" | "PENALTY">("GIFT");
+  
+  // Custom Popup Modal State
+  const [isPopupModalOpen, setIsPopupModalOpen] = useState(false);
+  const [popupData, setPopupData] = useState({ staffId: "", title: "", message: "" });
 
   // Merge Profiles State
   const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
@@ -320,7 +331,7 @@ const StaffManagementView: React.FC<StaffProps> = ({
   };
 
   // --- STAFF FORM HANDLERS ---
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     const now = new Date().toISOString();
 
@@ -405,6 +416,31 @@ const StaffManagementView: React.FC<StaffProps> = ({
         luckyDrawCount: 0,
         dateOfBirth: formData.dateOfBirth,
       };
+      
+      const enrollBiometrics = window.confirm(
+        "আপনি কি এই নতুন অ্যাকাউন্টের জন্য এই ডিভাইসে বায়োমেট্রিক লগইন অ্যাড করতে চান? (যদি এই ফোনটি ওই স্টাফের হয় তবে OK চাপুন)"
+      );
+
+      if (enrollBiometrics) {
+        try {
+          const credIdBase64 = await registerBiometrics(newStaff.name, newStaff.name);
+          newStaff.webAuthnCredential = {
+            id: credIdBase64,
+            rawId: credIdBase64
+          };
+          alert("বায়োমেট্রিক সফলভাবে সেট করা হয়েছে।");
+        } catch (e: any) {
+          console.warn("Biometric setup error:", e);
+          let errorMsg = e.message || "Could not enable biometrics.";
+          if (e.message && e.message.includes("publickey-credentials-create")) {
+            errorMsg = "Biometrics cannot be configured inside this preview window.\n\nPlease click the 'Open in new tab' button at the top right of this preview, or copy the app URL and paste it in a new tab.";
+          } else if (e.name === "NotAllowedError") {
+            errorMsg = "Biometric setup was cancelled or not allowed.";
+          }
+          alert("বায়োমেট্রিক সেটআপ ব্যর্থ হয়েছে: " + errorMsg);
+        }
+      }
+
       setStaffList((prev) => [...prev, newStaff]);
     }
     closeModal();
@@ -656,6 +692,35 @@ const StaffManagementView: React.FC<StaffProps> = ({
     });
     setIsRepayModalOpen(true);
   };
+  
+  const openPopupModal = (staffId: string) => {
+    setPopupData({
+      staffId,
+      title: "",
+      message: ""
+    });
+    setIsPopupModalOpen(true);
+  };
+  
+  const handleSendPopup = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!popupData.title.trim() || !popupData.message.trim()) {
+      return alert("দয়া করে হেডলাইন এবং মেসেজ লিখুন।");
+    }
+    const newPopup: CustomPopup = {
+      id: "popup_" + Date.now().toString(),
+      targetUserId: popupData.staffId,
+      title: popupData.title.trim(),
+      message: popupData.message.trim(),
+      timestamp: new Date().toISOString()
+    };
+    if (setCustomPopups) {
+      setCustomPopups((prev) => [...prev, newPopup]);
+      alert("সফলভাবে পপআপ মেসেজ পাঠানো হয়েছে!");
+      setIsPopupModalOpen(false);
+    }
+  };
+
   const handleGiveAdvance = (e: React.FormEvent) => {
     e.preventDefault();
     if (!canManageMoney) return;
@@ -969,6 +1034,14 @@ const StaffManagementView: React.FC<StaffProps> = ({
         </div>
         {role === UserRole.ADMIN && (
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => openPopupModal("ALL")}
+              className="bg-fuchsia-100 text-fuchsia-700 px-4 py-2.5 rounded-xl font-bold shadow-sm hover:bg-fuchsia-200 transition-all flex items-center gap-2"
+              title="সবাইকে নোটিফিকেশন পপআপ পাঠান"
+            >
+              <BellRing className="w-4 h-4" />
+              <span className="hidden md:inline text-sm">সবাইকে পপআপ</span>
+            </button>
             <button
               onClick={() => setIsMergeModalOpen(true)}
               className="bg-purple-100 text-purple-700 px-4 py-2.5 rounded-xl font-bold shadow-sm hover:bg-purple-200 transition-all flex items-center gap-2"
@@ -1493,6 +1566,18 @@ const StaffManagementView: React.FC<StaffProps> = ({
                               <Gift className="w-4 h-4 group-hover:scale-110 transition-transform" />
                               <span className="text-[9px] font-bold">
                                 POINTS
+                              </span>
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openPopupModal(staff.id);
+                              }}
+                              className="flex-1 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-600 hover:text-white text-purple-600 dark:text-purple-400 py-3 rounded-xl flex flex-col items-center justify-center gap-1 transition-all group"
+                            >
+                              <BellRing className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                              <span className="text-[9px] font-bold">
+                                POPUP
                               </span>
                             </button>
                           </>
@@ -2348,6 +2433,71 @@ const StaffManagementView: React.FC<StaffProps> = ({
                   কনফার্ম
                 </button>
               </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* CUSTOM POPUP MODAL */}
+      {isPopupModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm shadow-xl">
+          <div className="bg-white dark:bg-gray-800 w-full max-w-sm rounded-[2rem] overflow-hidden p-6 relative border border-gray-100 dark:border-gray-700">
+            <button
+              onClick={() => setIsPopupModalOpen(false)}
+              className="absolute top-4 right-4 p-2 bg-gray-50 dark:bg-gray-700 hover:bg-red-50 hover:text-red-500 rounded-full text-gray-400 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <div className="flex flex-col gap-1 mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+                  <BellRing className="w-5 h-5" />
+                </div>
+                <h3 className="text-xl font-black text-gray-800 dark:text-white">
+                  কাস্টম পপআপ
+                </h3>
+              </div>
+              {popupData.staffId === "ALL" && (
+                <p className="text-xs font-bold text-fuchsia-600 bg-fuchsia-50 py-1 px-2 rounded w-fit mt-2">
+                  ⚠️ সবাইকে পাঠানো হচ্ছে
+                </p>
+              )}
+            </div>
+            
+            <form onSubmit={handleSendPopup} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">
+                  হেডলাইন (Title)
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="যেমন: গুরুত্বপূর্ন মেসেজ!"
+                  className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border-none rounded-xl text-sm font-medium text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-purple-500/50 transition-all placeholder:text-gray-400"
+                  value={popupData.title}
+                  onChange={(e) => setPopupData({ ...popupData, title: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">
+                  মূল মেসেজ (Message)
+                </label>
+                <textarea
+                  required
+                  placeholder="আপনার মেসেজ এখানে লিখুন..."
+                  className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border-none rounded-xl text-sm font-medium text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-purple-500/50 transition-all placeholder:text-gray-400 min-h-[100px] resize-none"
+                  value={popupData.message}
+                  onChange={(e) => setPopupData({ ...popupData, message: e.target.value })}
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-purple-500/30 mt-4 flex items-center justify-center gap-2"
+              >
+                <BellRing className="w-4 h-4" />
+                পাঠিয়ে দিন
+              </button>
             </form>
           </div>
         </div>

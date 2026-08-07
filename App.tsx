@@ -87,6 +87,8 @@ import {
   AppNotification,
   Product,
   PhoneBookEntry,
+  AppNote,
+  CustomPopup,
 } from "./types";
 import {
   INITIAL_STAFF,
@@ -98,6 +100,7 @@ import {
 
 import DashboardView from "./views/Dashboard";
 import StaffManagementView from "./views/StaffManagement";
+import { registerBiometrics, authenticateBiometrics } from "./webAuthn";
 import MovementLogView from "./views/MovementLog";
 import ExpenseManagementView from "./views/ExpenseManagementView";
 import FundLedgerView from "./views/FundLedger";
@@ -126,7 +129,77 @@ const safeGetItem = (key: string, defaultValue: string | null = null) => {
   }
 };
 
+// Global interceptor to fix Firebase QuotaExceededError crashes
+const originalSetItem = Storage.prototype.setItem;
+Storage.prototype.setItem = function (key: string, value: string) {
+  try {
+    originalSetItem.apply(this, [key, value]);
+  } catch (e: any) {
+    if (e.name === "QuotaExceededError" || e.code === 22) {
+      console.warn(`[QuotaExceededError] Caught globally setting ${key}. Evicting cache...`);
+      const criticalKeys = [
+        "auth_token",
+        "user_role",
+        "current_user",
+        "offline_sync_queue",
+        "offline_sync_queue_simple",
+        "saved_accounts",
+        "app_theme",
+        "app_permissions_granted",
+        "hasSeenWelcome",
+        "company_logo",
+        "app_settings"
+      ];
+      const toRemove: string[] = [];
+      for (let i = 0; i < this.length; i++) {
+        const k = this.key(i);
+        if (k && !criticalKeys.includes(k) && !k.startsWith("firebase:")) {
+          toRemove.push(k);
+        }
+      }
+      for (const k of toRemove) {
+        this.removeItem(k);
+      }
+      try {
+        originalSetItem.apply(this, [key, value]);
+      } catch (ex: any) {
+        console.error("Still exceeded quota after evicting non-critical keys", ex);
+        // If we STILL fail and it's the offline queue, try to strip images before giving up
+        if (key === 'offline_sync_queue') {
+          try {
+             const queue = JSON.parse(value);
+             let strippedAny = false;
+             for (const node of Object.keys(queue)) {
+               for (const id of Object.keys(queue[node])) {
+                  const item = queue[node][id];
+                  if (item && typeof item === 'object') {
+                    if (item.imageUrl) { item.imageUrl = null; strippedAny = true; }
+                    if (item.voucherImage) { item.voucherImage = null; strippedAny = true; }
+                    if (item.photo) { item.photo = null; strippedAny = true; }
+                  }
+               }
+             }
+             if (strippedAny) {
+               originalSetItem.apply(this, [key, JSON.stringify(queue)]);
+               console.warn("Successfully saved offline_sync_queue after stripping images.");
+             }
+          } catch (innerEx) {
+             console.error("Failed to strip images from offline queue", innerEx);
+          }
+        }
+      }
+    } else {
+      throw e;
+    }
+  }
+};
+
 const safeSetItem = (key: string, value: string) => {
+  // Try not to hit quota heavily if we don't have to (unless it's offline sync queue)
+  if (!key.startsWith("offline_") && value && value.length > 1.5 * 1024 * 1024) {
+    console.warn(`Skipping safeSetItem for ${key}: too large (${value.length} chars)`);
+    return;
+  }
   try {
     localStorage.setItem(key, value);
   } catch (e) {
@@ -346,9 +419,15 @@ const App: React.FC = () => {
               if (Object.keys(dataToSave).length > 0) {
                 await update(ref(db, node), dataToSave);
                 processedAny = true;
+                
+                // Fine-grained cleanup to avoid race conditions
+                const currentQueue = JSON.parse(safeGetItem("offline_sync_queue") || "{}");
+                if (currentQueue[node]) {
+                  Object.keys(dataToSave).forEach(k => delete currentQueue[node][k]);
+                  safeSetItem("offline_sync_queue", JSON.stringify(currentQueue));
+                }
               }
             }
-            if (processedAny) safeSetItem("offline_sync_queue", "{}");
           }
 
           if (simpleQueueStr) {
@@ -356,8 +435,12 @@ const App: React.FC = () => {
             for (const node of Object.keys(simpleQueue)) {
               await set(ref(db, node), simpleQueue[node]);
               processedAny = true;
+              
+              // Fine-grained cleanup for simple queue
+              const currentSimpleQueue = JSON.parse(safeGetItem("offline_sync_queue_simple") || "{}");
+              delete currentSimpleQueue[node];
+              safeSetItem("offline_sync_queue_simple", JSON.stringify(currentSimpleQueue));
             }
-            if (processedAny) safeSetItem("offline_sync_queue_simple", "{}");
           }
 
           if (processedAny) {
@@ -651,8 +734,77 @@ const App: React.FC = () => {
   const profileNoteFileRef = useRef<HTMLInputElement>(null);
   const [viewingImage, setViewingImage] = useState<string | null>(null);
 
+  const prevOnlineUsers = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!firebaseConfig || !firebaseConfig.databaseURL) return;
+
+    let unsubConnected: any = null;
+    let unsubUsers: any = null;
+
+    import("firebase/app").then(({ getApp }) => {
+      import("firebase/database").then(({ getDatabase, ref, onValue, set, onDisconnect }) => {
+         try {
+           const app = getApp();
+           const db = getDatabase(app, firebaseConfig.databaseURL);
+
+           if (currentUser) {
+             const connectedRef = ref(db, ".info/connected");
+             const myOnlineRef = ref(db, `online_users/${currentUser}`);
+             unsubConnected = onValue(connectedRef, (snap) => {
+               if (snap.val() === true) {
+                 onDisconnect(myOnlineRef).remove().then(() => {
+                   set(myOnlineRef, {
+                     status: 'online',
+                     role: role,
+                     timestamp: new Date().toISOString()
+                   }).catch(console.error);
+                 }).catch(console.error);
+               }
+             });
+           }
+
+           if (role === UserRole.ADMIN || role === UserRole.MD) {
+             const onlineUsersRef = ref(db, 'online_users');
+             let initialLoad = true;
+             unsubUsers = onValue(onlineUsersRef, (snap) => {
+               if (snap.exists()) {
+                 const users = snap.val();
+                 if (!initialLoad) {
+                    Object.keys(users).forEach(u => {
+                       if (u !== currentUser && !prevOnlineUsers.current.has(u)) {
+                          handleAddNotification(
+                             "ইউজার অনলাইনে",
+                             `${u} এখন অনলাইনে এসেছেন।`,
+                             "INFO",
+                             "staff"
+                          );
+                       }
+                    });
+                 }
+                 prevOnlineUsers.current = new Set(Object.keys(users));
+               } else {
+                 prevOnlineUsers.current = new Set();
+               }
+               initialLoad = false;
+             });
+           }
+
+         } catch (e) {
+           console.error("Presence system error", e);
+         }
+      });
+    }).catch(console.error);
+
+    return () => {
+      if (unsubConnected) unsubConnected();
+      if (unsubUsers) unsubUsers();
+    };
+  }, [currentUser, role, firebaseConfig, handleAddNotification]);
+
   const [cloudError, setCloudError] = useState<string | null>(null);
   const [showDbHelp, setShowDbHelp] = useState(false);
+  const [showBiometricPrompt, setShowBiometricPrompt] = useState(false);
 
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -679,6 +831,19 @@ const App: React.FC = () => {
   const [staffList, setStaffList] = useState<Staff[]>(() =>
     getLocalData("staffList", INITIAL_STAFF),
   );
+
+  useEffect(() => {
+    if (currentUser && staffList.length > 0) {
+      const staff = staffList.find(s => s.name === currentUser);
+      if (staff && !staff.webAuthnCredential) {
+         const hasPrompted = safeGetItem(`biometric_prompted_${currentUser}`);
+         if (hasPrompted !== "true") {
+            setShowBiometricPrompt(true);
+            safeSetItem(`biometric_prompted_${currentUser}`, "true");
+         }
+      }
+    }
+  }, [currentUser, staffList]);
   const [movements, setMovements] = useState<MovementLog[]>(() =>
     getLocalData("movements", []),
   );
@@ -711,6 +876,9 @@ const App: React.FC = () => {
   );
   const [complaints, setComplaints] = useState<Complaint[]>(() =>
     getLocalData("complaints", []),
+  );
+  const [customPopups, setCustomPopups] = useState<CustomPopup[]>(() =>
+    getLocalData("customPopups", []),
   );
   const [messages, setMessages] = useState<ChatMessage[]>(() =>
     getLocalData("messages", []),
@@ -939,6 +1107,7 @@ const App: React.FC = () => {
         subscribe("notices", setNotices);
         subscribe("advances", setAdvances);
         subscribe("complaints", setComplaints);
+        subscribe("customPopups", setCustomPopups);
         subscribe("messages", setMessages);
         subscribe("attendanceList", setAttendanceList);
         if (role === UserRole.ADMIN) {
@@ -1093,25 +1262,9 @@ const App: React.FC = () => {
             }
           });
 
-          // Find items that were hard deleted (in prev but not in next)
-          if (prevData) {
-            safePrevData.forEach((prevItem: any) => {
-              if (!newDataMap.has(prevItem.id) && prevItem.id) {
-                dataToSave[prevItem.id] = null;
-              }
-            });
-          } else {
-            // Fallback if no prevData provided (legacy behavior, send all)
-            safeData.forEach((curr: any) => {
-              if (curr.isHardDeleted) {
-                if (curr.id) dataToSave[curr.id] = null;
-              } else {
-                const id = curr.id || Math.random().toString(36).substr(2, 9);
-                curr.id = id;
-                dataToSave[id] = curr;
-              }
-            });
-          }
+          // Disable dangerous array-difference deletion! 
+          // If a React closure accidentally drops an item, we should NOT delete it from the cloud.
+          // Deletions MUST be explicit via 'isHardDeleted: true'.
 
           if (Object.keys(dataToSave).length > 0) {
             // Safety check: Prevent sync of massive base64 strings
@@ -1202,17 +1355,18 @@ const App: React.FC = () => {
   const updateNotices = createUpdater("notices", setNotices);
   const updateAdvances = createUpdater("advances", setAdvances);
   const updateComplaints = createUpdater("complaints", setComplaints);
+  const updateCustomPopups = createUpdater("customPopups", setCustomPopups as React.Dispatch<React.SetStateAction<any>>);
   const updateMessages = createUpdater("messages", setMessages);
   const updateAttendance = createUpdater("attendanceList", setAttendanceList);
   const updateProducts = createUpdater("products", setProducts);
   const updateProductEditors = createUpdater(
     "productEditors",
-    setProductEditors,
+    setProductEditors as React.Dispatch<React.SetStateAction<any>>,
   );
-  const updatePhoneBook = createUpdater("phoneBook", setPhoneBook);
-  const updateAppNotes = createUpdater("app_notes", setAppNotes);
-  const updateTypoDictionary = createUpdater("typo_dictionary", setTypoDictionary);
-  const updateTypoSuggestions = createUpdater("typo_suggestions", setTypoSuggestions);
+  const updatePhoneBook = createUpdater("phoneBook", setPhoneBook as React.Dispatch<React.SetStateAction<any>>);
+  const updateAppNotes = createUpdater("app_notes", setAppNotes as React.Dispatch<React.SetStateAction<any>>);
+  const updateTypoDictionary = createUpdater("typo_dictionary", setTypoDictionary as React.Dispatch<React.SetStateAction<any>>);
+  const updateTypoSuggestions = createUpdater("typo_suggestions", setTypoSuggestions as React.Dispatch<React.SetStateAction<any>>);
 
   useEffect(() => {
     if (currentUser && staffList.length > 0) {
@@ -1470,8 +1624,8 @@ const App: React.FC = () => {
                 lng: position.coords.longitude,
                 timestamp: new Date().toISOString(),
                 speed: position.coords.speed || 0,
-                // @ts-ignore
                 batteryLevel:
+                  // @ts-ignore
                   (await navigator.getBattery?.())?.level || undefined,
                 deviceName: getDeviceInfo(),
               };
@@ -1660,6 +1814,36 @@ const App: React.FC = () => {
   const [latestAdvanceNotif, setLatestAdvanceNotif] =
     useState<AdvanceLog | null>(null);
 
+  const [activeCustomPopup, setActiveCustomPopup] = useState<CustomPopup | null>(null);
+
+  useEffect(() => {
+    if (currentUser && customPopups.length > 0) {
+      const myProfile = staffList.find((s) => s.name === currentUser);
+      if (myProfile) {
+        // Find popups that target this user or ALL
+        const myPopups = customPopups.filter(
+          (p) => p.targetUserId === myProfile.id || p.targetUserId === "ALL"
+        );
+        if (myPopups.length > 0) {
+          // Sort newest first
+          myPopups.sort(
+            (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+          );
+          const latest = myPopups[0];
+          const lastSeenPopupId = safeGetItem(`last_seen_popup_${myProfile.id}`);
+          if (lastSeenPopupId !== latest.id) {
+            // Show the popup
+            setActiveCustomPopup(latest);
+            // Mark as seen immediately so it doesn't reappear on reload
+            safeSetItem(`last_seen_popup_${myProfile.id}`, latest.id);
+            
+            // Optionally auto-hide after some time or let user manually close it. Let's keep it manual.
+          }
+        }
+      }
+    }
+  }, [currentUser, customPopups, staffList]);
+
   useEffect(() => {
     if (role === UserRole.STAFF && currentUser && advances.length > 0) {
       const myProfile = staffList.find((s) => s.name === currentUser);
@@ -1670,8 +1854,8 @@ const App: React.FC = () => {
         if (myAdvances.length > 0) {
           myAdvances.sort(
             (a, b) =>
-              new Date(b.createdAt || b.date).getTime() -
-              new Date(a.createdAt || a.date).getTime(),
+              new Date((b as any).createdAt || b.date).getTime() -
+              new Date((a as any).createdAt || a.date).getTime(),
           );
           const latest = myAdvances[0];
 
@@ -1850,6 +2034,46 @@ const App: React.FC = () => {
     setCurrentUser("Guest User");
     setLoginError("");
     setIsLoggingIn(false);
+  };
+
+  const handleBiometricLogin = async () => {
+    if (!loginUsername.trim()) {
+      setLoginError("Biometric login requires username.");
+      return;
+    }
+    
+    const staffMember = (staffList || []).find(
+      (s) =>
+        s && !s.deletedAt && s.name.toLowerCase() === loginUsername.trim().toLowerCase(),
+    );
+
+    if (staffMember && staffMember.webAuthnCredential) {
+      setIsLoggingIn(true);
+      setLoginError("");
+      try {
+        const success = await authenticateBiometrics(staffMember.webAuthnCredential.id);
+        if (success) {
+           const validPassword = staffMember.password || `${staffMember.name}@`;
+           handleLogin(null, { username: staffMember.name, password: validPassword });
+        } else {
+           setLoginError("Biometric verification failed.");
+           setIsLoggingIn(false);
+        }
+      } catch (e: any) {
+        console.warn("Biometric auth error:", e);
+        let errorMsg = e.message || "Biometric verification failed.";
+        if (e.message && e.message.includes("publickey-credentials-get")) {
+          errorMsg = "Biometrics cannot be used inside this preview window.\n\nPlease click the 'Open in new tab' button at the top right of this preview, or copy the app URL and paste it in a new tab.";
+        } else if (e.name === "NotAllowedError") {
+          errorMsg = "Biometric verification was cancelled or not allowed.";
+        }
+        alert(errorMsg);
+        setLoginError(errorMsg);
+        setIsLoggingIn(false);
+      }
+    } else {
+       setLoginError("Biometric not setup for this user.");
+    }
   };
 
   const handleLogin = (e: React.FormEvent | null, quickAuthData?: any) => {
@@ -2106,6 +2330,7 @@ const App: React.FC = () => {
       if (data.funds) updateFunds(data.funds);
       if (data.notices) updateNotices(data.notices);
       if (data.advances) updateAdvances(data.advances);
+      if (data.customPopups) updateCustomPopups(data.customPopups);
       if (data.complaints) updateComplaints(data.complaints);
       if (data.messages) updateMessages(data.messages);
       if (data.attendanceList) updateAttendance(data.attendanceList);
@@ -2148,6 +2373,38 @@ const App: React.FC = () => {
       e && !e.isDeleted && (e.status === "PENDING" || e.status === "VERIFIED"),
   ).length;
 
+  const handleEnableBiometrics = async () => {
+    try {
+      if (!currentUser) return;
+      const credIdBase64 = await registerBiometrics(currentUser, currentUser);
+      
+      updateStaffList((prev: Staff[]) => prev.map((s: Staff) => {
+         if (s.name === currentUser) {
+            return {
+               ...s,
+               webAuthnCredential: {
+                  id: credIdBase64,
+                  rawId: credIdBase64
+               }
+            };
+         }
+         return s;
+      }));
+      handleAddNotification("Biometrics Enabled", "Biometric unlock activated successfully.", "SUCCESS", "staff");
+      setShowBiometricPrompt(false);
+    } catch (e: any) {
+      console.warn("Biometric setup error:", e);
+      let errorMsg = e.message || "Could not enable biometrics.";
+      if (e.message && e.message.includes("publickey-credentials-create")) {
+        errorMsg = "Biometrics cannot be configured inside this preview window.\n\nPlease click the 'Open in new tab' button (icon with an arrow pointing out of a square) at the top right of this preview, or copy the app URL and paste it in a new tab to setup Biometrics.";
+      } else if (e.name === "NotAllowedError") {
+        errorMsg = "Biometric setup was cancelled or not allowed.";
+      }
+      alert(errorMsg);
+      handleAddNotification("Biometrics Error", errorMsg, "ERROR", "staff");
+    }
+  };
+
   const handleNoteImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -2166,9 +2423,9 @@ const App: React.FC = () => {
   const handleAddProfileNote = (targetProfileId: string) => {
     if (!newProfileNote.trim() && !newProfileNoteImage) return;
 
-    updateStaffList((prev) => {
+    updateStaffList((prev: Staff[]) => {
       const existingProfileIndex = prev.findIndex(
-        (s) => s.id === targetProfileId,
+        (s: Staff) => s.id === targetProfileId,
       );
       if (existingProfileIndex >= 0) {
         const updatedList = [...prev];
@@ -2242,8 +2499,8 @@ const App: React.FC = () => {
       editingProfileId || staffList.find((s) => s.name === currentUser)?.id;
     if (!targetId) return;
 
-    updateStaffList((prev) => {
-      const existingProfileIndex = prev.findIndex((s) => s.id === targetId);
+    updateStaffList((prev: Staff[]) => {
+      const existingProfileIndex = prev.findIndex((s: Staff) => s.id === targetId);
       if (existingProfileIndex >= 0) {
         const updatedList = [...prev];
         updatedList[existingProfileIndex] = {
@@ -2619,6 +2876,8 @@ const App: React.FC = () => {
             setAdvances={updateAdvances}
             movements={movements}
             setMovements={updateMovements}
+            customPopups={customPopups}
+            setCustomPopups={updateCustomPopups}
             currentUser={currentUser}
             onUpdatePoints={handlePointUpdate}
             highlightStaffId={highlightStaffId}
@@ -2941,28 +3200,41 @@ const App: React.FC = () => {
                 </div>
               )}
 
-              <button
-                type="submit"
-                disabled={isLoggingIn}
-                className={`w-full bg-indigo-600 text-white py-3 rounded-xl font-black shadow-lg shadow-indigo-500/40 hover:bg-indigo-50 transition-all active:scale-95 flex items-center justify-center gap-2 text-sm relative overflow-hidden group border border-indigo-400/20 hover:border-indigo-400/50 ${isLoggingIn ? "opacity-70 cursor-wait" : ""}`}
-              >
-                <span className="relative z-10 flex items-center gap-2">
-                  {isLoggingIn ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      যাচাই করা হচ্ছে...
-                    </>
-                  ) : (
-                    <>
-                      প্রবেশ করুন{" "}
-                      <ArrowRightLeft className="w-4 h-4 rotate-90 group-hover:translate-x-1 transition-transform" />
-                    </>
-                  )}
-                </span>
-                {!isLoggingIn && (
-                  <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+              <div className="flex gap-3">
+                {loginUsername.trim() && (staffList || []).some(s => s.name.toLowerCase() === loginUsername.trim().toLowerCase() && !s.deletedAt && s.webAuthnCredential) && (
+                   <button
+                     type="button"
+                     onClick={handleBiometricLogin}
+                     disabled={isLoggingIn}
+                     className="bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 px-4 py-3 rounded-xl transition-all disabled:opacity-50 border border-emerald-500/20 hover:border-emerald-500/50 flex items-center justify-center shrink-0"
+                     title="Fingerprint Login"
+                   >
+                     <Fingerprint className="w-5 h-5" />
+                   </button>
                 )}
-              </button>
+                <button
+                  type="submit"
+                  disabled={isLoggingIn}
+                  className={`flex-1 bg-indigo-600 text-white py-3 rounded-xl font-black shadow-lg shadow-indigo-500/40 hover:bg-indigo-500 transition-all active:scale-95 flex items-center justify-center gap-2 text-sm relative overflow-hidden group border border-indigo-400/20 hover:border-indigo-400/50 ${isLoggingIn ? "opacity-70 cursor-wait" : ""}`}
+                >
+                  <span className="relative z-10 flex items-center gap-2">
+                    {isLoggingIn ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        যাচাই করা হচ্ছে...
+                      </>
+                    ) : (
+                      <>
+                        প্রবেশ করুন{" "}
+                        <ArrowRightLeft className="w-4 h-4 rotate-90 group-hover:translate-x-1 transition-transform" />
+                      </>
+                    )}
+                  </span>
+                  {!isLoggingIn && (
+                    <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+                  )}
+                </button>
+              </div>
             </form>
           ) : forgotMode === "email" ? (
             <form onSubmit={handleForgotRequestOTP} className="space-y-4">
@@ -3215,6 +3487,15 @@ const App: React.FC = () => {
         </nav>
 
         <div className="p-4 border-t border-white/5 shrink-0 relative z-10">
+          {currentUser && staffList.find(s => s.name === currentUser) && !staffList.find(s => s.name === currentUser)?.webAuthnCredential && (
+            <button
+              onClick={() => setShowBiometricPrompt(true)}
+              className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-bold text-amber-400 hover:text-white hover:bg-amber-500/10 hover:ring-1 hover:ring-amber-500/20 transition-all group mb-2"
+            >
+              <Fingerprint className="w-5 h-5 transition-transform group-hover:scale-110" />
+              <span>Biometric অ্যাড করুন</span>
+            </button>
+          )}
           <button
             onClick={handleShareApp}
             className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-bold text-sky-400 hover:text-white hover:bg-sky-500/10 hover:ring-1 hover:ring-sky-500/20 transition-all group mb-2"
@@ -3550,6 +3831,17 @@ const App: React.FC = () => {
               >
                 <UserCog className="w-4 h-4" /> প্রোফাইল সেটিংস
               </button>
+              {currentUser && staffList.find(s => s.name === currentUser) && !staffList.find(s => s.name === currentUser)?.webAuthnCredential && (
+                <button
+                  onClick={() => {
+                    setIsMoreMenuOpen(false);
+                    setShowBiometricPrompt(true);
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400 hover:bg-amber-100 transition-colors mb-2"
+                >
+                  <Fingerprint className="w-4 h-4" /> Biometric অ্যাড করুন
+                </button>
+              )}
               <button
                 onClick={handleShareApp}
                 className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold bg-sky-50 text-sky-600 dark:bg-sky-900/20 dark:text-sky-400 hover:bg-sky-100 transition-colors mb-2"
@@ -4077,51 +4369,205 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
-      {/* ADVANCE NOTIFICATION MODAL */}
-      {latestAdvanceNotif && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-3xl shadow-2xl overflow-hidden relative transform transition-all scale-100 animate-in zoom-in-95 duration-300">
+      {/* CUSTOM POPUP NOTIFICATION */}
+      {activeCustomPopup && (
+        <motion.div
+           initial={{ opacity: 0 }}
+           animate={{ opacity: 1 }}
+           exit={{ opacity: 0 }}
+           className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
+        >
+          <motion.div
+             initial={{ scale: 0.9, y: 30, opacity: 0 }}
+             animate={{ scale: 1, y: 0, opacity: 1 }}
+             transition={{ type: "spring", damping: 20, stiffness: 200 }}
+             className="bg-white dark:bg-gray-900 w-full max-w-sm rounded-[2rem] shadow-2xl overflow-hidden relative border border-white/20 dark:border-gray-700/50"
+          >
+            {/* Background Glow */}
+            <div className="absolute top-0 inset-x-0 h-32 bg-gradient-to-b from-purple-500/20 to-transparent pointer-events-none" />
+            
             <button
-              onClick={() => setLatestAdvanceNotif(null)}
-              className="absolute top-4 right-4 p-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-gray-600 dark:text-gray-300 transition-colors z-10"
+              onClick={() => setActiveCustomPopup(null)}
+              className="absolute top-4 right-4 p-2 bg-gray-100/50 dark:bg-gray-800/50 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors z-10 backdrop-blur-sm"
             >
               <X className="w-5 h-5" />
             </button>
-            <div className="p-8 text-center">
-              <div className="w-20 h-20 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
-                <Banknote className="w-10 h-10 text-blue-600 dark:text-blue-400" />
+
+            <div className="p-8 text-center relative z-10">
+              <motion.div 
+                 initial={{ scale: 0, rotate: -30 }}
+                 animate={{ scale: 1, rotate: 0 }}
+                 transition={{ type: "spring", delay: 0.1, bounce: 0.6 }}
+                 className="w-20 h-20 bg-gradient-to-br from-purple-500 to-fuchsia-600 rounded-[1.5rem] flex items-center justify-center mx-auto mb-6 shadow-lg shadow-purple-500/30 -rotate-3"
+              >
+                <BellRing className="w-10 h-10 text-white" />
+              </motion.div>
+              
+              <h2 className="text-2xl font-black text-gray-900 dark:text-white mb-2 leading-tight">
+                {activeCustomPopup.title}
+              </h2>
+              
+              <div className="bg-gray-50 dark:bg-gray-800/50 rounded-3xl p-5 border border-gray-100 dark:border-gray-700/50 mt-4 mb-6">
+                <p className="text-gray-600 dark:text-gray-300 text-sm font-medium leading-relaxed whitespace-pre-wrap text-left">
+                  {activeCustomPopup.message}
+                </p>
               </div>
-              <h2 className="text-2xl font-black text-gray-800 dark:text-white mb-2">
+              
+              <motion.button 
+                 onClick={() => setActiveCustomPopup(null)}
+                 whileHover={{ scale: 1.02 }}
+                 whileTap={{ scale: 0.98 }}
+                 className="w-full py-4 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white font-bold shadow-lg shadow-purple-200 dark:shadow-none transition-colors"
+              >
+                 বুঝতে পেরেছি 
+              </motion.button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+
+      {/* ADVANCE NOTIFICATION MODAL */}
+      {latestAdvanceNotif && (
+        <motion.div
+           initial={{ opacity: 0 }}
+           animate={{ opacity: 1 }}
+           exit={{ opacity: 0 }}
+           className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
+        >
+          <motion.div
+             initial={{ scale: 0.9, y: 20, opacity: 0 }}
+             animate={{ scale: 1, y: 0, opacity: 1 }}
+             transition={{ type: "spring", damping: 25, stiffness: 300 }}
+             className="bg-white dark:bg-gray-900 w-full max-w-sm rounded-[2.5rem] shadow-2xl overflow-hidden relative border border-white/20 dark:border-gray-700/50"
+          >
+            {/* Background Glow */}
+            <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-indigo-500/20 to-transparent pointer-events-none" />
+            
+            <button
+              onClick={() => setLatestAdvanceNotif(null)}
+              className="absolute top-5 right-5 p-2 bg-gray-100/50 dark:bg-gray-800/50 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors z-10 backdrop-blur-sm"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="p-8 text-center relative z-10">
+              <motion.div 
+                 initial={{ scale: 0, rotate: -45 }}
+                 animate={{ scale: 1, rotate: 0 }}
+                 transition={{ type: "spring", delay: 0.2, bounce: 0.5 }}
+                 className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-[1.5rem] flex items-center justify-center mx-auto mb-6 shadow-lg shadow-indigo-500/30 rotate-3"
+              >
+                <Banknote className="w-10 h-10 text-white" />
+              </motion.div>
+              
+              <h2 className="text-2xl font-black text-gray-900 dark:text-white mb-2">
                 নতুন এডভান্স!
               </h2>
-              <p className="text-gray-500 dark:text-gray-400 mb-6">
+              <p className="text-gray-500 dark:text-gray-400 text-sm font-medium mb-8">
                 আপনার একাউন্টে নতুন এডভান্স যুক্ত করা হয়েছে
               </p>
 
-              <div className="bg-blue-50 dark:bg-blue-900/20 rounded-2xl p-6 border border-blue-100 dark:border-blue-800/30">
-                <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-1">
-                  পরিমাণ
+              <div className="bg-gray-50 dark:bg-gray-800/50 rounded-3xl p-6 border border-gray-100 dark:border-gray-700/50 relative overflow-hidden group">
+                <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/0 via-indigo-500/5 to-indigo-500/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
+                
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-2">
+                  পরিমাণ (Amount)
                 </p>
-                <p className="text-4xl font-black text-blue-600 dark:text-blue-400 mb-4">
-                  ৳ {latestAdvanceNotif.amount.toLocaleString("en-US")}
-                </p>
+                <div className="flex justify-center items-baseline gap-1">
+                  <span className="text-xl font-bold text-indigo-600 dark:text-indigo-400">৳</span>
+                  <p className="text-[2.5rem] leading-none font-black text-indigo-600 dark:text-indigo-400 mb-4 tracking-tight">
+                    {latestAdvanceNotif.amount.toLocaleString("en-US")}
+                  </p>
+                </div>
 
-                <div className="flex justify-between items-center text-xs font-medium text-gray-600 dark:text-gray-400 border-t border-blue-100 dark:border-blue-800/30 pt-4">
+                <div className="flex justify-between items-center text-[10px] uppercase font-bold tracking-wider text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 pt-4 mt-2">
                   <span>
                     {new Date(latestAdvanceNotif.date).toLocaleDateString(
                       "bn-BD",
-                      { day: "numeric", month: "long", year: "numeric" },
+                      { day: "numeric", month: "long" },
                     )}
                   </span>
-                  <span className="px-2 py-1 bg-white dark:bg-gray-800 rounded-md shadow-sm border border-gray-100 dark:border-gray-700">
+                  <span className="px-2.5 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg">
                     {latestAdvanceNotif.type}
                   </span>
                 </div>
               </div>
+              
+              <motion.button 
+                 onClick={() => setLatestAdvanceNotif(null)}
+                 whileHover={{ scale: 1.02 }}
+                 whileTap={{ scale: 0.98 }}
+                 className="w-full mt-6 py-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-lg shadow-indigo-200 dark:shadow-none transition-colors"
+              >
+                 ঠিক আছে
+              </motion.button>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+
+      {/* BIOMETRIC PROMPT MODAL */}
+      {showBiometricPrompt && (
+        <motion.div 
+           initial={{ opacity: 0 }} 
+           animate={{ opacity: 1 }} 
+           exit={{ opacity: 0 }} 
+           className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
+        >
+          <motion.div 
+             initial={{ scale: 0.9, y: 20, opacity: 0 }} 
+             animate={{ scale: 1, y: 0, opacity: 1 }} 
+             transition={{ type: "spring", damping: 25, stiffness: 300 }} 
+             className="bg-white dark:bg-gray-900 w-full max-w-sm rounded-[2.5rem] shadow-2xl overflow-hidden relative border border-white/20 dark:border-gray-700/50"
+          >
+            <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-emerald-500/20 to-transparent pointer-events-none" />
+            
+            <button
+              onClick={() => setShowBiometricPrompt(false)}
+              className="absolute top-5 right-5 p-2 bg-gray-100/50 dark:bg-gray-800/50 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors z-10 backdrop-blur-sm"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="p-8 text-center relative z-10">
+              <motion.div
+                 initial={{ scale: 0, rotate: -45 }} 
+                 animate={{ scale: 1, rotate: 0 }} 
+                 transition={{ type: "spring", delay: 0.2, bounce: 0.5 }} 
+                 className="w-20 h-20 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-[1.5rem] flex items-center justify-center mx-auto mb-6 shadow-lg shadow-emerald-500/30 rotate-3"
+              >
+                <Fingerprint className="w-10 h-10 text-white" />
+              </motion.div>
+              
+              <h2 className="text-2xl font-black text-gray-900 dark:text-white mb-2">
+                Biometric Login
+              </h2>
+              <p className="text-gray-500 dark:text-gray-400 text-sm font-medium mb-8">
+                Biometric Unlock System Active করুন। ফিঙ্গারপ্রিন্ট বা ফেস আইডি দিয়ে সহজে লগইন করতে পারবেন।
+              </p>
+              
+              <div className="flex flex-col gap-3">
+                 <motion.button 
+                    onClick={handleEnableBiometrics}
+                    whileHover={{ scale: 1.02 }} 
+                    whileTap={{ scale: 0.98 }} 
+                    className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-lg shadow-emerald-200 dark:shadow-none transition-colors flex items-center justify-center gap-2"
+                 >
+                    <Fingerprint className="w-5 h-5" />
+                    Active করুন
+                 </motion.button>
+                 <button 
+                    onClick={() => setShowBiometricPrompt(false)}
+                    className="w-full py-4 rounded-2xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 font-bold transition-colors"
+                 >
+                    পরে (Skip)
+                 </button>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+
     </div>
   );
 };

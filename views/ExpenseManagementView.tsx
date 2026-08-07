@@ -145,7 +145,8 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
           }
        }
        
-       if (minDistance > 0 && minDistance <= 2 && bestMatch) {
+       const maxAllowedDistance = word.length > 5 ? 2 : 1;
+       if (minDistance > 0 && minDistance <= maxAllowedDistance && bestMatch) {
           if (!found.some(f => f.wrong === word)) {
              found.push({ wrong: word, correct: bestMatch });
           }
@@ -497,13 +498,13 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
             }
          }
          
-         // If a word is somewhat close to a known word (distance 1 or 2), suggest it.
-         // If it's completely unknown (distance > 2), still ask the admin to confirm it.
-         if (minDistance > 0 || baseWords.length === 0) {
+         const maxAllowedDistance = word.length > 5 ? 2 : 1;
+         // Only suggest if it's genuinely close to a known word.
+         if (minDistance > 0 && minDistance <= maxAllowedDistance && bestMatch) {
             newSuggestions.push({
                id: Math.random().toString(36).substr(2, 9),
                wrong: word,
-               suggested: minDistance <= 2 && bestMatch ? bestMatch : word,
+               suggested: bestMatch,
                status: 'PENDING',
                staffName: staff.name, // Useful context
                timestamp: new Date().toISOString()

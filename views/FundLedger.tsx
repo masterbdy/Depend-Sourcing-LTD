@@ -30,6 +30,7 @@ interface Transaction {
 
 const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = [], setExpenses, advances = [], setAdvances, totalFund, cashOnHand, role, staffList }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [deleteConfirmType, setDeleteConfirmType] = useState<'FUND' | 'EXPENSE' | 'ADVANCE' | null>(null);
   const [formData, setFormData] = useState({ 
@@ -284,6 +285,16 @@ const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = 
               <FilterX className="w-5 h-5" />
             </button>
           )}
+          {(role === UserRole.ADMIN || role === UserRole.MD) && (
+             <button
+                onClick={() => setIsAuditModalOpen(true)}
+                className="p-2.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 hover:text-indigo-700 rounded-xl transition-all border border-indigo-100 dark:border-indigo-900/50 flex items-center gap-2 font-bold shadow-sm"
+                title="ব্যালেন্স অডিট (Cross-check)"
+             >
+                <AlertTriangle className="w-4 h-4" />
+                <span className="text-xs hidden sm:inline">Balance Audit</span>
+             </button>
+          )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -481,6 +492,114 @@ const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = 
                   হ্যাঁ, ডিলিট করুন
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Balance Audit Modal */}
+      {isAuditModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-800 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]">
+            <div className="p-5 md:p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-slate-900 text-white">
+              <div className="flex items-center gap-2 md:gap-3">
+                <AlertTriangle className="w-5 h-5 md:w-6 md:h-6 text-yellow-400" />
+                <h3 className="font-bold text-lg md:text-xl">System Balance Audit Report</h3>
+              </div>
+              <button onClick={() => setIsAuditModalOpen(false)} className="text-gray-400 hover:text-white transition-colors text-2xl">×</button>
+            </div>
+            <div className="p-5 md:p-6 overflow-y-auto space-y-6 text-gray-800 dark:text-gray-200 custom-scrollbar">
+              
+              {/* Report Logic Inline */}
+              {(() => {
+                  const safeFunds = Array.isArray(funds) ? funds.filter(f => !f.isDeleted) : [];
+                  const safeExpenses = Array.isArray(expenses) ? expenses.filter(e => !e.isDeleted) : [];
+                  const safeAdvances = Array.isArray(advances) ? advances.filter(a => !a.isDeleted) : [];
+
+                  const totalFundsIn = safeFunds.reduce((sum, f) => sum + Number(f.amount || 0), 0);
+                  const totalApprovedExpenses = safeExpenses.filter(e => e.status === 'APPROVED').reduce((sum, e) => sum + Number(e.amount || 0), 0);
+                  const totalAdvancesOut = safeAdvances.reduce((sum, a) => sum + Number(a.amount || 0), 0);
+                  
+                  // In the system, when a staff takes an advance, money leaves the cash box.
+                  // When they submit an expense, it's adjusted against their advance, it doesn't leave the cash box again.
+                  // Unadjusted Advance (Liability) = Total Advances - Total Expenses
+                  
+                  const calculatedCash = totalFundsIn - totalAdvancesOut;
+                  const staffLiability = totalAdvancesOut - totalApprovedExpenses;
+
+                  const isMatch = Math.abs(calculatedCash - cashOnHand) < 0.01;
+
+                  return (
+                    <div className="space-y-6">
+                       
+                       <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-xl border border-indigo-100 dark:border-indigo-900">
+                          <h4 className="font-bold text-indigo-800 dark:text-indigo-300 mb-2 text-sm flex items-center gap-2">
+                            <Info className="w-4 h-4" /> 
+                            অডিট সামারি (Audit Summary)
+                          </h4>
+                          <p className="text-xs text-indigo-600 dark:text-indigo-400 leading-relaxed mb-4">
+                             সিস্টেমের লজিক অনুযায়ী ক্যাশ শুধুমাত্র তখনই কমে যখন কোনো <strong>Advance (অগ্রিম)</strong> দেওয়া হয়। 
+                             কারন, যখন স্টাফ কোনো বিল (Expense) সাবমিট করে, সেটি তার অগ্রিম টাকা থেকেই কাটা হয়, নতুন করে অফিস ক্যাশ থেকে নয়।
+                          </p>
+
+                          <div className="grid grid-cols-2 gap-3 md:gap-4">
+                             <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-indigo-100 dark:border-indigo-800 shadow-sm">
+                               <p className="text-[10px] uppercase font-bold text-gray-500 mb-1">সর্বমোট ফান্ড (Total Funds)</p>
+                               <p className="text-base md:text-lg font-black text-emerald-600">৳ {totalFundsIn.toLocaleString()}</p>
+                             </div>
+                             <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-indigo-100 dark:border-indigo-800 shadow-sm">
+                               <p className="text-[10px] uppercase font-bold text-gray-500 mb-1">সর্বমোট ক্যাশ আউট (Total Advances)</p>
+                               <p className="text-base md:text-lg font-black text-rose-600">৳ {totalAdvancesOut.toLocaleString()}</p>
+                             </div>
+                             <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-indigo-100 dark:border-indigo-800 shadow-sm col-span-2">
+                               <p className="text-[10px] uppercase font-bold text-gray-500 mb-1 flex items-center justify-between">
+                                 <span>গণনাকৃত ক্যাশ ইন হ্যান্ড (Calculated Cash)</span>
+                                 <span className="text-[9px] text-gray-400 font-normal hidden sm:inline">(Total Fund - Total Advance)</span>
+                               </p>
+                               <div className="flex items-center gap-3">
+                                  <p className="text-xl md:text-2xl font-black text-indigo-600 dark:text-indigo-400">৳ {calculatedCash.toLocaleString()}</p>
+                                  {isMatch ? (
+                                     <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-xs font-bold">MATCHED ✓</span>
+                                  ) : (
+                                     <span className="bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-bold">MISMATCH ✕</span>
+                                  )}
+                               </div>
+                             </div>
+                          </div>
+                       </div>
+
+                       <div className="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
+                          <h4 className="font-bold text-gray-700 dark:text-gray-300 mb-3 text-sm border-b border-gray-200 dark:border-gray-700 pb-2 flex justify-between items-center">
+                             <span>স্টাফদের কাছে হিসাব (Staff Adjustments)</span>
+                             <Banknote className="w-4 h-4 text-gray-400" />
+                          </h4>
+                          <div className="flex justify-between items-center mb-2">
+                             <span className="text-xs text-gray-600 dark:text-gray-400">মোট অনুমোদিত খরচ (Total Expenses):</span>
+                             <span className="text-sm font-bold text-gray-800 dark:text-gray-200">৳ {totalApprovedExpenses.toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between items-center pt-2 border-t border-gray-200 dark:border-gray-700 border-dashed">
+                             <span className="text-xs text-gray-600 dark:text-gray-400 font-bold">মোট অ-সমন্বিত অগ্রিম (Unadjusted Liability):</span>
+                             <span className={`text-sm font-black ${staffLiability > 0 ? 'text-amber-600' : staffLiability < 0 ? 'text-red-500' : 'text-gray-500'}`}>
+                               ৳ {staffLiability.toLocaleString()}
+                             </span>
+                          </div>
+                          <p className="text-[10px] text-gray-500 mt-2 leading-relaxed">
+                             * <strong>পজিটিভ (Positive):</strong> এর মানে হলো স্টাফদের কাছে এখনো অফিসের টাকা অগ্রিম হিসেবে রয়ে গেছে।<br/>
+                             * <strong>নেগেটিভ (Negative):</strong> এর মানে হলো অফিস স্টাফদের কাছে টাকা ঋণী (স্টাফ হয়তো নিজ পকেট থেকে কোম্পানির খরচ করেছে)।
+                          </p>
+                       </div>
+
+                    </div>
+                  );
+              })()}
+              
+            </div>
+            <div className="p-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-right">
+              <button 
+                onClick={() => setIsAuditModalOpen(false)}
+                className="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold rounded-lg transition-colors text-sm"
+              >
+                বন্ধ করুন (Close)
+              </button>
             </div>
           </div>
         </div>

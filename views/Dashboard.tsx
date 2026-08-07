@@ -470,7 +470,7 @@ const DashboardView: React.FC<DashboardProps> = ({
                   className={`text-[10px] md:text-xs font-semibold mt-1 opacity-90 ${isBirthday ? "text-white" : "text-indigo-100"}`}
                 >
                   {new BanglaDateConverter()
-                    .format("D MMMM YYYY")
+                    .format("D MMMM YYYY" as any)
                     .replace(/,/g, "")}
                 </p>
               </div>

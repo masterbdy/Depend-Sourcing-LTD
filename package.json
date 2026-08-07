@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@emailjs/browser": "^4.4.1",
+    "@simplewebauthn/browser": "^13.3.0",
     "@vis.gl/react-google-maps": "^1.8.3",
     "bangla-date-converter": "^1.0.5",
     "express": "^5.2.1",
