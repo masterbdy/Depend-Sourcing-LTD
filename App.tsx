@@ -1146,7 +1146,17 @@ const App: React.FC = () => {
 
                 setter(arrayData);
                 if (node !== "staff_locations") {
-                  safeSetItem(node, JSON.stringify(arrayData));
+                  let storageData = arrayData;
+                  if (node === "expenses") {
+                    storageData = (arrayData as any[]).map(item => { const { voucherImage, ...rest } = item; return rest; });
+                  } else if (node === "products") {
+                    storageData = (arrayData as any[]).map(item => { const { image, ...rest } = item; return rest; });
+                  } else if (node === "staffList") {
+                    storageData = (arrayData as any[]).map(item => { const { photo, ...rest } = item; return rest; });
+                  } else if (node === "app_notes") {
+                    storageData = (arrayData as any[]).map(item => { const { imageUrl, imageUrls, ...rest } = item; return rest; });
+                  }
+                  safeSetItem(node, JSON.stringify(storageData));
                 }
               }
             },
@@ -1264,8 +1274,20 @@ const App: React.FC = () => {
 
   const syncData = async (node: string, data: any, prevData?: any) => {
     const cleaned = cleanArray(data);
+    
+    let storageData = cleaned;
+    if (node === "expenses") {
+      storageData = cleaned.map((item: any) => { const { voucherImage, ...rest } = item; return rest; });
+    } else if (node === "products") {
+      storageData = cleaned.map((item: any) => { const { image, ...rest } = item; return rest; });
+    } else if (node === "staffList") {
+      storageData = cleaned.map((item: any) => { const { photo, ...rest } = item; return rest; });
+    } else if (node === "app_notes") {
+      storageData = cleaned.map((item: any) => { const { imageUrl, imageUrls, ...rest } = item; return rest; });
+    }
+    safeSetItem(node, JSON.stringify(storageData));
+    
     const jsonString = JSON.stringify(cleaned);
-    safeSetItem(node, jsonString);
 
     if (firebaseConfig && firebaseConfig.databaseURL) {
       try {
