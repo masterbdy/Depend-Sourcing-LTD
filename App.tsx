@@ -283,9 +283,27 @@ const DEFAULT_CERT_LOGOS = {
 };
 
 const App: React.FC = () => {
-  const [role, setRole] = useState<UserRole | null>(null);
-  const [currentUser, setCurrentUser] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [role, setRole] = useState<UserRole | null>(() => {
+    const saved = safeGetItem("active_session");
+    if (saved) {
+      try {
+        return JSON.parse(saved).role || null;
+      } catch { return null; }
+    }
+    return null;
+  });
+  const [currentUser, setCurrentUser] = useState<string | null>(() => {
+    const saved = safeGetItem("active_session");
+    if (saved) {
+      try {
+        return JSON.parse(saved).username || null;
+      } catch { return null; }
+    }
+    return null;
+  });
+  const [activeTab, setActiveTab] = useState(() => {
+    return safeGetItem("last_active_tab") || "dashboard";
+  });
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const [highlightStaffId, setHighlightStaffId] = useState<string | null>(null);
@@ -501,22 +519,7 @@ const App: React.FC = () => {
     };
   }, []);
 
-  useEffect(() => {
-    const savedSession = safeGetItem("active_session");
-    if (savedSession) {
-      try {
-        const sessionData = JSON.parse(savedSession);
-        if (sessionData && sessionData.role && sessionData.username) {
-          setRole(sessionData.role);
-          setCurrentUser(sessionData.username);
-          const lastTab = safeGetItem("last_active_tab");
-          if (lastTab) setActiveTab(lastTab);
-        }
-      } catch (e) {
-        console.error("Failed to restore session", e);
-      }
-    }
-  }, []);
+
 
   useEffect(() => {
     if (!role || (role !== UserRole.STAFF && role !== UserRole.KIOSK)) {
@@ -1040,6 +1043,59 @@ const App: React.FC = () => {
       setIsCloudEnabled(false);
     }
   }, [firebaseConfig]);
+
+  // --- EFFECT: Admin Background Notification Listener ---
+  useEffect(() => {
+    if (!firebaseConfig || !firebaseConfig.apiKey) return;
+    if (role !== UserRole.ADMIN && safeGetItem("is_admin_device") !== "true") return;
+
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {});
+    }
+
+    let unsub: any;
+    import("firebase/database").then(({ getDatabase, ref, query, orderByChild, startAt, onChildAdded }) => {
+      try {
+        const apps = getApps();
+        const app = apps.length === 0 ? initializeApp(firebaseConfig) : getApp();
+        const dbUrl = firebaseConfig.databaseURL || `https://${firebaseConfig.projectId}-default-rtdb.firebaseio.com`;
+        const db = getDatabase(app, dbUrl);
+        const now = new Date().toISOString();
+        const notifsRef = query(ref(db, "adminNotifications"), orderByChild("timestamp"), startAt(now));
+
+        unsub = onChildAdded(notifsRef, (snapshot) => {
+          const notif = snapshot.val();
+          if (notif && notif.timestamp >= now && !notif.read) {
+            if ("Notification" in window && Notification.permission === "granted") {
+              const options = {
+                body: notif.message,
+                icon: "/pwa-192x192.png",
+                tag: "admin-login-notify"
+              };
+              try {
+                if (navigator.serviceWorker) {
+                  navigator.serviceWorker.ready.then((registration) => {
+                    registration.showNotification(notif.title, options).catch(() => {
+                      try { new Notification(notif.title, options); } catch(e){}
+                    });
+                  });
+                } else {
+                  new Notification(notif.title, options);
+                }
+              } catch (e) {
+                console.error("Admin Notification UI error", e);
+              }
+            }
+          }
+        });
+      } catch (err) {
+         console.error("Admin Notification Setup Error", err);
+      }
+    });
+    return () => {
+      if (unsub) unsub();
+    };
+  }, [firebaseConfig, role]);
 
   // --- EFFECT 2: Protected Data Loading (Runs Only When Logged In) ---
   useEffect(() => {
@@ -2076,6 +2132,59 @@ const App: React.FC = () => {
     }
   };
 
+  const notifyAdminOfLogin = async (username: string) => {
+    try {
+      if (!firebaseConfig || !firebaseConfig.databaseURL) return;
+      
+      let batteryLevel = "Unknown";
+      if ('getBattery' in navigator) {
+        try {
+          const battery: any = await (navigator as any).getBattery();
+          batteryLevel = `${Math.round(battery.level * 100)}%`;
+        } catch (e) {}
+      }
+
+      const deviceInfo = getDeviceInfo();
+      let locationStr = "Location not available";
+
+      const sendToFirebase = async (loc: string) => {
+        try {
+          const { getDatabase, ref, push, set } = await import("firebase/database");
+          const apps = getApps();
+          const app = apps.length === 0 ? initializeApp(firebaseConfig) : getApp();
+          const dbUrl = firebaseConfig.databaseURL || `https://${firebaseConfig.projectId}-default-rtdb.firebaseio.com`;
+          const db = getDatabase(app, dbUrl);
+          const notifRef = push(ref(db, 'adminNotifications'));
+          await set(notifRef, {
+            title: 'New Login Alert',
+            message: `${username} just logged in.\nDevice: ${deviceInfo}\nBattery: ${batteryLevel}\nLocation: ${loc}`,
+            timestamp: new Date().toISOString(),
+            read: false
+          });
+        } catch (err) {
+          console.error("Failed to push login notification", err);
+        }
+      };
+
+      if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const loc = `${position.coords.latitude.toFixed(5)}, ${position.coords.longitude.toFixed(5)}`;
+            sendToFirebase(loc);
+          },
+          (error) => {
+            sendToFirebase("Permission denied or unavailable");
+          },
+          { timeout: 5000, maximumAge: 0 }
+        );
+      } else {
+        sendToFirebase(locationStr);
+      }
+    } catch (e) {
+      console.error("Error notifying admin", e);
+    }
+  };
+
   const handleLogin = (e: React.FormEvent | null, quickAuthData?: any) => {
     if (e) e.preventDefault();
     setLoginError("");
@@ -2127,6 +2236,12 @@ const App: React.FC = () => {
           username: authenticatedUser!.name,
         };
         safeSetItem("active_session", JSON.stringify(sessionData));
+
+        if (authenticatedUser!.role === UserRole.ADMIN) {
+          safeSetItem("is_admin_device", "true");
+        } else {
+          notifyAdminOfLogin(authenticatedUser!.name);
+        }
 
         if (authenticatedUser!.role === UserRole.STAFF) {
           const deviceInfo = getDeviceInfo();
