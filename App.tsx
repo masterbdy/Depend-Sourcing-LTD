@@ -435,6 +435,20 @@ const App: React.FC = () => {
             for (const node of Object.keys(queue)) {
               const dataToSave = queue[node];
               if (Object.keys(dataToSave).length > 0) {
+                // Safety check: Strip massive images from old queue entries
+                Object.keys(dataToSave).forEach((key) => {
+                  const item = dataToSave[key];
+                  if (item) {
+                    if (item.imageUrl && typeof item.imageUrl === "string" && item.imageUrl.length > 8 * 1024 * 1024) item.imageUrl = null;
+                    if (item.photo && typeof item.photo === "string" && item.photo.length > 8 * 1024 * 1024) item.photo = null;
+                    if (item.voucherImage && typeof item.voucherImage === "string" && item.voucherImage.length > 8 * 1024 * 1024) item.voucherImage = null;
+                    if (item.image && typeof item.image === "string" && item.image.length > 8 * 1024 * 1024) item.image = null;
+                    if (item.imageUrls && Array.isArray(item.imageUrls)) {
+                      item.imageUrls = item.imageUrls.map((url: string) => (url && url.length > 8 * 1024 * 1024 ? null : url)).filter(Boolean);
+                    }
+                  }
+                });
+
                 await update(ref(db, node), dataToSave);
                 processedAny = true;
                 
@@ -1362,6 +1376,20 @@ const App: React.FC = () => {
                   item.photo.length > 8 * 1024 * 1024
                 ) {
                   item.photo = null;
+                }
+                if (
+                  item.voucherImage &&
+                  typeof item.voucherImage === "string" &&
+                  item.voucherImage.length > 8 * 1024 * 1024
+                ) {
+                  item.voucherImage = null;
+                }
+                if (
+                  item.image &&
+                  typeof item.image === "string" &&
+                  item.image.length > 8 * 1024 * 1024
+                ) {
+                  item.image = null;
                 }
                 if (item.imageUrls && Array.isArray(item.imageUrls)) {
                   item.imageUrls = item.imageUrls

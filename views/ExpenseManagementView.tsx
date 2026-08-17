@@ -40,14 +40,20 @@ function getLevenshteinDistance(a: string, b: string): number {
   return matrix[a.length][b.length];
 }
 
+function getLocalDateStr(d: Date = new Date()): string {
+  const offset = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - offset).toISOString().split('T')[0];
+}
+
 const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, staffList, role, currentUser, advances = [], onOpenProfile, allowedBackdateDays = 1, typoDictionary = {}, setTypoDictionary, typoSuggestions = [], setTypoSuggestions }) => {
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({ 
     staffId: '', 
     amount: 0, 
     reason: '', 
     voucherImage: '',
-    date: new Date().toISOString().split('T')[0] // Default to today
+    date: getLocalDateStr() // Default to today
   });
   const [viewingVoucher, setViewingVoucher] = useState<string | null>(null);
   
@@ -78,6 +84,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
   const [statusFilter, setStatusFilter] = useState('');
   const [isTypoModalOpen, setIsTypoModalOpen] = useState(false);
   const [editingSuggId, setEditingSuggId] = useState<string | null>(null);
+  const [historyExpense, setHistoryExpense] = useState<Expense | null>(null);
   const [editingSuggText, setEditingSuggText] = useState('');
 
   const activeStaff = staffList.filter(s => !s.deletedAt && s.status === 'ACTIVE');
@@ -87,15 +94,15 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
   const minDate = new Date(today);
   minDate.setDate(minDate.getDate() - allowedBackdateDays);
   
-  const maxDateStr = today.toISOString().split('T')[0];
-  const minDateStr = minDate.toISOString().split('T')[0];
+  const maxDateStr = getLocalDateStr(today);
+  const minDateStr = getLocalDateStr(minDate);
 
   // Helper for safe date comparison
   const getSafeDateStr = (dateStr: string) => {
     try {
       const d = new Date(dateStr);
       if (isNaN(d.getTime())) return '';
-      return d.toISOString().split('T')[0];
+      return getLocalDateStr(d);
     } catch {
       return '';
     }
@@ -107,6 +114,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
     
     return expenses.filter(e => 
       !e.isDeleted && 
+      e.status !== 'REJECTED' &&
       e.staffId === formData.staffId && 
       getSafeDateStr(e.createdAt) === formData.date
     );
@@ -434,7 +442,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     let targetStaffId = formData.staffId;
     if (role === UserRole.STAFF && currentUser) {
@@ -460,6 +468,19 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
         }
     }
 
+    setIsSubmitting(true);
+    let submitLocation: { lat: number; lng: number } | undefined;
+    if (navigator.geolocation) {
+       try {
+           const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+               navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+           });
+           submitLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+       } catch (err) {
+           console.warn("Could not get location for bill submission", err);
+       }
+    }
+
     const submitDate = new Date(formData.date);
     const now = new Date();
     submitDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
@@ -472,7 +493,9 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
       reason: formData.reason,
       voucherImage: formData.voucherImage,
       status: 'PENDING',
-      createdAt: submitDate.toISOString()
+      createdAt: submitDate.toISOString(),
+      submittedAt: new Date().toISOString(),
+      submitLocation,
     };
     
     // Fuzzy Matching Tracking
@@ -519,10 +542,11 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
 
     setExpenses(prev => [newExpense, ...prev]);
     setIsSubmitModalOpen(false);
+    setIsSubmitting(false);
     
     setFormData({ 
       staffId: '', amount: 0, reason: '', voucherImage: '', 
-      date: new Date().toISOString().split('T')[0] 
+      date: getLocalDateStr() 
     });
   };
 
@@ -589,19 +613,55 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
     setIsCorrectionModalOpen(true);
   };
 
-  const saveCorrection = (e: React.FormEvent) => {
+  const [isCorrectionSubmitting, setIsCorrectionSubmitting] = useState(false);
+
+  const saveCorrection = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!correctionData) return;
+    
+    setIsCorrectionSubmitting(true);
+    let editLocation: { lat: number; lng: number } | undefined;
+    if (navigator.geolocation) {
+       try {
+           const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+               navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+           });
+           editLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+       } catch (err) {
+           console.warn("Could not get location for edit", err);
+       }
+    }
+
     setExpenses(prev => prev.map(ex => {
       if (ex.id === correctionData.id) {
         const originalDate = new Date(ex.createdAt);
         const [y, m, d] = correctionData.date.split('-').map(Number);
         const updatedDate = new Date(originalDate);
         updatedDate.setFullYear(y); updatedDate.setMonth(m - 1); updatedDate.setDate(d);
-        return { ...ex, amount: Number(correctionData.amount), reason: correctionData.reason, createdAt: updatedDate.toISOString(), voucherImage: correctionData.voucherImage };
+        
+        const newEditLog = {
+           editedAt: new Date().toISOString(),
+           editedBy: currentUser || 'Unknown',
+           previousAmount: ex.amount,
+           newAmount: Number(correctionData.amount),
+           previousReason: ex.reason,
+           newReason: correctionData.reason,
+           location: editLocation
+        };
+        const updatedEditLogs = [...(ex.editLogs || []), newEditLog];
+        
+        return { 
+           ...ex, 
+           amount: Number(correctionData.amount), 
+           reason: correctionData.reason, 
+           createdAt: updatedDate.toISOString(), 
+           voucherImage: correctionData.voucherImage,
+           editLogs: updatedEditLogs
+        };
       }
       return ex;
     }));
+    setIsCorrectionSubmitting(false);
     setIsCorrectionModalOpen(false); setCorrectionData(null);
   };
 
@@ -699,7 +759,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredExpenses.map((expense) => {
           const expenseDateStr = getSafeDateStr(expense.createdAt);
-          const isDuplicate = expenses.filter(e => !e.isDeleted && e.staffId === expense.staffId && getSafeDateStr(e.createdAt) === expenseDateStr).length > 1;
+          const isDuplicate = expenses.filter(e => !e.isDeleted && e.status !== 'REJECTED' && e.staffId === expense.staffId && getSafeDateStr(e.createdAt) === expenseDateStr).length > 1;
           const staffMember = staffList.find(s => s.id === expense.staffId);
 
           return (
@@ -717,6 +777,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                   {expense.voucherImage && (
                     <button onClick={() => setViewingVoucher(expense.voucherImage!)} className="text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300 transition-colors p-1 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-full" title="ভাউচার দেখুন"><Eye className="w-4 h-4" /></button>
                   )}
+                  <button onClick={() => setHistoryExpense(expense)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors p-1 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-full" title="হিস্ট্রি ও লোকেশন"><Clock className="w-4 h-4" /></button>
                   <div className="text-right">
                     <p className="text-xs text-gray-400 dark:text-gray-500 font-bold">{new Date(expense.createdAt).toLocaleDateString('bn-BD', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
                     <p className="text-[10px] text-gray-400 dark:text-gray-500 opacity-80">{new Date(expense.createdAt).toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' })}</p>
@@ -833,12 +894,12 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                   </div>
                   
                   {duplicateCheck.length > 0 && (
-                      <div className="p-3 bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl flex flex-col gap-2 animate-in fade-in zoom-in duration-300">
-                          <div className="flex items-center gap-2 text-red-700 dark:text-red-400 font-black text-xs uppercase tracking-widest"><AlertTriangle className="w-4 h-4" /> সতর্কতা: ডুপ্লিকেট এন্ট্রি!</div>
-                          <p className="text-xs font-bold text-red-600 dark:text-red-300 leading-relaxed">এই স্টাফের নামের সাথে <u>{new Date(formData.date).toLocaleDateString('bn-BD')}</u> তারিখে ইতিমধ্যে <span className="text-lg">{duplicateCheck.length}</span> টি বিল আছে।</p>
+                      <div className="p-3 bg-orange-100 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded-xl flex flex-col gap-2 animate-in fade-in zoom-in duration-300">
+                          <div className="flex items-center gap-2 text-orange-700 dark:text-orange-400 font-black text-xs uppercase tracking-widest"><AlertTriangle className="w-4 h-4" /> সতর্কতা: ইতিমধ্যে বিল আছে!</div>
+                          <p className="text-xs font-bold text-orange-800 dark:text-orange-300 leading-relaxed">এই স্টাফের নামের সাথে <u>{new Date(formData.date).toLocaleDateString('bn-BD')}</u> তারিখে ইতিমধ্যে <span className="text-lg">{duplicateCheck.length}</span> টি বিল আছে।</p>
                           <div className="bg-white/50 dark:bg-black/20 p-2 rounded-lg max-h-24 overflow-y-auto custom-scrollbar">
                               {duplicateCheck.map((e) => (
-                                  <div key={e.id} className="flex justify-between text-[10px] font-bold text-red-500 dark:text-red-400 border-b border-red-100 dark:border-red-800 last:border-0 py-1">
+                                  <div key={e.id} className="flex justify-between text-[10px] font-bold text-orange-600 dark:text-orange-400 border-b border-orange-100 dark:border-orange-800/30 last:border-0 py-1">
                                       <span>{e.reason.substring(0, 20)}...</span><span>৳ {e.amount}</span>
                                   </div>
                               ))}
@@ -901,8 +962,9 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                 </div>
 
                 <div className="p-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 shrink-0">
-                    <button type="submit" className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all flex items-center justify-center gap-2 active:scale-95">
-                        <MessageCircle className="w-4 h-4" /> সাবমিট করুন (Submit)
+                    <button type="submit" disabled={isSubmitting} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-70 disabled:cursor-wait">
+                        {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageCircle className="w-4 h-4" />} 
+                        {isSubmitting ? 'প্রসেসিং হচ্ছে...' : 'সাবমিট করুন (Submit)'}
                     </button>
                 </div>
             </form>
@@ -954,7 +1016,10 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                         <input ref={correctionCameraRef} type="file" accept="image/*" capture="environment" hidden onChange={handleCorrectionImageUpload} />
                     </div>
 
-                    <button type="submit" className="w-full bg-orange-500 text-white py-3 rounded-xl font-bold hover:bg-orange-600 shadow-lg shadow-orange-100 flex items-center justify-center gap-2"><Edit3 className="w-4 h-4" /> সেইভ করুন</button>
+                    <button type="submit" disabled={isCorrectionSubmitting} className="w-full bg-orange-500 text-white py-3 rounded-xl font-bold hover:bg-orange-600 shadow-lg shadow-orange-100 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-wait">
+                      {isCorrectionSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Edit3 className="w-4 h-4" />} 
+                      {isCorrectionSubmitting ? 'সেইভ হচ্ছে...' : 'সেইভ করুন'}
+                    </button>
                  </form>
              </div>
           </div>
@@ -998,6 +1063,82 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
           <div className="relative max-w-3xl w-full max-h-screen p-2">
              <button onClick={() => setViewingVoucher(null)} className="absolute -top-12 right-0 text-white hover:text-red-400 transition-colors"><X className="w-8 h-8" /></button>
              <img src={viewingVoucher} alt="Voucher Full View" className="w-full h-auto max-h-[85vh] object-contain rounded-lg shadow-2xl bg-white" />
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* History Modal */}
+      {historyExpense && createPortal(
+        <div className="fixed inset-0 z-[1002] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-gray-800 w-full max-w-lg max-h-[90vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+            <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800">
+               <h3 className="text-lg font-black text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-indigo-500" /> অ্যাক্টিভিটি হিস্ট্রি
+               </h3>
+               <button onClick={() => setHistoryExpense(null)} className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors text-gray-500"><X className="w-5 h-5"/></button>
+            </div>
+            <div className="p-5 overflow-y-auto space-y-6">
+               
+               <div>
+                 <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">সাবমিশন (Submission)</h4>
+                 <div className="bg-gray-50 dark:bg-gray-900 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
+                    <div className="grid grid-cols-2 gap-4">
+                       <div>
+                         <p className="text-[10px] text-gray-500 mb-1">তারিখ ও সময়</p>
+                         <p className="text-sm font-bold text-gray-800 dark:text-gray-200">
+                           {historyExpense.submittedAt ? new Date(historyExpense.submittedAt).toLocaleString('bn-BD') : 'অজানা'}
+                         </p>
+                       </div>
+                       <div>
+                         <p className="text-[10px] text-gray-500 mb-1">লোকেশন</p>
+                         <p className="text-sm font-bold text-gray-800 dark:text-gray-200">
+                           {historyExpense.submitLocation ? (
+                             <a href={`https://www.google.com/maps/search/?api=1&query=${historyExpense.submitLocation.lat},${historyExpense.submitLocation.lng}`} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline">ম্যাপে দেখুন</a>
+                           ) : 'পাওয়া যায়নি'}
+                         </p>
+                       </div>
+                    </div>
+                 </div>
+               </div>
+
+               {historyExpense.editLogs && historyExpense.editLogs.length > 0 && (
+                 <div>
+                   <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">এডিট হিস্ট্রি (Edits)</h4>
+                   <div className="space-y-3">
+                     {historyExpense.editLogs.map((log, idx) => (
+                       <div key={idx} className="bg-orange-50 dark:bg-orange-900/10 rounded-xl p-4 border border-orange-100 dark:border-orange-900/30">
+                          <div className="flex justify-between items-start mb-2 pb-2 border-b border-orange-100 dark:border-orange-800/30">
+                            <div>
+                               <p className="text-xs font-bold text-gray-800 dark:text-gray-200">{log.editedBy}</p>
+                               <p className="text-[10px] text-gray-500">{new Date(log.editedAt).toLocaleString('bn-BD')}</p>
+                            </div>
+                            <div className="text-right">
+                               <p className="text-[10px] text-gray-500">লোকেশন</p>
+                               {log.location ? (
+                                 <a href={`https://www.google.com/maps/search/?api=1&query=${log.location.lat},${log.location.lng}`} target="_blank" rel="noreferrer" className="text-indigo-600 text-[10px] hover:underline font-bold">ম্যাপে দেখুন</a>
+                               ) : <span className="text-[10px] text-gray-400">পাওয়া যায়নি</span>}
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                             <div>
+                               <span className="text-gray-500">আগে:</span> <span className="line-through text-red-500 font-medium">৳{log.previousAmount}</span>
+                               <br/>
+                               <span className="text-gray-500 line-clamp-1">{log.previousReason}</span>
+                             </div>
+                             <div>
+                               <span className="text-gray-500">নতুন:</span> <span className="text-green-600 font-bold">৳{log.newAmount}</span>
+                               <br/>
+                               <span className="text-gray-800 dark:text-gray-200 line-clamp-1">{log.newReason}</span>
+                             </div>
+                          </div>
+                       </div>
+                     ))}
+                   </div>
+                 </div>
+               )}
+
+            </div>
           </div>
         </div>,
         document.body

@@ -121,6 +121,17 @@ export interface Expense {
   voucherImage?: string;
   status: 'PENDING' | 'VERIFIED' | 'APPROVED' | 'REJECTED';
   createdAt: string;
+  submittedAt?: string;
+  submitLocation?: { lat: number; lng: number };
+  editLogs?: {
+    editedAt: string;
+    editedBy: string;
+    previousAmount: number;
+    newAmount: number;
+    previousReason: string;
+    newReason: string;
+    location?: { lat: number; lng: number };
+  }[];
   isDeleted?: boolean;
   isHardDeleted?: boolean;
 }
