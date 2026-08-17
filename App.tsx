@@ -2573,15 +2573,36 @@ const App: React.FC = () => {
   const handleNoteImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        alert("File max size is 2MB.");
-        return;
-      }
       const reader = new FileReader();
-      reader.onload = () => {
-        setNewProfileNoteImage(reader.result as string);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+          const MAX_SIZE = 800;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > MAX_SIZE) {
+            height *= MAX_SIZE / width;
+            width = MAX_SIZE;
+          } else if (height > MAX_SIZE) {
+            width *= MAX_SIZE / height;
+            height = MAX_SIZE;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          ctx?.drawImage(img, 0, 0, width, height);
+
+          setNewProfileNoteImage(canvas.toDataURL("image/jpeg", 0.7));
+        };
+        if (reader.result) {
+          img.src = reader.result as string;
+        }
       };
       reader.readAsDataURL(file);
+      e.target.value = "";
     }
   };
 
