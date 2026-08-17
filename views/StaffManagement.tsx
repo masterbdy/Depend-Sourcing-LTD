@@ -599,9 +599,6 @@ const StaffManagementView: React.FC<StaffProps> = ({
           if (width > MAX_SIZE) {
             height *= MAX_SIZE / width;
             width = MAX_SIZE;
-          } else if (height > MAX_SIZE) {
-            width *= MAX_SIZE / height;
-            height = MAX_SIZE;
           }
           canvas.width = width;
           canvas.height = height;
@@ -612,7 +609,6 @@ const StaffManagementView: React.FC<StaffProps> = ({
         img.src = event.target?.result as string;
       };
       reader.readAsDataURL(file);
-      e.target.value = "";
     }
   };
 
