@@ -54,7 +54,7 @@ import {
   ShoppingBag,
   Package,
   Share2,
-  MapPinOff,
+  MapPinOff, MapPin,
   RefreshCw,
   WalletCards,
   StickyNote,
@@ -111,12 +111,20 @@ import TrashView from "./views/Trash";
 import NoticeBoardView from "./views/NoticeBoardView";
 import ComplaintBoxView from "./views/ComplaintBoxView";
 import GroupChatView from "./views/GroupChat";
+import localforage from "localforage";
+
+localforage.config({
+  name: 'AIS_App_DB',
+  storeName: 'app_data',
+  description: 'Stores large app data'
+});
 import AttendanceView from "./views/Attendance";
 import LiveLocationView from "./views/LiveLocation";
 import LuckyDrawView from "./views/LuckyDraw";
 import ProductCatalogView from "./views/ProductCatalogView";
 import PhoneBook from "./views/PhoneBook";
 import NotesView from "./views/NotesView";
+import SavedPlacesView from "./views/SavedPlaces";
 import { getUserFCMToken } from "./notifications";
 
 // Safe LocalStorage Helper
@@ -304,6 +312,7 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState(() => {
     return safeGetItem("last_active_tab") || "dashboard";
   });
+  const [isFirebaseLoaded, setIsFirebaseLoaded] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const [highlightStaffId, setHighlightStaffId] = useState<string | null>(null);
@@ -418,6 +427,31 @@ const App: React.FC = () => {
   };
 
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  // Load full data from IndexedDB on mount (has photos/images)
+  useEffect(() => {
+    const loadIDBData = async () => {
+      try {
+        const staffData = await localforage.getItem("staffList");
+        if (staffData && typeof staffData === "string") {
+          const parsed = JSON.parse(staffData);
+          if (parsed && parsed.length > 0) setStaffList(parsed);
+        }
+
+        const expData = await localforage.getItem("expenses");
+        if (expData && typeof expData === "string") setExpenses(JSON.parse(expData));
+
+        const prodData = await localforage.getItem("products");
+        if (prodData && typeof prodData === "string") setProducts(JSON.parse(prodData));
+
+        const noteData = await localforage.getItem("app_notes");
+        if (noteData && typeof noteData === "string") setAppNotes(JSON.parse(noteData));
+      } catch (e) {
+        console.error("IDB load error:", e);
+      }
+    };
+    loadIDBData();
+  }, []);
 
   useEffect(() => {
     const processOfflineQueue = async () => {
@@ -898,8 +932,11 @@ const App: React.FC = () => {
   const [productEditors, setProductEditors] = useState<string[]>(() =>
     getLocalData("productEditors", []),
   );
-  const [phoneBook, setPhoneBook] = useState<PhoneBookEntry[]>(() =>
+  const [phoneBook, setPhoneBook] = useState<any[]>(() =>
     getLocalData("phoneBook", []),
+  );
+  const [savedLocations, setSavedLocations] = useState<any[]>(() =>
+    getLocalData("saved_locations", []),
   );
 
   const [searchCount, setSearchCount] = useState<number>(() =>
@@ -1001,6 +1038,7 @@ const App: React.FC = () => {
               const data = cleanArray(snapshot.val());
               setStaffList(data as Staff[]);
               safeSetItem("staffList", JSON.stringify(data));
+              setIsFirebaseLoaded(true);
             }
           },
           (err) => console.error(err),
@@ -1157,6 +1195,8 @@ const App: React.FC = () => {
                     storageData = (arrayData as any[]).map(item => { const { imageUrl, imageUrls, ...rest } = item; return rest; });
                   }
                   safeSetItem(node, JSON.stringify(storageData));
+                  // Save full data including images to IndexedDB
+                  localforage.setItem(node, JSON.stringify(arrayData)).catch(e => console.error("IDB save error:", e));
                 }
               }
             },
@@ -1180,6 +1220,7 @@ const App: React.FC = () => {
           subscribe("staff_locations", setLiveLocations);
         }
         subscribe("phoneBook", setPhoneBook);
+        subscribe("saved_locations", setSavedLocations);
         subscribe("app_notes", setAppNotes);
         subscribe("typo_dictionary", setTypoDictionary);
         subscribe("typo_suggestions", setTypoSuggestions);
@@ -1286,6 +1327,7 @@ const App: React.FC = () => {
       storageData = cleaned.map((item: any) => { const { imageUrl, imageUrls, ...rest } = item; return rest; });
     }
     safeSetItem(node, JSON.stringify(storageData));
+    localforage.setItem(node, JSON.stringify(cleaned)).catch(e => console.error("IDB save error:", e));
     
     const jsonString = JSON.stringify(cleaned);
 
@@ -1442,6 +1484,7 @@ const App: React.FC = () => {
     setProductEditors as React.Dispatch<React.SetStateAction<any>>,
   );
   const updatePhoneBook = createUpdater("phoneBook", setPhoneBook as React.Dispatch<React.SetStateAction<any>>);
+  const updateSavedLocations = createUpdater("saved_locations", setSavedLocations as React.Dispatch<React.SetStateAction<any>>);
   const updateAppNotes = createUpdater("app_notes", setAppNotes as React.Dispatch<React.SetStateAction<any>>);
   const updateTypoDictionary = createUpdater("typo_dictionary", setTypoDictionary as React.Dispatch<React.SetStateAction<any>>);
   const updateTypoSuggestions = createUpdater("typo_suggestions", setTypoSuggestions as React.Dispatch<React.SetStateAction<any>>);
@@ -1573,6 +1616,7 @@ const App: React.FC = () => {
     if (currentUser.toLowerCase().includes("office")) return;
 
     const checkAndAwardVisitPoint = () => {
+      if (!isFirebaseLoaded) return;
       if (document.visibilityState !== "visible") return;
 
       const staff = (staffList || []).find(
@@ -1640,7 +1684,7 @@ const App: React.FC = () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("focus", checkAndAwardVisitPoint);
     };
-  }, [currentUser, role, staffList.length]);
+  }, [currentUser, role, staffList.length, isFirebaseLoaded]);
 
   const wakeLockRef = useRef<any>(null);
 
@@ -1673,7 +1717,38 @@ const App: React.FC = () => {
     if (!myStaffId) return;
 
     let watchId: number;
+    let intervalId: any;
     let lastLocationUpdate = 0;
+
+    const pushLocation = async (position: any) => {
+      const now = Date.now();
+      if (now - lastLocationUpdate < 15000) return;
+      lastLocationUpdate = now;
+
+      if (!permissionsGranted) {
+        setPermissionsGranted(true);
+        safeSetItem("app_permissions_granted", "true");
+      }
+
+      try {
+        const app = getApp();
+        const db = getDatabase(app, firebaseConfig.databaseURL);
+        const locationData: StaffLocation = {
+          staffId: myStaffId,
+          staffName: currentUser,
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          timestamp: new Date().toISOString(),
+          speed: position.coords.speed || 0,
+          // @ts-ignore
+          batteryLevel: (await navigator.getBattery?.())?.level || undefined,
+          deviceName: getDeviceInfo(),
+        };
+        await set(ref(db, `staff_locations/${myStaffId}`), locationData);
+      } catch (err) {
+        console.error("Location update failed", err);
+      }
+    };
 
     const startTracking = () => {
       if (role === UserRole.STAFF || role === UserRole.KIOSK) {
@@ -1682,39 +1757,18 @@ const App: React.FC = () => {
 
       if ("geolocation" in navigator) {
         watchId = navigator.geolocation.watchPosition(
-          async (position) => {
-            const now = Date.now();
-            if (now - lastLocationUpdate < 15000) return; // Throttle to 15 seconds
-            lastLocationUpdate = now;
-
-            if (!permissionsGranted) {
-              setPermissionsGranted(true);
-              safeSetItem("app_permissions_granted", "true");
-            }
-
-            try {
-              const app = getApp();
-              const db = getDatabase(app, firebaseConfig.databaseURL);
-              const locationData: StaffLocation = {
-                staffId: myStaffId,
-                staffName: currentUser,
-                lat: position.coords.latitude,
-                lng: position.coords.longitude,
-                timestamp: new Date().toISOString(),
-                speed: position.coords.speed || 0,
-                batteryLevel:
-                  // @ts-ignore
-                  (await navigator.getBattery?.())?.level || undefined,
-                deviceName: getDeviceInfo(),
-              };
-              await set(ref(db, `staff_locations/${myStaffId}`), locationData);
-            } catch (err) {
-              console.error("Location update failed", err);
-            }
-          },
+          pushLocation,
           (err) => console.error("GPS Error", err),
           { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 },
         );
+        
+        intervalId = setInterval(() => {
+          navigator.geolocation.getCurrentPosition(
+            pushLocation,
+            () => {},
+            { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 }
+          );
+        }, 5 * 60 * 1000);
       }
     };
 
@@ -1732,6 +1786,7 @@ const App: React.FC = () => {
 
     return () => {
       if (watchId) navigator.geolocation.clearWatch(watchId);
+      if (intervalId) clearInterval(intervalId);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       if (wakeLockRef.current) {
         wakeLockRef.current.release().catch(() => {});
@@ -2785,6 +2840,14 @@ const App: React.FC = () => {
         bgColor: "bg-blue-50",
       },
       {
+        id: "saved-places",
+        label: "কোম্পানি লোকেশন",
+        icon: MapPin,
+        roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF],
+        color: "text-emerald-600",
+        bgColor: "bg-emerald-50",
+      },
+      {
         id: "live-location",
         label: "লাইভ ট্র্যাকিং",
         icon: Radar,
@@ -2917,6 +2980,17 @@ const App: React.FC = () => {
             onUpdatePoints={handlePointUpdate}
             staffList={staffList}
             onOpenProfile={openProfile}
+          />
+        );
+      case "saved-places":
+        return (
+          <SavedPlacesView
+            currentUser={currentUser}
+            role={role!}
+            firebaseConfig={firebaseConfig}
+            isCloudEnabled={isCloudEnabled}
+            savedLocations={savedLocations}
+            setSavedLocations={updateSavedLocations}
           />
         );
       case "phone-book":

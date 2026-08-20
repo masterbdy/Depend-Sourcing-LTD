@@ -17,6 +17,7 @@
     "express": "^5.2.1",
     "firebase": "^10.8.1",
     "leaflet": "^1.9.4",
+    "localforage": "^1.10.0",
     "lucide-react": "^0.344.0",
     "motion": "^12.38.0",
     "nodemailer": "^8.0.6",

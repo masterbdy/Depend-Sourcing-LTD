@@ -1,0 +1,18 @@
+--- types.ts
++++ types.ts
+@@ -231,2 +231,14 @@
+   isHardDeleted?: boolean;
+ }
++
++export interface SavedLocation {
++  id: string;
++  companyName: string;
++  lat: number;
++  lng: number;
++  address?: string;
++  notes?: string;
++  transportInfo?: string;
++  addedBy: string;
++  addedAt: string;
++  isDeleted?: boolean;
++}

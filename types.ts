@@ -262,3 +262,16 @@ export interface CustomPopup {
   timestamp: string;
   seenBy?: string[]; // To track who saw it
 }
+
+export interface SavedLocation {
+  id: string;
+  companyName: string;
+  lat: number;
+  lng: number;
+  address?: string;
+  notes?: string;
+  transportInfo?: string;
+  addedBy: string;
+  addedAt: string;
+  isDeleted?: boolean;
+}
