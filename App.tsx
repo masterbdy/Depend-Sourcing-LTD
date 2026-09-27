@@ -34,7 +34,7 @@ import {
   Save,
   KeyRound,
   CreditCard,
-  MonitorSmartphone,
+  MonitorSmartphone, Smartphone,
   Trophy,
   Gift,
   Sun,
@@ -124,6 +124,7 @@ import LuckyDrawView from "./views/LuckyDraw";
 import ProductCatalogView from "./views/ProductCatalogView";
 import PhoneBook from "./views/PhoneBook";
 import NotesView from "./views/NotesView";
+import MobileBillManagement from "./views/MobileBillManagement";
 import SavedPlacesView from "./views/SavedPlaces";
 import { getUserFCMToken } from "./notifications";
 
@@ -2848,6 +2849,14 @@ const App: React.FC = () => {
         bgColor: "bg-emerald-50",
       },
       {
+        id: "mobile-bill",
+        label: "মোবাইল বিল",
+        icon: Smartphone,
+        roles: [UserRole.ADMIN, UserRole.MD],
+        color: "text-indigo-600",
+        bgColor: "bg-indigo-50",
+      },
+      {
         id: "live-location",
         label: "লাইভ ট্র্যাকিং",
         icon: Radar,
@@ -2991,6 +3000,13 @@ const App: React.FC = () => {
             isCloudEnabled={isCloudEnabled}
             savedLocations={savedLocations}
             setSavedLocations={updateSavedLocations}
+          />
+        );
+      case "mobile-bill":
+        return (
+          <MobileBillManagement
+            staffList={staffList}
+            setStaffList={updateStaffList}
           />
         );
       case "phone-book":

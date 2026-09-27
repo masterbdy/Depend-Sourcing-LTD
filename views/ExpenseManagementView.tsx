@@ -202,6 +202,16 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
     // STRICTLY ENFORCED FONT FAMILY for all elements
     const fontStyle = "font-family: 'Noto Sans Bengali', sans-serif;";
 
+    let signatoryName = 'Shariful Islam';
+    let signatoryTitle = 'Managing Director';
+    try {
+      const savedSignatoryId = localStorage.getItem('authorized_signatory_id');
+      if (savedSignatoryId === 'chairman') {
+        signatoryName = 'Moyna Islam';
+        signatoryTitle = 'Chairman';
+      }
+    } catch {}
+
     return `
       <div style="width: 650px; padding: 40px; background: white; border: 1px solid #d1d5db; ${fontStyle} color: #1f2937; position: relative; margin: auto; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
          <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #111827; padding-bottom: 20px; margin-bottom: 30px;">
@@ -253,9 +263,10 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                <div style="border-top: 1px solid #9ca3af; width: 100%; margin-bottom: 8px;"></div>
                <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">Receiver Signature</div>
             </div>
-            <div style="text-align: center; width: 30%;">
-               <div style="border-top: 1px solid #9ca3af; width: 100%; margin-bottom: 8px;"></div>
-               <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">Authority Signature</div>
+            <div style="text-align: center; width: 35%;">
+               <div style="border-top: 1px solid #9ca3af; width: 100%; margin-bottom: 6px;"></div>
+               <div style="font-size: 11px; font-weight: 700; color: #1f2937;">${signatoryName}</div>
+               <div style="font-size: 9px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">${signatoryTitle}</div>
             </div>
          </div>
          <div style="position: absolute; bottom: 10px; right: 20px; font-size: 9px; color: #cbd5e1; font-style: italic;">System Generated via Depend App • ${new Date().toLocaleString('bn-BD')}</div>

@@ -74,6 +74,7 @@ export interface Staff {
   luckyDrawCount?: number;
   lastDevice?: string; // New Field for Device Tracking
   fcmToken?: string; // Firebase Cloud Messaging Token
+  mobileBillPaidUpto?: string; // Stores the month up to which mobile bill is paid (e.g., '2024-09')
   webAuthnCredential?: {
     id: string; // Base64URL encoded credential ID
     rawId: string; // Base64URL encoded rawId

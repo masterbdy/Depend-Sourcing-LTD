@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Settings, Save, Clock, Download, Upload, Database, ShieldCheck, ExternalLink, HelpCircle, Code, Check, AlertTriangle, Package, UserCheck, X, Image as ImageIcon, Trash2, Info, Mail, ShieldAlert, RefreshCw } from 'lucide-react';
+import { Settings, Save, Clock, Download, Upload, Database, ShieldCheck, ExternalLink, HelpCircle, Code, Check, AlertTriangle, Package, UserCheck, X, Image as ImageIcon, Trash2, Info, Mail, ShieldAlert, RefreshCw, FileSignature } from 'lucide-react';
 import { BillingRule, UserRole, Staff } from '../types';
 import packageJson from '../package.json';
 
@@ -41,6 +41,26 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
     } catch {}
     return { host: 'smtp.gmail.com', port: '587', secure: false, user: '', pass: '', from: '' };
   });
+
+  const [defaultSignatory, setDefaultSignatory] = useState<'chairman' | 'md'>(() => {
+    try {
+      const saved = localStorage.getItem('authorized_signatory_id');
+      if (saved === 'chairman' || saved === 'md') return saved;
+    } catch {}
+    return 'chairman';
+  });
+
+  const handleSignatorySelect = (val: 'chairman' | 'md') => {
+    setDefaultSignatory(val);
+    try {
+      localStorage.setItem('authorized_signatory_id', val);
+      if (val === 'chairman') {
+        localStorage.setItem('authorized_signatory', JSON.stringify({ name: 'Moyna Islam', designation: 'Chairman' }));
+      } else {
+        localStorage.setItem('authorized_signatory', JSON.stringify({ name: 'Shariful Islam', designation: 'Managing Director' }));
+      }
+    } catch {}
+  };
 
   const [showSmtpSuccess, setShowSmtpSuccess] = useState(false);
 
@@ -438,6 +458,62 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
                       </p>
                    </div>
                )}
+
+               {/* Authorized Signatory Option */}
+               <div className="bg-gray-50 dark:bg-gray-900/50 p-4 sm:p-5 rounded-2xl border border-gray-100 dark:border-gray-700">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                     <div>
+                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">রিপোর্ট ও ভাউচার স্বাক্ষরকারী (Authorized Signatory)</label>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">অফিসে যিনি উপস্থিত থাকবেন তার নাম ও পদবি সিলেক্ট করুন (একবারে যেকোনো একজন)</p>
+                     </div>
+                     <span className="text-xs font-bold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-900/40 px-3 py-1 rounded-full border border-teal-200 dark:border-teal-800 self-start sm:self-auto">
+                        {defaultSignatory === 'chairman' ? 'Moyna Islam (Chairman)' : 'Shariful Islam (Managing Director)'}
+                     </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                     <button
+                       type="button"
+                       onClick={() => handleSignatorySelect('chairman')}
+                       className={`p-3.5 rounded-xl border-2 text-left transition-all flex items-center justify-between cursor-pointer ${
+                          defaultSignatory === 'chairman'
+                            ? 'border-teal-600 bg-teal-50/70 dark:bg-teal-900/30 shadow-sm ring-1 ring-teal-500/20'
+                            : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-gray-300'
+                       }`}
+                     >
+                        <div>
+                           <span className="text-[10px] font-bold uppercase tracking-wider text-teal-600 dark:text-teal-400 bg-teal-100/70 dark:bg-teal-800/40 px-2 py-0.5 rounded">Chairman</span>
+                           <h4 className="text-sm font-black text-gray-800 dark:text-white mt-1">Moyna Islam</h4>
+                           <p className="text-xs text-gray-500 dark:text-gray-400">চেয়ারম্যান</p>
+                        </div>
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                           defaultSignatory === 'chairman' ? 'border-teal-600 bg-teal-600 text-white' : 'border-gray-300 dark:border-gray-600'
+                        }`}>
+                           {defaultSignatory === 'chairman' && <Check className="w-3 h-3 stroke-[3]" />}
+                        </div>
+                     </button>
+
+                     <button
+                       type="button"
+                       onClick={() => handleSignatorySelect('md')}
+                       className={`p-3.5 rounded-xl border-2 text-left transition-all flex items-center justify-between cursor-pointer ${
+                          defaultSignatory === 'md'
+                            ? 'border-teal-600 bg-teal-50/70 dark:bg-teal-900/30 shadow-sm ring-1 ring-teal-500/20'
+                            : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-gray-300'
+                       }`}
+                     >
+                        <div>
+                           <span className="text-[10px] font-bold uppercase tracking-wider text-teal-600 dark:text-teal-400 bg-teal-100/70 dark:bg-teal-800/40 px-2 py-0.5 rounded">Managing Director</span>
+                           <h4 className="text-sm font-black text-gray-800 dark:text-white mt-1">Shariful Islam</h4>
+                           <p className="text-xs text-gray-500 dark:text-gray-400">ম্যানেজিং ডিরেক্টর</p>
+                        </div>
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                           defaultSignatory === 'md' ? 'border-teal-600 bg-teal-600 text-white' : 'border-gray-300 dark:border-gray-600'
+                        }`}>
+                           {defaultSignatory === 'md' && <Check className="w-3 h-3 stroke-[3]" />}
+                        </div>
+                     </button>
+                  </div>
+               </div>
             </div>
         </div>
       )}

@@ -1,7 +1,29 @@
 import React, { useState, useMemo } from 'react';
-import { BarChart3, Download, FileText, Users, Calendar, Table, Printer, UserCheck, PieChart as PieIcon, Wallet, ArrowRight, MapPin, Calculator } from 'lucide-react';
+import { BarChart3, Download, FileText, Users, Calendar, Table, Printer, UserCheck, PieChart as PieIcon, Wallet, ArrowRight, MapPin, Calculator, FileSignature, Check } from 'lucide-react';
 import { Expense, Staff, AdvanceLog, Attendance, FundEntry, MovementLog, UserRole } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
+
+export interface SignatoryOption {
+  id: 'chairman' | 'md';
+  name: string;
+  designation: string;
+  bnTitle: string;
+}
+
+export const SIGNATORY_OPTIONS: SignatoryOption[] = [
+  {
+    id: 'chairman',
+    name: 'Moyna Islam',
+    designation: 'Chairman',
+    bnTitle: 'চেয়ারম্যান'
+  },
+  {
+    id: 'md',
+    name: 'Shariful Islam',
+    designation: 'Managing Director',
+    bnTitle: 'ম্যানেজিং ডিরেক্টর'
+  }
+];
 
 interface ReportsProps {
   expenses: Expense[];
@@ -23,6 +45,30 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
   
   // New State for Monthly Report
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
+
+  // Authorized Signatory Selection (Chairman - Moyna Islam vs Managing Director - Shariful Islam)
+  const [selectedSignatoryId, setSelectedSignatoryId] = useState<'chairman' | 'md'>(() => {
+    try {
+      const saved = localStorage.getItem('authorized_signatory_id');
+      if (saved === 'chairman' || saved === 'md') return saved;
+    } catch {}
+    return 'chairman';
+  });
+
+  const currentSignatory = useMemo(() => {
+    return SIGNATORY_OPTIONS.find(s => s.id === selectedSignatoryId) || SIGNATORY_OPTIONS[0];
+  }, [selectedSignatoryId]);
+
+  const handleSignatoryChange = (id: 'chairman' | 'md') => {
+    setSelectedSignatoryId(id);
+    try {
+      localStorage.setItem('authorized_signatory_id', id);
+      const opt = SIGNATORY_OPTIONS.find(s => s.id === id);
+      if (opt) {
+        localStorage.setItem('authorized_signatory', JSON.stringify({ name: opt.name, designation: opt.designation }));
+      }
+    } catch {}
+  };
 
   const approvedExpenses = (expenses || []).filter(e => !e.isDeleted && e.status === 'APPROVED');
   
@@ -296,11 +342,11 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
 
           <div class="footer">
              <div><p>System Generated Report.</p></div>
-             <div class="text-center" style="width: 200px; margin-left: auto;">
+             <div class="text-center" style="width: 220px; margin-left: auto;">
                 <div style="height: 50px;"></div>
                 <div class="h-px bg-gray-800 w-full mb-1"></div>
-                <p class="font-bold text-sm text-gray-800">Shariful Islam</p>
-                <p class="text-[10px] font-bold text-gray-500 uppercase">Managing Director</p>
+                <p class="font-bold text-sm text-gray-800">${currentSignatory.name}</p>
+                <p class="text-[10px] font-bold text-gray-500 uppercase">${currentSignatory.designation}</p>
              </div>
           </div>
         </div>
@@ -438,10 +484,11 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
 
           <div class="footer">
              <div><p>Depend Sourcing Ltd. Internal Document.</p></div>
-             <div class="text-center" style="width: 200px; margin-left: auto;">
+             <div class="text-center" style="width: 220px; margin-left: auto;">
                 <div style="height: 50px;"></div>
                 <div class="h-px bg-gray-800 w-full mb-1"></div>
-                <p class="font-bold text-sm text-gray-800">Authorized Signature</p>
+                <p class="font-bold text-sm text-gray-800">${currentSignatory.name}</p>
+                <p class="text-[10px] font-bold text-gray-500 uppercase">${currentSignatory.designation}</p>
              </div>
           </div>
         </div>
@@ -593,11 +640,11 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
           </table>
           <div class="footer">
              <div><p>Depend Sourcing Ltd. Confidential.</p></div>
-             <div class="text-center" style="width: 200px; margin-left: auto;">
+             <div class="text-center" style="width: 220px; margin-left: auto;">
                 <div style="height: 50px;"></div>
                 <div class="h-px bg-gray-800 w-full mb-1"></div>
-                <p class="font-bold text-sm text-gray-800">Shariful Islam</p>
-                <p class="text-[10px] font-bold text-gray-500 uppercase">Managing Director</p>
+                <p class="font-bold text-sm text-gray-800">${currentSignatory.name}</p>
+                <p class="text-[10px] font-bold text-gray-500 uppercase">${currentSignatory.designation}</p>
              </div>
           </div>
         </div>
@@ -722,10 +769,11 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
 
           <div class="footer">
              <div><p>System Generated Report. Confidential.</p></div>
-             <div class="text-center" style="width: 200px; margin-left: auto;">
+             <div class="text-center" style="width: 220px; margin-left: auto;">
                 <div style="height: 50px;"></div>
                 <div class="h-px bg-gray-800 w-full mb-1"></div>
-                <p class="font-bold text-sm text-gray-800">Authorized Signature</p>
+                <p class="font-bold text-sm text-gray-800">${currentSignatory.name}</p>
+                <p class="text-[10px] font-bold text-gray-500 uppercase">${currentSignatory.designation}</p>
              </div>
           </div>
         </div>
@@ -740,6 +788,68 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
   return (
     <div className="space-y-8">
       
+      {/* AUTHORIZED SIGNATORY SELECTOR */}
+      <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-200">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+              <FileSignature className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-gray-900 text-base">অনুমোদনকারী স্বাক্ষরকারী (Authorized Signatory)</h3>
+              <p className="text-xs text-gray-500">রিপোর্টে যার স্বাক্ষর থাকবে তা নির্বাচন করুন (একবারে যেকোনো একজন)</p>
+            </div>
+          </div>
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full text-xs font-semibold self-start sm:self-auto">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span>প্রিন্টে প্রদর্শিত হবে: <strong className="underline">{currentSignatory.name} ({currentSignatory.designation})</strong></span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+          {SIGNATORY_OPTIONS.map((opt) => {
+            const isSelected = selectedSignatoryId === opt.id;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => handleSignatoryChange(opt.id)}
+                className={`flex items-center justify-between p-4 rounded-xl border-2 text-left transition-all cursor-pointer ${
+                  isSelected
+                    ? 'border-indigo-600 bg-indigo-50/60 shadow-md ring-2 ring-indigo-500/20'
+                    : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50/80'
+                }`}
+              >
+                <div className="flex items-center gap-3.5">
+                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-bold text-sm tracking-wider transition-colors ${
+                    isSelected ? 'bg-indigo-600 text-white shadow' : 'bg-gray-100 text-gray-600'
+                  }`}>
+                    {opt.id === 'chairman' ? 'CH' : 'MD'}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold uppercase tracking-wider text-indigo-700 bg-indigo-100/70 px-2 py-0.5 rounded">
+                        {opt.designation}
+                      </span>
+                      <span className="text-xs text-gray-400 font-medium">({opt.bnTitle})</span>
+                    </div>
+                    <h4 className="text-base font-black text-gray-900 mt-1">{opt.name}</h4>
+                  </div>
+                </div>
+
+                <div className="flex items-center ml-2">
+                  <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${
+                    isSelected ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-gray-300 bg-white'
+                  }`}>
+                    {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* 1. MONTHLY REPORT SECTION (New) */}
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
          <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2 text-lg">
@@ -778,10 +888,14 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
             </div>
          </div>
 
-         <div className="mt-6 pt-4 border-t border-gray-50 flex justify-end">
+         <div className="mt-6 pt-4 border-t border-gray-50 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="text-xs text-gray-500 flex items-center gap-1.5">
+               <FileSignature className="w-4 h-4 text-indigo-500" />
+               <span>অনুমোদনে: <strong className="text-gray-800">{currentSignatory.name}</strong> ({currentSignatory.designation})</span>
+            </div>
             <button 
                onClick={generateMonthlyPDF}
-               className="bg-gray-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-black transition-all flex items-center gap-2 shadow-lg active:scale-95"
+               className="w-full sm:w-auto bg-gray-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-black transition-all flex items-center justify-center gap-2 shadow-lg active:scale-95"
             >
                <Printer className="w-4 h-4" />
                ডাউনলোড রিপোর্ট (PDF)
@@ -850,6 +964,11 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
             <Wallet className="w-5 h-5" />
             পেয়েবল লিস্ট (Payable)
           </button>
+        </div>
+
+        <div className="flex items-center gap-2 mt-4 pt-3 border-t border-gray-100 text-xs text-gray-500">
+           <FileSignature className="w-4 h-4 text-indigo-500 shrink-0" />
+           <span>সব প্রিন্ট রিপোর্টে স্বয়ংক্রিয়ভাবে <strong className="text-gray-800">{currentSignatory.name}</strong> ({currentSignatory.designation}) এর স্বাক্ষর যুক্ত হবে।</span>
         </div>
       </div>
 
