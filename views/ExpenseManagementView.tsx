@@ -1,7 +1,37 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Receipt, Camera, CheckCircle, XCircle, Clock, Eye, Trash2, Search, Calendar, FilterX, RotateCcw, CheckCheck, Sparkles, Image as ImageIcon, X, Edit3, Eraser, AlertTriangle, User, ChevronDown, Printer, Loader2, Images, MessageCircle, SpellCheck, Wand2 } from 'lucide-react';
-import { Expense, Staff, UserRole, AppNotification, AdvanceLog } from '../types';
+import { Receipt, Camera, CheckCircle, XCircle, Clock, Eye, Trash2, Search, Calendar, FilterX, RotateCcw, CheckCheck, Sparkles, Image as ImageIcon, X, Edit3, Eraser, AlertTriangle, User, ChevronDown, Printer, Loader2, Images, MessageCircle, SpellCheck, Wand2, BookOpen, Cloud, CloudOff, RefreshCw, Send, AlertOctagon } from 'lucide-react';
+import { Expense, Staff, UserRole, AppNotification, AdvanceLog, BillSyncStatus } from '../types';
+import {
+  submitExpenseBill,
+  getUnsyncedBillCount,
+  retryExpenseBillSync,
+  syncAllPendingBills,
+  generateSubmissionId,
+} from '../services/billSyncService';
+import {
+  CompanyDictionaryEntry,
+  SpellCheckSuggestion,
+} from '../services/companyDictionary';
+import {
+  getStoredCompanyDictionary,
+  saveCompanyDictionary,
+  getSpellCheckerSettings,
+  saveSpellCheckerSettings,
+  checkTextOffline,
+  checkTextWithAI,
+  detectInputLanguage,
+  SpellCheckerSettings,
+} from '../services/spellCheckerService';
+import SpellCheckerAssistant from './SpellCheckerAssistant';
+import DictionaryManagerModal from './DictionaryManagerModal';
+import { PaymentVoucherModal } from '../components/PaymentVoucherModal';
+import {
+  generatePremiumVoucherHTML,
+  printCorporateVoucher,
+  downloadCorporateVoucherPNG,
+  formatVoucherWhatsAppText,
+} from '../services/voucherService';
 
 interface ExpenseProps {
   expenses: Expense[];
@@ -16,6 +46,8 @@ interface ExpenseProps {
   setTypoDictionary?: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   typoSuggestions?: any[];
   setTypoSuggestions?: React.Dispatch<React.SetStateAction<any[]>>;
+  firebaseConfig?: any;
+  isCloudEnabled?: boolean;
 }
 
 function getLevenshteinDistance(a: string, b: string): number {
@@ -45,7 +77,22 @@ function getLocalDateStr(d: Date = new Date()): string {
   return new Date(d.getTime() - offset).toISOString().split('T')[0];
 }
 
-const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, staffList, role, currentUser, advances = [], onOpenProfile, allowedBackdateDays = 1, typoDictionary = {}, setTypoDictionary, typoSuggestions = [], setTypoSuggestions }) => {
+const ExpenseManagementView: React.FC<ExpenseProps> = ({
+  expenses,
+  setExpenses,
+  staffList,
+  role,
+  currentUser,
+  advances = [],
+  onOpenProfile,
+  allowedBackdateDays = 1,
+  typoDictionary = {},
+  setTypoDictionary,
+  typoSuggestions = [],
+  setTypoSuggestions,
+  firebaseConfig,
+  isCloudEnabled = true,
+}) => {
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({ 
@@ -56,6 +103,62 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
     date: getLocalDateStr() // Default to today
   });
   const [viewingVoucher, setViewingVoucher] = useState<string | null>(null);
+  const [previewVoucherExpense, setPreviewVoucherExpense] = useState<Expense | null>(null);
+  
+  // Real-time Bill Submission Confirmation & Transport Status State
+  const [submissionFeedback, setSubmissionFeedback] = useState<{
+    status: BillSyncStatus;
+    billId: string;
+    submittedAt: string;
+    message: string;
+    error?: string;
+  } | null>(null);
+  const submissionIdRef = useRef<string>('');
+  const [unsyncedCount, setUnsyncedCount] = useState<number>(() => getUnsyncedBillCount());
+  const [syncStatusFilter, setSyncStatusFilter] = useState('');
+  const [isSyncingAll, setIsSyncingAll] = useState(false);
+  const [syncProgress, setSyncProgress] = useState('');
+  const [syncBannerMessage, setSyncBannerMessage] = useState<string | null>(null);
+  const [syncingBillId, setSyncingBillId] = useState<string | null>(null);
+
+  // Periodically check unsynced count & auto-sync on network reconnect
+  useEffect(() => {
+    const updateCount = () => setUnsyncedCount(getUnsyncedBillCount());
+
+    const handleReconnection = async () => {
+      updateCount();
+      const unsynced = expenses.filter(
+        (e) => !e.isDeleted && (e.syncStatus === 'SAVED_OFFLINE' || e.syncStatus === 'FAILED')
+      );
+      if (unsynced.length > 0 && !isSyncingAll) {
+        setIsSyncingAll(true);
+        try {
+          const res = await syncAllPendingBills(expenses, firebaseConfig);
+          setExpenses(res.updatedExpenses);
+          if (res.syncedCount > 0) {
+            setSyncBannerMessage(`✅ নেটওয়ার্ক ফিরে আসায় ${res.syncedCount} টি বিল সার্ভারে স্বয়ংক্রিয়ভাবে সিঙ্ক হয়েছে।`);
+            setTimeout(() => setSyncBannerMessage(null), 6000);
+          }
+        } catch (e) {
+          console.warn('Auto-sync on reconnection failed', e);
+        } finally {
+          setIsSyncingAll(false);
+          updateCount();
+        }
+      }
+    };
+
+    window.addEventListener('online', handleReconnection);
+    window.addEventListener('offline-sync-warning', updateCount);
+    window.addEventListener('bill-sync-updated', updateCount);
+    const interval = setInterval(updateCount, 4000);
+    return () => {
+      window.removeEventListener('online', handleReconnection);
+      window.removeEventListener('offline-sync-warning', updateCount);
+      window.removeEventListener('bill-sync-updated', updateCount);
+      clearInterval(interval);
+    };
+  }, [expenses, firebaseConfig, isSyncingAll]);
   
   // Correction/Edit State
   const [isCorrectionModalOpen, setIsCorrectionModalOpen] = useState(false);
@@ -86,6 +189,289 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
   const [editingSuggId, setEditingSuggId] = useState<string | null>(null);
   const [historyExpense, setHistoryExpense] = useState<Expense | null>(null);
   const [editingSuggText, setEditingSuggText] = useState('');
+
+  // --- SMART SPELL CHECKER, TYPO COLLECTIONS & COMPANY DICTIONARY STATES ---
+  const [companyDict, setCompanyDict] = useState<CompanyDictionaryEntry[]>(() =>
+    getStoredCompanyDictionary()
+  );
+  const [spellSettings, setSpellSettings] = useState<SpellCheckerSettings>(() =>
+    getSpellCheckerSettings()
+  );
+  const [isDictModalOpen, setIsDictModalOpen] = useState(false);
+
+  // States to store detected typos and suggestions from typo_dictionary & typo_suggestions collections
+  const [detectedTypos, setDetectedTypos] = useState<{
+    id: string;
+    wrong: string;
+    correct: string;
+    source: 'typo_dictionary' | 'typo_suggestions' | 'company_dictionary' | 'ai';
+    language?: 'BANGLA' | 'ENGLISH' | 'BANGLISH' | 'MIXED';
+    confidence?: number;
+  }[]>([]);
+  const [matchedTypoSuggestions, setMatchedTypoSuggestions] = useState<any[]>([]);
+
+  // Suggestions state for form reason field
+  const [wordSuggestions, setWordSuggestions] = useState<SpellCheckSuggestion[]>([]);
+  const [fullSentenceSuggestions, setFullSentenceSuggestions] = useState<string[]>([]);
+  const [detectedLang, setDetectedLang] = useState<'BANGLA' | 'ENGLISH' | 'BANGLISH' | 'MIXED'>('MIXED');
+  const [isCheckingSpell, setIsCheckingSpell] = useState(false);
+  const debounceTimerRef = useRef<any>(null);
+
+  // Sync dictionary updates
+  const handleSaveCompanyDict = (updated: CompanyDictionaryEntry[]) => {
+    setCompanyDict(updated);
+    saveCompanyDictionary(updated);
+  };
+
+  const handleSaveSpellSettings = (updated: SpellCheckerSettings) => {
+    setSpellSettings(updated);
+    saveSpellCheckerSettings(updated);
+  };
+
+  // Helper to compile unified dictionary including typo_dictionary and typo_suggestions collections
+  const buildCombinedDictionary = useCallback(() => {
+    const combined: CompanyDictionaryEntry[] = [...companyDict];
+
+    // 1. Ingest entries from 'typo_dictionary' collection
+    if (typoDictionary) {
+      Object.entries(typoDictionary).forEach(([wrongWord, correctWord]) => {
+        if (!combined.some((e) => e.word.toLowerCase() === wrongWord.toLowerCase())) {
+          combined.push({
+            id: `td-${wrongWord}`,
+            word: wrongWord,
+            suggestion: correctWord,
+            category: 'EXPENSE_REASON',
+            language: detectInputLanguage(wrongWord),
+            isApproved: true,
+            createdAt: '',
+          });
+        }
+      });
+    }
+
+    // 2. Ingest entries from 'typo_suggestions' collection
+    if (Array.isArray(typoSuggestions)) {
+      typoSuggestions.forEach((sugg) => {
+        const wrong = sugg.wrong;
+        const correct = sugg.suggested || sugg.correct;
+        if (wrong && correct && sugg.status !== 'REJECTED') {
+          if (!combined.some((e) => e.word.toLowerCase() === wrong.toLowerCase())) {
+            combined.push({
+              id: sugg.id || `ts-${wrong}`,
+              word: wrong,
+              suggestion: correct,
+              category: 'EXPENSE_REASON',
+              language: detectInputLanguage(wrong),
+              isApproved: true,
+              createdAt: sugg.timestamp || '',
+            });
+          }
+        }
+      });
+    }
+
+    return combined;
+  }, [companyDict, typoDictionary, typoSuggestions]);
+
+  // Debounced Spell Check for Reason Field (combining local typo collections, company dict & AI)
+  useEffect(() => {
+    if (!spellSettings.enabled) {
+      setWordSuggestions([]);
+      setFullSentenceSuggestions([]);
+      setDetectedTypos([]);
+      setMatchedTypoSuggestions([]);
+      return;
+    }
+
+    const text = formData.reason || '';
+    if (!text.trim() || text.trim().length < 2) {
+      setWordSuggestions([]);
+      setFullSentenceSuggestions([]);
+      setDetectedTypos([]);
+      setMatchedTypoSuggestions([]);
+      return;
+    }
+
+    const combinedDict = buildCombinedDictionary();
+    const offlineWords = checkTextOffline(text, combinedDict, spellSettings);
+
+    // Extract individual candidate words (excluding numbers, financial symbols & amounts)
+    const wordsInReason = text
+      .split(/[\s,\-\.\/?!;'":\(\)\[\]{}|\\_]+/)
+      .filter((w) => w && w.length >= 2 && !/^[০-৯0-9.,+৳$]+$/.test(w));
+
+    const detectedList: {
+      id: string;
+      wrong: string;
+      correct: string;
+      source: 'typo_dictionary' | 'typo_suggestions' | 'company_dictionary' | 'ai';
+      language?: 'BANGLA' | 'ENGLISH' | 'BANGLISH' | 'MIXED';
+      confidence?: number;
+    }[] = [];
+    const matchedSuggList: any[] = [];
+
+    wordsInReason.forEach((word) => {
+      const lower = word.toLowerCase();
+
+      // Check 'typo_dictionary' collection
+      if (typoDictionary && typoDictionary[word]) {
+        detectedList.push({
+          id: `td-${word}`,
+          wrong: word,
+          correct: typoDictionary[word],
+          source: 'typo_dictionary',
+          language: detectInputLanguage(word),
+          confidence: 0.98,
+        });
+      }
+
+      // Check 'typo_suggestions' collection
+      if (Array.isArray(typoSuggestions)) {
+        const found = typoSuggestions.find(
+          (s) => s.wrong && s.wrong.toLowerCase() === lower && s.status !== 'REJECTED'
+        );
+        if (found) {
+          matchedSuggList.push(found);
+          if (!detectedList.some((d) => d.wrong.toLowerCase() === lower)) {
+            detectedList.push({
+              id: found.id || `ts-${word}`,
+              wrong: word,
+              correct: found.suggested || found.correct,
+              source: 'typo_suggestions',
+              language: detectInputLanguage(word),
+              confidence: 0.92,
+            });
+          }
+        }
+      }
+    });
+
+    // Merge offline words into detectedList if not already included
+    offlineWords.forEach((sug) => {
+      if (!detectedList.some((d) => d.wrong.toLowerCase() === sug.originalWord.toLowerCase())) {
+        detectedList.push({
+          id: sug.id,
+          wrong: sug.originalWord,
+          correct: sug.suggestedText,
+          source: 'company_dictionary',
+          language: sug.language,
+          confidence: sug.confidence || 0.85,
+        });
+      }
+    });
+
+    setDetectedTypos(detectedList);
+    setMatchedTypoSuggestions(matchedSuggList);
+    setWordSuggestions(offlineWords);
+    setDetectedLang(detectInputLanguage(text));
+
+    // Clear previous timer
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+
+    if (spellSettings.autoSuggest) {
+      debounceTimerRef.current = setTimeout(async () => {
+        setIsCheckingSpell(true);
+        try {
+          const result = await checkTextWithAI(text, spellSettings, combinedDict);
+          setWordSuggestions(result.wordSuggestions);
+          setFullSentenceSuggestions(result.fullSentenceSuggestions);
+          setDetectedLang(result.detectedLanguage);
+
+          // Update detectedTypos state with AI findings
+          setDetectedTypos((prev) => {
+            const next = [...prev];
+            result.wordSuggestions.forEach((ws) => {
+              if (!next.some((n) => n.wrong.toLowerCase() === ws.originalWord.toLowerCase())) {
+                next.push({
+                  id: ws.id,
+                  wrong: ws.originalWord,
+                  correct: ws.suggestedText,
+                  source: 'ai',
+                  language: ws.language,
+                  confidence: ws.confidence || 0.85,
+                });
+              }
+            });
+            return next;
+          });
+        } catch (e) {
+          console.warn('Spell check failed', e);
+        } finally {
+          setIsCheckingSpell(false);
+        }
+      }, 700);
+    }
+
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, [formData.reason, typoDictionary, typoSuggestions, companyDict, spellSettings, buildCombinedDictionary]);
+
+  // Manual Trigger for Spell Check
+  const handleManualCheck = async () => {
+    const text = formData.reason || '';
+    if (!text.trim()) return;
+    setIsCheckingSpell(true);
+    try {
+      const combinedDict = buildCombinedDictionary();
+      const result = await checkTextWithAI(text, spellSettings, combinedDict);
+      setWordSuggestions(result.wordSuggestions);
+      setFullSentenceSuggestions(result.fullSentenceSuggestions);
+      setDetectedLang(result.detectedLanguage);
+
+      setDetectedTypos((prev) => {
+        const next = [...prev];
+        result.wordSuggestions.forEach((ws) => {
+          if (!next.some((n) => n.wrong.toLowerCase() === ws.originalWord.toLowerCase())) {
+            next.push({
+              id: ws.id,
+              wrong: ws.originalWord,
+              correct: ws.suggestedText,
+              source: 'ai',
+              language: ws.language,
+              confidence: ws.confidence || 0.85,
+            });
+          }
+        });
+        return next;
+      });
+    } catch (e) {
+      console.warn('Manual check error', e);
+    } finally {
+      setIsCheckingSpell(false);
+    }
+  };
+
+  // Apply single word replacement — STRICT FINANCIAL DATA SAFETY: Never alter amount, date, staffId!
+  const handleApplyWordSuggestion = (originalWord: string, replacement: string) => {
+    setFormData((prev) => {
+      const regex = new RegExp(`(^|\\s|[.,!?;:])(${escapeRegExp(originalWord)})($|\\s|[.,!?;:])`, 'gi');
+      const updatedReason = prev.reason.replace(regex, `$1${replacement}$3`);
+
+      // Financial safety: amount is strictly preserved
+      return { ...prev, reason: updatedReason };
+    });
+
+    // Remove this suggestion from active lists
+    setWordSuggestions((prev) => prev.filter((s) => s.originalWord.toLowerCase() !== originalWord.toLowerCase()));
+    setDetectedTypos((prev) => prev.filter((t) => t.wrong.toLowerCase() !== originalWord.toLowerCase()));
+  };
+
+  // Apply full sentence replacement — STRICT FINANCIAL DATA SAFETY: Only update reason text
+  const handleApplyFullSentence = (newSentence: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      reason: newSentence,
+    }));
+
+    setWordSuggestions([]);
+    setFullSentenceSuggestions([]);
+    setDetectedTypos([]);
+  };
+
+  function escapeRegExp(string: string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
 
   const activeStaff = staffList.filter(s => !s.deletedAt && s.status === 'ACTIVE');
 
@@ -120,252 +506,88 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
     );
   }, [expenses, formData.staffId, formData.date]);
 
-  // TYPO CHECKER LOGIC
-  const detectedTypos = useMemo(() => {
-    const words = formData.reason.split(/[\s,\-\.\/?!;'":\(\)\[\]{}|\\_]+/).filter(Boolean); // Split by spaces and punctuation
-    const found: { wrong: string, correct: string }[] = [];
-    const baseWords = Array.from(new Set(Object.values(typoDictionary || {})));
-    
-    words.forEach(word => {
-       if (word.length < 3) return; // Ignore very short words
-       if (/^[০-৯0-9.,]+$/.test(word)) return; // Ignore numbers
-       
-       // 1. Exact match in dictionary
-       if (typoDictionary && typoDictionary[word]) {
-          // Avoid duplicates
-          if (!found.some(f => f.wrong === word)) {
-             found.push({ wrong: word, correct: typoDictionary[word] });
-          }
-          return;
-       }
-       
-       // 2. Exact match with a known correct word (no typo)
-       if (baseWords.includes(word)) return;
-       
-       // 3. Fuzzy match against known correct words
-       let bestMatch = null;
-       let minDistance = 999;
-       for (const bw of baseWords) {
-          const d = getLevenshteinDistance(word, bw);
-          if (d < minDistance) {
-             minDistance = d;
-             bestMatch = bw;
-          }
-       }
-       
-       const maxAllowedDistance = word.length > 5 ? 2 : 1;
-       if (minDistance > 0 && minDistance <= maxAllowedDistance && bestMatch) {
-          if (!found.some(f => f.wrong === word)) {
-             found.push({ wrong: word, correct: bestMatch });
-          }
-       }
-    });
-    return found;
-  }, [formData.reason, typoDictionary]);
-
+  // Fix typo handler with strict financial amount safety
   const fixTypo = (wrong: string, correct: string) => {
-     setFormData(prev => ({
+    setFormData((prev) => {
+      const regex = new RegExp(`(^|\\s|[.,!?;:])(${escapeRegExp(wrong)})($|\\s|[.,!?;:])`, 'gi');
+      const updatedReason = prev.reason.replace(regex, `$1${correct}$3`);
+      // Financial safety: amount is strictly preserved
+      return {
         ...prev,
-        reason: prev.reason.replace(new RegExp(wrong, 'g'), correct)
-     }));
-  };
-
-  // Helper: Get Financial Stats for a Staff (For Voucher)
-  const getStaffFinancials = (staffId: string) => {
-    const approvedExp = expenses
-      .filter(e => !e.isDeleted && e.status === 'APPROVED' && e.staffId === staffId)
-      .reduce((sum, e) => sum + Number(e.amount), 0);
-    
-    const regularAdv = advances
-      .filter(a => !a.isDeleted && a.type !== 'SALARY' && a.staffId === staffId)
-      .reduce((sum, a) => sum + Number(a.amount), 0);
-    
-    // Balance: Regular Advance - Approved Exp
-    const balance = regularAdv - approvedExp;
-    return { approvedExp, regularAdv, balance };
-  };
-
-  // ... (Voucher Generator Code) ...
-  const generateVoucherHTML = (expense: Expense) => {
-    const stats = getStaffFinancials(expense.staffId);
-    const dateStr = new Date(expense.createdAt).toLocaleDateString('bn-BD', { day: 'numeric', month: 'long', year: 'numeric' });
-    const timeStr = new Date(expense.createdAt).toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' });
-    const staff = staffList.find(s => s.id === expense.staffId);
-    const designation = staff?.designation || 'N/A';
-    const staffId = staff?.staffId || 'N/A';
-    
-    // Staff Photo
-    const photoHTML = staff?.photo 
-      ? `<img src="${staff.photo}" style="width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 2px solid #e5e7eb;" crossorigin="anonymous" />`
-      : `<div style="width: 45px; height: 45px; border-radius: 50%; background: #f3f4f6; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #6b7280; font-size: 18px; border: 2px solid #e5e7eb;">${expense.staffName[0]}</div>`;
-
-    // STRICTLY ENFORCED FONT FAMILY for all elements
-    const fontStyle = "font-family: 'Noto Sans Bengali', sans-serif;";
-
-    let signatoryName = 'Shariful Islam';
-    let signatoryTitle = 'Managing Director';
-    try {
-      const savedSignatoryId = localStorage.getItem('authorized_signatory_id');
-      if (savedSignatoryId === 'chairman') {
-        signatoryName = 'Moyna Islam';
-        signatoryTitle = 'Chairman';
-      }
-    } catch {}
-
-    return `
-      <div style="width: 650px; padding: 40px; background: white; border: 1px solid #d1d5db; ${fontStyle} color: #1f2937; position: relative; margin: auto; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-         <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #111827; padding-bottom: 20px; margin-bottom: 30px;">
-            <div>
-               <h1 style="font-size: 28px; font-weight: 900; margin: 0; color: #111827; text-transform: uppercase; letter-spacing: -0.5px; line-height: 1; ${fontStyle}">Depend Sourcing Ltd.</h1>
-               <p style="font-size: 11px; margin: 6px 0 0; letter-spacing: 3px; text-transform: uppercase; color: #6b7280; font-weight: 600;">Promise Beyond Business</p>
-            </div>
-            <div style="text-align: right;">
-               <div style="background: #111827; color: white; padding: 6px 16px; font-weight: bold; font-size: 12px; border-radius: 4px; text-transform: uppercase; display: inline-block;">Payment Voucher</div>
-               <p style="margin-top: 5px; font-size: 10px; font-weight: bold; color: #9ca3af;">#${expense.id.substring(0, 8).toUpperCase()}</p>
-            </div>
-         </div>
-         <div style="display: flex; justify-content: space-between; align-items: center; background: #f9fafb; padding: 20px; border-radius: 12px; border: 1px solid #f3f4f6; margin-bottom: 30px;">
-            <div>
-               <div style="color: #6b7280; font-size: 10px; text-transform: uppercase; font-weight: 800; letter-spacing: 0.5px; margin-bottom: 4px;">Beneficiary / Payee</div>
-               <div style="font-size: 18px; font-weight: 800; color: #111827; ${fontStyle}">${expense.staffName}</div>
-               <div style="font-size: 12px; color: #4b5563; margin-top: 2px; font-weight: 500;">${designation} • ID: ${staffId}</div>
-            </div>
-            <div>${photoHTML}</div>
-         </div>
-         <div style="text-align: center; margin-bottom: 35px; padding: 30px 20px; border: 2px dashed #e5e7eb; border-radius: 16px; position: relative;">
-            <div style="position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: white; padding: 0 10px; font-size: 10px; text-transform: uppercase; font-weight: 800; color: #9ca3af; letter-spacing: 1px;">Amount Authorized</div>
-            <div style="font-size: 48px; font-weight: 900; color: #111827; line-height: 1; letter-spacing: -1px; ${fontStyle}">৳ ${expense.amount.toLocaleString()}</div>
-            <div style="font-size: 12px; font-weight: 600; color: #4b5563; margin-top: 5px; text-transform: uppercase; letter-spacing: 1px;">BDT Taka Only</div>
-            <div style="margin-top: 20px; font-size: 14px; font-weight: 500; color: #374151; background: #f3f4f6; padding: 10px 20px; border-radius: 50px; display: inline-block; ${fontStyle}">"${expense.reason}"</div>
-            <div style="margin-top: 10px; font-size: 10px; font-weight: 600; color: #9ca3af; ${fontStyle}">Date: ${dateStr} - ${timeStr}</div>
-         </div>
-         <div style="margin-bottom: 50px;">
-            <div style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: #6b7280; margin-bottom: 10px; letter-spacing: 0.5px; padding-left: 5px;">Current Account Summary</div>
-            <table style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 11px; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
-               <thead>
-                 <tr style="background: #f9fafb;">
-                    <th style="padding: 12px 15px; text-align: left; border-bottom: 1px solid #e5e7eb; border-right: 1px solid #e5e7eb; font-weight: 700; color: #374151; text-transform: uppercase; font-size: 10px;">Total Regular Advance</th>
-                    <th style="padding: 12px 15px; text-align: right; border-bottom: 1px solid #e5e7eb; border-right: 1px solid #e5e7eb; font-weight: 700; color: #374151; text-transform: uppercase; font-size: 10px;">Total Approved Expense</th>
-                    <th style="padding: 12px 15px; text-align: right; border-bottom: 1px solid #e5e7eb; font-weight: 700; color: #374151; text-transform: uppercase; font-size: 10px;">Net Balance</th>
-                 </tr>
-               </thead>
-               <tbody>
-                 <tr>
-                    <td style="padding: 15px; text-align: left; border-right: 1px solid #e5e7eb; font-weight: 600; font-size: 13px; ${fontStyle}">৳ ${stats.regularAdv.toLocaleString()}</td>
-                    <td style="padding: 15px; text-align: right; border-right: 1px solid #e5e7eb; font-weight: 600; font-size: 13px; ${fontStyle}">৳ ${stats.approvedExp.toLocaleString()}</td>
-                    <td style="padding: 15px; text-align: right; font-weight: 900; color: ${stats.balance < 0 ? '#dc2626' : '#059669'}; font-size: 14px; ${fontStyle}">${stats.balance < 0 ? 'Payable' : 'Cash'} ৳ ${Math.abs(stats.balance).toLocaleString()}</td>
-                 </tr>
-               </tbody>
-            </table>
-         </div>
-         <div style="display: flex; justify-content: space-between; margin-top: 40px; padding-top: 20px;">
-            <div style="text-align: center; width: 30%;">
-               <div style="border-top: 1px solid #9ca3af; width: 100%; margin-bottom: 8px;"></div>
-               <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">Receiver Signature</div>
-            </div>
-            <div style="text-align: center; width: 35%;">
-               <div style="border-top: 1px solid #9ca3af; width: 100%; margin-bottom: 6px;"></div>
-               <div style="font-size: 11px; font-weight: 700; color: #1f2937;">${signatoryName}</div>
-               <div style="font-size: 9px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">${signatoryTitle}</div>
-            </div>
-         </div>
-         <div style="position: absolute; bottom: 10px; right: 20px; font-size: 9px; color: #cbd5e1; font-style: italic;">System Generated via Depend App • ${new Date().toLocaleString('bn-BD')}</div>
-      </div>
-    `;
-  };
-
-  const processVoucherDownload = async (expense: Expense) => {
-    return new Promise<void>(async (resolve) => {
-      try {
-        // Ensure fonts are ready before capturing
-        await document.fonts.ready;
-
-        const htmlContent = generateVoucherHTML(expense);
-        const container = document.createElement('div');
-        container.innerHTML = htmlContent;
-        
-        container.style.position = 'fixed';
-        container.style.left = '-10000px';
-        container.style.top = '0';
-        container.style.width = '700px'; 
-        container.style.zIndex = '-1000';
-        container.style.backgroundColor = '#ffffff';
-        
-        document.body.appendChild(container);
-
-        const images = container.querySelectorAll('img');
-        const imagePromises = Array.from(images).map(img => {
-            if (img.complete) return Promise.resolve();
-            return new Promise((res) => { img.onload = res; img.onerror = res; });
-        });
-        
-        if (imagePromises.length > 0) await Promise.all(imagePromises);
-        
-        // Slightly longer delay to ensure font rendering
-        await new Promise(r => setTimeout(r, 1000));
-
-        // @ts-ignore
-        if (window.html2canvas) {
-           // @ts-ignore
-           const canvas = await window.html2canvas(container.firstElementChild as HTMLElement, {
-              scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, windowWidth: 1200
-           });
-           
-           const link = document.createElement('a');
-           link.download = `Voucher_${expense.staffName}_${expense.id.substring(0,6)}.png`;
-           link.href = canvas.toDataURL('image/png');
-           document.body.appendChild(link);
-           link.click();
-           document.body.removeChild(link);
-        } else {
-            alert("Image generation library (html2canvas) not found. Please refresh the page.");
-        }
-        document.body.removeChild(container);
-      } catch (e) {
-        console.error("Voucher Generation Error", e);
-      }
-      resolve();
+        reason: updatedReason,
+      };
     });
+
+    setDetectedTypos((prev) => prev.filter((t) => t.wrong.toLowerCase() !== wrong.toLowerCase()));
+    setWordSuggestions((prev) => prev.filter((s) => s.originalWord.toLowerCase() !== wrong.toLowerCase()));
+  };
+
+  // Helper: Prepare voucher options for an expense
+  const getVoucherOptionsForExpense = (expense: Expense) => {
+    const staff = staffList.find((s) => s.id === expense.staffId);
+    let companyLogo = '';
+    try {
+      companyLogo = localStorage.getItem('company_logo') || '';
+    } catch {}
+    return {
+      expense,
+      staff,
+      staffList,
+      expenses,
+      advances,
+      companyLogo,
+    };
   };
 
   const handleDownloadPNG = async (expense: Expense) => {
     setDownloadingId(expense.id);
-    await processVoucherDownload(expense);
-    setDownloadingId(null);
+    try {
+      await downloadCorporateVoucherPNG(getVoucherOptionsForExpense(expense));
+    } catch (e) {
+      console.error('Voucher PNG Download Error', e);
+    } finally {
+      setDownloadingId(null);
+    }
   };
 
   const handleBulkDownload = async () => {
     const latestExpensesMap = new Map<string, Expense>();
-    expenses.forEach(e => {
-        if (!e.isDeleted && e.status === 'APPROVED') {
-            const existing = latestExpensesMap.get(e.staffId);
-            if (!existing) latestExpensesMap.set(e.staffId, e);
-            else if (new Date(e.createdAt) > new Date(existing.createdAt)) latestExpensesMap.set(e.staffId, e);
-        }
+    expenses.forEach((e) => {
+      if (!e.isDeleted && e.status === 'APPROVED') {
+        const existing = latestExpensesMap.get(e.staffId);
+        if (!existing) latestExpensesMap.set(e.staffId, e);
+        else if (new Date(e.createdAt) > new Date(existing.createdAt)) latestExpensesMap.set(e.staffId, e);
+      }
     });
     const targetExpenses = Array.from(latestExpensesMap.values());
-    if (targetExpenses.length === 0) { alert("কোনো অনুমোদিত বিল পাওয়া যায়নি।"); return; }
+    if (targetExpenses.length === 0) {
+      alert('কোনো অনুমোদিত বিল পাওয়া যায়নি।');
+      return;
+    }
     if (window.confirm(`সর্বমোট ${targetExpenses.length} জন স্টাফের লাস্ট ভাউচার ডাউনলোড করতে চান?`)) {
-        setIsBulkDownloading(true);
-        for (let i = 0; i < targetExpenses.length; i++) {
-            setBulkProgress(`${i+1}/${targetExpenses.length}`);
-            await processVoucherDownload(targetExpenses[i]);
-            await new Promise(resolve => setTimeout(resolve, 2000)); 
+      setIsBulkDownloading(true);
+      for (let i = 0; i < targetExpenses.length; i++) {
+        setBulkProgress(`${i + 1}/${targetExpenses.length}`);
+        try {
+          await downloadCorporateVoucherPNG(getVoucherOptionsForExpense(targetExpenses[i]));
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+        } catch (err) {
+          console.error(err);
         }
-        setBulkProgress('');
-        setIsBulkDownloading(false);
+      }
+      setBulkProgress('');
+      setIsBulkDownloading(false);
     }
   };
 
-  const handlePrintPDF = (expense: Expense) => {
-    const htmlContent = generateVoucherHTML(expense);
-    const printWindow = window.open('', '_blank', 'width=900,height=800');
-    if (printWindow) {
-       printWindow.document.open();
-       printWindow.document.write(`<!DOCTYPE html><html><head><title>Voucher #${expense.id}</title><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap" rel="stylesheet"><style>body { background-color: #f3f4f6; display: flex; justify-content: center; padding-top: 40px; margin: 0; font-family: 'Noto Sans Bengali', sans-serif; } @media print { body { background-color: white; padding: 0; display: block; -webkit-print-color-adjust: exact; } .no-print { display: none; } }</style></head><body>${htmlContent}<script>window.onload = function() { setTimeout(function() { window.print(); }, 800); };</script></body></html>`);
-       printWindow.document.close();
-    } else { alert("Print popup blocked. Please allow popups for this site."); }
+  const handlePrintPDF = async (expense: Expense) => {
+    try {
+      await printCorporateVoucher(getVoucherOptionsForExpense(expense));
+    } catch (err) {
+      console.error('Print Voucher Error', err);
+    }
   };
+
 
   const filteredExpenses = useMemo(() => {
     return expenses.filter(e => {
@@ -373,6 +595,11 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
       if (role === UserRole.STAFF && currentUser) { if (e.staffName !== currentUser) return false; }
       if (selectedStaffFilter && e.staffId !== selectedStaffFilter) return false;
       if (statusFilter && e.status !== statusFilter) return false;
+      if (syncStatusFilter) {
+        if (syncStatusFilter === 'SUBMITTED' && e.syncStatus && e.syncStatus !== 'SUBMITTED') return false;
+        if (syncStatusFilter === 'SAVED_OFFLINE' && e.syncStatus !== 'SAVED_OFFLINE') return false;
+        if (syncStatusFilter === 'FAILED' && e.syncStatus !== 'FAILED') return false;
+      }
       
       const matchesSearch = e.reason.toLowerCase().includes(searchTerm.toLowerCase()) || e.staffName.toLowerCase().includes(searchTerm.toLowerCase());
       const expenseDate = new Date(e.createdAt).setHours(0, 0, 0, 0);
@@ -382,7 +609,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
       return matchesSearch && matchesDate;
     })
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [expenses, searchTerm, startDate, endDate, role, currentUser, selectedStaffFilter, statusFilter]);
+  }, [expenses, searchTerm, startDate, endDate, role, currentUser, selectedStaffFilter, statusFilter, syncStatusFilter]);
 
   const handleReasonChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const text = e.target.value;
@@ -484,7 +711,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
     if (navigator.geolocation) {
        try {
            const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-               navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+               navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 8000 });
            });
            submitLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
        } catch (err) {
@@ -496,8 +723,11 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
     const now = new Date();
     submitDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
 
-    const newExpense: Expense = {
-      id: Math.random().toString(36).substr(2, 9),
+    const billId = submissionIdRef.current || generateSubmissionId();
+    submissionIdRef.current = billId;
+
+    const newExpenseDraft: Omit<Expense, 'syncStatus' | 'lastSyncAttempt' | 'clientSubmissionId'> = {
+      id: billId,
       staffId: targetStaffId,
       staffName: staff.name,
       amount: Number(formData.amount),
@@ -540,7 +770,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                wrong: word,
                suggested: bestMatch,
                status: 'PENDING',
-               staffName: staff.name, // Useful context
+               staffName: staff.name,
                timestamp: new Date().toISOString()
             });
          }
@@ -551,14 +781,128 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
       }
     }
 
-    setExpenses(prev => [newExpense, ...prev]);
+    // Call submitExpenseBill to write to server or queue offline
+    try {
+      const { result, updatedExpense } = await submitExpenseBill(
+        newExpenseDraft,
+        billId,
+        firebaseConfig
+      );
+
+      setExpenses(prev => [updatedExpense, ...prev.filter(e => e.id !== updatedExpense.id)]);
+
+      setSubmissionFeedback({
+        status: result.status,
+        billId: result.billId,
+        submittedAt: result.submittedAt,
+        message: result.message,
+        error: result.error,
+      });
+    } catch (err: any) {
+      console.error("Submission failed unexpectedly:", err);
+      const fallbackExpense: Expense = {
+        ...newExpenseDraft,
+        syncStatus: 'SAVED_OFFLINE',
+        lastSyncAttempt: new Date().toISOString(),
+        syncError: err?.message || 'অজ্ঞাত ত্রুটি',
+      };
+      setExpenses(prev => [fallbackExpense, ...prev.filter(e => e.id !== fallbackExpense.id)]);
+      setSubmissionFeedback({
+        status: 'SAVED_OFFLINE',
+        billId,
+        submittedAt: new Date().toISOString(),
+        message: '⚠️ বিলটি এই ডিভাইসে সংরক্ষিত হয়েছে। সার্ভারে পাঠানো এখনো বাকি।',
+        error: err?.message,
+      });
+    } finally {
+      setIsSubmitting(false);
+      setUnsyncedCount(getUnsyncedBillCount());
+    }
+  };
+
+  const handleCloseSubmitFeedback = () => {
+    setSubmissionFeedback(null);
+    submissionIdRef.current = '';
     setIsSubmitModalOpen(false);
-    setIsSubmitting(false);
-    
     setFormData({ 
       staffId: '', amount: 0, reason: '', voucherImage: '', 
       date: getLocalDateStr() 
     });
+  };
+
+  const handleRetrySubmissionInModal = async () => {
+    if (!submissionFeedback) return;
+    setIsSubmitting(true);
+    try {
+      const existing = expenses.find(e => e.id === submissionFeedback.billId) || {
+        id: submissionFeedback.billId,
+        staffId: formData.staffId,
+        staffName: activeStaff.find(s => s.id === formData.staffId)?.name || currentUser || 'Staff',
+        amount: Number(formData.amount),
+        reason: formData.reason,
+        voucherImage: formData.voucherImage,
+        status: 'PENDING' as const,
+        createdAt: new Date().toISOString(),
+        submittedAt: new Date().toISOString(),
+      };
+      const res = await retryExpenseBillSync(existing, firebaseConfig);
+      setExpenses(prev => prev.map(e => e.id === res.updatedExpense.id ? res.updatedExpense : e));
+      setSubmissionFeedback({
+        status: res.status,
+        billId: res.updatedExpense.id,
+        submittedAt: res.updatedExpense.submittedAt || new Date().toISOString(),
+        message: res.message,
+        error: res.updatedExpense.syncError,
+      });
+    } catch (err: any) {
+      alert(`পুনরায় চেষ্টা ব্যর্থ: ${err?.message}`);
+    } finally {
+      setIsSubmitting(false);
+      setUnsyncedCount(getUnsyncedBillCount());
+    }
+  };
+
+  const handleSyncAll = async () => {
+    if (isSyncingAll) return;
+    setIsSyncingAll(true);
+    setSyncProgress('');
+    try {
+      const res = await syncAllPendingBills(expenses, firebaseConfig, (curr, tot) => {
+        setSyncProgress(`${curr}/${tot}`);
+      });
+      setExpenses(res.updatedExpenses);
+      if (res.syncedCount > 0) {
+        setSyncBannerMessage(`✅ ${res.syncedCount} টি বিল সফলভাবে সার্ভারে জমা হয়েছে!`);
+      } else if (res.failedCount > 0) {
+        setSyncBannerMessage(`⚠️ ${res.failedCount} টি বিল সার্ভারে জমা হতে পারেনি। ইন্টারনেট কানেকশন চেক করুন।`);
+      }
+      setTimeout(() => setSyncBannerMessage(null), 5000);
+    } catch (err: any) {
+      alert(`সিঙ্ক ত্রুটি: ${err?.message || 'অজ্ঞাত সমস্যা'}`);
+    } finally {
+      setIsSyncingAll(false);
+      setSyncProgress('');
+      setUnsyncedCount(getUnsyncedBillCount());
+    }
+  };
+
+  const handleRetrySingleBill = async (expense: Expense) => {
+    setSyncingBillId(expense.id);
+    try {
+      const res = await retryExpenseBillSync(expense, firebaseConfig);
+      setExpenses(prev => prev.map(e => e.id === res.updatedExpense.id ? res.updatedExpense : e));
+      if (res.success) {
+        setSyncBannerMessage(`✅ বিল #${res.updatedExpense.clientSubmissionId ? res.updatedExpense.clientSubmissionId.replace('bill_', '') : res.updatedExpense.id.substring(0, 8)} সার্ভারে সিঙ্ক হয়েছে!`);
+        setTimeout(() => setSyncBannerMessage(null), 4000);
+      } else {
+        alert(res.message);
+      }
+    } catch (err: any) {
+      alert(`সিঙ্ক ব্যর্থ: ${err?.message || 'সার্ভার সমস্যা'}`);
+    } finally {
+      setSyncingBillId(null);
+      setUnsyncedCount(getUnsyncedBillCount());
+    }
   };
 
   const updateStatus = async (id: string, status: Expense['status']) => {
@@ -614,7 +958,9 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
       const myself = activeStaff.find(s => s.name === currentUser);
       if (myself) initialStaffId = myself.id;
     }
-    setFormData({ staffId: initialStaffId, amount: 0, reason: '', voucherImage: '', date: new Date().toISOString().split('T')[0] });
+    submissionIdRef.current = generateSubmissionId();
+    setSubmissionFeedback(null);
+    setFormData({ staffId: initialStaffId, amount: 0, reason: '', voucherImage: '', date: getLocalDateStr() });
     setIsSubmitModalOpen(true);
   };
 
@@ -693,7 +1039,20 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
     setEditingSuggId(null);
   };
 
-  const clearFilters = () => { setSearchTerm(''); setStartDate(''); setEndDate(''); setSelectedStaffFilter(''); setStatusFilter(''); };
+  const clearFilters = () => {
+    setSearchTerm('');
+    setStartDate('');
+    setEndDate('');
+    setSelectedStaffFilter('');
+    setStatusFilter('');
+    setSyncStatusFilter('');
+  };
+
+  const unsyncedBills = useMemo(() => {
+    return expenses.filter(
+      (e) => !e.isDeleted && (e.syncStatus === 'SAVED_OFFLINE' || e.syncStatus === 'FAILED')
+    );
+  }, [expenses]);
 
   const getStaffDisplayId = (staffId: string) => {
     const staff = staffList.find(s => s.id === staffId);
@@ -705,6 +1064,11 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-2">
         <h2 className="text-xl font-bold text-gray-800 dark:text-white">খরচ ও ভাউচার ম্যানেজমেন্ট</h2>
         <div className="flex flex-wrap gap-2">
+            {(role === UserRole.ADMIN || role === UserRole.MD) && (
+               <button onClick={() => setIsDictModalOpen(true)} className="h-9 px-3.5 rounded-full bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-gray-700 border border-indigo-100 dark:border-gray-700 font-bold text-[10px] uppercase tracking-wider transition-all shadow-sm flex items-center gap-1.5 outline-none" title="কোম্পানি ডিকশনারি ও বানান চেকার সেটিংস">
+                   <BookOpen className="w-3.5 h-3.5" /> <span>ডিকশনারি & AI বানান</span>
+               </button>
+            )}
             {(role === UserRole.ADMIN || role === UserRole.MD) && (
                <button onClick={handleBulkDownload} disabled={isBulkDownloading} className="h-9 px-4 rounded-full bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-gray-700 border border-indigo-100 dark:border-gray-700 font-bold text-[10px] uppercase tracking-wider transition-all shadow-sm flex items-center gap-2 outline-none disabled:opacity-50">
                    {isBulkDownloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Images className="w-3.5 h-3.5" />} 
@@ -723,6 +1087,54 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
             )}
         </div>
       </div>
+
+      {/* SYNC BANNER FEEDBACK MESSAGE */}
+      {syncBannerMessage && (
+        <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-2xl flex items-center justify-between text-xs font-bold text-emerald-800 dark:text-emerald-300 animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span>{syncBannerMessage}</span>
+          </div>
+          <button onClick={() => setSyncBannerMessage(null)} className="text-emerald-600 hover:text-emerald-800 dark:text-emerald-400 p-1 text-sm font-black">×</button>
+        </div>
+      )}
+
+      {/* UNSYNCED BILLS BANNER */}
+      {unsyncedBills.length > 0 && (
+        <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/20 border border-amber-200 dark:border-amber-800/60 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center shrink-0 text-amber-700 dark:text-amber-400">
+              <CloudOff className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-amber-900 dark:text-amber-200 flex items-center gap-2">
+                <span>{unsyncedBills.length} টি বিল সার্ভারে সিঙ্ক বাকি</span>
+                <span className="text-[10px] bg-amber-200 dark:bg-amber-900/80 px-2 py-0.5 rounded-full uppercase font-black tracking-wider text-amber-800 dark:text-amber-300">অফলাইনে সংরক্ষিত</span>
+              </h4>
+              <p className="text-xs text-amber-700 dark:text-amber-400 font-medium mt-0.5">
+                বিলগুলো আপনার ডিভাইসে নিরাপদে আছে। ইন্টারনেট পেলেই এক ক্লিকে সার্ভারে পাঠান।
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleSyncAll}
+            disabled={isSyncingAll}
+            className="w-full sm:w-auto px-5 py-2.5 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-md shadow-amber-200 dark:shadow-none disabled:opacity-50"
+          >
+            {isSyncingAll ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>সিঙ্ক হচ্ছে {syncProgress}...</span>
+              </>
+            ) : (
+              <>
+                <RefreshCw className="w-4 h-4" />
+                <span>সব সিঙ্ক করুন ({unsyncedBills.length})</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
 
       {/* Filter Bar */}
       <div className="bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-gray-800 dark:to-gray-900 backdrop-blur-xl p-2 rounded-[2rem] shadow-sm shadow-indigo-100/50 dark:shadow-none border border-indigo-100/50 dark:border-gray-700 flex flex-col lg:flex-row items-center gap-2 mb-6 transition-all">
@@ -752,17 +1164,21 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
             </select>
             <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none"><ChevronDown className="h-3 w-3 text-slate-300" /></div>
         </div>
+        <div className="relative w-full lg:w-36 group">
+            <select className="block w-full pl-4 pr-8 py-2 bg-white dark:bg-gray-800 border-none rounded-full text-xs font-bold text-slate-600 dark:text-gray-300 focus:bg-white dark:focus:bg-gray-800 focus:ring-2 focus:ring-indigo-100 dark:focus:ring-gray-600 transition-all appearance-none cursor-pointer outline-none h-9 shadow-sm" value={syncStatusFilter} onChange={(e) => setSyncStatusFilter(e.target.value)}>
+              <option value="">সকল সিঙ্ক</option>
+              <option value="SUBMITTED">☁️ সার্ভারে জমা</option>
+              <option value="SAVED_OFFLINE">💾 অফলাইনে জমা</option>
+              <option value="FAILED">❌ সিঙ্ক ব্যর্থ</option>
+            </select>
+            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none"><ChevronDown className="h-3 w-3 text-slate-300" /></div>
+        </div>
         <div className="flex items-center bg-white dark:bg-gray-800 rounded-full px-1 py-1 border border-indigo-50 dark:border-gray-700 h-9 w-full lg:w-auto shadow-sm">
             <div className="relative flex-1 min-w-[100px]"><input type="date" className="block w-full pl-3 pr-1 py-1 bg-transparent border-none text-[10px] font-bold text-slate-500 dark:text-gray-400 focus:ring-0 cursor-pointer h-full outline-none" value={startDate} onChange={(e) => setStartDate(e.target.value)} /></div>
             <span className="text-slate-300 dark:text-gray-600 text-[10px] font-bold px-1">to</span>
             <div className="relative flex-1 min-w-[100px]"><input type="date" className="block w-full pl-1 pr-3 py-1 bg-transparent border-none text-[10px] font-bold text-slate-500 dark:text-gray-400 focus:ring-0 cursor-pointer h-full text-right outline-none" value={endDate} onChange={(e) => setEndDate(e.target.value)} /></div>
         </div>
         <div className="flex items-center gap-1.5 w-full lg:w-auto justify-end">
-            {(role === UserRole.ADMIN || role === UserRole.MD) && (
-              <button onClick={() => setIsTypoModalOpen(true)} className="px-3 h-9 flex items-center justify-center bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 font-bold text-xs hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-full transition-all border border-indigo-100 dark:border-indigo-900/50 shadow-sm outline-none gap-2" title="শব্দ সাজেশন">
-                 <Wand2 className="w-3.5 h-3.5" /> অবোধ্য শব্দ ({typoSuggestions?.filter(s => s.status === 'PENDING').length || 0})
-              </button>
-            )}
             <button onClick={clearFilters} className="w-9 h-9 flex items-center justify-center bg-white dark:bg-gray-800 text-slate-400 dark:text-gray-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-full transition-all border border-slate-100 dark:border-gray-700 shadow-sm outline-none" title="Reset Filters"><FilterX className="w-3.5 h-3.5" /></button>
         </div>
       </div>
@@ -776,11 +1192,37 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
           return (
           <div key={expense.id} className={`bg-white dark:bg-gray-800 rounded-2xl shadow-sm border overflow-hidden flex flex-col hover:shadow-md transition-all ${isDuplicate && (role === UserRole.ADMIN || role === UserRole.MD) ? 'border-red-300 ring-2 ring-red-100' : 'border-gray-100 dark:border-gray-700'}`}>
             <div className="p-5 flex-1">
-              <div className="flex justify-between items-start mb-4">
-                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${expense.status === 'APPROVED' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : expense.status === 'REJECTED' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : expense.status === 'VERIFIED' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'}`}>
-                  {expense.status === 'PENDING' ? 'পেন্ডিং' : expense.status === 'VERIFIED' ? 'ভেরিফাইড (MD)' : expense.status === 'APPROVED' ? 'অনুমোদিত' : 'প্রত্যাখ্যাত'}
-                </span>
-                <div className="flex items-center gap-2">
+              <div className="flex justify-between items-start mb-3 gap-2">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {/* BUSINESS APPROVAL STATUS */}
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${expense.status === 'APPROVED' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : expense.status === 'REJECTED' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : expense.status === 'VERIFIED' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'}`}>
+                    {expense.status === 'PENDING' ? 'পেন্ডিং' : expense.status === 'VERIFIED' ? 'ভেরিফাইড (MD)' : expense.status === 'APPROVED' ? 'অনুমোদিত' : 'প্রত্যাখ্যাত'}
+                  </span>
+
+                  {/* TRANSPORT / SYNC STATUS BADGE */}
+                  {expense.syncStatus === 'SAVED_OFFLINE' ? (
+                    <span className="px-2 py-0.5 rounded-full text-[9px] font-bold flex items-center gap-1 bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800" title="অফলাইনে সংরক্ষিত (সার্ভারে সিঙ্ক বাকি)">
+                      <CloudOff className="w-2.5 h-2.5 text-amber-500" /> 💾 অফলাইনে সংরক্ষিত
+                    </span>
+                  ) : expense.syncStatus === 'FAILED' ? (
+                    <span className="px-2 py-0.5 rounded-full text-[9px] font-bold flex items-center gap-1 bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 border border-red-200 dark:border-red-800" title={expense.syncError || 'সিঙ্ক ব্যর্থ'}>
+                      <AlertOctagon className="w-2.5 h-2.5 text-red-500" /> ❌ সিঙ্ক ব্যর্থ
+                    </span>
+                  ) : expense.syncStatus === 'SYNCING' ? (
+                    <span className="px-2 py-0.5 rounded-full text-[9px] font-bold flex items-center gap-1 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                      <RefreshCw className="w-2.5 h-2.5 text-blue-500 animate-spin" /> 🔄 সিঙ্ক হচ্ছে...
+                    </span>
+                  ) : expense.syncStatus === 'SENDING' ? (
+                    <span className="px-2 py-0.5 rounded-full text-[9px] font-bold flex items-center gap-1 bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                      <Loader2 className="w-2.5 h-2.5 text-purple-500 animate-spin" /> ⏳ পাঠানো হচ্ছে
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-full text-[9px] font-bold flex items-center gap-1 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800" title="Firebase সার্ভারে স্থায়ীভাবে সংরক্ষিত">
+                      <Cloud className="w-2.5 h-2.5 text-emerald-500" /> ☁️ সার্ভারে সংরক্ষিত
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5">
                   {/* EDIT Button Logic: Admin can edit ALL, MD can only edit Verified, Staff can edit own PENDING */}
                   {((role === UserRole.ADMIN) || (role === UserRole.MD && expense.status === 'VERIFIED') || (role === UserRole.STAFF && expense.staffName === currentUser && expense.status === 'PENDING')) && (
                     <button onClick={() => openCorrectionModal(expense)} className="text-orange-500 hover:text-orange-700 transition-colors p-1 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-full" title="বিল সংশোধন করুন"><Edit3 className="w-4 h-4" /></button>
@@ -789,16 +1231,55 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                     <button onClick={() => setViewingVoucher(expense.voucherImage!)} className="text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300 transition-colors p-1 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-full" title="ভাউচার দেখুন"><Eye className="w-4 h-4" /></button>
                   )}
                   <button onClick={() => setHistoryExpense(expense)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors p-1 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-full" title="হিস্ট্রি ও লোকেশন"><Clock className="w-4 h-4" /></button>
-                  <div className="text-right">
+                  <div className="text-right pl-1">
                     <p className="text-xs text-gray-400 dark:text-gray-500 font-bold">{new Date(expense.createdAt).toLocaleDateString('bn-BD', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
                     <p className="text-[10px] text-gray-400 dark:text-gray-500 opacity-80">{new Date(expense.createdAt).toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' })}</p>
                   </div>
                 </div>
               </div>
+
+              {/* REFERENCE ID & TIME BAR */}
+              <div className="flex items-center justify-between text-[10px] text-gray-400 dark:text-gray-500 font-mono py-1 px-2.5 bg-gray-50 dark:bg-gray-700/40 rounded-lg mb-2.5 border border-gray-100 dark:border-gray-700/50">
+                <span title="ইউনিক বিল রেফারেন্স আইডি">
+                  Ref: <span className="text-indigo-600 dark:text-indigo-400 font-bold">#{expense.clientSubmissionId ? expense.clientSubmissionId.replace('bill_', '') : expense.id.substring(0, 8)}</span>
+                </span>
+                <span title="জমার সময়">
+                  {new Date(expense.submittedAt || expense.createdAt).toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
               <h4 className="text-lg font-bold text-gray-800 dark:text-white mb-1">৳ {expense.amount.toLocaleString()}</h4>
               <p className="text-sm text-gray-600 dark:text-gray-300 mb-4 font-medium h-10 line-clamp-2">{expense.reason}</p>
               {isDuplicate && (role === UserRole.ADMIN || role === UserRole.MD) && (
                  <div className="mb-3 bg-red-100 text-red-700 px-3 py-2 rounded-lg text-[10px] font-black flex items-center gap-1.5 border border-red-200 animate-pulse"><AlertTriangle className="w-4 h-4" /> সতর্কতা: ডুপ্লিকেট এন্ট্রি!</div>
+              )}
+
+              {/* RETRY BUTTON FOR OFFLINE / FAILED BILLS */}
+              {(expense.syncStatus === 'SAVED_OFFLINE' || expense.syncStatus === 'FAILED') && (
+                <div className="mb-3 space-y-1 bg-amber-50/60 dark:bg-amber-950/20 p-2 rounded-xl border border-amber-200/60 dark:border-amber-800/40">
+                  {expense.syncError && (
+                    <p className="text-[10px] text-red-600 dark:text-red-400 font-semibold truncate" title={expense.syncError}>
+                      ⚠️ {expense.syncError}
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleRetrySingleBill(expense)}
+                    disabled={syncingBillId === expense.id}
+                    className="w-full py-1.5 px-3 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white rounded-lg text-[10px] font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm disabled:opacity-50"
+                  >
+                    {syncingBillId === expense.id ? (
+                      <>
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        <span>সার্ভারে সিঙ্ক হচ্ছে...</span>
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="w-3 h-3" />
+                        <span>সার্ভারে সিঙ্ক করুন</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               )}
               <div className="flex items-center gap-3 py-3 border-t border-gray-50 dark:border-gray-700">
                 <div onClick={() => onOpenProfile && onOpenProfile(expense.staffId)} className="w-8 h-8 rounded-full bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold text-xs cursor-pointer hover:ring-2 hover:ring-indigo-200 transition-all overflow-hidden">
@@ -806,14 +1287,56 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                 </div>
                 <div><p className="text-xs font-bold text-gray-700 dark:text-gray-200">{expense.staffName}</p><p className="text-[10px] text-gray-400">ID: {getStaffDisplayId(expense.staffId)}</p></div>
               </div>
-              {expense.status === 'APPROVED' && (
-                 <div className="mt-3 flex gap-2">
-                    <button onClick={() => handleDownloadPNG(expense)} disabled={downloadingId === expense.id} className="flex-1 bg-gray-900 dark:bg-black text-white py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 hover:bg-black dark:hover:bg-gray-900 transition-all disabled:opacity-70 disabled:cursor-wait">
-                       {downloadingId === expense.id ? <span className="flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin"/> Downloading...</span> : <><ImageIcon className="w-3 h-3" /> PNG Voucher</>}
-                    </button>
-                    <button onClick={() => handlePrintPDF(expense)} className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 hover:bg-gray-200 dark:hover:bg-gray-600 transition-all border border-gray-200 dark:border-gray-600"><Printer className="w-3 h-3" /> PDF/Print</button>
-                 </div>
-              )}
+              <div className="mt-3 pt-2.5 border-t border-gray-100 dark:border-gray-700/80">
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    onClick={() => setPreviewVoucherExpense(expense)}
+                    className="flex-1 min-w-[95px] bg-[#142B4A] hover:bg-[#1E3A5F] active:scale-95 text-white py-1.5 px-2.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm border border-[#C6A45A]/30"
+                    title="কর্পোরেট ভাউচার প্রিভিউ ও পূর্ণাঙ্গ বিবরণ"
+                  >
+                    <Eye className="w-3 h-3 text-[#C6A45A]" />
+                    <span>ভাউচার ভিউ</span>
+                  </button>
+                  <button
+                    onClick={() => handlePrintPDF(expense)}
+                    className="flex-1 min-w-[85px] bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 active:scale-95 text-slate-700 dark:text-slate-200 py-1.5 px-2 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition-all border border-slate-200 dark:border-slate-700"
+                    title="PDF সংরক্ষণ বা প্রিন্ট করুন"
+                  >
+                    <Printer className="w-3 h-3 text-cyan-600 dark:text-cyan-400" />
+                    <span>PDF/Print</span>
+                  </button>
+                  <button
+                    onClick={() => handleDownloadPNG(expense)}
+                    disabled={downloadingId === expense.id}
+                    className="flex-1 min-w-[70px] bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 active:scale-95 text-slate-700 dark:text-slate-200 py-1.5 px-2 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition-all border border-slate-200 dark:border-slate-700 disabled:opacity-50"
+                    title="PNG ছবি হিসেবে ডাউনলোড করুন"
+                  >
+                    {downloadingId === expense.id ? (
+                      <Loader2 className="w-3 h-3 animate-spin text-amber-500" />
+                    ) : (
+                      <ImageIcon className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                    )}
+                    <span>PNG</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      const staff = staffList.find((s) => s.id === expense.staffId);
+                      const text = formatVoucherWhatsAppText({
+                        expense,
+                        staff,
+                        staffList,
+                        expenses,
+                        advances,
+                      });
+                      window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
+                    }}
+                    className="p-1.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/40 active:scale-95 text-emerald-700 dark:text-emerald-300 rounded-lg text-[10px] font-bold flex items-center justify-center transition-all border border-emerald-200 dark:border-emerald-800"
+                    title="WhatsApp-এ ভাউচার বিবরণ পাঠান"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
             </div>
             <div className="bg-gray-50 dark:bg-gray-700/30 p-3 flex gap-2 border-t border-gray-100 dark:border-gray-700">
                {role === UserRole.ADMIN && (
@@ -860,12 +1383,138 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
       {isSubmitModalOpen && createPortal(
         <div className="fixed inset-0 z-[1001] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-indigo-600 text-white shrink-0">
-              <h3 className="font-bold text-xl">নতুন বিল জমা দিন</h3>
-              <button onClick={() => setIsSubmitModalOpen(false)} className="text-indigo-200 hover:text-white transition-colors">×</button>
+            <div className={`p-5 border-b flex justify-between items-center text-white shrink-0 transition-colors ${
+              submissionFeedback
+                ? submissionFeedback.status === 'SUBMITTED'
+                  ? 'bg-emerald-600'
+                  : submissionFeedback.status === 'SAVED_OFFLINE'
+                    ? 'bg-amber-600'
+                    : 'bg-red-600'
+                : 'bg-indigo-600'
+            }`}>
+              <h3 className="font-bold text-lg flex items-center gap-2">
+                {submissionFeedback ? (
+                  submissionFeedback.status === 'SUBMITTED' ? (
+                    <><CheckCircle className="w-5 h-5" /> বিল জমা নিশ্চিতকরণ</>
+                  ) : submissionFeedback.status === 'SAVED_OFFLINE' ? (
+                    <><CloudOff className="w-5 h-5" /> অফলাইন সংরক্ষণ নিশ্চিতকরণ</>
+                  ) : (
+                    <><AlertOctagon className="w-5 h-5" /> জমা ব্যর্থ</>
+                  )
+                ) : (
+                  'নতুন বিল জমা দিন'
+                )}
+              </h3>
+              <button onClick={handleCloseSubmitFeedback} className="text-white/80 hover:text-white transition-colors text-2xl leading-none">×</button>
             </div>
             
-            <form id="expense-form" onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+            {submissionFeedback ? (
+              /* DEDICATED SUBMISSION CONFIRMATION SCREEN */
+              <div className="flex flex-col flex-1 p-6 space-y-5 overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-200">
+                <div className="text-center space-y-2">
+                  {submissionFeedback.status === 'SUBMITTED' ? (
+                    <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto shadow-sm animate-bounce">
+                      <CheckCircle className="w-10 h-10" />
+                    </div>
+                  ) : submissionFeedback.status === 'SAVED_OFFLINE' ? (
+                    <div className="w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto shadow-sm">
+                      <CloudOff className="w-10 h-10" />
+                    </div>
+                  ) : (
+                    <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 flex items-center justify-center mx-auto shadow-sm">
+                      <AlertOctagon className="w-10 h-10" />
+                    </div>
+                  )}
+
+                  <h3 className="text-lg font-black text-gray-800 dark:text-white leading-snug">
+                    {submissionFeedback.message}
+                  </h3>
+                  
+                  {submissionFeedback.status === 'SUBMITTED' && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                      Firebase Realtime Database থেকে সফল সার্ভার রাইট কনফার্মেশন পাওয়া গেছে।
+                    </p>
+                  )}
+                  {submissionFeedback.status === 'SAVED_OFFLINE' && (
+                    <p className="text-xs text-amber-700 dark:text-amber-300 font-medium bg-amber-50 dark:bg-amber-950/40 p-2 rounded-xl border border-amber-200 dark:border-amber-800/60">
+                      ডিভাইসটি অফলাইনে থাকায় বিলটি লোকাল স্টোরেজে নিরাপদে রাখা হয়েছে। ইন্টারনেট পেলেই স্বয়ংক্রিয়ভাবে সার্ভারে সিঙ্ক হবে।
+                    </p>
+                  )}
+                  {submissionFeedback.status === 'FAILED' && submissionFeedback.error && (
+                    <p className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-2.5 rounded-xl border border-red-200 dark:border-red-800 font-mono">
+                      ত্রুটি: {submissionFeedback.error}
+                    </p>
+                  )}
+                </div>
+
+                {/* DETAILS & UNIQUE REFERENCE ID */}
+                <div className="bg-gray-50 dark:bg-gray-900/60 rounded-xl p-4 border border-gray-100 dark:border-gray-700/60 space-y-2.5 text-xs">
+                  <div className="flex justify-between items-center py-1 border-b border-gray-200/60 dark:border-gray-800">
+                    <span className="text-gray-500 dark:text-gray-400 font-medium">রেফারেন্স আইডি:</span>
+                    <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">#{submissionFeedback.billId}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-1 border-b border-gray-200/60 dark:border-gray-800">
+                    <span className="text-gray-500 dark:text-gray-400 font-medium">জমার সময়:</span>
+                    <span className="font-bold text-gray-700 dark:text-gray-300">
+                      {new Date(submissionFeedback.submittedAt).toLocaleDateString('bn-BD', { day: 'numeric', month: 'short', year: 'numeric' })} • {new Date(submissionFeedback.submittedAt).toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center py-1 border-b border-gray-200/60 dark:border-gray-800">
+                    <span className="text-gray-500 dark:text-gray-400 font-medium">টাকার পরিমাণ:</span>
+                    <span className="font-bold text-gray-900 dark:text-white text-sm">৳ {Number(formData.amount).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-1 border-b border-gray-200/60 dark:border-gray-800">
+                    <span className="text-gray-500 dark:text-gray-400 font-medium">ট্রান্সপোর্ট স্ট্যাটাস:</span>
+                    <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                      submissionFeedback.status === 'SUBMITTED' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300' :
+                      submissionFeedback.status === 'SAVED_OFFLINE' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300' :
+                      'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300'
+                    }`}>
+                      {submissionFeedback.status === 'SUBMITTED' ? '☁️ সার্ভারে জমা' : submissionFeedback.status === 'SAVED_OFFLINE' ? '💾 অফলাইনে সংরক্ষিত' : '❌ সিঙ্ক ব্যর্থ'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center py-1">
+                    <span className="text-gray-500 dark:text-gray-400 font-medium">অনুমোদন স্ট্যাটাস:</span>
+                    <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300">
+                      ⏳ পেন্ডিং (অপেক্ষারত)
+                    </span>
+                  </div>
+                </div>
+
+                {/* MODAL ACTIONS */}
+                <div className="flex gap-2 pt-1">
+                  {submissionFeedback.status === 'FAILED' ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleRetrySubmissionInModal}
+                        disabled={isSubmitting}
+                        className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all disabled:opacity-50 active:scale-95 shadow-md"
+                      >
+                        {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                        পুনরায় চেষ্টা করুন (Retry)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCloseSubmitFeedback}
+                        className="px-4 py-3 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-xl font-bold text-xs transition-all"
+                      >
+                        পরে সিঙ্ক করুন
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleCloseSubmitFeedback}
+                      className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-md transition-all active:scale-98"
+                    >
+                      ঠিক আছে (সম্পন্ন)
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <form id="expense-form" onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
                 <div className="overflow-y-auto p-4 custom-scrollbar flex-1 space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">স্টাফ নির্বাচন করুন</label>
@@ -875,7 +1524,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                          <span className="text-[10px] bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300 px-2 py-0.5 rounded uppercase">Self</span>
                       </div>
                     ) : (
-                      <select required className="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all" value={formData.staffId} onChange={(e) => setFormData({...formData, staffId: e.target.value})}>
+                      <select required disabled={isSubmitting} className="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all disabled:opacity-60" value={formData.staffId} onChange={(e) => setFormData({...formData, staffId: e.target.value})}>
                         <option value="">নির্বাচন করুন</option>
                         {activeStaff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                       </select>
@@ -888,7 +1537,8 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                       <input 
                         type="date" 
                         required 
-                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm font-bold" 
+                        disabled={isSubmitting}
+                        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm font-bold disabled:opacity-60" 
                         value={formData.date} 
                         onChange={(e) => setFormData({...formData, date: e.target.value})}
                         min={role === UserRole.STAFF ? minDateStr : undefined}
@@ -899,7 +1549,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">টাকার পরিমাণ</label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">৳</span>
-                        <input required type="number" className="w-full pl-7 pr-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-lg text-gray-800 dark:text-white" placeholder="0.00" value={formData.amount || ''} onChange={(e) => setFormData({...formData, amount: Number(e.target.value)})} />
+                        <input required type="number" disabled={isSubmitting} className="w-full pl-7 pr-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-lg text-gray-800 dark:text-white disabled:opacity-60" placeholder="0.00" value={formData.amount || ''} onChange={(e) => setFormData({...formData, amount: Number(e.target.value)})} />
                       </div>
                     </div>
                   </div>
@@ -923,38 +1573,35 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                       <span>খরচের কারণ ও বিবরণ</span>
                       <span className="text-xs text-indigo-600 dark:text-indigo-400 font-bold flex items-center gap-1"><Sparkles className="w-3 h-3"/> Auto Calculator</span>
                     </label>
-                    <textarea required rows={2} className="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all" placeholder="যেমন: নাস্তা ৫০, রিক্সা ভাড়া ১০০..." value={formData.reason} onChange={handleReasonChange} />
+                    <textarea required rows={2} disabled={isSubmitting} className="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all disabled:opacity-60" placeholder="যেমন: নাস্তা ৫০, রিক্সা ভাড়া ১০০..." value={formData.reason} onChange={handleReasonChange} />
                     
-                    {detectedTypos.length > 0 && (
-                       <div className="mt-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg animate-in fade-in zoom-in duration-200">
-                          <div className="flex items-center gap-1.5 text-yellow-800 dark:text-yellow-400 text-[10px] font-bold uppercase mb-1.5">
-                             <Wand2 className="w-3 h-3" />
-                             বানান সতর্কতা (Spelling Suggestion)
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                             {detectedTypos.map((typo, idx) => (
-                                <button 
-                                  key={idx}
-                                  type="button" 
-                                  onClick={() => fixTypo(typo.wrong, typo.correct)}
-                                  className="flex items-center gap-1 px-2 py-1 bg-white dark:bg-gray-800 border border-yellow-300 dark:border-yellow-700 rounded text-xs font-bold text-gray-700 dark:text-gray-300 hover:bg-yellow-100 dark:hover:bg-yellow-900/40 transition-colors shadow-sm"
-                                  title="ক্লিক করে ঠিক করুন"
-                                >
-                                   <span className="line-through text-red-400 opacity-70">{typo.wrong}</span>
-                                   <span className="text-gray-400">→</span>
-                                   <span className="text-green-600 dark:text-green-400">{typo.correct}</span>
-                                </button>
-                             ))}
-                          </div>
-                       </div>
-                    )}
+                    <SpellCheckerAssistant
+                      value={formData.reason}
+                      onApplyWord={handleApplyWordSuggestion}
+                      onApplyFullSentence={handleApplyFullSentence}
+                      wordSuggestions={wordSuggestions}
+                      fullSentenceSuggestions={fullSentenceSuggestions}
+                      detectedLanguage={detectedLang}
+                      isLoading={isCheckingSpell}
+                      onDismissSuggestion={(id) => {
+                        setWordSuggestions(prev => prev.filter(s => s.id !== id));
+                        setDetectedTypos(prev => prev.filter(t => t.id !== id));
+                      }}
+                      onDismissAll={() => {
+                        setWordSuggestions([]);
+                        setFullSentenceSuggestions([]);
+                        setDetectedTypos([]);
+                      }}
+                      onManualTrigger={handleManualCheck}
+                      isAutoSuggest={spellSettings.autoSuggest}
+                    />
                   </div>
 
                   <div className="space-y-2">
                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">ভাউচার ছবি</label>
                      <div className="flex gap-2">
-                        <button type="button" onClick={() => fileInputRef.current?.click()} className="flex-1 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-gray-200 dark:border-gray-600 transition-colors"><ImageIcon className="w-4 h-4" /> গ্যালারি</button>
-                        <button type="button" onClick={() => cameraInputRef.current?.click()} className="flex-1 py-2 bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-indigo-100 dark:border-indigo-800 transition-colors"><Camera className="w-4 h-4" /> ক্যামেরা</button>
+                        <button type="button" disabled={isSubmitting} onClick={() => fileInputRef.current?.click()} className="flex-1 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-gray-200 dark:border-gray-600 transition-colors disabled:opacity-50"><ImageIcon className="w-4 h-4" /> গ্যালারি</button>
+                        <button type="button" disabled={isSubmitting} onClick={() => cameraInputRef.current?.click()} className="flex-1 py-2 bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-indigo-100 dark:border-indigo-800 transition-colors disabled:opacity-50"><Camera className="w-4 h-4" /> ক্যামেরা</button>
                      </div>
                      <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={handleImageUpload} />
                      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" hidden onChange={handleImageUpload} />
@@ -962,7 +1609,9 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                      {formData.voucherImage ? (
                        <div className="relative h-24 w-full bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
                          <img src={formData.voucherImage} alt="Preview" className="h-full w-full object-contain" />
-                         <button type="button" onClick={removeImage} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full shadow-sm hover:bg-red-600 transition-colors"><X className="w-3 h-3" /></button>
+                         {!isSubmitting && (
+                           <button type="button" onClick={removeImage} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full shadow-sm hover:bg-red-600 transition-colors"><X className="w-3 h-3" /></button>
+                         )}
                        </div>
                      ) : (
                        <div className="h-24 w-full border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 text-gray-400">
@@ -973,12 +1622,22 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
                 </div>
 
                 <div className="p-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 shrink-0">
-                    <button type="submit" disabled={isSubmitting} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-70 disabled:cursor-wait">
-                        {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageCircle className="w-4 h-4" />} 
-                        {isSubmitting ? 'প্রসেসিং হচ্ছে...' : 'সাবমিট করুন (Submit)'}
+                    <button type="submit" disabled={isSubmitting} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 dark:shadow-none transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-75 disabled:cursor-wait">
+                        {isSubmitting ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span>বিল জমা হচ্ছে...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Send className="w-4 h-4" />
+                            <span>বিল জমা দিন (Submit Bill)</span>
+                          </>
+                        )}
                     </button>
                 </div>
-            </form>
+              </form>
+            )}
           </div>
         </div>,
         document.body
@@ -1155,70 +1814,33 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({ expenses, setExpenses, 
         document.body
       )}
 
-      {/* Typo Suggestions Modal */}
-      {isTypoModalOpen && createPortal(
-        <div className="fixed inset-0 z-[1002] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-gray-800 w-full max-w-2xl max-h-[90vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
-            <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800">
-               <div>
-                  <h3 className="text-lg font-black text-gray-800 dark:text-gray-100 flex items-center gap-2">
-                     <Wand2 className="w-5 h-5 text-indigo-500" /> অবোধ্য শব্দ ও সাজেশন
-                  </h3>
-                  <p className="text-[10px] text-gray-500 font-bold mt-1 uppercase tracking-wider">বিল থেকে অটো ডিটেক্ট করা নতুন শব্দগুলো</p>
-               </div>
-               <button onClick={() => {setIsTypoModalOpen(false); setEditingSuggId(null);}} className="p-2 text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors"><X className="w-5 h-5" /></button>
-            </div>
-            
-            <div className="p-4 overflow-y-auto flex-1 bg-white dark:bg-gray-900 custom-scrollbar space-y-3">
-               {typoSuggestions && typoSuggestions.filter(s => s.status === 'PENDING').length > 0 ? (
-                  typoSuggestions.filter(s => s.status === 'PENDING').map(s => (
-                     <div key={s.id} className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-                        <div>
-                           {s.wrong === s.suggested ? (
-                              <div className="flex items-center gap-2 mb-1">
-                                 <span className="text-blue-600 dark:text-blue-400 font-bold">{s.wrong}</span>
-                                 <span className="text-[10px] text-gray-500 bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">New Word</span>
-                              </div>
-                           ) : (
-                              <div className="flex items-center gap-2 mb-1">
-                                 <span className="text-red-500 font-bold line-through">{s.wrong}</span>
-                                 <span className="text-gray-400 dark:text-gray-500">→</span>
-                                 <span className="text-green-600 dark:text-green-400 font-bold">{s.suggested}</span>
-                              </div>
-                           )}
-                           <p className="text-[10px] text-gray-500 max-w-xs truncate" title={s.staffName}>Staff: {s.staffName}</p>
-                        </div>
-                        
-                        <div className="flex items-center gap-2 w-full sm:w-auto">
-                           {editingSuggId === s.id ? (
-                              <div className="flex items-center gap-2 w-full sm:w-auto">
-                                 <input type="text" autoFocus className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-900 dark:text-white" value={editingSuggText} onChange={e => setEditingSuggText(e.target.value)} />
-                                 <button onClick={() => handleEditSuggestion(s.id, s.wrong, editingSuggText)} className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700">Save</button>
-                                 <button onClick={() => setEditingSuggId(null)} className="px-2 py-1.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg text-xs font-bold hover:bg-gray-300 dark:hover:bg-gray-600">Cancel</button>
-                              </div>
-                           ) : (
-                              <>
-                                 <button onClick={() => handleApproveSuggestion(s.id, s.wrong, s.suggested)} className="px-3 py-1.5 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded-lg text-xs font-bold flex flex-1 items-center justify-center gap-1 hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors"><CheckCircle className="w-3.5 h-3.5" /> Ok</button>
-                                 <button onClick={() => { setEditingSuggId(s.id); setEditingSuggText(s.suggested); }} className="px-3 py-1.5 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 rounded-lg text-xs font-bold flex flex-1 items-center justify-center gap-1 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors"><Edit3 className="w-3.5 h-3.5" /> Edit</button>
-                                 <button onClick={() => handleRejectSuggestion(s.id)} className="px-3 py-1.5 bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400 rounded-lg text-xs font-bold flex flex-1 items-center justify-center gap-1 hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"><Trash2 className="w-3.5 h-3.5" /> Reject</button>
-                              </>
-                           )}
-                        </div>
-                     </div>
-                  ))
-               ) : (
-                  <div className="flex flex-col items-center justify-center py-12 text-center">
-                     <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4">
-                        <CheckCheck className="w-8 h-8 text-green-500" />
-                     </div>
-                     <h4 className="text-gray-800 dark:text-gray-200 font-bold mb-1">কোনো নতুন শব্দ নেই</h4>
-                     <p className="text-xs text-gray-500 dark:text-gray-400">সব নতুন শব্দ রিভিউ করা হয়েছে</p>
-                  </div>
-               )}
-            </div>
-          </div>
-        </div>,
-        document.body
+      {/* Company Dictionary & AI Spell Settings Modal */}
+      <DictionaryManagerModal
+        isOpen={isDictModalOpen}
+        onClose={() => setIsDictModalOpen(false)}
+        dictionary={companyDict}
+        onSaveDictionary={handleSaveCompanyDict}
+        settings={spellSettings}
+        onSaveSettings={handleSaveSpellSettings}
+        isAdmin={role === UserRole.ADMIN || role === UserRole.MD}
+        typoDictionary={typoDictionary}
+        onSaveTypoDictionary={setTypoDictionary}
+        typoSuggestions={typoSuggestions}
+        onSaveTypoSuggestions={setTypoSuggestions}
+      />
+
+      {/* Payment Voucher Corporate Preview Modal */}
+      {previewVoucherExpense && (
+        <PaymentVoucherModal
+          isOpen={!!previewVoucherExpense}
+          onClose={() => setPreviewVoucherExpense(null)}
+          expense={previewVoucherExpense}
+          staffList={staffList}
+          expenses={expenses}
+          advances={advances}
+          role={role}
+          currentUser={currentUser}
+        />
       )}
     </div>
   );

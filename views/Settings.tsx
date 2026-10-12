@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Settings, Save, Clock, Download, Upload, Database, ShieldCheck, ExternalLink, HelpCircle, Code, Check, AlertTriangle, Package, UserCheck, X, Image as ImageIcon, Trash2, Info, Mail, ShieldAlert, RefreshCw, FileSignature } from 'lucide-react';
+import { Settings, Save, Clock, Download, Upload, Database, ShieldCheck, ExternalLink, HelpCircle, Code, Check, AlertTriangle, Package, UserCheck, X, Image as ImageIcon, Trash2, Info, Mail, ShieldAlert, RefreshCw, FileSignature, GraduationCap, Search, Power } from 'lucide-react';
 import { BillingRule, UserRole, Staff } from '../types';
 import packageJson from '../package.json';
 
@@ -82,6 +82,33 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
         });
       });
     }
+  };
+
+  const [learningSettings, setLearningSettings] = useState(() => {
+    try {
+      const saved = localStorage.getItem('learning_academy_master_settings');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return { englishEnabled: true, chineseEnabled: true };
+  });
+
+  const [chineseUserSearch, setChineseUserSearch] = useState('');
+
+  const handleToggleEnglishSetting = () => {
+    const updated = { ...learningSettings, englishEnabled: !learningSettings.englishEnabled };
+    setLearningSettings(updated);
+    localStorage.setItem('learning_academy_master_settings', JSON.stringify(updated));
+  };
+
+  const handleToggleChineseSetting = () => {
+    const updated = { ...learningSettings, chineseEnabled: !learningSettings.chineseEnabled };
+    setLearningSettings(updated);
+    localStorage.setItem('learning_academy_master_settings', JSON.stringify(updated));
+  };
+
+  const handleToggleStaffChinese = (staffId: string, grant: boolean) => {
+    if (!setStaffList) return;
+    setStaffList(prev => prev.map(s => s.id === staffId ? { ...s, hasChineseAcademyAccess: grant } : s));
   };
 
   const handleCloudSave = () => {
@@ -559,6 +586,129 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-4 italic bg-gray-50 dark:bg-gray-900/50 p-2.5 rounded-xl border border-gray-100 dark:border-gray-700">
               * শুধুমাত্র অ্যাডমিন এবং এখানে সিলেক্ট করা ব্যক্তিরা পণ্য তালিকায় পরিবর্তন আনতে পারবে।
             </p>
+        </div>
+      )}
+
+      {/* Learning Access Control (ADMIN & MD ONLY) */}
+      {(role === UserRole.ADMIN || role === UserRole.MD) && (
+        <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 transition-all duration-300 hover:shadow-md space-y-5">
+          <div className="flex items-center gap-4 pb-4 border-b border-gray-100 dark:border-gray-700">
+            <div className="bg-violet-50 dark:bg-violet-500/10 p-2.5 rounded-2xl text-violet-600 dark:text-violet-400">
+              <GraduationCap className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-gray-800 dark:text-white tracking-tight">
+                লার্নিং অ্যাক্সেস পারমিশন (Learning Access)
+              </h2>
+              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                ইংলিশ ও চাইনিজ একাডেমি নিয়ন্ত্রণ করুন। চাইনিজ একাডেমি শুধুমাত্র অনুমোদিত কর্মীদের জন্য কার্যকর।
+              </p>
+            </div>
+          </div>
+
+          {/* Module Global ON/OFF switches */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="p-4 rounded-2xl bg-gray-50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-800 flex items-center justify-between">
+              <div>
+                <h4 className="text-sm font-bold text-gray-800 dark:text-white">🇬🇧 English Academy</h4>
+                <p className="text-xs text-gray-500 mt-0.5">সকল স্টাফদের জন্য উন্মুক্ত</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleToggleEnglishSetting}
+                className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                  learningSettings.englishEnabled
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'bg-gray-300 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                }`}
+              >
+                {learningSettings.englishEnabled ? 'ON' : 'OFF'}
+              </button>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-gray-50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-800 flex items-center justify-between">
+              <div>
+                <h4 className="text-sm font-bold text-gray-800 dark:text-white">🇨🇳 Chinese Academy</h4>
+                <p className="text-xs text-gray-500 mt-0.5">মাস্টার সুইচ</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleToggleChineseSetting}
+                className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                  learningSettings.chineseEnabled
+                    ? 'bg-red-600 text-white shadow-xs'
+                    : 'bg-gray-300 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                }`}
+              >
+                {learningSettings.chineseEnabled ? 'ON' : 'OFF'}
+              </button>
+            </div>
+          </div>
+
+          {/* Chinese Academy Per-User Management */}
+          <div className="space-y-3 pt-2">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <h3 className="text-sm font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                <span>চাইনিজ একাডেমি ইউজার অ্যাক্সেস</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400">
+                  ডিফল্ট: OFF
+                </span>
+              </h3>
+
+              <div className="relative w-full sm:w-64">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="ইউজার সার্চ করুন..."
+                  value={chineseUserSearch}
+                  onChange={(e) => setChineseUserSearch(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl text-xs dark:text-white"
+                />
+              </div>
+            </div>
+
+            <div className="divide-y divide-gray-100 dark:divide-gray-800 border border-gray-100 dark:border-gray-800 rounded-2xl overflow-hidden max-h-72 overflow-y-auto custom-scrollbar">
+              {(staffList || [])
+                .filter((s) => s.status === 'ACTIVE' && !s.deletedAt && s.role !== UserRole.KIOSK)
+                .filter((s) => !chineseUserSearch.trim() || s.name.toLowerCase().includes(chineseUserSearch.toLowerCase()) || s.designation.toLowerCase().includes(chineseUserSearch.toLowerCase()))
+                .map((staff) => {
+                  const hasAccess = staff.hasChineseAcademyAccess === true;
+                  return (
+                    <div
+                      key={staff.id}
+                      className="p-3 flex items-center justify-between gap-3 hover:bg-gray-50/50 dark:hover:bg-gray-900/20"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${hasAccess ? 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400' : 'bg-gray-100 text-gray-500'}`}>
+                          {staff.name[0]}
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-gray-800 dark:text-white">{staff.name}</p>
+                          <p className="text-[10px] text-gray-500">{staff.designation}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${hasAccess ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-gray-100 text-gray-500'}`}>
+                          Chinese Academy: {hasAccess ? 'ON' : 'OFF'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleStaffChinese(staff.id, !hasAccess)}
+                          className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                            hasAccess
+                              ? 'bg-red-50 text-red-600 dark:bg-red-950/30 border border-red-200 dark:border-red-800'
+                              : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs'
+                          }`}
+                        >
+                          {hasAccess ? 'Revoke Access' : 'Grant Access'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
         </div>
       )}
 

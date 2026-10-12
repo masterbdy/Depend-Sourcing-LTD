@@ -5,6 +5,8 @@ import React, {
   useMemo,
   useRef,
   useCallback,
+  lazy,
+  Suspense,
 } from "react";
 import {
   LayoutGrid,
@@ -59,6 +61,8 @@ import {
   WalletCards,
   StickyNote,
   Headphones,
+  GraduationCap,
+  Battery,
   Image as ImageIcon,
 } from "lucide-react";
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
@@ -104,28 +108,47 @@ import { registerBiometrics, authenticateBiometrics } from "./webAuthn";
 import MovementLogView from "./views/MovementLog";
 import ExpenseManagementView from "./views/ExpenseManagementView";
 import FundLedgerView from "./views/FundLedger";
-import SettingsView from "./views/Settings";
-import SupportView from "./views/SupportView";
-import ReportsView from "./views/Reports";
-import TrashView from "./views/Trash";
-import NoticeBoardView from "./views/NoticeBoardView";
-import ComplaintBoxView from "./views/ComplaintBoxView";
-import GroupChatView from "./views/GroupChat";
+import { DashboardSkeleton, ViewLoadingFallback } from "./views/DashboardSkeleton";
+
+// Route-based Lazy Loading for Heavy & Secondary Modules
+const SettingsView = lazy(() => import("./views/Settings"));
+const SupportView = lazy(() => import("./views/SupportView"));
+const ReportsView = lazy(() => import("./views/Reports"));
+const TrashView = lazy(() => import("./views/Trash"));
+const NoticeBoardView = lazy(() => import("./views/NoticeBoardView"));
+const ComplaintBoxView = lazy(() => import("./views/ComplaintBoxView"));
+const GroupChatView = lazy(() => import("./views/GroupChat"));
+const AttendanceView = lazy(() => import("./views/Attendance"));
+const LiveLocationView = lazy(() => import("./views/LiveLocation"));
+const LuckyDrawView = lazy(() => import("./views/LuckyDraw"));
+const ProductCatalogView = lazy(() => import("./views/ProductCatalogView"));
+const PhoneBook = lazy(() => import("./views/PhoneBook"));
+const NotesView = lazy(() => import("./views/NotesView"));
+const MobileBillManagement = lazy(() => import("./views/MobileBillManagement"));
+const SavedPlacesView = lazy(() => import("./views/SavedPlaces"));
+const LearningAcademyView = lazy(() => import("./views/LearningAcademy"));
+const StaffBatteryView = lazy(() => import("./views/StaffBattery"));
+
 import localforage from "localforage";
+import {
+  CachedUserProfile,
+  StaffSummary,
+  getSynchronousCachedProfile,
+  getIdbCachedProfile,
+  persistUserProfile,
+  clearActiveProfile,
+  getSynchronousStaffSummaries,
+  persistStaffData,
+  fetchSingleStaffProfile,
+  ACTIVE_PROFILE_KEY,
+  STAFF_SUMMARIES_KEY,
+} from "./services/profileCacheService";
 
 localforage.config({
   name: 'AIS_App_DB',
   storeName: 'app_data',
   description: 'Stores large app data'
 });
-import AttendanceView from "./views/Attendance";
-import LiveLocationView from "./views/LiveLocation";
-import LuckyDrawView from "./views/LuckyDraw";
-import ProductCatalogView from "./views/ProductCatalogView";
-import PhoneBook from "./views/PhoneBook";
-import NotesView from "./views/NotesView";
-import MobileBillManagement from "./views/MobileBillManagement";
-import SavedPlacesView from "./views/SavedPlaces";
 import { getUserFCMToken } from "./notifications";
 
 // Safe LocalStorage Helper
@@ -150,6 +173,9 @@ Storage.prototype.setItem = function (key: string, value: string) {
         "auth_token",
         "user_role",
         "current_user",
+        "active_session",
+        ACTIVE_PROFILE_KEY,
+        STAFF_SUMMARIES_KEY,
         "offline_sync_queue",
         "offline_sync_queue_simple",
         "saved_accounts",
@@ -292,6 +318,11 @@ const DEFAULT_CERT_LOGOS = {
 };
 
 const App: React.FC = () => {
+  // Synchronous Profile Cache for Instant Frame-0 Boot
+  const [cachedUserProfile, setCachedUserProfile] = useState<CachedUserProfile | null>(() => {
+    return getSynchronousCachedProfile();
+  });
+
   const [role, setRole] = useState<UserRole | null>(() => {
     const saved = safeGetItem("active_session");
     if (saved) {
@@ -299,7 +330,8 @@ const App: React.FC = () => {
         return JSON.parse(saved).role || null;
       } catch { return null; }
     }
-    return null;
+    const cached = getSynchronousCachedProfile();
+    return cached?.role || null;
   });
   const [currentUser, setCurrentUser] = useState<string | null>(() => {
     const saved = safeGetItem("active_session");
@@ -308,12 +340,14 @@ const App: React.FC = () => {
         return JSON.parse(saved).username || null;
       } catch { return null; }
     }
-    return null;
+    const cached = getSynchronousCachedProfile();
+    return cached?.name || null;
   });
   const [activeTab, setActiveTab] = useState(() => {
     return safeGetItem("last_active_tab") || "dashboard";
   });
   const [isFirebaseLoaded, setIsFirebaseLoaded] = useState(false);
+  const [isFinancialLive, setIsFinancialLive] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const [highlightStaffId, setHighlightStaffId] = useState<string | null>(null);
@@ -433,20 +467,44 @@ const App: React.FC = () => {
   useEffect(() => {
     const loadIDBData = async () => {
       try {
-        const staffData = await localforage.getItem("staffList");
-        if (staffData && typeof staffData === "string") {
-          const parsed = JSON.parse(staffData);
-          if (parsed && parsed.length > 0) setStaffList(parsed);
+        const [staffData, expData, prodData, noteData, fundData, advData, idbProfile] = await Promise.all([
+          localforage.getItem("staffList"),
+          localforage.getItem("expenses"),
+          localforage.getItem("products"),
+          localforage.getItem("app_notes"),
+          localforage.getItem("funds"),
+          localforage.getItem("advances"),
+          getIdbCachedProfile(),
+        ]);
+
+        if (idbProfile) {
+          setCachedUserProfile((prev) => prev || idbProfile);
         }
 
-        const expData = await localforage.getItem("expenses");
-        if (expData && typeof expData === "string") setExpenses(JSON.parse(expData));
-
-        const prodData = await localforage.getItem("products");
-        if (prodData && typeof prodData === "string") setProducts(JSON.parse(prodData));
-
-        const noteData = await localforage.getItem("app_notes");
-        if (noteData && typeof noteData === "string") setAppNotes(JSON.parse(noteData));
+        if (staffData) {
+          const parsed = typeof staffData === "string" ? JSON.parse(staffData) : staffData;
+          if (Array.isArray(parsed) && parsed.length > 0) setStaffList(parsed);
+        }
+        if (expData && typeof expData === "string") {
+          const parsed = JSON.parse(expData);
+          if (parsed && parsed.length > 0) setExpenses(parsed);
+        }
+        if (prodData && typeof prodData === "string") {
+          const parsed = JSON.parse(prodData);
+          if (parsed && parsed.length > 0) setProducts(parsed);
+        }
+        if (noteData && typeof noteData === "string") {
+          const parsed = JSON.parse(noteData);
+          if (parsed && parsed.length > 0) setAppNotes(parsed);
+        }
+        if (fundData && typeof fundData === "string") {
+          const parsed = JSON.parse(fundData);
+          if (parsed && parsed.length > 0) setFunds(parsed);
+        }
+        if (advData && typeof advData === "string") {
+          const parsed = JSON.parse(advData);
+          if (parsed && parsed.length > 0) setAdvances(parsed);
+        }
       } catch (e) {
         console.error("IDB load error:", e);
       }
@@ -470,8 +528,31 @@ const App: React.FC = () => {
             for (const node of Object.keys(queue)) {
               const dataToSave = queue[node];
               if (Object.keys(dataToSave).length > 0) {
+                // For expenses, stamp syncStatus as SUBMITTED upon confirmed server write
+                if (node === 'expenses') {
+                  const nowStr = new Date().toISOString();
+                  Object.keys(dataToSave).forEach(billId => {
+                    if (dataToSave[billId] && typeof dataToSave[billId] === 'object') {
+                      dataToSave[billId].syncStatus = 'SUBMITTED';
+                      dataToSave[billId].lastSyncAttempt = nowStr;
+                      delete dataToSave[billId].syncError;
+                    }
+                  });
+                }
+
                 await update(ref(db, node), dataToSave);
                 processedAny = true;
+
+                // Also update memory state for expenses to show SUBMITTED
+                if (node === 'expenses') {
+                  setExpenses(prev =>
+                    prev.map(e =>
+                      dataToSave[e.id]
+                        ? { ...e, ...dataToSave[e.id], syncStatus: 'SUBMITTED' }
+                        : e
+                    )
+                  );
+                }
                 
                 // Fine-grained cleanup to avoid race conditions
                 const currentQueue = JSON.parse(safeGetItem("offline_sync_queue") || "{}");
@@ -789,44 +870,74 @@ const App: React.FC = () => {
            if (currentUser) {
              const connectedRef = ref(db, ".info/connected");
              const myOnlineRef = ref(db, `online_users/${currentUser}`);
-             unsubConnected = onValue(connectedRef, (snap) => {
+             unsubConnected = onValue(connectedRef, async (snap) => {
                if (snap.val() === true) {
+                 let batteryLevel: number | undefined = undefined;
+                 let isCharging: boolean | undefined = undefined;
+
+                 if (typeof navigator !== "undefined" && "getBattery" in navigator) {
+                   try {
+                     const b: any = await (navigator as any).getBattery();
+                     batteryLevel = typeof b.level === "number" ? Math.round(b.level * 100) / 100 : undefined;
+                     isCharging = !!b.charging;
+
+                     const syncBattery = () => {
+                       set(myOnlineRef, {
+                         status: 'online',
+                         role: role,
+                         staffName: currentUser,
+                         timestamp: new Date().toISOString(),
+                         batteryLevel: typeof b.level === "number" ? Math.round(b.level * 100) / 100 : undefined,
+                         isCharging: !!b.charging,
+                         deviceName: getDeviceInfo(),
+                       }).catch(console.error);
+                     };
+
+                     b.onlevelchange = syncBattery;
+                     b.onchargingchange = syncBattery;
+                   } catch (e) {}
+                 }
+
                  onDisconnect(myOnlineRef).remove().then(() => {
                    set(myOnlineRef, {
                      status: 'online',
                      role: role,
-                     timestamp: new Date().toISOString()
+                     staffName: currentUser,
+                     timestamp: new Date().toISOString(),
+                     batteryLevel: batteryLevel,
+                     isCharging: isCharging,
+                     deviceName: getDeviceInfo(),
                    }).catch(console.error);
                  }).catch(console.error);
                }
              });
            }
 
-           if (role === UserRole.ADMIN || role === UserRole.MD) {
-             const onlineUsersRef = ref(db, 'online_users');
-             let initialLoad = true;
-             unsubUsers = onValue(onlineUsersRef, (snap) => {
-               if (snap.exists()) {
-                 const users = snap.val();
-                 if (!initialLoad) {
-                    Object.keys(users).forEach(u => {
-                       if (u !== currentUser && !prevOnlineUsers.current.has(u)) {
-                          handleAddNotification(
-                             "ইউজার অনলাইনে",
-                             `${u} এখন অনলাইনে এসেছেন।`,
-                             "INFO",
-                             "staff"
-                          );
-                       }
-                    });
-                 }
-                 prevOnlineUsers.current = new Set(Object.keys(users));
-               } else {
-                 prevOnlineUsers.current = new Set();
+           const onlineUsersRef = ref(db, 'online_users');
+           let initialLoad = true;
+           unsubUsers = onValue(onlineUsersRef, (snap) => {
+             if (snap.exists()) {
+               const users = snap.val();
+               setOnlineUsers(users || {});
+               if (!initialLoad && (role === UserRole.ADMIN || role === UserRole.MD)) {
+                  Object.keys(users).forEach(u => {
+                     if (u !== currentUser && !prevOnlineUsers.current.has(u)) {
+                        handleAddNotification(
+                           "ইউজার অনলাইনে",
+                           `${u} এখন অনলাইনে এসেছেন।`,
+                           "INFO",
+                           "staff"
+                        );
+                     }
+                  });
                }
-               initialLoad = false;
-             });
-           }
+               prevOnlineUsers.current = new Set(Object.keys(users));
+             } else {
+               setOnlineUsers({});
+               prevOnlineUsers.current = new Set();
+             }
+             initialLoad = false;
+           });
 
          } catch (e) {
            console.error("Presence system error", e);
@@ -865,10 +976,27 @@ const App: React.FC = () => {
   const [forgotError, setForgotError] = useState("");
   const [isForgotLoading, setIsForgotLoading] = useState(false);
 
-  // LAZY INITIALIZATION FOR INSTANT DATA LOAD
-  const [staffList, setStaffList] = useState<Staff[]>(() =>
-    getLocalData("staffList", INITIAL_STAFF),
-  );
+  // LAZY INITIALIZATION FOR INSTANT DATA LOAD (Frame 0 Fast Boot)
+  const [staffList, setStaffList] = useState<Staff[]>(() => {
+    const summaries = getSynchronousStaffSummaries();
+    if (summaries && summaries.length > 0) {
+      return summaries.map((s) => ({
+        id: s.id,
+        staffId: s.staffId,
+        name: s.name,
+        designation: s.designation,
+        role: s.role || UserRole.STAFF,
+        status: s.status,
+        mobile: s.mobile,
+        photo: s.photo,
+        workLocation: s.workLocation,
+        points: s.points,
+        createdAt: s.updatedAt || new Date().toISOString(),
+        updatedAt: s.updatedAt,
+      } as Staff));
+    }
+    return getLocalData("staffList", INITIAL_STAFF);
+  });
 
   useEffect(() => {
     if (currentUser && staffList.length > 0) {
@@ -927,6 +1055,7 @@ const App: React.FC = () => {
   const [liveLocations, setLiveLocations] = useState<
     Record<string, StaffLocation>
   >({}); // Live data, no need to persist locally usually
+  const [onlineUsers, setOnlineUsers] = useState<Record<string, any>>({});
   const [products, setProducts] = useState<Product[]>(() =>
     getLocalData("products", INITIAL_PRODUCTS),
   );
@@ -1004,77 +1133,118 @@ const App: React.FC = () => {
 
       if (dbInstance) {
         setCloudError(null);
+        const publicUnsubs: Unsubscribe[] = [];
 
         // Real-time Connection Status from Firebase (This confirms server connection)
         const connectedRef = ref(dbInstance, ".info/connected");
-        onValue(connectedRef, (snap) => {
-          if (snap.val() === true) {
-            setIsCloudEnabled(true);
-          } else {
-            // If Firebase says disconnected, we verify with browser state to determine if it's user internet or firebase issue
-            setIsCloudEnabled(navigator.onLine);
-          }
-        });
+        publicUnsubs.push(
+          onValue(connectedRef, (snap) => {
+            if (snap.val() === true) {
+              setIsCloudEnabled(true);
+              setCloudError(null);
+            } else {
+              setIsCloudEnabled(false);
+            }
+          })
+        );
 
         // --- PUBLIC DATA ---
-
         // Products
-        onValue(
-          ref(dbInstance, "products"),
-          (snapshot) => {
-            if (snapshot.exists()) {
-              const data = cleanArray(snapshot.val());
-              setProducts(data as Product[]);
-              safeSetItem("products", JSON.stringify(data));
-            }
-          },
-          (err) => console.error(err),
+        publicUnsubs.push(
+          onValue(
+            ref(dbInstance, "products"),
+            (snapshot) => {
+              if (snapshot.exists()) {
+                const data = cleanArray(snapshot.val());
+                setProducts(data as Product[]);
+                safeSetItem("products", JSON.stringify(data));
+              }
+            },
+            (err) => console.error(err),
+          )
         );
 
         // Staff List (Needed for Login)
-        onValue(
-          ref(dbInstance, "staffList"),
-          (snapshot) => {
-            if (snapshot.exists()) {
-              const data = cleanArray(snapshot.val());
-              setStaffList(data as Staff[]);
-              safeSetItem("staffList", JSON.stringify(data));
-              setIsFirebaseLoaded(true);
-            }
-          },
-          (err) => console.error(err),
+        publicUnsubs.push(
+          onValue(
+            ref(dbInstance, "staffList"),
+            (snapshot) => {
+              if (snapshot.exists()) {
+                const data = cleanArray(snapshot.val()) as Staff[];
+                setStaffList(data);
+                setIsFirebaseLoaded(true);
+
+                // Persist full list to localforage & lightweight summaries to localStorage
+                persistStaffData(data).catch((err) =>
+                  console.warn("Failed to persist staff cache", err)
+                );
+
+                // If current user is logged in, find and persist their active profile
+                if (currentUser) {
+                  const match = data.find(
+                    (s) =>
+                      s.name === currentUser ||
+                      (cachedUserProfile && s.id === cachedUserProfile.id)
+                  );
+                  if (match) {
+                    persistUserProfile(match, "UP_TO_DATE")
+                      .then((updated) => setCachedUserProfile(updated))
+                      .catch(console.error);
+                  }
+                }
+              }
+            },
+            (err) => {
+              console.error(err);
+              setCachedUserProfile((prev) =>
+                prev ? { ...prev, syncStatus: "OFFLINE" } : null
+              );
+            },
+          )
         );
 
         // Editors & Settings
-        onValue(ref(dbInstance, "productEditors"), (snapshot) => {
-          if (snapshot.exists()) setProductEditors(cleanArray(snapshot.val()));
-        });
+        publicUnsubs.push(
+          onValue(ref(dbInstance, "productEditors"), (snapshot) => {
+            if (snapshot.exists()) setProductEditors(cleanArray(snapshot.val()));
+          })
+        );
 
         // App Settings & Logos
-        onValue(ref(dbInstance, "app_settings"), (snapshot) => {
-          if (snapshot.exists()) {
-            const val = snapshot.val();
-            if (val.allowedBackdateDays)
-              setAllowedBackdateDays(Number(val.allowedBackdateDays));
-            if (val.cert_logos) setCertLogos(val.cert_logos);
-            if (val.company_logo) setCompanyLogo(val.company_logo);
-            if (val.festival_image) setFestivalImage(val.festival_image);
-            if (val.smtp_config)
-              safeSetItem("smtp_config", JSON.stringify(val.smtp_config));
-          }
-        });
+        publicUnsubs.push(
+          onValue(ref(dbInstance, "app_settings"), (snapshot) => {
+            if (snapshot.exists()) {
+              const val = snapshot.val();
+              if (val.allowedBackdateDays)
+                setAllowedBackdateDays(Number(val.allowedBackdateDays));
+              if (val.cert_logos) setCertLogos(val.cert_logos);
+              if (val.company_logo) setCompanyLogo(val.company_logo);
+              if (val.festival_image) setFestivalImage(val.festival_image);
+              if (val.smtp_config)
+                safeSetItem("smtp_config", JSON.stringify(val.smtp_config));
+            }
+          })
+        );
 
         // Search Analytics
-        onValue(ref(dbInstance, "analytics/search_count"), (snapshot) => {
-          const count = snapshot.val() || 0;
-          setSearchCount(count);
-        });
+        publicUnsubs.push(
+          onValue(ref(dbInstance, "analytics/search_count"), (snapshot) => {
+            const count = snapshot.val() || 0;
+            setSearchCount(count);
+          })
+        );
 
         // Visit Analytics
-        onValue(ref(dbInstance, "analytics/visit_count"), (snapshot) => {
-          const count = snapshot.val() || 0;
-          setVisitCount(count);
-        });
+        publicUnsubs.push(
+          onValue(ref(dbInstance, "analytics/visit_count"), (snapshot) => {
+            const count = snapshot.val() || 0;
+            setVisitCount(count);
+          })
+        );
+
+        return () => {
+          publicUnsubs.forEach((unsub) => unsub());
+        };
       }
     } catch (error: any) {
       console.error("Cloud Connection Error:", error);
@@ -1082,6 +1252,37 @@ const App: React.FC = () => {
       setIsCloudEnabled(false);
     }
   }, [firebaseConfig]);
+
+  // --- EFFECT: Priority Background Direct Profile Fetch ---
+  // When an active profile is known, fetch it directly in the background
+  // without waiting for the entire staff collection to finish loading.
+  useEffect(() => {
+    if (!firebaseConfig || !firebaseConfig.databaseURL || !currentUser) return;
+    const targetId = cachedUserProfile?.id;
+    if (!targetId || isFirebaseLoaded) return;
+
+    let isMounted = true;
+    setCachedUserProfile((prev) => (prev ? { ...prev, syncStatus: "UPDATING" } : null));
+
+    fetchSingleStaffProfile(targetId, firebaseConfig)
+      .then((directStaff) => {
+        if (directStaff && isMounted) {
+          persistUserProfile(directStaff, "UP_TO_DATE").then((updated) => {
+            if (isMounted) setCachedUserProfile(updated);
+          });
+        }
+      })
+      .catch((err) => {
+        console.warn("Direct profile refresh failed", err);
+        if (isMounted) {
+          setCachedUserProfile((prev) => (prev ? { ...prev, syncStatus: "OFFLINE" } : null));
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUser, cachedUserProfile?.id, firebaseConfig, isFirebaseLoaded]);
 
   // --- EFFECT: Admin Background Notification Listener ---
   useEffect(() => {
@@ -1184,6 +1385,9 @@ const App: React.FC = () => {
                 }
 
                 setter(arrayData);
+                if (node === "expenses" || node === "funds" || node === "advances") {
+                  setIsFinancialLive(true);
+                }
                 if (node !== "staff_locations") {
                   let storageData = arrayData;
                   if (node === "expenses") {
@@ -1578,7 +1782,24 @@ const App: React.FC = () => {
     if (targetStaffId) {
       targetStaff = staffList.find((s) => s.id === targetStaffId);
     } else {
-      targetStaff = staffList.find((s) => s.name === currentUser);
+      targetStaff = staffList.find((s) => s.name === currentUser) || (myProfile as Staff);
+    }
+
+    if (!targetStaff && cachedUserProfile) {
+      targetStaff = {
+        id: cachedUserProfile.id,
+        staffId: cachedUserProfile.staffId,
+        name: cachedUserProfile.name,
+        designation: cachedUserProfile.designation,
+        role: cachedUserProfile.role,
+        mobile: cachedUserProfile.mobile,
+        email: cachedUserProfile.email,
+        photo: cachedUserProfile.photo,
+        workLocation: cachedUserProfile.workLocation,
+        status: cachedUserProfile.status,
+        createdAt: cachedUserProfile.updatedAt || new Date().toISOString(),
+        updatedAt: cachedUserProfile.updatedAt,
+      } as Staff;
     }
 
     if (!targetStaff) {
@@ -1587,7 +1808,7 @@ const App: React.FC = () => {
     }
 
     if (role === UserRole.STAFF) {
-      const myself = staffList.find((s) => s.name === currentUser);
+      const myself = staffList.find((s) => s.name === currentUser) || (myProfile as Staff);
       if (myself && myself.id !== targetStaff.id) {
         alert("দুঃখিত! স্টাফরা অন্য কারো প্রোফাইল দেখতে পারবে না।");
         return;
@@ -2309,11 +2530,40 @@ const App: React.FC = () => {
         setCurrentUser(authenticatedUser!.name);
         setIsLoggingIn(false);
 
+        const myUser = staffList.find(
+          (s) => s.name === authenticatedUser!.name,
+        );
         const sessionData = {
           role: authenticatedUser!.role,
           username: authenticatedUser!.name,
+          userId: myUser?.id,
+          staffId: myUser?.staffId,
         };
         safeSetItem("active_session", JSON.stringify(sessionData));
+
+        if (myUser) {
+          persistUserProfile(myUser, "UP_TO_DATE")
+            .then((p) => setCachedUserProfile(p))
+            .catch(console.error);
+        } else {
+          persistUserProfile(
+            {
+              id: authenticatedUser!.name.toLowerCase().replace(/[^a-z0-9]/g, "_"),
+              name: authenticatedUser!.name,
+              role: authenticatedUser!.role,
+              designation:
+                authenticatedUser!.role === UserRole.ADMIN
+                  ? "Manager"
+                  : authenticatedUser!.role === UserRole.MD
+                    ? "Managing Director"
+                    : "User",
+              status: "ACTIVE",
+            },
+            "UP_TO_DATE"
+          )
+            .then((p) => setCachedUserProfile(p))
+            .catch(console.error);
+        }
 
         if (authenticatedUser!.role === UserRole.ADMIN) {
           safeSetItem("is_admin_device", "true");
@@ -2323,9 +2573,6 @@ const App: React.FC = () => {
 
         if (authenticatedUser!.role === UserRole.STAFF) {
           const deviceInfo = getDeviceInfo();
-          const myUser = staffList.find(
-            (s) => s.name === authenticatedUser!.name,
-          );
           if (myUser) {
             setStaffList((prev) =>
               prev.map((s) =>
@@ -2473,11 +2720,13 @@ const App: React.FC = () => {
   const handleLogout = () => {
     setRole(null);
     setCurrentUser(null);
+    setCachedUserProfile(null);
     setLoginUsername("");
     setLoginPassword("");
     setLoginError("");
     setActiveTab("dashboard");
     localStorage.removeItem("active_session");
+    clearActiveProfile().catch(console.error);
   };
 
   const handleExport = () => {
@@ -2696,11 +2945,18 @@ const App: React.FC = () => {
       const existingProfileIndex = prev.findIndex((s: Staff) => s.id === targetId);
       if (existingProfileIndex >= 0) {
         const updatedList = [...prev];
-        updatedList[existingProfileIndex] = {
+        const updatedStaff = {
           ...updatedList[existingProfileIndex],
           ...profileForm,
           updatedAt: new Date().toISOString(),
         };
+        updatedList[existingProfileIndex] = updatedStaff;
+
+        if (targetId === myProfile?.id || targetId === cachedUserProfile?.id) {
+          persistUserProfile(updatedStaff, "UP_TO_DATE").then((p) => {
+            setCachedUserProfile(p);
+          }).catch(console.error);
+        }
         return updatedList;
       }
       return prev;
@@ -2711,17 +2967,52 @@ const App: React.FC = () => {
   };
 
   const myProfile = useMemo(() => {
-    return (staffList || []).find(
-      (s) => s && !s.deletedAt && s.name === currentUser,
-    );
-  }, [staffList, currentUser]);
+    // 1. Check live or IDB loaded staffList first
+    if (staffList && staffList.length > 0 && currentUser) {
+      const match = staffList.find(
+        (s) =>
+          s &&
+          !s.deletedAt &&
+          (s.name === currentUser ||
+            (cachedUserProfile && s.id === cachedUserProfile.id))
+      );
+      if (match) {
+        if (!match.photo && cachedUserProfile?.photo) {
+          return { ...match, photo: cachedUserProfile.photo };
+        }
+        return match;
+      }
+    }
+    // 2. Immediate zero-delay fallback: cached user profile
+    if (cachedUserProfile) {
+      return {
+        id: cachedUserProfile.id,
+        staffId: cachedUserProfile.staffId,
+        name: cachedUserProfile.name,
+        designation: cachedUserProfile.designation,
+        role: cachedUserProfile.role,
+        mobile: cachedUserProfile.mobile,
+        email: cachedUserProfile.email,
+        photo: cachedUserProfile.photo,
+        workLocation: cachedUserProfile.workLocation,
+        status: cachedUserProfile.status,
+        createdAt: cachedUserProfile.updatedAt || new Date().toISOString(),
+        updatedAt: cachedUserProfile.updatedAt,
+      } as Staff;
+    }
+    return undefined;
+  }, [staffList, currentUser, cachedUserProfile]);
 
   const modalProfileData = useMemo(() => {
     if (editingProfileId) {
-      return staffList.find((s) => s.id === editingProfileId);
+      const match = staffList.find((s) => s.id === editingProfileId);
+      if (match) return match;
+      if (cachedUserProfile && cachedUserProfile.id === editingProfileId) {
+        return myProfile;
+      }
     }
     return myProfile;
-  }, [editingProfileId, staffList, myProfile]);
+  }, [editingProfileId, staffList, myProfile, cachedUserProfile]);
 
   const profileFinancials = useMemo(() => {
     if (!modalProfileData)
@@ -2857,12 +3148,28 @@ const App: React.FC = () => {
         bgColor: "bg-indigo-50",
       },
       {
+        id: "learning-academy",
+        label: "লার্নিং একাডেমি",
+        icon: GraduationCap,
+        roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF, UserRole.KIOSK],
+        color: "text-violet-600",
+        bgColor: "bg-violet-50",
+      },
+      {
         id: "live-location",
         label: "লাইভ ট্র্যাকিং",
         icon: Radar,
         roles: [UserRole.ADMIN],
         color: "text-cyan-600",
         bgColor: "bg-cyan-50",
+      },
+      {
+        id: "device-battery",
+        label: "ডিভাইস ব্যাটারি",
+        icon: Battery,
+        roles: [UserRole.ADMIN, UserRole.MD],
+        color: "text-emerald-600",
+        bgColor: "bg-emerald-50",
       },
       {
         id: "lucky-draw",
@@ -2938,7 +3245,24 @@ const App: React.FC = () => {
   );
 
   const bottomNavItems = useMemo(() => {
-    let items = [...allowedNavItems.slice(0, 4)];
+    let items: typeof allowedNavItems = [];
+
+    // For ADMIN and MD: replace attendance with staff management in bottom navigation bar
+    if (role === UserRole.ADMIN || role === UserRole.MD) {
+      const filteredForBottom = allowedNavItems.filter((i) => i.id !== "attendance");
+      const staffItem = allowedNavItems.find((i) => i.id === "staff");
+
+      if (staffItem) {
+        const rest = filteredForBottom.filter((i) => i.id !== "staff");
+        items = [rest[0] || staffItem, staffItem, ...rest.slice(1, 3)].filter(Boolean);
+      } else {
+        items = [...filteredForBottom.slice(0, 4)];
+      }
+    } else {
+      // For all other users (STAFF, KIOSK, etc.): keep default items including attendance
+      items = [...allowedNavItems.slice(0, 4)];
+    }
+
     if (currentUser === "Moyna Islam") {
       const notesItem = allowedNavItems.find((i) => i.id === "notes");
       if (notesItem && !items.find((i) => i.id === "notes")) {
@@ -2947,7 +3271,7 @@ const App: React.FC = () => {
       }
     }
     return items;
-  }, [allowedNavItems, currentUser]);
+  }, [allowedNavItems, currentUser, role]);
 
   const mobileSidebarItems = allowedNavItems;
 
@@ -2976,6 +3300,9 @@ const App: React.FC = () => {
             onOpenProfile={openProfile}
             searchCount={searchCount}
             festivalImage={festivalImage}
+            onlineUsers={onlineUsers}
+            liveLocations={liveLocations}
+            isFinancialLive={isFinancialLive}
           />
         );
       case "chat":
@@ -3009,6 +3336,18 @@ const App: React.FC = () => {
             setStaffList={updateStaffList}
           />
         );
+      case "learning-academy":
+      case "english-academy":
+        return (
+          <LearningAcademyView
+            currentUser={currentUser}
+            role={role}
+            staffList={staffList}
+            setStaffList={updateStaffList}
+            firebaseConfig={firebaseConfig}
+            isCloudEnabled={isCloudEnabled}
+          />
+        );
       case "phone-book":
         return (
           <PhoneBook
@@ -3032,6 +3371,16 @@ const App: React.FC = () => {
           <LiveLocationView
             staffList={staffList}
             liveLocations={liveLocations}
+          />
+        );
+      case "device-battery":
+        return (
+          <StaffBatteryView
+            staffList={staffList}
+            onlineUsers={onlineUsers}
+            liveLocations={liveLocations}
+            currentUser={currentUser || undefined}
+            role={role!}
           />
         );
       case "lucky-draw":
@@ -3139,6 +3488,8 @@ const App: React.FC = () => {
             setTypoDictionary={updateTypoDictionary}
             typoSuggestions={typoSuggestions}
             setTypoSuggestions={updateTypoSuggestions}
+            firebaseConfig={firebaseConfig}
+            isCloudEnabled={isCloudEnabled}
           />
         );
       case "reports":
@@ -3236,6 +3587,9 @@ const App: React.FC = () => {
             onOpenProfile={openProfile}
             searchCount={searchCount}
             festivalImage={festivalImage}
+            onlineUsers={onlineUsers}
+            liveLocations={liveLocations}
+            isFinancialLive={isFinancialLive}
           />
         );
     }
@@ -3249,20 +3603,22 @@ const App: React.FC = () => {
 
   if (role === UserRole.GUEST) {
     return (
-      <ProductCatalogView
-        onLogout={handleLogout}
-        products={products}
-        setProducts={updateProducts}
-        role={role}
-        productEditors={productEditors}
-        currentStaffId={null}
-        onTrackSearch={handleTrackSearch}
-        setComplaints={updateComplaints}
-        certLogos={certLogos}
-        onUpdateCertLogo={updateCertLogos}
-        companyLogo={companyLogo}
-        onUpdateCompanyLogo={updateCompanyLogo}
-      />
+      <Suspense fallback={<ViewLoadingFallback title="প্রোডাক্ট ক্যাটালগ লোড হচ্ছে..." />}>
+        <ProductCatalogView
+          onLogout={handleLogout}
+          products={products}
+          setProducts={updateProducts}
+          role={role}
+          productEditors={productEditors}
+          currentStaffId={null}
+          onTrackSearch={handleTrackSearch}
+          setComplaints={updateComplaints}
+          certLogos={certLogos}
+          onUpdateCertLogo={updateCertLogos}
+          companyLogo={companyLogo}
+          onUpdateCompanyLogo={updateCompanyLogo}
+        />
+      </Suspense>
     );
   }
 
@@ -3873,24 +4229,48 @@ const App: React.FC = () => {
             </div>
 
             <div className="text-right hidden md:block">
-              <p
-                className={`text-sm font-bold ${isDarkMode ? "text-gray-200" : "text-gray-800"}`}
-              >
-                {currentUser || "Guest"}
-              </p>
-              <p className="text-xs text-gray-500">
-                {role ? ROLE_LABELS[role] : ""}
+              <div className="flex items-center justify-end gap-1.5">
+                <p
+                  className={`text-sm font-bold ${isDarkMode ? "text-gray-200" : "text-gray-800"}`}
+                >
+                  {currentUser || "Guest"}
+                </p>
+                {cachedUserProfile?.syncStatus && (
+                  <span
+                    className="text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 inline-flex items-center gap-1"
+                    title={
+                      cachedUserProfile.syncStatus === "UPDATING"
+                        ? "প্রোফাইল রিফ্রেশ হচ্ছে..."
+                        : cachedUserProfile.syncStatus === "OFFLINE"
+                          ? "ক্যাশড প্রোফাইল (অফলাইন)"
+                          : "প্রোফাইল লাইভ সিঙ্কড"
+                    }
+                  >
+                    {cachedUserProfile.syncStatus === "UPDATING" ? (
+                      <Loader2 className="w-2.5 h-2.5 animate-spin text-indigo-500" />
+                    ) : cachedUserProfile.syncStatus === "OFFLINE" ? (
+                      <span className="text-amber-500 text-[8px] font-bold">💾 ক্যাশ</span>
+                    ) : (
+                      <span className="text-emerald-500 text-[8px] font-bold">☁️ লাইভ</span>
+                    )}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-gray-500 font-medium">
+                {myProfile?.designation || (role ? ROLE_LABELS[role] : "")}
               </p>
             </div>
             <div
               onClick={() => openProfile()}
-              className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold border-2 border-indigo-50 cursor-pointer hover:ring-2 hover:ring-indigo-300 transition-all overflow-hidden"
+              className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-950 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold border-2 border-indigo-50 dark:border-indigo-900 cursor-pointer hover:ring-2 hover:ring-indigo-300 transition-all overflow-hidden shrink-0 shadow-sm"
+              title="প্রোফাইল ভিউ করুন"
             >
               {myProfile && myProfile.photo ? (
                 <img
                   src={myProfile.photo}
                   alt="Profile"
                   className="w-full h-full object-cover"
+                  loading="eager"
                 />
               ) : currentUser ? (
                 currentUser[0].toUpperCase()
@@ -3904,7 +4284,11 @@ const App: React.FC = () => {
         <div
           className={`flex-1 overflow-y-auto p-6 md:p-8 ${isDarkMode ? "bg-transparent" : "bg-gray-50"}`}
         >
-          <div className="max-w-7xl mx-auto">{renderContent()}</div>
+          <div className="max-w-7xl mx-auto">
+            <Suspense fallback={<DashboardSkeleton role={role} isDarkMode={isDarkMode} />}>
+              {renderContent()}
+            </Suspense>
+          </div>
         </div>
       </main>
 
@@ -4221,6 +4605,34 @@ const App: React.FC = () => {
                     <span className="px-3 py-1 rounded-full text-[10px] font-black bg-gradient-to-r from-orange-500 to-red-500 text-white uppercase tracking-widest shadow-lg shadow-orange-900/50 flex items-center gap-1.5">
                       <MonitorSmartphone className="w-3 h-3" /> Kiosk Mode
                     </span>
+                  )}
+                </div>
+
+                {/* Profile Sync Status */}
+                <div className="flex items-center gap-2 mb-6 px-3.5 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] font-bold text-gray-300">
+                  {cachedUserProfile?.syncStatus === "UPDATING" ? (
+                    <>
+                      <Loader2 className="w-3 h-3 animate-spin text-indigo-400" />
+                      <span>সার্ভার থেকে লাইভ তথ্য রিফ্রেশ হচ্ছে...</span>
+                    </>
+                  ) : cachedUserProfile?.syncStatus === "OFFLINE" ? (
+                    <>
+                      <WifiOff className="w-3 h-3 text-amber-400" />
+                      <span>ডিভাইসে সংরক্ষিত ক্যাশড ডাটা (অফলাইন)</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                      <span>
+                        লাইভ সিঙ্ক সম্পন্ন •{" "}
+                        {new Date(
+                          cachedUserProfile?.lastSyncTimestamp || Date.now(),
+                        ).toLocaleTimeString("bn-BD", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </>
                   )}
                 </div>
 

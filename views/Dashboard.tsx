@@ -17,8 +17,20 @@ import {
   PieChart,
   Cake,
   PartyPopper,
+  Battery,
+  BatteryCharging,
+  BatteryWarning,
+  BatteryLow,
+  Zap,
+  Smartphone,
+  AlertTriangle,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  RefreshCw,
+  MessageSquare,
 } from "lucide-react";
-import { Expense, UserRole, Staff, AdvanceLog } from "../types";
+import { Expense, UserRole, Staff, AdvanceLog, StaffLocation } from "../types";
 import { BanglaDateConverter } from "bangla-date-converter";
 
 interface DashboardProps {
@@ -35,6 +47,9 @@ interface DashboardProps {
   onOpenProfile?: (staffId: string) => void;
   searchCount?: number;
   festivalImage?: string;
+  onlineUsers?: Record<string, any>;
+  liveLocations?: Record<string, StaffLocation>;
+  isFinancialLive?: boolean;
 }
 
 const DashboardView: React.FC<DashboardProps> = ({
@@ -51,6 +66,9 @@ const DashboardView: React.FC<DashboardProps> = ({
   onOpenProfile,
   searchCount,
   festivalImage,
+  onlineUsers,
+  liveLocations,
+  isFinancialLive = true,
 }) => {
   const [showConfetti, setShowConfetti] = useState(false);
 
@@ -246,6 +264,12 @@ const DashboardView: React.FC<DashboardProps> = ({
     return { champions: sortedChampions, monthName: prevMonthName };
   }, [staffList]);
 
+  const offlineBillsCount = useMemo(() => {
+    return (expenses || []).filter(
+      (e) => !e.isDeleted && (e.syncStatus === 'SAVED_OFFLINE' || e.syncStatus === 'FAILED'),
+    ).length;
+  }, [expenses]);
+
   // COMPACT 3D CARD COMPONENT
   const StatCard3D = ({
     icon: Icon,
@@ -256,9 +280,10 @@ const DashboardView: React.FC<DashboardProps> = ({
     iconBgClass,
     iconColorClass,
     subText,
+    bgClass = "bg-white dark:bg-gray-800",
   }: any) => (
     <div
-      className={`relative overflow-hidden bg-white dark:bg-gray-800 rounded-xl p-3 border-2 border-b-[5px] border-r-[5px] ${borderClass} shadow-sm transition-all active:border-b-2 active:border-r-2 active:translate-y-1 active:translate-x-1 group`}
+      className={`relative overflow-hidden ${bgClass} rounded-xl p-3 border-2 border-b-[5px] border-r-[5px] ${borderClass} shadow-sm transition-all active:border-b-2 active:border-r-2 active:translate-y-1 active:translate-x-1 group`}
     >
       {/* Background Decoration */}
       <Icon
@@ -479,6 +504,31 @@ const DashboardView: React.FC<DashboardProps> = ({
         </div>
       </div>
 
+      {/* STATS HEADER WITH SYNC STATUS */}
+      <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+        <h3 className="text-xs font-black uppercase tracking-wider text-gray-500 dark:text-gray-400">
+          আর্থিক সারাংশ (Financial Summary)
+        </h3>
+        <div className="flex items-center gap-2">
+          {offlineBillsCount > 0 && (
+            <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800 px-2 py-0.5 rounded-full animate-pulse" title="কিছু বিল ডিভাইসে সংরক্ষিত আছে, সার্ভারে সিঙ্ক বাকি">
+              💾 {offlineBillsCount} টি বিল অফলাইনে সংরক্ষিত
+            </span>
+          )}
+          {isFinancialLive ? (
+            <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/50 px-2 py-0.5 rounded-full">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              লাইভ ডাটা
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 px-2 py-0.5 rounded-full" title="সর্বশেষ সংরক্ষিত ডাটা প্রদর্শিত হচ্ছে">
+              <RefreshCw className="w-3 h-3 animate-spin text-amber-500" />
+              ক্যাশড ডাটা • আপডেট হচ্ছে...
+            </span>
+          )}
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* ... [Rest of the dashboard remains the same] ... */}
         {/* Left Column: Stats & Activity */}
@@ -539,6 +589,7 @@ const DashboardView: React.FC<DashboardProps> = ({
                 borderClass="border-indigo-100 dark:border-indigo-900"
                 iconBgClass="bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-900/40 dark:to-indigo-800/30"
                 iconColorClass="text-indigo-600 dark:text-indigo-400"
+                bgClass="bg-indigo-50/40 dark:bg-indigo-950/20"
               />
 
               {/* 6. Ledger Payable (Red) */}
@@ -550,6 +601,7 @@ const DashboardView: React.FC<DashboardProps> = ({
                 borderClass="border-red-100 dark:border-red-900"
                 iconBgClass="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/40 dark:to-red-800/30"
                 iconColorClass="text-red-600 dark:text-red-400"
+                bgClass="bg-rose-50/40 dark:bg-rose-950/20"
                 subText={
                   pendingApprovals > 0
                     ? `${pendingApprovals} Pending`
@@ -582,6 +634,7 @@ const DashboardView: React.FC<DashboardProps> = ({
                 borderClass="border-indigo-100 dark:border-indigo-900"
                 iconBgClass="bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-900/40 dark:to-indigo-800/30"
                 iconColorClass="text-indigo-600 dark:text-indigo-400"
+                bgClass="bg-indigo-50/40 dark:bg-indigo-950/20"
               />
 
               {/* 3. Net Balance */}
@@ -620,6 +673,7 @@ const DashboardView: React.FC<DashboardProps> = ({
                 borderClass="border-orange-100 dark:border-orange-900"
                 iconBgClass="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/40 dark:to-orange-800/30"
                 iconColorClass="text-orange-600 dark:text-orange-400"
+                bgClass="bg-amber-50/50 dark:bg-amber-950/20"
               />
 
               {/* 5. Recent Advances List */}
@@ -671,7 +725,6 @@ const DashboardView: React.FC<DashboardProps> = ({
             </div>
           )}
 
-          {/* Recent Transactions List (MANAGEMENT/ADMIN VIEW - Unchanged) */}
           {!isStaff && (
             <div className="bg-white dark:bg-gray-800 rounded-2xl border border-b-[4px] border-r-[4px] border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
               <div className="p-4 border-b border-gray-50 dark:border-gray-700/50 flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/50">
@@ -709,6 +762,8 @@ const DashboardView: React.FC<DashboardProps> = ({
                                 src={staffMember.photo}
                                 alt={expense.staffName}
                                 className="w-full h-full object-cover"
+                                loading="lazy"
+                                decoding="async"
                               />
                             ) : (
                               expense.staffName.charAt(0)
@@ -733,17 +788,32 @@ const DashboardView: React.FC<DashboardProps> = ({
                           <p className="text-xs font-black text-gray-800 dark:text-gray-100">
                             ৳ {expense.amount}
                           </p>
-                          <span
-                            className={`text-[8px] font-bold uppercase ${
-                              expense.status === "APPROVED"
-                                ? "text-green-500"
-                                : expense.status === "REJECTED"
-                                  ? "text-red-500"
-                                  : "text-orange-500"
-                            }`}
-                          >
-                            {expense.status}
-                          </span>
+                          <div className="flex items-center justify-end gap-1 mt-0.5">
+                            <span
+                              className={`text-[8px] font-bold uppercase ${
+                                expense.status === "APPROVED"
+                                  ? "text-green-500"
+                                  : expense.status === "REJECTED"
+                                    ? "text-red-500"
+                                    : "text-orange-500"
+                              }`}
+                            >
+                              {expense.status === "PENDING" ? "পেন্ডিং" : expense.status === "VERIFIED" ? "ভেরিফাইড" : expense.status === "APPROVED" ? "অনুমোদিত" : "প্রত্যাখ্যাত"}
+                            </span>
+                            {expense.syncStatus === 'SAVED_OFFLINE' ? (
+                              <span className="text-[8px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1 py-0.5 rounded" title="অফলাইনে সংরক্ষিত">
+                                💾 অফলাইন
+                              </span>
+                            ) : expense.syncStatus === 'FAILED' ? (
+                              <span className="text-[8px] font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 px-1 py-0.5 rounded" title="সিঙ্ক ব্যর্থ">
+                                ❌ ব্যর্থ
+                              </span>
+                            ) : (
+                              <span className="text-[8px] font-bold text-emerald-600 dark:text-emerald-400" title="সার্ভারে সংরক্ষিত">
+                                ☁️
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );
@@ -787,7 +857,10 @@ const DashboardView: React.FC<DashboardProps> = ({
                       {champ.photo ? (
                         <img
                           src={champ.photo}
+                          alt={champ.name}
                           className="w-8 h-8 rounded-full object-cover"
+                          loading="lazy"
+                          decoding="async"
                         />
                       ) : (
                         <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center text-[10px] font-bold text-gray-500 dark:text-gray-300">

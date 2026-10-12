@@ -81,6 +81,7 @@ export interface Staff {
     publicKey?: string; // Optional, might need later, actually passkeys in pure client side might just use ID
   };
   notes?: StaffNote[]; // Profile Notes
+  hasChineseAcademyAccess?: boolean; // Chinese Academy authorization
 }
 
 export interface MovementLog {
@@ -113,6 +114,14 @@ export interface Attendance {
   location?: { lat: number; lng: number; address?: string };
 }
 
+export type BillSyncStatus =
+  | 'DRAFT'
+  | 'SENDING'
+  | 'SAVED_OFFLINE'
+  | 'SYNCING'
+  | 'SUBMITTED'
+  | 'FAILED';
+
 export interface Expense {
   id: string;
   staffId: string;
@@ -124,6 +133,10 @@ export interface Expense {
   createdAt: string;
   submittedAt?: string;
   submitLocation?: { lat: number; lng: number };
+  syncStatus?: BillSyncStatus;
+  lastSyncAttempt?: string;
+  syncError?: string;
+  clientSubmissionId?: string;
   editLogs?: {
     editedAt: string;
     editedBy: string;

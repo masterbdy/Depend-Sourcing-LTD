@@ -1223,6 +1223,8 @@ const StaffManagementView: React.FC<StaffProps> = ({
                             src={staff.photo}
                             alt={safeName}
                             className="w-full h-full object-cover"
+                            loading="lazy"
+                            decoding="async"
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400 text-4xl font-black">
@@ -1636,6 +1638,8 @@ const StaffManagementView: React.FC<StaffProps> = ({
                           src={staff.photo}
                           alt={safeName}
                           className={`w-16 h-16 rounded-full object-cover border-2 shadow-md ${isActive ? "border-white ring-2 ring-green-100 dark:ring-green-900" : "border-gray-200 grayscale"}`}
+                          loading="lazy"
+                          decoding="async"
                         />
                       ) : (
                         <div
