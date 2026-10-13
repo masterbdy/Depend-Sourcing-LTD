@@ -70,7 +70,9 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
     } catch {}
   };
 
-  const approvedExpenses = (expenses || []).filter(e => !e.isDeleted && e.status === 'APPROVED');
+  const approvedExpenses = useMemo(() => {
+    return (expenses || []).filter(e => !e.isDeleted && e.status === 'APPROVED');
+  }, [expenses]);
   
   // --- MONTHLY STATISTICS CALCULATION ---
   const monthlyStats = useMemo(() => {
@@ -112,10 +114,16 @@ const ReportsView: React.FC<ReportsProps> = ({ expenses = [], staffList = [], ad
   }, [selectedMonth, funds, approvedExpenses, advances]);
 
   // Chart Data Preparation (Staff-wise expenses) - Overall
-  const staffData = (staffList || []).map(s => {
-    const total = approvedExpenses.filter(e => e.staffId === s.id).reduce((sum, e) => sum + e.amount, 0);
-    return { name: s.name, amount: total };
-  }).filter(d => d.amount > 0);
+  const staffData = useMemo(() => {
+    const expensesByStaff = new Map<string, number>();
+    for (let i = 0; i < approvedExpenses.length; i++) {
+      const e = approvedExpenses[i];
+      expensesByStaff.set(e.staffId, (expensesByStaff.get(e.staffId) || 0) + e.amount);
+    }
+    return (staffList || [])
+      .map(s => ({ name: s.name, amount: expensesByStaff.get(s.id) || 0 }))
+      .filter(d => d.amount > 0);
+  }, [staffList, approvedExpenses]);
 
   const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f59e0b', '#10b981'];
 

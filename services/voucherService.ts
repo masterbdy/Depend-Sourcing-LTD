@@ -18,49 +18,37 @@ export function getStaffVoucherStats(
 ): StaffVoucherStats {
   const todayStr = new Date().toISOString().split('T')[0];
 
-  // Staff today regular advances
-  const staffTodayAdvances = advances
-    .filter(
-      (a) =>
-        !a.isDeleted &&
-        a.type !== 'SALARY' &&
-        a.staffId === staffId &&
-        (a.date === todayStr || (a.date && a.date.startsWith(todayStr)))
-    )
-    .reduce((sum, a) => sum + Number(a.amount || 0), 0);
+  let staffTodayAdvances = 0;
+  let totalRegularAdvance = 0;
+  for (let i = 0; i < advances.length; i++) {
+    const a = advances[i];
+    if (a.isDeleted || a.type === 'SALARY' || a.staffId !== staffId) continue;
+    const amt = Number(a.amount || 0);
+    totalRegularAdvance += amt;
+    if (a.date === todayStr || (a.date && a.date.startsWith(todayStr))) {
+      staffTodayAdvances += amt;
+    }
+  }
 
-  // Staff today expenses submitted
-  const staffTodayExpensesSubmitted = expenses
-    .filter(
-      (e) =>
-        !e.isDeleted &&
-        e.staffId === staffId &&
-        (e.createdAt?.startsWith(todayStr) || e.submittedAt?.startsWith(todayStr))
-    )
-    .reduce((sum, e) => sum + Number(e.amount || 0), 0);
+  let staffTodayExpensesSubmitted = 0;
+  let staffTodayExpensesApproved = 0;
+  let totalApprovedExpenses = 0;
+  for (let i = 0; i < expenses.length; i++) {
+    const e = expenses[i];
+    if (e.isDeleted || e.staffId !== staffId) continue;
+    const amt = Number(e.amount || 0);
+    const isToday = (e.createdAt && e.createdAt.startsWith(todayStr)) || (e.submittedAt && e.submittedAt.startsWith(todayStr));
+    if (isToday) {
+      staffTodayExpensesSubmitted += amt;
+      if (e.status === 'APPROVED') {
+        staffTodayExpensesApproved += amt;
+      }
+    }
+    if (e.status === 'APPROVED') {
+      totalApprovedExpenses += amt;
+    }
+  }
 
-  // Staff today expenses approved
-  const staffTodayExpensesApproved = expenses
-    .filter(
-      (e) =>
-        !e.isDeleted &&
-        e.status === 'APPROVED' &&
-        e.staffId === staffId &&
-        (e.createdAt?.startsWith(todayStr) || e.submittedAt?.startsWith(todayStr))
-    )
-    .reduce((sum, e) => sum + Number(e.amount || 0), 0);
-
-  // All-time regular advances received by this staff
-  const totalRegularAdvance = advances
-    .filter((a) => !a.isDeleted && a.type !== 'SALARY' && a.staffId === staffId)
-    .reduce((sum, a) => sum + Number(a.amount || 0), 0);
-
-  // All-time approved expenses for this staff
-  const totalApprovedExpenses = expenses
-    .filter((e) => !e.isDeleted && e.status === 'APPROVED' && e.staffId === staffId)
-    .reduce((sum, e) => sum + Number(e.amount || 0), 0);
-
-  // Net Balance: Regular Advance - Approved Expenses
   const balance = totalRegularAdvance - totalApprovedExpenses;
 
   return {

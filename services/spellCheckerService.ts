@@ -13,7 +13,7 @@ export interface SpellCheckerSettings {
 export const DEFAULT_SPELL_SETTINGS: SpellCheckerSettings = {
   enabled: true,
   banglishEnabled: true,
-  autoSuggest: true,
+  autoSuggest: false, // Manual checking only (triggered by user button click)
 };
 
 // Helper to get active company dictionary
@@ -39,7 +39,7 @@ export const saveCompanyDictionary = (dict: CompanyDictionaryEntry[]) => {
 export const getSpellCheckerSettings = (): SpellCheckerSettings => {
   try {
     const saved = localStorage.getItem(SETTINGS_STORAGE_KEY);
-    if (saved) return { ...DEFAULT_SPELL_SETTINGS, ...JSON.parse(saved) };
+    if (saved) return { ...DEFAULT_SPELL_SETTINGS, ...JSON.parse(saved), autoSuggest: false };
   } catch {}
   return DEFAULT_SPELL_SETTINGS;
 };
@@ -52,25 +52,37 @@ export const saveSpellCheckerSettings = (settings: SpellCheckerSettings) => {
   }
 };
 
-// Simple Levenshtein distance for fuzzy matching
+// High-performance Levenshtein distance for fuzzy matching (zero 2D-array heap allocation)
 export const getLevenshteinDistance = (a: string, b: string): number => {
   const m = a.length;
   const n = b.length;
-  const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+  if (m === 0) return n;
+  if (n === 0) return m;
 
-  for (let i = 0; i <= m; i++) dp[i][0] = i;
-  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  const aLower = a.toLowerCase();
+  const bLower = b.toLowerCase();
+
+  let prev = new Int16Array(n + 1);
+  let curr = new Int16Array(n + 1);
+
+  for (let j = 0; j <= n; j++) prev[j] = j;
 
   for (let i = 1; i <= m; i++) {
+    curr[0] = i;
+    const codeA = aLower.charCodeAt(i - 1);
     for (let j = 1; j <= n; j++) {
-      if (a[i - 1].toLowerCase() === b[j - 1].toLowerCase()) {
-        dp[i][j] = dp[i - 1][j - 1];
-      } else {
-        dp[i][j] = 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
-      }
+      const cost = codeA === bLower.charCodeAt(j - 1) ? 0 : 1;
+      curr[j] = Math.min(
+        prev[j] + 1,       // deletion
+        curr[j - 1] + 1,   // insertion
+        prev[j - 1] + cost // substitution
+      );
     }
+    const temp = prev;
+    prev = curr;
+    curr = temp;
   }
-  return dp[m][n];
+  return prev[n];
 };
 
 // Detect dominant script or language
@@ -193,11 +205,24 @@ function escapeRegExp(string: string) {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-// Online AI Spell Check Caller
+// In-memory client-side cache for fast AI and offline spell check lookup
+const spellCheckClientCache = new Map<
+  string,
+  {
+    detectedLanguage: 'BANGLA' | 'ENGLISH' | 'BANGLISH' | 'MIXED';
+    fullSentenceSuggestions: string[];
+    wordSuggestions: SpellCheckSuggestion[];
+    isFallback: boolean;
+    timestamp: number;
+  }
+>();
+
+// Online AI Spell Check Caller with AbortSignal support and in-memory cache
 export const checkTextWithAI = async (
   text: string,
   settings: SpellCheckerSettings = DEFAULT_SPELL_SETTINGS,
-  dictionary: CompanyDictionaryEntry[] = []
+  dictionary: CompanyDictionaryEntry[] = [],
+  signal?: AbortSignal
 ): Promise<{
   detectedLanguage: 'BANGLA' | 'ENGLISH' | 'BANGLISH' | 'MIXED';
   fullSentenceSuggestions: string[];
@@ -207,7 +232,30 @@ export const checkTextWithAI = async (
   const offlineResults = checkTextOffline(text, dictionary, settings);
   const detectedLang = detectInputLanguage(text);
 
-  if (!text || text.trim().length < 3) {
+  const trimmed = (text || '').trim();
+  if (!trimmed || trimmed.length < 3) {
+    return {
+      detectedLanguage: detectedLang,
+      fullSentenceSuggestions: [],
+      wordSuggestions: offlineResults,
+      isFallback: true,
+    };
+  }
+
+  // Check cache first (valid for 5 minutes)
+  const cacheKey = `${trimmed.toLowerCase()}_${settings.banglishEnabled}`;
+  const cached = spellCheckClientCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < 300000) {
+    return {
+      detectedLanguage: cached.detectedLanguage,
+      fullSentenceSuggestions: cached.fullSentenceSuggestions,
+      wordSuggestions: cached.wordSuggestions,
+      isFallback: cached.isFallback,
+    };
+  }
+
+  // If already aborted before start, exit immediately
+  if (signal?.aborted) {
     return {
       detectedLanguage: detectedLang,
       fullSentenceSuggestions: [],
@@ -217,19 +265,24 @@ export const checkTextWithAI = async (
   }
 
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const internalController = new AbortController();
+    const timeoutId = setTimeout(() => internalController.abort(), 4000);
+
+    // If caller provided a signal, listen to it to abort internalController
+    if (signal) {
+      signal.addEventListener('abort', () => internalController.abort(), { once: true });
+    }
 
     const res = await fetch('/api/spell-checker/check', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        text,
+        text: trimmed,
         detectedLanguage: detectedLang,
         banglishEnabled: settings.banglishEnabled,
         companyKeywords: dictionary.filter((d) => d.isApproved).map((d) => d.suggestion),
       }),
-      signal: controller.signal,
+      signal: internalController.signal,
     });
 
     clearTimeout(timeoutId);
@@ -248,17 +301,34 @@ export const checkTextWithAI = async (
         }
       }
 
-      return {
-        detectedLanguage: data.detectedLanguage || detectedLang,
+      const result = {
+        detectedLanguage: (data.detectedLanguage || detectedLang) as 'BANGLA' | 'ENGLISH' | 'BANGLISH' | 'MIXED',
         fullSentenceSuggestions: Array.isArray(data.fullSentenceSuggestions)
           ? data.fullSentenceSuggestions
           : [],
         wordSuggestions: merged,
         isFallback: false,
       };
+
+      // Save to client cache
+      spellCheckClientCache.set(cacheKey, {
+        ...result,
+        timestamp: Date.now(),
+      });
+
+      return result;
     }
-  } catch (err) {
-    // API failed or offline - smoothly use offline dictionary
+  } catch (err: any) {
+    // If request was aborted because user typed new text, smoothly exit
+    if (err?.name === 'AbortError' || signal?.aborted) {
+      return {
+        detectedLanguage: detectedLang,
+        fullSentenceSuggestions: [],
+        wordSuggestions: offlineResults,
+        isFallback: true,
+      };
+    }
+    // API failed or timeout - smoothly fallback to offline dictionary
     console.warn('AI Spell check request failed, falling back to local dictionary', err);
   }
 

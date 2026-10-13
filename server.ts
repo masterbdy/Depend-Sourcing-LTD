@@ -479,6 +479,9 @@ IMPORTANT: Return ONLY valid JSON with this exact structure:
     }
   });
 
+  // In-memory server cache for AI spell checker (10 min TTL)
+  const serverSpellCache = new Map<string, { data: any; timestamp: number }>();
+
   // AI Smart Spell Checker Endpoint (Bangla + English + Banglish)
   app.post('/api/spell-checker/check', async (req, res) => {
     try {
@@ -491,6 +494,13 @@ IMPORTANT: Return ONLY valid JSON with this exact structure:
           fullSentenceSuggestions: [],
           wordSuggestions: [],
         });
+      }
+
+      // Check server cache
+      const serverCacheKey = `${trimmedText.toLowerCase()}_${banglishEnabled}`;
+      const cached = serverSpellCache.get(serverCacheKey);
+      if (cached && Date.now() - cached.timestamp < 600000) {
+        return res.json(cached.data);
       }
 
       const ai = getAiClient();
@@ -538,28 +548,24 @@ Return ONLY valid JSON matching this exact structure:
 }`;
 
       let responseText = '';
-      const modelsToTry = ['gemini-3.8-flash', 'gemini-flash-latest'];
-      for (const m of modelsToTry) {
-        try {
-          const timeoutPromise = new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('AI timeout')), 5000)
-          );
-          const aiPromise = ai.models.generateContent({
-            model: m,
-            contents: prompt,
-            config: {
-              responseMimeType: 'application/json',
-              temperature: 0.2,
-            },
-          });
-          const response = await Promise.race([aiPromise, timeoutPromise]);
-          if (response && response.text) {
-            responseText = response.text;
-            break;
-          }
-        } catch {
-          // Try next model
+      try {
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('AI timeout')), 2200)
+        );
+        const aiPromise = ai.models.generateContent({
+          model: 'gemini-flash-latest',
+          contents: prompt,
+          config: {
+            responseMimeType: 'application/json',
+            temperature: 0.2,
+          },
+        });
+        const response = await Promise.race([aiPromise, timeoutPromise]);
+        if (response && response.text) {
+          responseText = response.text;
         }
+      } catch (e: any) {
+        // Fast timeout or AI unavailable - smoothly return empty fallback
       }
 
       if (responseText) {
@@ -576,18 +582,33 @@ Return ONLY valid JSON matching this exact structure:
           confidence: 0.9,
         }));
 
-        return res.json({
+        const resultPayload = {
           detectedLanguage: parsed.detectedLanguage || detectedLanguage,
           wordSuggestions: formattedWords,
           fullSentenceSuggestions: Array.isArray(parsed.fullSentenceSuggestions) ? parsed.fullSentenceSuggestions : [],
+        };
+
+        serverSpellCache.set(serverCacheKey, {
+          data: resultPayload,
+          timestamp: Date.now(),
         });
+
+        return res.json(resultPayload);
       }
 
-      return res.json({
+      const fallbackPayload = {
         detectedLanguage,
         wordSuggestions: [],
         fullSentenceSuggestions: [],
+      };
+
+      // Cache fallback for 60 seconds to avoid repeating failed external calls
+      serverSpellCache.set(serverCacheKey, {
+        data: fallbackPayload,
+        timestamp: Date.now(),
       });
+
+      return res.json(fallbackPayload);
     } catch (err) {
       console.error('Spell check endpoint error:', err);
       return res.json({
