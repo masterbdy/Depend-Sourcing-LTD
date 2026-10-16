@@ -3,6 +3,8 @@ import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import nodemailer from 'nodemailer';
 import { GoogleGenAI } from '@google/genai';
+import { validateLunchPolicy } from './services/lunchPolicyService';
+import { UserRole } from './types';
 
 async function startServer() {
   const app = express();
@@ -616,6 +618,85 @@ Return ONLY valid JSON matching this exact structure:
         wordSuggestions: [],
         fullSentenceSuggestions: [],
       });
+    }
+  });
+
+  // --- LUNCH BILL POLICY & AUTHORIZATION VALIDATION ENDPOINTS ---
+  app.post('/api/expenses/validate-policy', (req, res) => {
+    try {
+      const {
+        amount,
+        reason,
+        category,
+        role,
+        actorName,
+        billingRules,
+        userConfirmedCategoryAsLunch,
+        userClarifiedNotLunch,
+      } = req.body || {};
+
+      const validation = validateLunchPolicy({
+        amount: Number(amount) || 0,
+        reason: String(reason || ''),
+        category: category ? String(category) : undefined,
+        role: role || UserRole.STAFF,
+        actorName: actorName || 'Anonymous',
+        billingRules,
+        userConfirmedCategoryAsLunch: Boolean(userConfirmedCategoryAsLunch),
+        userClarifiedNotLunch: Boolean(userClarifiedNotLunch),
+      });
+
+      return res.json(validation);
+    } catch (err: any) {
+      console.error('Validate policy error:', err);
+      return res.status(500).json({ error: err?.message || 'Policy validation failure' });
+    }
+  });
+
+  app.post('/api/expenses/submit', (req, res) => {
+    try {
+      const {
+        expense,
+        role,
+        actorName,
+        billingRules,
+        userConfirmedCategoryAsLunch,
+        userClarifiedNotLunch,
+      } = req.body || {};
+
+      if (!expense || !expense.amount || !expense.reason) {
+        return res.status(400).json({ error: 'Expense amount and reason are required' });
+      }
+
+      const validation = validateLunchPolicy({
+        amount: Number(expense.amount),
+        reason: String(expense.reason),
+        category: expense.category,
+        role: role || UserRole.STAFF,
+        actorName: actorName || expense.staffName || 'Staff',
+        billingRules,
+        userConfirmedCategoryAsLunch: Boolean(userConfirmedCategoryAsLunch),
+        userClarifiedNotLunch: Boolean(userClarifiedNotLunch),
+      });
+
+      if (!validation.allowed) {
+        return res.status(400).json({
+          success: false,
+          error: validation.policyError || validation.clarificationMessage || 'Policy validation rejected',
+          requiresClarification: validation.requiresClarification,
+          clarificationMessage: validation.clarificationMessage,
+          validation,
+        });
+      }
+
+      return res.json({
+        success: true,
+        message: 'Expense passed policy check',
+        validation,
+      });
+    } catch (err: any) {
+      console.error('Submit expense API error:', err);
+      return res.status(500).json({ error: err?.message || 'Server error' });
     }
   });
 

@@ -128,6 +128,7 @@ export interface Expense {
   staffName: string;
   amount: number;
   reason: string;
+  category?: string;
   voucherImage?: string;
   status: 'PENDING' | 'VERIFIED' | 'APPROVED' | 'REJECTED';
   createdAt: string;
@@ -137,6 +138,12 @@ export interface Expense {
   lastSyncAttempt?: string;
   syncError?: string;
   clientSubmissionId?: string;
+  auditTrail?: {
+    action: string;
+    details: string;
+    timestamp: string;
+    actor?: string;
+  }[];
   editLogs?: {
     editedAt: string;
     editedBy: string;

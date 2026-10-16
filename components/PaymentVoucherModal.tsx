@@ -27,6 +27,7 @@ import {
   printCorporateVoucher,
   downloadCorporateVoucherPNG,
   formatVoucherWhatsAppText,
+  formatToInternationalPhone,
 } from '../services/voucherService';
 import { numberToWordsEnglish, numberToWordsBengali } from '../services/numberToWords';
 
@@ -157,7 +158,11 @@ export const PaymentVoucherModal: React.FC<PaymentVoucherModalProps> = ({
 
   const handleShareWhatsApp = () => {
     const text = formatVoucherWhatsAppText(voucherOptions);
-    window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
+    const phoneVal = staff?.mobile ? formatToInternationalPhone(staff.mobile) : null;
+    const waUrl = phoneVal?.valid
+      ? `https://wa.me/${phoneVal.international}?text=${text}`
+      : `https://api.whatsapp.com/send?text=${text}`;
+    window.open(waUrl, '_blank');
   };
 
   return createPortal(
@@ -471,6 +476,19 @@ export const PaymentVoucherModal: React.FC<PaymentVoucherModalProps> = ({
                     {stats.balance < 0 ? 'Due reimbursement' : 'Advance in hand'}
                   </div>
                 </div>
+              </div>
+
+              {/* Today's Salary Advance Indicator (Follows Final Rule: Salary Advance Display) */}
+              <div className="mt-2.5 px-3 py-2 rounded-lg bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5">
+                  <span className={`w-2 h-2 rounded-full ${stats.staffTodaySalaryAdvance > 0 ? 'bg-purple-600' : 'bg-slate-400'}`}></span>
+                  <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">
+                    আজকের বেতন অগ্রিম (Today's Salary Advance):
+                  </span>
+                </div>
+                <span className={`text-[11px] font-black ${stats.staffTodaySalaryAdvance > 0 ? 'text-purple-700 dark:text-purple-400 font-mono' : 'text-slate-500 dark:text-slate-400'}`}>
+                  {stats.staffTodaySalaryAdvance > 0 ? `৳ ${formatBDT(stats.staffTodaySalaryAdvance)} BDT` : 'আজ বেতন অগ্রিম দেওয়া হয়নি'}
+                </span>
               </div>
             </div>
 

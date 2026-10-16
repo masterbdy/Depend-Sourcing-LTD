@@ -34,7 +34,7 @@ import {
   Send,
   AlertOctagon,
 } from 'lucide-react';
-import { Expense, Staff, UserRole, AdvanceLog, BillSyncStatus } from '../types';
+import { Expense, Staff, UserRole, AdvanceLog, BillSyncStatus, BillingRule } from '../types';
 import {
   submitExpenseBill,
   getUnsyncedBillCount,
@@ -43,6 +43,11 @@ import {
   generateSubmissionId,
   SubmissionResult,
 } from '../services/billSyncService';
+import {
+  detectLunchExpense,
+  validateLunchPolicy,
+  getLunchLimitAmount,
+} from '../services/lunchPolicyService';
 import {
   CompanyDictionaryEntry,
   SpellCheckSuggestion,
@@ -66,6 +71,7 @@ import {
   printCorporateVoucher,
   downloadCorporateVoucherPNG,
   formatVoucherWhatsAppText,
+  formatToInternationalPhone,
 } from '../services/voucherService';
 
 interface ExpenseProps {
@@ -83,6 +89,7 @@ interface ExpenseProps {
   setTypoSuggestions?: React.Dispatch<React.SetStateAction<any[]>>;
   firebaseConfig?: any;
   isCloudEnabled?: boolean;
+  billingRules?: BillingRule[];
 }
 
 // In-memory date string caching to prevent repeated Date allocations per render
@@ -136,6 +143,7 @@ interface SubmitExpenseModalProps {
   typoSuggestions?: any[];
   setTypoSuggestions?: React.Dispatch<React.SetStateAction<any[]>>;
   onUnsyncedCountChange: () => void;
+  billingRules?: BillingRule[];
 }
 
 const SubmitExpenseModal: React.FC<SubmitExpenseModalProps> = ({
@@ -156,6 +164,7 @@ const SubmitExpenseModal: React.FC<SubmitExpenseModalProps> = ({
   typoSuggestions,
   setTypoSuggestions,
   onUnsyncedCountChange,
+  billingRules = [],
 }) => {
   const initialStaffId = useMemo(() => {
     if (role === UserRole.STAFF && currentUser) {
@@ -165,10 +174,13 @@ const SubmitExpenseModal: React.FC<SubmitExpenseModalProps> = ({
     return '';
   }, [role, currentUser, activeStaff]);
 
+  const lunchLimit = getLunchLimitAmount(billingRules);
+
   const [formData, setFormData] = useState({
     staffId: initialStaffId,
     amount: 0,
     reason: '',
+    category: 'GENERAL',
     voucherImage: '',
     date: getLocalDateStr(),
   });
@@ -181,6 +193,19 @@ const SubmitExpenseModal: React.FC<SubmitExpenseModalProps> = ({
     message: string;
     error?: string;
   } | null>(null);
+
+  // Policy validation & Category Clarification states
+  const [clarificationPrompt, setClarificationPrompt] = useState<{
+    message: string;
+    detectedTerm?: string;
+    pendingData: typeof formData;
+  } | null>(null);
+  const [policyError, setPolicyError] = useState<string | null>(null);
+
+  // Fast memoized local lunch detection (< 0.05ms, zero network, zero typing latency)
+  const detectedLunch = useMemo(() => {
+    return detectLunchExpense(formData.reason, formData.category);
+  }, [formData.reason, formData.category]);
 
   const submissionIdRef = useRef<string>(generateSubmissionId());
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -209,6 +234,7 @@ const SubmitExpenseModal: React.FC<SubmitExpenseModalProps> = ({
             staffId: prev.staffId || parsed.staffId || '',
             amount: prev.amount || parsed.amount || 0,
             reason: prev.reason || parsed.reason || '',
+            category: prev.category || parsed.category || 'GENERAL',
             voucherImage: prev.voucherImage || parsed.voucherImage || '',
             date: prev.date || parsed.date || getLocalDateStr(),
           }));
@@ -401,9 +427,12 @@ const SubmitExpenseModal: React.FC<SubmitExpenseModalProps> = ({
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    let targetStaffId = formData.staffId;
+  const executeSubmission = async (
+    dataToSubmit: typeof formData,
+    userConfirmedAsLunch: boolean = false,
+    userClarifiedNotLunch: boolean = false
+  ) => {
+    let targetStaffId = dataToSubmit.staffId;
     if (role === UserRole.STAFF && currentUser) {
       const myself = activeStaff.find((s) => s.name === currentUser);
       if (!myself) {
@@ -421,27 +450,58 @@ const SubmitExpenseModal: React.FC<SubmitExpenseModalProps> = ({
       alert('স্টাফ পাওয়া যায়নি।');
       return;
     }
-    if (!formData.amount || Number(formData.amount) <= 0) {
+    if (!dataToSubmit.amount || Number(dataToSubmit.amount) <= 0) {
       alert('টাকার সঠিক পরিমাণ লিখুন।');
       return;
     }
-    if (!formData.date) {
+    if (!dataToSubmit.date) {
       alert('তারিখ নির্বাচন করুন।');
       return;
     }
 
     if (role === UserRole.STAFF) {
-      if (formData.date < minDateStr) {
+      if (dataToSubmit.date < minDateStr) {
         alert(`দুঃখিত! আপনি সর্বোচ্চ ${allowedBackdateDays} দিন আগের বিল সাবমিট করতে পারবেন।`);
         return;
       }
-      if (formData.date > maxDateStr) {
+      if (dataToSubmit.date > maxDateStr) {
         alert('ভবিষ্যতের তারিখের বিল সাবমিট করা যাবে না।');
         return;
       }
     }
 
+    // STRICT TRUSTED POLICY VALIDATION
+    const policyValidation = validateLunchPolicy({
+      amount: Number(dataToSubmit.amount),
+      reason: dataToSubmit.reason,
+      category: userConfirmedAsLunch ? 'LUNCH' : dataToSubmit.category,
+      role,
+      actorName: staff.name,
+      billingRules,
+      userConfirmedCategoryAsLunch: userConfirmedAsLunch,
+      userClarifiedNotLunch: userClarifiedNotLunch,
+    });
+
+    // Check for category mismatch or ambiguous detection requiring user confirmation
+    if (policyValidation.requiresClarification && !userConfirmedAsLunch && !userClarifiedNotLunch) {
+      setClarificationPrompt({
+        message: policyValidation.clarificationMessage || 'ক্যাটাগরি স্পষ্টকরণ প্রয়োজন',
+        detectedTerm: policyValidation.category,
+        pendingData: { ...dataToSubmit },
+      });
+      return;
+    }
+
+    // Check for policy violation (e.g. staff exceeding lunch limit)
+    if (!policyValidation.allowed && policyValidation.policyError) {
+      setPolicyError(policyValidation.policyError);
+      return;
+    }
+
+    setPolicyError(null);
+    setClarificationPrompt(null);
     setIsSubmitting(true);
+
     let submitLocation: { lat: number; lng: number } | undefined;
     if (navigator.geolocation) {
       try {
@@ -454,7 +514,7 @@ const SubmitExpenseModal: React.FC<SubmitExpenseModalProps> = ({
       }
     }
 
-    const submitDate = new Date(formData.date);
+    const submitDate = new Date(dataToSubmit.date);
     const now = new Date();
     submitDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
 
@@ -465,9 +525,10 @@ const SubmitExpenseModal: React.FC<SubmitExpenseModalProps> = ({
       id: billId,
       staffId: targetStaffId,
       staffName: staff.name,
-      amount: Number(formData.amount),
-      reason: formData.reason,
-      voucherImage: formData.voucherImage,
+      amount: Number(dataToSubmit.amount),
+      reason: dataToSubmit.reason,
+      category: policyValidation.category,
+      voucherImage: dataToSubmit.voucherImage,
       status: 'PENDING',
       createdAt: submitDate.toISOString(),
       submittedAt: new Date().toISOString(),
@@ -476,7 +537,7 @@ const SubmitExpenseModal: React.FC<SubmitExpenseModalProps> = ({
 
     // Typo suggestions tracking with fast Levenshtein
     if (setTypoSuggestions) {
-      const words = formData.reason.split(/[\s,\-\.\/?!;'":\(\)\[\]{}|\\_]+/).filter(Boolean);
+      const words = dataToSubmit.reason.split(/[\s,\-\.\/?!;'":\(\)\[\]{}|\\_]+/).filter(Boolean);
       const baseWords = Array.from(new Set(Object.values(typoDictionary || {})));
       const newSuggestions: any[] = [];
       words.forEach((word) => {
@@ -515,7 +576,17 @@ const SubmitExpenseModal: React.FC<SubmitExpenseModalProps> = ({
     }
 
     try {
-      const { result, updatedExpense } = await submitExpenseBill(newExpenseDraft, billId, firebaseConfig);
+      const { result, updatedExpense } = await submitExpenseBill(
+        newExpenseDraft,
+        billId,
+        firebaseConfig,
+        {
+          userRole: role,
+          billingRules,
+          userConfirmedCategoryAsLunch: userConfirmedAsLunch,
+          userClarifiedNotLunch: userClarifiedNotLunch,
+        }
+      );
       setExpenses((prev) => [updatedExpense, ...prev.filter((e) => e.id !== updatedExpense.id)]);
       setSubmissionFeedback({
         status: result.status,
@@ -540,15 +611,20 @@ const SubmitExpenseModal: React.FC<SubmitExpenseModalProps> = ({
       setExpenses((prev) => [fallbackExpense, ...prev.filter((e) => e.id !== fallbackExpense.id)]);
       setSubmissionFeedback({
         status: 'SAVED_OFFLINE',
-        billId,
+        billId: fallbackExpense.id,
         submittedAt: new Date().toISOString(),
-        message: '⚠️ বিলটি এই ডিভাইসে সংরক্ষিত হয়েছে। সার্ভারে পাঠানো এখনো বাকি।',
+        message: '⚠️ বিল অফলাইনে সংরক্ষিত হয়েছে। পরে সার্ভারে পাঠানো হবে।',
         error: err?.message,
       });
     } finally {
       setIsSubmitting(false);
       onUnsyncedCountChange();
     }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    executeSubmission(formData, false, false);
   };
 
   const handleCloseFeedback = () => {
@@ -786,6 +862,29 @@ const SubmitExpenseModal: React.FC<SubmitExpenseModalProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    ক্যাটাগরি (Category)
+                  </label>
+                  <select
+                    disabled={isSubmitting}
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm font-bold disabled:opacity-60 cursor-pointer"
+                    value={formData.category}
+                    onChange={(e) => {
+                      const next = { ...formData, category: e.target.value };
+                      setFormData(next);
+                      persistDraft(next);
+                      if (policyError) setPolicyError(null);
+                    }}
+                  >
+                    <option value="GENERAL">সাধারণ (General)</option>
+                    <option value="LUNCH">লাঞ্চ (Lunch)</option>
+                    <option value="TRANSPORT">যাতায়াত (Transport)</option>
+                    <option value="SNACKS">নাস্তা (Snacks)</option>
+                    <option value="OFFICE">অফিস খরচ (Office)</option>
+                    <option value="OTHER">অন্যান্য (Other)</option>
+                  </select>
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">তারিখ (Date)</label>
                   <input
                     type="date"
@@ -802,26 +901,103 @@ const SubmitExpenseModal: React.FC<SubmitExpenseModalProps> = ({
                     max={maxDateStr}
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">টাকার পরিমাণ</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">৳</span>
-                    <input
-                      required
-                      type="number"
-                      disabled={isSubmitting}
-                      className="w-full pl-7 pr-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-lg text-gray-800 dark:text-white disabled:opacity-60"
-                      placeholder="0.00"
-                      value={formData.amount || ''}
-                      onChange={(e) => {
-                        const next = { ...formData, amount: Number(e.target.value) };
-                        setFormData(next);
-                        persistDraft(next);
-                      }}
-                    />
-                  </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">টাকার পরিমাণ</label>
+                  {formData.category === 'LUNCH' && (
+                    <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800 shadow-2xs">
+                      লাঞ্চ সীমা: ৳{lunchLimit}
+                    </span>
+                  )}
+                </div>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">৳</span>
+                  <input
+                    required
+                    type="number"
+                    disabled={isSubmitting}
+                    className="w-full pl-7 pr-3 py-2 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-lg text-gray-800 dark:text-white disabled:opacity-60"
+                    placeholder="0.00"
+                    value={formData.amount || ''}
+                    onChange={(e) => {
+                      const next = { ...formData, amount: Number(e.target.value) };
+                      setFormData(next);
+                      persistDraft(next);
+                      if (policyError) setPolicyError(null);
+                    }}
+                  />
                 </div>
               </div>
+
+              {/* Policy Error Banner */}
+              {policyError && (
+                <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl flex items-start gap-2.5 text-red-800 dark:text-red-300 animate-in fade-in duration-200">
+                  <AlertOctagon className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                  <div className="text-xs space-y-1">
+                    <span className="font-bold block">লাঞ্চ লিমিট পলিসি সতর্কতা:</span>
+                    <p className="leading-relaxed font-medium">{policyError}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Category Clarification Prompt */}
+              {clarificationPrompt && (
+                <div className="p-3.5 bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-300 dark:border-amber-700 rounded-xl space-y-2.5 animate-in fade-in duration-200 shadow-xs">
+                  <div className="flex items-center gap-2 text-amber-900 dark:text-amber-200 font-bold text-xs">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>ক্যাটাগরি স্পষ্টকরণ (Category Clarification)</span>
+                  </div>
+                  <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed font-medium">
+                    {clarificationPrompt.message}
+                  </p>
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updated = { ...clarificationPrompt.pendingData, category: 'LUNCH' };
+                        setFormData(updated);
+                        persistDraft(updated);
+                        executeSubmission(updated, true, false);
+                      }}
+                      className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
+                    >
+                      ✓ হ্যাঁ, এটি লাঞ্চ বিল
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        executeSubmission(clarificationPrompt.pendingData, false, true);
+                      }}
+                      className="flex-1 py-2 px-3 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                    >
+                      ✕ না, অন্যান্য খরচ
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Non-intrusive Live Category Suggestion */}
+              {formData.category !== 'LUNCH' && detectedLunch.isLunch && detectedLunch.confidence !== 'NONE' && (
+                <div className="p-2.5 bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-xl flex items-center justify-between gap-2 text-xs animate-in fade-in duration-200">
+                  <div className="flex items-center gap-1.5 text-amber-800 dark:text-amber-300 font-medium">
+                    <span className="text-base">💡</span>
+                    <span>বিবরণে <b>"{detectedLunch.detectedTerm}"</b> চিহ্নিত হয়েছে।</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = { ...formData, category: 'LUNCH' };
+                      setFormData(next);
+                      persistDraft(next);
+                    }}
+                    className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-[11px] shrink-0 transition-colors cursor-pointer shadow-2xs"
+                  >
+                    লাঞ্চ ক্যাটাগরি সেট করুন
+                  </button>
+                </div>
+              )}
 
               {duplicateCheck.length > 0 && (
                 <div className="p-3 bg-orange-100 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded-xl flex flex-col gap-2 animate-in fade-in zoom-in duration-300">
@@ -986,9 +1162,11 @@ const SubmitExpenseModal: React.FC<SubmitExpenseModalProps> = ({
 interface CorrectionExpenseModalProps {
   isOpen: boolean;
   onClose: () => void;
-  correctionData: { id: string; amount: number; reason: string; date: string; voucherImage: string };
+  correctionData: { id: string; amount: number; reason: string; category?: string; date: string; voucherImage: string };
   currentUser: string | null;
-  onSave: (data: { id: string; amount: number; reason: string; date: string; voucherImage: string }) => Promise<void>;
+  role: UserRole;
+  billingRules?: BillingRule[];
+  onSave: (data: { id: string; amount: number; reason: string; category?: string; date: string; voucherImage: string }) => Promise<void>;
   combinedDict?: CompanyDictionaryEntry[];
   spellSettings?: SpellCheckerSettings;
 }
@@ -997,15 +1175,34 @@ const CorrectionExpenseModal: React.FC<CorrectionExpenseModalProps> = ({
   isOpen,
   onClose,
   correctionData: initialData,
+  currentUser,
+  role,
+  billingRules = [],
   onSave,
   combinedDict = [],
   spellSettings = getSpellCheckerSettings(),
 }) => {
-  const [data, setData] = useState(initialData);
+  const [data, setData] = useState({
+    ...initialData,
+    category: initialData.category || 'GENERAL',
+  });
+  const lunchLimit = getLunchLimitAmount(billingRules);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const reasonTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Policy validation states for Correction
+  const [policyError, setPolicyError] = useState<string | null>(null);
+  const [clarificationPrompt, setClarificationPrompt] = useState<{
+    message: string;
+    detectedTerm?: string;
+    pendingData: typeof data;
+  } | null>(null);
+
+  const detectedLunch = useMemo(() => {
+    return detectLunchExpense(data.reason, data.category);
+  }, [data.reason, data.category]);
 
   // Manual Spell Check States for Correction Modal
   const [wordSuggestions, setWordSuggestions] = useState<SpellCheckSuggestion[]>([]);
@@ -1134,17 +1331,55 @@ const CorrectionExpenseModal: React.FC<CorrectionExpenseModalProps> = ({
     setData((prev) => ({ ...prev, voucherImage: '' }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const executeSave = async (
+    dataToSave: typeof data,
+    confirmedAsLunch: boolean = false,
+    clarifiedNotLunch: boolean = false
+  ) => {
+    const policyValidation = validateLunchPolicy({
+      amount: Number(dataToSave.amount),
+      reason: dataToSave.reason,
+      category: confirmedAsLunch ? 'LUNCH' : dataToSave.category,
+      role,
+      actorName: currentUser || 'User',
+      billingRules,
+      userConfirmedCategoryAsLunch: confirmedAsLunch,
+      userClarifiedNotLunch: clarifiedNotLunch,
+    });
+
+    if (policyValidation.requiresClarification && !confirmedAsLunch && !clarifiedNotLunch) {
+      setClarificationPrompt({
+        message: policyValidation.clarificationMessage || 'ক্যাটাগরি স্পষ্টকরণ প্রয়োজন',
+        detectedTerm: policyValidation.category,
+        pendingData: { ...dataToSave },
+      });
+      return;
+    }
+
+    if (!policyValidation.allowed && policyValidation.policyError) {
+      setPolicyError(policyValidation.policyError);
+      return;
+    }
+
+    setPolicyError(null);
+    setClarificationPrompt(null);
     setIsSubmitting(true);
     try {
-      await onSave(data);
+      await onSave({
+        ...dataToSave,
+        category: policyValidation.category,
+      });
       onClose();
     } catch (err) {
       console.error(err);
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    executeSave(data, false, false);
   };
 
   if (!isOpen) return null;
@@ -1161,6 +1396,27 @@ const CorrectionExpenseModal: React.FC<CorrectionExpenseModalProps> = ({
         <div className="overflow-y-auto p-6 custom-scrollbar">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
+              <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">
+                ক্যাটাগরি (Category)
+              </label>
+              <select
+                className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none font-bold text-gray-800 dark:text-white text-sm cursor-pointer"
+                value={data.category || 'GENERAL'}
+                onChange={(e) => {
+                  setData({ ...data, category: e.target.value });
+                  if (policyError) setPolicyError(null);
+                }}
+              >
+                <option value="GENERAL">সাধারণ (General)</option>
+                <option value="LUNCH">লাঞ্চ (Lunch)</option>
+                <option value="TRANSPORT">যাতায়াত (Transport)</option>
+                <option value="SNACKS">নাস্তা (Snacks)</option>
+                <option value="OFFICE">অফিস খরচ (Office)</option>
+                <option value="OTHER">অন্যান্য (Other)</option>
+              </select>
+            </div>
+
+            <div>
               <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">তারিখ (Date)</label>
               <input
                 type="date"
@@ -1171,14 +1427,89 @@ const CorrectionExpenseModal: React.FC<CorrectionExpenseModalProps> = ({
               />
             </div>
             <div>
-              <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">সঠিক টাকার পরিমাণ</label>
+              <div className="flex items-center justify-between mb-1.5 ml-1">
+                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest">সঠিক টাকার পরিমাণ</label>
+                {data.category === 'LUNCH' && (
+                  <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                    লাঞ্চ সীমা: ৳{lunchLimit}
+                  </span>
+                )}
+              </div>
               <input
                 type="number"
                 className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none font-bold text-xl text-gray-800 dark:text-white"
                 value={data.amount}
-                onChange={(e) => setData({ ...data, amount: Number(e.target.value) })}
+                onChange={(e) => {
+                  setData({ ...data, amount: Number(e.target.value) });
+                  if (policyError) setPolicyError(null);
+                }}
               />
             </div>
+
+            {/* Policy Error Banner */}
+            {policyError && (
+              <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl flex items-start gap-2.5 text-red-800 dark:text-red-300 animate-in fade-in duration-200">
+                <AlertOctagon className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                <div className="text-xs space-y-1">
+                  <span className="font-bold block">লাঞ্চ লিমিট পলিসি সতর্কতা:</span>
+                  <p className="leading-relaxed font-medium">{policyError}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Clarification Dialog */}
+            {clarificationPrompt && (
+              <div className="p-3.5 bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-300 dark:border-amber-700 rounded-xl space-y-2.5 animate-in fade-in duration-200 shadow-xs">
+                <div className="flex items-center gap-2 text-amber-900 dark:text-amber-200 font-bold text-xs">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>ক্যাটাগরি স্পষ্টকরণ (Clarification)</span>
+                </div>
+                <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed font-medium">
+                  {clarificationPrompt.message}
+                </p>
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const updated = { ...clarificationPrompt.pendingData, category: 'LUNCH' };
+                      setData(updated);
+                      executeSave(updated, true, false);
+                    }}
+                    className="flex-1 py-1.5 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
+                  >
+                    ✓ হ্যাঁ, এটি লাঞ্চ বিল
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      executeSave(clarificationPrompt.pendingData, false, true);
+                    }}
+                    className="flex-1 py-1.5 px-2.5 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                  >
+                    ✕ না, অন্যান্য খরচ
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Non-intrusive Live Suggestion Chip */}
+            {data.category !== 'LUNCH' && detectedLunch.isLunch && detectedLunch.confidence !== 'NONE' && (
+              <div className="p-2.5 bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-xl flex items-center justify-between gap-2 text-xs animate-in fade-in duration-200">
+                <div className="flex items-center gap-1.5 text-amber-800 dark:text-amber-300 font-medium">
+                  <span className="text-base">💡</span>
+                  <span>বিবরণে <b>"{detectedLunch.detectedTerm}"</b> চিহ্নিত হয়েছে।</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setData({ ...data, category: 'LUNCH' });
+                  }}
+                  className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-[11px] shrink-0 transition-colors cursor-pointer shadow-2xs"
+                >
+                  লাঞ্চ ক্যাটাগরি সেট করুন
+                </button>
+              </div>
+            )}
             <div>
               <div className="flex items-center justify-between mb-1.5 ml-1">
                 <label className="block text-xs font-black text-gray-400 uppercase tracking-widest">
@@ -1374,6 +1705,27 @@ const ExpenseCard = React.memo<ExpenseCardProps>(({
                 ? 'অনুমোদিত'
                 : 'প্রত্যাখ্যাত'}
             </span>
+
+            {/* CATEGORY BADGE */}
+            {expense.category && (
+              <span
+                className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  expense.category === 'LUNCH'
+                    ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
+                    : 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200'
+                }`}
+              >
+                {expense.category === 'LUNCH'
+                  ? '🍲 লাঞ্চ'
+                  : expense.category === 'TRANSPORT'
+                  ? '🚗 যাতায়াত'
+                  : expense.category === 'SNACKS'
+                  ? '☕ নাস্তা'
+                  : expense.category === 'OFFICE'
+                  ? '🏢 অফিস'
+                  : expense.category}
+              </span>
+            )}
 
             {/* TRANSPORT / SYNC STATUS BADGE */}
             {expense.syncStatus === 'SAVED_OFFLINE' ? (
@@ -1664,6 +2016,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({
   setTypoSuggestions,
   firebaseConfig,
   isCloudEnabled = true,
+  billingRules = [],
 }) => {
   // Modal open states
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
@@ -1672,6 +2025,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({
     id: string;
     amount: number;
     reason: string;
+    category?: string;
     date: string;
     voucherImage: string;
   } | null>(null);
@@ -2051,13 +2405,14 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({
       id: e.id,
       amount: e.amount,
       reason: e.reason,
+      category: e.category,
       date: dateStr,
       voucherImage: e.voucherImage || '',
     });
     setIsCorrectionModalOpen(true);
   }, []);
 
-  const saveCorrection = async (data: { id: string; amount: number; reason: string; date: string; voucherImage: string }) => {
+  const saveCorrection = async (data: { id: string; amount: number; reason: string; category?: string; date: string; voucherImage: string }) => {
     let editLocation: { lat: number; lng: number } | undefined;
     if (navigator.geolocation) {
       try {
@@ -2095,6 +2450,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({
             ...ex,
             amount: Number(data.amount),
             reason: data.reason,
+            category: data.category,
             createdAt: updatedDate.toISOString(),
             voucherImage: data.voucherImage,
             editLogs: updatedEditLogs,
@@ -2344,7 +2700,11 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({
                   expenses,
                   advances,
                 });
-                window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
+                const phoneVal = staffMember?.mobile ? formatToInternationalPhone(staffMember.mobile) : null;
+                const waUrl = phoneVal?.valid
+                  ? `https://wa.me/${phoneVal.international}?text=${text}`
+                  : `https://api.whatsapp.com/send?text=${text}`;
+                window.open(waUrl, '_blank');
               }}
               onUpdateStatus={updateStatus}
               onRequestDelete={requestDelete}
@@ -2402,6 +2762,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({
         typoSuggestions={typoSuggestions}
         setTypoSuggestions={setTypoSuggestions}
         onUnsyncedCountChange={() => setUnsyncedCount(getUnsyncedBillCount())}
+        billingRules={billingRules}
       />
 
       {/* CORRECTION MODAL (Isolated, 0ms Typing Latency & Manual AI Check) */}
@@ -2414,6 +2775,8 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({
           }}
           correctionData={correctionTarget}
           currentUser={currentUser}
+          role={role}
+          billingRules={billingRules}
           onSave={saveCorrection}
           combinedDict={combinedDict}
           spellSettings={spellSettings}

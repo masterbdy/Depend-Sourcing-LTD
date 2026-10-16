@@ -58,7 +58,9 @@ import {
   RefreshCw,
   KeyRound,
   BellRing,
+  MessageCircle,
 } from "lucide-react";
+import { StaffWhatsAppSummaryModal } from "../components/StaffWhatsAppSummaryModal";
 import {
   Staff,
   UserRole,
@@ -127,6 +129,15 @@ const StaffManagementView: React.FC<StaffProps> = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+
+  // WhatsApp Financial Summary Modal State
+  const [isWhatsappSummaryOpen, setIsWhatsappSummaryOpen] = useState(false);
+  const [whatsappStaff, setWhatsappStaff] = useState<Staff | null>(null);
+
+  const openWhatsAppSummary = (targetStaff: Staff) => {
+    setWhatsappStaff(targetStaff);
+    setIsWhatsappSummaryOpen(true);
+  };
 
   // Delete Confirmation State
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -1323,18 +1334,35 @@ const StaffManagementView: React.FC<StaffProps> = ({
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
-                      <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-100 dark:border-gray-600 flex items-center gap-3">
-                        <div className="bg-white dark:bg-gray-600 p-2 rounded-lg text-indigo-500 shadow-sm">
-                          <Phone className="w-4 h-4" />
+                      <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-100 dark:border-gray-600 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="bg-white dark:bg-gray-600 p-2 rounded-lg text-indigo-500 shadow-sm shrink-0">
+                            <Phone className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[9px] text-gray-400 font-bold uppercase">
+                              Contact
+                            </p>
+                            <p className="text-xs font-bold text-gray-800 dark:text-gray-200 truncate">
+                              {staff.mobile || "N/A"}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-[9px] text-gray-400 font-bold uppercase">
-                            Contact
-                          </p>
-                          <p className="text-xs font-bold text-gray-800 dark:text-gray-200">
-                            {staff.mobile || "N/A"}
-                          </p>
-                        </div>
+
+                        {canManageMoney && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openWhatsAppSummary(staff);
+                            }}
+                            className="p-1.5 bg-emerald-50 hover:bg-emerald-600 text-emerald-600 hover:text-white dark:bg-emerald-950/40 dark:text-emerald-400 dark:hover:text-white rounded-lg transition-colors border border-emerald-200 dark:border-emerald-800/60 shadow-xs shrink-0 flex items-center gap-1 cursor-pointer"
+                            title="Send WhatsApp Summary"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                            <span className="text-[9px] font-bold hidden sm:inline">Summary</span>
+                          </button>
+                        )}
                       </div>
                       <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-100 dark:border-gray-600 flex items-center gap-3 flex-wrap">
                         <div className="bg-white dark:bg-gray-600 p-2 rounded-lg text-slate-500 shadow-sm">
@@ -1580,6 +1608,19 @@ const StaffManagementView: React.FC<StaffProps> = ({
                               <BellRing className="w-4 h-4 group-hover:scale-110 transition-transform" />
                               <span className="text-[9px] font-bold">
                                 POPUP
+                              </span>
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openWhatsAppSummary(staff);
+                              }}
+                              className="flex-1 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-600 hover:text-white text-emerald-600 dark:text-emerald-400 py-3 rounded-xl flex flex-col items-center justify-center gap-1 transition-all group"
+                              title="Send WhatsApp Financial Summary"
+                            >
+                              <MessageCircle className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                              <span className="text-[9px] font-bold">
+                                WHATSAPP
                               </span>
                             </button>
                           </>
@@ -3033,6 +3074,29 @@ const StaffManagementView: React.FC<StaffProps> = ({
           </div>,
           document.body,
         )}
+
+      {/* Staff WhatsApp Financial Summary Modal */}
+      {isWhatsappSummaryOpen && whatsappStaff && (
+        <StaffWhatsAppSummaryModal
+          isOpen={isWhatsappSummaryOpen}
+          onClose={() => {
+            setIsWhatsappSummaryOpen(false);
+            setWhatsappStaff(null);
+          }}
+          staff={whatsappStaff}
+          expenses={expenses}
+          advances={advances}
+          currentUser={currentUser}
+          onUpdateStaffPhone={(staffId, newPhone) => {
+            setStaffList((prev) =>
+              prev.map((s) => (s.id === staffId ? { ...s, mobile: newPhone, updatedAt: new Date().toISOString() } : s))
+            );
+            if (whatsappStaff && whatsappStaff.id === staffId) {
+              setWhatsappStaff((prev) => (prev ? { ...prev, mobile: newPhone } : null));
+            }
+          }}
+        />
+      )}
     </div>
   );
 };

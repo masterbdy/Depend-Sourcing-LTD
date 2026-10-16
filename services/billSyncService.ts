@@ -1,7 +1,8 @@
-import { Expense, BillSyncStatus } from '../types';
+import { Expense, BillSyncStatus, UserRole, BillingRule } from '../types';
 import localforage from 'localforage';
 import { getApp, getApps } from 'firebase/app';
 import { getDatabase, ref, update } from 'firebase/database';
+import { validateLunchPolicy } from './lunchPolicyService';
 
 export interface SubmissionResult {
   success: boolean;
@@ -21,24 +22,106 @@ export function generateSubmissionId(): string {
 
 const SYNC_QUEUE_KEY = 'offline_sync_queue';
 
+export interface SubmitExpenseOptions {
+  userRole?: UserRole;
+  billingRules?: BillingRule[];
+  userConfirmedCategoryAsLunch?: boolean;
+  userClarifiedNotLunch?: boolean;
+}
+
 /**
  * Submit or retry an expense bill with definitive transport status tracking.
  * Strictly distinguishes server-acknowledged write (SUBMITTED) from local store (SAVED_OFFLINE).
+ * Enforces lunch bill limit policy and user authorization in the trusted submission path.
  */
 export async function submitExpenseBill(
   expenseData: Omit<Expense, 'syncStatus' | 'lastSyncAttempt' | 'clientSubmissionId'>,
   existingSubmissionId?: string,
-  firebaseConfig?: any
+  firebaseConfig?: any,
+  options?: SubmitExpenseOptions
 ): Promise<{ result: SubmissionResult; updatedExpense: Expense }> {
   const billId = existingSubmissionId || expenseData.id || generateSubmissionId();
   const submissionTimestamp = new Date().toISOString();
 
-  // Create baseline expense object with initial status
+  // Trusted submission path policy enforcement
+  const userRole = options?.userRole || UserRole.STAFF;
+  const policyCheck = validateLunchPolicy({
+    amount: Number(expenseData.amount),
+    reason: expenseData.reason,
+    category: expenseData.category,
+    role: userRole,
+    actorName: expenseData.staffName || 'Staff',
+    billingRules: options?.billingRules,
+    userConfirmedCategoryAsLunch: options?.userConfirmedCategoryAsLunch,
+    userClarifiedNotLunch: options?.userClarifiedNotLunch,
+  });
+
+  const existingAudit = expenseData.auditTrail || [];
+  const updatedAudit = policyCheck.auditRecord
+    ? [...existingAudit, policyCheck.auditRecord]
+    : existingAudit;
+
+  // If rejected by lunch limit / authorization policy
+  if (!policyCheck.allowed && policyCheck.policyError) {
+    const rejectedExpense: Expense = {
+      ...expenseData,
+      id: billId,
+      category: policyCheck.category,
+      clientSubmissionId: billId,
+      status: 'REJECTED',
+      syncStatus: 'FAILED',
+      syncError: policyCheck.policyError,
+      lastSyncAttempt: submissionTimestamp,
+      auditTrail: updatedAudit,
+    };
+
+    return {
+      result: {
+        success: false,
+        status: 'FAILED',
+        billId,
+        submittedAt: submissionTimestamp,
+        message: policyCheck.policyError,
+        error: 'POLICY_VIOLATION',
+      },
+      updatedExpense: rejectedExpense,
+    };
+  }
+
+  // If clarification is required and not confirmed
+  if (policyCheck.requiresClarification) {
+    const blockedExpense: Expense = {
+      ...expenseData,
+      id: billId,
+      category: policyCheck.category,
+      clientSubmissionId: billId,
+      syncStatus: 'FAILED',
+      syncError: policyCheck.clarificationMessage || 'ক্যাটাগরি স্পষ্টকরণ প্রয়োজন',
+      lastSyncAttempt: submissionTimestamp,
+      auditTrail: updatedAudit,
+    };
+
+    return {
+      result: {
+        success: false,
+        status: 'FAILED',
+        billId,
+        submittedAt: submissionTimestamp,
+        message: policyCheck.clarificationMessage || 'ক্যাটাগরি স্পষ্টকরণ প্রয়োজন',
+        error: 'CLARIFICATION_REQUIRED',
+      },
+      updatedExpense: blockedExpense,
+    };
+  }
+
+  // Create baseline expense object with initial status and audit trail
   const expenseToPersist: Expense = {
     ...expenseData,
+    category: policyCheck.category,
     id: billId,
     clientSubmissionId: billId,
     lastSyncAttempt: submissionTimestamp,
+    auditTrail: updatedAudit,
   };
 
   // If completely offline according to browser, store locally immediately as SAVED_OFFLINE

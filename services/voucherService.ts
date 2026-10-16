@@ -4,6 +4,7 @@ import { numberToWordsEnglish, numberToWordsBengali } from './numberToWords';
 
 export interface StaffVoucherStats {
   staffTodayAdvances: number;
+  staffTodaySalaryAdvance: number;
   staffTodayExpensesSubmitted: number;
   staffTodayExpensesApproved: number;
   totalRegularAdvance: number;
@@ -11,21 +12,483 @@ export interface StaffVoucherStats {
   balance: number; // positive: Cash in hand / Advance excess, negative: Payable to staff
 }
 
+/**
+ * Formats a Date or date string to 'YYYY-MM-DD' strictly in Bangladesh (Asia/Dhaka) timezone.
+ */
+export function getDhakaDateStr(d: Date | string = new Date()): string {
+  try {
+    const dateObj = typeof d === 'string' ? new Date(d) : d;
+    if (isNaN(dateObj.getTime())) {
+      if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.trim())) {
+        return d.trim();
+      }
+      return '';
+    }
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Dhaka',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(dateObj);
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Checks if a given date string corresponds to today in the Bangladesh (Asia/Dhaka) timezone.
+ */
+export function isDhakaToday(dateStr?: string, todayDhaka?: string): boolean {
+  if (!dateStr) return false;
+  const currentToday = todayDhaka || getDhakaDateStr(new Date());
+  if (dateStr.length === 10 && dateStr === currentToday) {
+    return true;
+  }
+  const entryDhaka = getDhakaDateStr(dateStr);
+  return entryDhaka === currentToday;
+}
+
+/**
+ * Checks if a given date string matches a target YYYY-MM-DD day in the Bangladesh (Asia/Dhaka) timezone.
+ */
+export function isDhakaSameDay(dateStr?: string, targetDayStr?: string): boolean {
+  if (!dateStr || !targetDayStr) return false;
+  if (dateStr.length === 10 && dateStr === targetDayStr) {
+    return true;
+  }
+  const entryDhaka = getDhakaDateStr(dateStr);
+  return entryDhaka === targetDayStr;
+}
+
+/**
+ * Formats a raw Bangladeshi or international phone number into a verified international format for WhatsApp.
+ * Removes non-digits, strips leading zeros if needed, and prefixes Bangladesh country code '88'.
+ */
+export function formatToInternationalPhone(rawPhone?: string): {
+  valid: boolean;
+  international: string;
+  display: string;
+  error?: string;
+} {
+  if (!rawPhone || !rawPhone.trim()) {
+    return {
+      valid: false,
+      international: '',
+      display: '',
+      error: 'স্টাফ প্রোফাইলে কোনো মোবাইল/হোয়াটসঅ্যাপ নম্বর সংরক্ষিত নেই।',
+    };
+  }
+
+  // Remove non-digit characters
+  const clean = rawPhone.replace(/\D/g, '');
+  if (!clean) {
+    return {
+      valid: false,
+      international: '',
+      display: rawPhone,
+      error: 'প্রদত্ত মোবাইল নম্বরে কোনো বৈধ ডিজিট পাওয়া যায়নি।',
+    };
+  }
+
+  // Bangladesh standard 11 digits: e.g. 01712345678 -> 8801712345678
+  if (clean.length === 11 && clean.startsWith('01')) {
+    const intl = `88${clean}`;
+    const display = `+88 ${clean.slice(0, 5)}-${clean.slice(5)}`;
+    return { valid: true, international: intl, display };
+  }
+
+  // Bangladesh standard 13 digits: e.g. 8801712345678 -> 8801712345678
+  if (clean.length === 13 && clean.startsWith('8801')) {
+    const display = `+88 ${clean.slice(2, 7)}-${clean.slice(7)}`;
+    return { valid: true, international: clean, display };
+  }
+
+  // Bangladesh 10 digits without leading 0: e.g. 1712345678 -> 8801712345678
+  if (clean.length === 10 && clean.startsWith('1')) {
+    const full = `0${clean}`;
+    const intl = `88${full}`;
+    const display = `+88 ${full.slice(0, 5)}-${full.slice(5)}`;
+    return { valid: true, international: intl, display };
+  }
+
+  // Generic international number (10 to 15 digits)
+  if (clean.length >= 10 && clean.length <= 15) {
+    return {
+      valid: true,
+      international: clean,
+      display: `+${clean}`,
+    };
+  }
+
+  return {
+    valid: false,
+    international: clean,
+    display: rawPhone,
+    error: `নম্বরটি (${rawPhone}) সঠিক বাংলাদেশি বা আন্তর্জাতিক ফরম্যাটে নেই (কমপক্ষে ১০-১১ ডিজিট হতে হবে)।`,
+  };
+}
+
+export interface StaffDateSummaryResult {
+  targetDateStr: string; // YYYY-MM-DD
+  targetDateFormatted: string; // e.g. "16 Oct 2026"
+  isToday: boolean;
+
+  // Selected date figures
+  dateRegularAdvance: number;
+  dateSalaryAdvance: number;
+  dateRegularAdvancesList: AdvanceLog[];
+  dateSalaryAdvancesList: AdvanceLog[];
+
+  // Expenses on selected date
+  dateSubmittedExpenses: Expense[];
+
+  // Bill linkage & reminder status
+  hasUnsubmittedBillReminder: boolean;
+  unsubmittedAdvanceAmount: number;
+  billStatusType: 'NONE' | 'ALL_SUBMITTED' | 'UNSUBMITTED_REMINDER' | 'LINKAGE_NEEDS_VERIFICATION';
+  billStatusDescription: string;
+
+  // All-time figures (strictly preserving accounting rules)
+  allTimeRegularAdvance: number;
+  allTimeApprovedExpenses: number;
+  allTimeBalance: number; // positive: Cash in hand, negative: Payable to staff
+}
+
+/**
+ * Calculates date-wise transactions and all-time ledger positions for a staff member.
+ * Strictly adheres to Rules A, B, and C:
+ * - Date-wise regular advances are isolated strictly to targetDateStr.
+ * - Salary advance on selected date is isolated; all-time salary advance is NOT shown.
+ * - Advance vs Bill linkage is verified:
+ *    - If an explicit link is found and bill is submitted (PENDING, VERIFIED, APPROVED) -> NO reminder.
+ *    - If no bill at all was submitted for this date -> Reminder with amount.
+ *    - If bills exist on that date without explicit link -> "Bill linkage যাচাই প্রয়োজন".
+ * - All-time outstanding balance is calculated using standard ledger rules without double-counting.
+ */
+export function calculateStaffDateSummary(
+  staffId: string,
+  targetDateStr: string,
+  expenses: Expense[] = [],
+  advances: AdvanceLog[] = []
+): StaffDateSummaryResult {
+  const currentTodayDhaka = getDhakaDateStr(new Date());
+  const isToday = targetDateStr === currentTodayDhaka;
+
+  let targetDateFormatted = targetDateStr;
+  try {
+    const [y, m, d] = targetDateStr.split('-').map(Number);
+    const dateObj = new Date(y, m - 1, d);
+    targetDateFormatted = dateObj.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+  } catch {}
+
+  // 1. All-time ledger calculations (Rule B.8)
+  let allTimeRegularAdvance = 0;
+  let allTimeApprovedExpenses = 0;
+
+  for (let i = 0; i < advances.length; i++) {
+    const a = advances[i];
+    if (a.isDeleted || a.isHardDeleted || a.staffId !== staffId) continue;
+    if (a.type === 'SALARY') continue; // Salary advance is payroll, not expense ledger
+    allTimeRegularAdvance += Number(a.amount || 0);
+  }
+
+  for (let i = 0; i < expenses.length; i++) {
+    const e = expenses[i];
+    if (e.isDeleted || e.isHardDeleted || e.staffId !== staffId) continue;
+    if (e.status === 'APPROVED') {
+      allTimeApprovedExpenses += Number(e.amount || 0);
+    }
+  }
+
+  const allTimeBalance = allTimeRegularAdvance - allTimeApprovedExpenses;
+
+  // 2. Selected date calculations (Rule B.3 & B.9)
+  let dateRegularAdvance = 0;
+  let dateSalaryAdvance = 0;
+  const dateRegularAdvancesList: AdvanceLog[] = [];
+  const dateSalaryAdvancesList: AdvanceLog[] = [];
+
+  for (let i = 0; i < advances.length; i++) {
+    const a = advances[i];
+    if (a.isDeleted || a.isHardDeleted || a.staffId !== staffId) continue;
+    const isMatchingDate = isDhakaSameDay(a.date, targetDateStr);
+    if (!isMatchingDate) continue;
+
+    const amt = Number(a.amount || 0);
+    if (a.type === 'SALARY') {
+      if (amt > 0) {
+        dateSalaryAdvance += amt;
+        dateSalaryAdvancesList.push(a);
+      }
+    } else {
+      if (amt > 0) {
+        dateRegularAdvance += amt;
+        dateRegularAdvancesList.push(a);
+      }
+    }
+  }
+
+  // 3. Find expenses of this staff submitted for/on targetDateStr
+  const staffExpenses = expenses.filter(
+    (e) => !e.isDeleted && !e.isHardDeleted && e.staffId === staffId
+  );
+
+  const dateSubmittedExpenses = staffExpenses.filter((e) => {
+    const checkDate = e.date || e.createdAt || e.submittedAt;
+    return isDhakaSameDay(checkDate, targetDateStr);
+  });
+
+  // 4. Verify Advance vs Bill linkage (Rule B.4, B.5, B.6, B.7)
+  let hasUnsubmittedBillReminder = false;
+  let unsubmittedAdvanceAmount = 0;
+  let billStatusType: StaffDateSummaryResult['billStatusType'] = 'NONE';
+  let billStatusDescription = '';
+
+  if (dateRegularAdvancesList.length === 0) {
+    billStatusType = 'NONE';
+    hasUnsubmittedBillReminder = false;
+    billStatusDescription = 'নির্বাচিত তারিখে কোনো সাধারণ অগ্রিম গ্রহণ করা হয়নি।';
+  } else {
+    // Check for explicit linkage between advances and expenses
+    let explicitLinkedSubmitted = 0;
+    let explicitLinkedRejectedOrMissing = 0;
+    let unlinkedAdvances: AdvanceLog[] = [];
+
+    for (const adv of dateRegularAdvancesList) {
+      // Check explicit link in database
+      const linkedExpense = staffExpenses.find((e) => {
+        if ((e as any).advanceId && (e as any).advanceId === adv.id) return true;
+        if ((e as any).linkedAdvanceId && (e as any).linkedAdvanceId === adv.id) return true;
+        if ((adv as any).billId && (adv as any).billId === e.id) return true;
+        if ((adv as any).expenseId && (adv as any).expenseId === e.id) return true;
+        if (adv.note && (adv.note.includes(e.id) || (e.clientSubmissionId && adv.note.includes(e.clientSubmissionId)))) return true;
+        if (e.reason && e.reason.includes(adv.id)) return true;
+        return false;
+      });
+
+      if (linkedExpense) {
+        // Rule B.5: If bill is submitted (PENDING, VERIFIED, APPROVED), do not show reminder
+        if (linkedExpense.status === 'PENDING' || linkedExpense.status === 'VERIFIED' || linkedExpense.status === 'APPROVED') {
+          explicitLinkedSubmitted++;
+        } else {
+          explicitLinkedRejectedOrMissing++;
+        }
+      } else {
+        unlinkedAdvances.push(adv);
+      }
+    }
+
+    if (explicitLinkedSubmitted === dateRegularAdvancesList.length) {
+      billStatusType = 'ALL_SUBMITTED';
+      hasUnsubmittedBillReminder = false;
+      billStatusDescription = 'উক্ত অগ্রিমের বিপরীতে বিল ইতিমধ্যে জমা দেওয়া হয়েছে।';
+    } else if (unlinkedAdvances.length > 0) {
+      // Rule B.7: If no explicit database linkage exists, DO NOT blindly assume matching date means linked!
+      if (dateSubmittedExpenses.length === 0) {
+        // Zero bills exist for that date
+        hasUnsubmittedBillReminder = true;
+        unsubmittedAdvanceAmount = dateRegularAdvance;
+        billStatusType = 'UNSUBMITTED_REMINDER';
+        billStatusDescription = `উক্ত তারিখে গৃহীত অগ্রিম (৳ ${formatBDT(dateRegularAdvance)}) এর বিপরীতে কোনো বিল জমা দেওয়া হয়নি।`;
+      } else {
+        // Bills exist on that date, but without explicit ID linkage
+        // Rule B.7: "কোনো advance-এর সঙ্গে নির্দিষ্ট bill-এর সম্পর্ক ডেটাবেসে না থাকলে শুধু তারিখ মিলে গেছে বলে অনুমান করে bill-কে ওই advance-এর সঙ্গে যুক্ত করবে না। প্রয়োজনে “Bill linkage যাচাই প্রয়োজন” দেখাবে।"
+        hasUnsubmittedBillReminder = false;
+        billStatusType = 'LINKAGE_NEEDS_VERIFICATION';
+        billStatusDescription = `উক্ত তারিখে ${dateSubmittedExpenses.length}টি বিল জমা রয়েছে, তবে নির্দিষ্ট অগ্রিমের সাথে সরাসরি আইডি লিংক ডেটাবেসে নেই (যাচাই প্রয়োজন)।`;
+      }
+    } else if (explicitLinkedRejectedOrMissing > 0) {
+      hasUnsubmittedBillReminder = true;
+      unsubmittedAdvanceAmount = dateRegularAdvance;
+      billStatusType = 'UNSUBMITTED_REMINDER';
+      billStatusDescription = `উক্ত অগ্রিমের বিল বাতিলকৃত বা অনুপস্থিত, পুনরায় জমা দেওয়া প্রয়োজন।`;
+    }
+  }
+
+  return {
+    targetDateStr,
+    targetDateFormatted,
+    isToday,
+    dateRegularAdvance,
+    dateSalaryAdvance,
+    dateRegularAdvancesList,
+    dateSalaryAdvancesList,
+    dateSubmittedExpenses,
+    hasUnsubmittedBillReminder,
+    unsubmittedAdvanceAmount,
+    billStatusType,
+    billStatusDescription,
+    allTimeRegularAdvance,
+    allTimeApprovedExpenses,
+    allTimeBalance,
+  };
+}
+
+export interface StaffProfileWhatsAppOptions {
+  staff: Staff;
+  summary: StaffDateSummaryResult;
+  currentUser?: string | null;
+}
+
+/**
+ * Formats the complete official WhatsApp financial summary text for a staff member.
+ * Strictly adheres to Rules A.4, B.3, B.4, B.5, B.7, B.8, B.9.
+ */
+export function formatStaffProfileWhatsAppMessage(opts: StaffProfileWhatsAppOptions): string {
+  const { staff, summary } = opts;
+  const staffName = staff.name || 'Staff Member';
+  const staffId = staff.staffId || 'N/A';
+
+  // 1. Date-wise regular advance
+  const regularAdvLine = `• সাধারণ অগ্রিম (Regular Advance): ৳ ${formatBDT(summary.dateRegularAdvance)} BDT`;
+
+  // 2. Salary advance on selected date (Rule B.9: only if given on that date; all-time total is never shown)
+  let salaryAdvLine = '';
+  if (summary.dateSalaryAdvance > 0) {
+    salaryAdvLine = `\n• বেতন অগ্রিম (Salary Advance): ৳ ${formatBDT(summary.dateSalaryAdvance)} BDT`;
+  } else if (summary.isToday) {
+    salaryAdvLine = `\n• আজকের বেতন অগ্রিম: আজ বেতন অগ্রিম দেওয়া হয়নি`;
+  }
+
+  // 3. Bill status / Reminder section (Rule B.4, B.5, B.7)
+  let billSection = '';
+  if (summary.hasUnsubmittedBillReminder) {
+    billSection = `
+━━━━━━━━━━━━━━━━━━━━
+🔔 *বিল সাবমিট রিমাইন্ডার (Bill Submit Reminder):*
+${summary.targetDateFormatted} তারিখে আপনার গৃহীত সাধারণ অগ্রিম ৳ ${formatBDT(summary.unsubmittedAdvanceAmount || summary.dateRegularAdvance)} BDT এর বিপরীতে এখনও কোনো বিল জমা পাওয়া যায়নি। অনুগ্রহ করে দ্রুত ভাউচার ছবিসহ বিল সাবমিট করুন।`;
+  } else if (summary.billStatusType === 'ALL_SUBMITTED') {
+    billSection = `
+━━━━━━━━━━━━━━━━━━━━
+✅ *বিল জমাদান স্থিতি (Bill Status):*
+উক্ত অগ্রিমের বিপরীতে বিল ইতিমধ্যে সিস্টেমে জমা দেওয়া হয়েছে।`;
+  } else if (summary.billStatusType === 'LINKAGE_NEEDS_VERIFICATION') {
+    billSection = `
+━━━━━━━━━━━━━━━━━━━━
+ℹ️ *বিল লিংকেজ স্থিতি (Bill Linkage):*
+উক্ত তারিখে বিলের এন্ট্রি রয়েছে, তবে এই নির্দিষ্ট অগ্রিমের সাথে সরাসরি আইডি লিংক ডেটাবেসে নেই (অ্যাকাউন্টস যাচাই প্রয়োজন)।`;
+  }
+
+  // 4. All-time ledger balance (Rule B.8: separated and not confused with date's advance)
+  const balanceText = summary.allTimeBalance < 0
+    ? `• কোম্পানির কাছে স্টাফের পাওনা (Payable): ৳ ${formatBDT(Math.abs(summary.allTimeBalance))} BDT`
+    : `• অতিরিক্ত ক্যাশ অগ্রিম (Cash in Hand): ৳ ${formatBDT(summary.allTimeBalance)} BDT`;
+
+  return `*DEPEND SOURCING LTD.*
+*OFFICIAL STAFF FINANCIAL SUMMARY*
+━━━━━━━━━━━━━━━━━━━━
+👤 *স্টাফের নাম (Staff):* ${staffName} (ID: ${staffId})
+📅 *লেনদেনের তারিখ (Date):* ${summary.targetDateFormatted}${summary.isToday ? ' (আজ / Today)' : ''}
+━━━━━━━━━━━━━━━━━━━━
+💰 *তারিখ অনুযায়ী হিসাব (Date-wise Activity):*
+${regularAdvLine}${salaryAdvLine}${billSection}
+━━━━━━━━━━━━━━━━━━━━
+⚖️ *সর্বমোট হিসাব স্থিতি (All-Time Ledger Balance):*
+${balanceText}
+(মোট সাধারণ অগ্রিম: ৳ ${formatBDT(summary.allTimeRegularAdvance)} | অনুমোদিত খরচ: ৳ ${formatBDT(summary.allTimeApprovedExpenses)})
+━━━━━━━━━━━━━━━━━━━━
+⚠️ *অনুস্মারক:*
+দয়া করে আপনার হিসাব মিলিয়ে নিন। কোনো অমিল বা অসঙ্গতি থাকলে দ্রুত হিসাব শাখায় যোগাযোগ করার অনুরোধ রইল।
+
+*System:* Depend Sourcing Office Management & Billing Center`;
+}
+
+export interface SameDayUnsubmittedAdvanceItem {
+  staffId: string;
+  staffName: string;
+  staffMobile?: string;
+  advanceId: string;
+  amount: number;
+  date: string;
+  note?: string;
+}
+
+/**
+ * Identifies same-day regular advances that have not yet had a bill submitted.
+ */
+export function getEligibleSameDayUnsubmittedAdvances(
+  expenses: Expense[] = [],
+  advances: AdvanceLog[] = [],
+  staffList: Staff[] = [],
+  targetDateStr: string = getDhakaDateStr(new Date())
+): SameDayUnsubmittedAdvanceItem[] {
+  const list: SameDayUnsubmittedAdvanceItem[] = [];
+
+  for (const adv of advances) {
+    if (adv.isDeleted || adv.isHardDeleted || adv.type === 'SALARY') continue;
+    if (Number(adv.amount || 0) <= 0) continue;
+    if (!isDhakaSameDay(adv.date, targetDateStr)) continue;
+
+    const staffExpenses = expenses.filter(
+      (e) => !e.isDeleted && !e.isHardDeleted && e.staffId === adv.staffId
+    );
+
+    const hasExplicit = staffExpenses.some((e) => {
+      if ((e as any).advanceId === adv.id || (e as any).linkedAdvanceId === adv.id) return true;
+      if ((adv as any).billId === e.id || (adv as any).expenseId === e.id) return true;
+      if (adv.note && (adv.note.includes(e.id) || (e.clientSubmissionId && adv.note.includes(e.clientSubmissionId)))) return true;
+      if (e.reason && e.reason.includes(adv.id)) return true;
+      return false;
+    });
+
+    if (hasExplicit) continue;
+
+    const sameDayExpenses = staffExpenses.filter((e) => {
+      const checkDate = e.date || e.createdAt || e.submittedAt;
+      return isDhakaSameDay(checkDate, targetDateStr);
+    });
+
+    if (sameDayExpenses.length === 0) {
+      const staffObj = staffList.find((s) => s.id === adv.staffId);
+      list.push({
+        staffId: adv.staffId,
+        staffName: adv.staffName || staffObj?.name || 'Staff',
+        staffMobile: staffObj?.mobile,
+        advanceId: adv.id,
+        amount: Number(adv.amount),
+        date: adv.date,
+        note: adv.note,
+      });
+    }
+  }
+
+  return list;
+}
+
 export function getStaffVoucherStats(
   staffId: string,
   expenses: Expense[] = [],
   advances: AdvanceLog[] = []
 ): StaffVoucherStats {
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayDhakaStr = getDhakaDateStr(new Date());
 
   let staffTodayAdvances = 0;
+  let staffTodaySalaryAdvance = 0;
   let totalRegularAdvance = 0;
+
   for (let i = 0; i < advances.length; i++) {
     const a = advances[i];
-    if (a.isDeleted || a.type === 'SALARY' || a.staffId !== staffId) continue;
+    if (a.isDeleted || a.isHardDeleted || a.staffId !== staffId) continue;
     const amt = Number(a.amount || 0);
+
+    // Rule 1, 2, 3: Salary Advance display
+    // Only today's salary advance is counted for today's summary (strictly Asia/Dhaka time).
+    // All-time salary advances or previous days' salary advances are excluded from this summary.
+    if (a.type === 'SALARY') {
+      if (amt > 0 && isDhakaToday(a.date, todayDhakaStr)) {
+        staffTodaySalaryAdvance += amt;
+      }
+      // Rule 4 & 5: Salary advance is NEVER added to totalRegularAdvance or balance to prevent double counting.
+      continue;
+    }
+
+    // Regular advances (Rule 4 & 5: preserve regular advance calculations)
     totalRegularAdvance += amt;
-    if (a.date === todayStr || (a.date && a.date.startsWith(todayStr))) {
+    if (isDhakaToday(a.date, todayDhakaStr)) {
       staffTodayAdvances += amt;
     }
   }
@@ -35,9 +498,10 @@ export function getStaffVoucherStats(
   let totalApprovedExpenses = 0;
   for (let i = 0; i < expenses.length; i++) {
     const e = expenses[i];
-    if (e.isDeleted || e.staffId !== staffId) continue;
+    if (e.isDeleted || e.isHardDeleted || e.staffId !== staffId) continue;
     const amt = Number(e.amount || 0);
-    const isToday = (e.createdAt && e.createdAt.startsWith(todayStr)) || (e.submittedAt && e.submittedAt.startsWith(todayStr));
+    const dateToCheck = e.createdAt || e.submittedAt || e.date;
+    const isToday = isDhakaToday(dateToCheck, todayDhakaStr);
     if (isToday) {
       staffTodayExpensesSubmitted += amt;
       if (e.status === 'APPROVED') {
@@ -49,10 +513,12 @@ export function getStaffVoucherStats(
     }
   }
 
+  // Rule 4 & 5: All-Time Outstanding Balance is calculated strictly using regular advance minus approved expenses.
   const balance = totalRegularAdvance - totalApprovedExpenses;
 
   return {
     staffTodayAdvances,
+    staffTodaySalaryAdvance,
     staffTodayExpensesSubmitted,
     staffTodayExpensesApproved,
     totalRegularAdvance,
@@ -424,6 +890,14 @@ export function generatePremiumVoucherHTML(opts: GenerateVoucherOptions): string
           </div>
 
         </div>
+
+        <!-- Today's Salary Advance Indicator (Follows Final Rule: Salary Advance Display) -->
+        <div style="margin-top: 8px; padding: 6px 12px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 10px;">
+          <span style="font-weight: 700; color: #475569;">আজকের বেতন অগ্রিম (Today's Salary Advance):</span>
+          <span style="font-weight: 800; color: ${stats.staffTodaySalaryAdvance > 0 ? '#6D28D9' : '#64748B'};">
+            ${stats.staffTodaySalaryAdvance > 0 ? `৳ ${formatBDT(stats.staffTodaySalaryAdvance)} BDT` : 'আজ বেতন অগ্রিম দেওয়া হয়নি'}
+          </span>
+        </div>
       </div>
 
       <!-- ITEMIZED EXPENSE DETAILS TABLE -->
@@ -749,12 +1223,35 @@ export async function downloadCorporateVoucherPNG(opts: GenerateVoucherOptions) 
 
 /**
  * Formats a clean corporate WhatsApp message for direct dispatch.
+ * Strictly adheres to Final Rule: Salary Advance Display:
+ * 1. Today's Salary Advance: Shows today's total given to this staff (Asia/Dhaka time).
+ * 2. If not given today: Shows "আজ বেতন অগ্রিম দেওয়া হয়নি".
+ * 3. Never shows All-Time Total or old/previous days' salary advance in this WhatsApp summary.
+ * 4. Preserves regular advance calculations and All-Time Outstanding Balance.
+ * 5. Prevents double-counting by never re-adding today's salary advance to Outstanding Balance.
+ * 6. "Today" is determined strictly according to Asia/Dhaka time.
  */
 export function formatVoucherWhatsAppText(opts: GenerateVoucherOptions): string {
-  const { expense, staff } = opts;
+  const { expense, staff, expenses = [], advances = [] } = opts;
   const staffName = staff?.name || expense.staffName;
   const staffId = staff?.staffId || expense.staffId;
-  const dateStr = new Date(expense.createdAt).toLocaleDateString('en-GB');
+  const dateStr = new Date(expense.createdAt || new Date()).toLocaleDateString('en-GB', {
+    timeZone: 'Asia/Dhaka',
+  });
+
+  const stats = getStaffVoucherStats(expense.staffId, expenses, advances);
+  const todaySalaryAdv = stats.staffTodaySalaryAdvance;
+
+  // Rule 1 & 2: Today's salary advance display
+  // If given today, show total given today. If not given today, show "আজ বেতন অগ্রিম দেওয়া হয়নি".
+  const salaryAdvanceLine = todaySalaryAdv > 0
+    ? `💵 *আজকের বেতন অগ্রিম:* ৳ ${formatBDT(todaySalaryAdv)} BDT`
+    : `💵 *আজকের বেতন অগ্রিম:* আজ বেতন অগ্রিম দেওয়া হয়নি`;
+
+  // Rule 4 & 5: Regular advance and All-Time Outstanding balance strictly preserved
+  const balanceLine = stats.balance < 0
+    ? `⚖️ *কোম্পানির কাছে পাওনা (Payable):* ৳ ${formatBDT(Math.abs(stats.balance))} BDT`
+    : `⚖️ *অতিরিক্ত অগ্রিম (In Hand):* ৳ ${formatBDT(stats.balance)} BDT`;
 
   return encodeURIComponent(
 `*DEPEND SOURCING LTD.*
@@ -763,9 +1260,13 @@ export function formatVoucherWhatsAppText(opts: GenerateVoucherOptions): string 
 📄 *Voucher No:* #DS-VCH-${expense.id.slice(0, 8).toUpperCase()}
 👤 *Payee / Staff:* ${staffName} (ID: ${staffId})
 📅 *Date:* ${dateStr}
-💰 *Amount:* ৳ ${formatBDT(expense.amount)} BDT
+💰 *Bill Amount:* ৳ ${formatBDT(expense.amount)} BDT
 📝 *Particulars:* ${expense.reason}
 📊 *Status:* ${expense.status}
+━━━━━━━━━━━━━━━━━━━━
+💳 *আজকের সাধারণ অগ্রিম:* ৳ ${formatBDT(stats.staffTodayAdvances)} BDT
+${salaryAdvanceLine}
+${balanceLine}
 ━━━━━━━━━━━━━━━━━━━━
 *System:* Depend Sourcing Office Management & Billing Center`
   );

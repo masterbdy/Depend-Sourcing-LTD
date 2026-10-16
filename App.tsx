@@ -49,6 +49,7 @@ import {
   Radar,
   ShieldAlert,
   MessageCircleMore,
+  MessageCircle,
   Download,
   Sparkles,
   Eye,
@@ -65,6 +66,7 @@ import {
   Battery,
   Image as ImageIcon,
 } from "lucide-react";
+import { StaffWhatsAppSummaryModal } from "./components/StaffWhatsAppSummaryModal";
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import {
   getDatabase,
@@ -349,6 +351,8 @@ const App: React.FC = () => {
   const [isFirebaseLoaded, setIsFirebaseLoaded] = useState(false);
   const [isFinancialLive, setIsFinancialLive] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isWhatsappSummaryModalOpen, setIsWhatsappSummaryModalOpen] = useState(false);
+  const [whatsappSummaryStaff, setWhatsappSummaryStaff] = useState<Staff | null>(null);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const [highlightStaffId, setHighlightStaffId] = useState<string | null>(null);
   const [isLocationBlocked, setIsLocationBlocked] = useState(false);
@@ -3490,6 +3494,7 @@ const App: React.FC = () => {
             setTypoSuggestions={updateTypoSuggestions}
             firebaseConfig={firebaseConfig}
             isCloudEnabled={isCloudEnabled}
+            billingRules={billingRules}
           />
         );
       case "reports":
@@ -4728,6 +4733,33 @@ const App: React.FC = () => {
                         </p>
                       </div>
                     </div>
+
+                    {/* Send WhatsApp Summary Button (Part A) */}
+                    <div className="mt-6 pt-4 border-t border-white/10 relative z-10 flex flex-col sm:flex-row items-center justify-between gap-3">
+                      <div className="text-left w-full sm:w-auto">
+                        <span className="text-[11px] text-emerald-300 font-bold flex items-center gap-1.5">
+                          <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+                          WhatsApp Financial Summary
+                        </span>
+                        <p className="text-[9.5px] text-slate-400">
+                          তারিখ ভিত্তিক অগ্রিম, বিল রিমাইন্ডার ও ব্যালেন্স
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (modalProfileData) {
+                            setWhatsappSummaryStaff(modalProfileData);
+                            setIsWhatsappSummaryModalOpen(true);
+                          }
+                        }}
+                        className="w-full sm:w-auto px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40 border border-emerald-400/30 transition-all active:scale-95 cursor-pointer"
+                      >
+                        <MessageCircle className="w-4 h-4 fill-white/20" />
+                        <span>Send WhatsApp Summary</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -5205,6 +5237,30 @@ const App: React.FC = () => {
             </div>
           </motion.div>
         </motion.div>
+      )}
+
+      {/* Staff WhatsApp Financial Summary Modal */}
+      {isWhatsappSummaryModalOpen && whatsappSummaryStaff && (
+        <StaffWhatsAppSummaryModal
+          isOpen={isWhatsappSummaryModalOpen}
+          onClose={() => {
+            setIsWhatsappSummaryModalOpen(false);
+            setWhatsappSummaryStaff(null);
+          }}
+          staff={whatsappSummaryStaff}
+          expenses={expenses}
+          advances={advances}
+          currentUser={currentUser}
+          onUpdateStaffPhone={(staffId, newPhone) => {
+            updateStaffList((prev: Staff[]) => {
+              return prev.map((s) => (s.id === staffId ? { ...s, mobile: newPhone, updatedAt: new Date().toISOString() } : s));
+            });
+            setProfileForm((prev) => ({ ...prev, mobile: newPhone }));
+            if (whatsappSummaryStaff && whatsappSummaryStaff.id === staffId) {
+              setWhatsappSummaryStaff((prev) => (prev ? { ...prev, mobile: newPhone } : null));
+            }
+          }}
+        />
       )}
 
     </div>
