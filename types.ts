@@ -51,6 +51,7 @@ export interface Staff {
   mobile?: string;
   email?: string; // New Field 
   basicSalary?: number;
+  lunchLimit?: number; // Custom per-staff Lunch Bill Limit (Optional, overrides default BillingRule LUNCH amount)
   password?: string;
   photo?: string;
   role?: UserRole; 

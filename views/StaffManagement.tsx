@@ -59,6 +59,7 @@ import {
   KeyRound,
   BellRing,
   MessageCircle,
+  Utensils,
 } from "lucide-react";
 import { StaffWhatsAppSummaryModal } from "../components/StaffWhatsAppSummaryModal";
 import {
@@ -69,6 +70,7 @@ import {
   StaffNote,
   MovementLog,
   CustomPopup,
+  BillingRule,
 } from "../types";
 import { ROLE_LABELS } from "../constants";
 import { registerBiometrics } from "../webAuthn";
@@ -77,6 +79,7 @@ interface StaffProps {
   staffList: Staff[];
   setStaffList: React.Dispatch<React.SetStateAction<Staff[]>>;
   role: UserRole;
+  billingRules?: BillingRule[];
   expenses: Expense[];
   setExpenses?: React.Dispatch<React.SetStateAction<Expense[]>>;
   advances: AdvanceLog[];
@@ -95,6 +98,7 @@ const StaffManagementView: React.FC<StaffProps> = ({
   staffList = [],
   setStaffList,
   role,
+  billingRules = [],
   expenses = [],
   setExpenses,
   advances = [],
@@ -108,6 +112,8 @@ const StaffManagementView: React.FC<StaffProps> = ({
   highlightStaffId,
   setHighlightStaffId,
 }) => {
+  const defaultLunchAmount =
+    (billingRules || []).find((r) => r.type === "LUNCH")?.amount || 150;
   const [searchTerm, setSearchTerm] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -160,6 +166,7 @@ const StaffManagementView: React.FC<StaffProps> = ({
     mobile: "",
     email: "",
     basicSalary: 0,
+    lunchLimit: 0,
     password: "",
     photo: "",
     role: UserRole.STAFF,
@@ -372,12 +379,18 @@ const StaffManagementView: React.FC<StaffProps> = ({
         alert("You cannot edit other staff members.");
         return;
       }
+      const customLunchLimit =
+        formData.lunchLimit && Number(formData.lunchLimit) > 0
+          ? Number(formData.lunchLimit)
+          : undefined;
+
       setStaffList((prev) =>
         prev.map((s) =>
           s && s.id === editingStaff.id
             ? {
                 ...s,
                 ...formData,
+                lunchLimit: customLunchLimit,
                 customLocation: customLocationData,
                 secondaryCustomLocation: secondaryLocationData,
                 updatedAt: now,
@@ -405,6 +418,11 @@ const StaffManagementView: React.FC<StaffProps> = ({
         if (!confirmAdd) return;
       }
 
+      const customLunchLimit =
+        formData.lunchLimit && Number(formData.lunchLimit) > 0
+          ? Number(formData.lunchLimit)
+          : undefined;
+
       const newStaff: Staff = {
         id: Math.random().toString(36).substr(2, 9),
         name: formData.name,
@@ -413,6 +431,7 @@ const StaffManagementView: React.FC<StaffProps> = ({
         mobile: formData.mobile,
         email: formData.email,
         basicSalary: formData.basicSalary,
+        lunchLimit: customLunchLimit,
         password: formData.password || `${formData.name}@`,
         photo: formData.photo,
         role: formData.role,
@@ -468,6 +487,7 @@ const StaffManagementView: React.FC<StaffProps> = ({
       mobile: "",
       email: "",
       basicSalary: 0,
+      lunchLimit: 0,
       password: "",
       photo: "",
       role: UserRole.STAFF,
@@ -500,6 +520,7 @@ const StaffManagementView: React.FC<StaffProps> = ({
       mobile: staff.mobile || "",
       email: staff.email || "",
       basicSalary: staff.basicSalary || 0,
+      lunchLimit: staff.lunchLimit || 0,
       password: staff.password || "",
       photo: staff.photo || "",
       role: staff.role || UserRole.STAFF,
@@ -1435,6 +1456,19 @@ const StaffManagementView: React.FC<StaffProps> = ({
                             title={staff.lastDevice}
                           >
                             {staff.lastDevice || "Unknown"}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-100 dark:border-gray-600 flex items-center gap-3">
+                        <div className="bg-white dark:bg-gray-600 p-2 rounded-lg text-emerald-500 shadow-sm">
+                          <Banknote className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="text-[9px] text-gray-400 font-bold uppercase">
+                            Basic Salary
+                          </p>
+                          <p className="text-xs font-bold text-gray-800 dark:text-gray-200">
+                            {staff.basicSalary ? `৳${staff.basicSalary.toLocaleString()}` : "N/A"}
                           </p>
                         </div>
                       </div>

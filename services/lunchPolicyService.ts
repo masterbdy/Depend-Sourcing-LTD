@@ -286,6 +286,26 @@ export function detectLunchExpense(
 /**
  * Get active Lunch Limit from Billing Rules (default 150 BDT)
  */
+/**
+ * Helper to identify if a staff member is a Driver (case-insensitive & Bangla support)
+ */
+export function isDriverStaff(
+  staff?: { designation?: string; name?: string; role?: string } | null
+): boolean {
+  if (!staff) return false;
+  const des = (staff.designation || '').toLowerCase().trim();
+  const name = (staff.name || '').toLowerCase().trim();
+  return (
+    des.includes('driver') ||
+    des.includes('ড্রাইভার') ||
+    name.includes('driver') ||
+    name.includes('ড্রাইভার')
+  );
+}
+
+/**
+ * Get active Lunch Limit from Billing Rules (default 100 BDT)
+ */
 export function getLunchLimitAmount(billingRules?: BillingRule[]): number {
   if (Array.isArray(billingRules)) {
     const lunchRule = billingRules.find((r) => r.type === 'LUNCH');
@@ -293,29 +313,25 @@ export function getLunchLimitAmount(billingRules?: BillingRule[]): number {
       return lunchRule.amount;
     }
   }
-  return 150; // Standard company default policy limit
+  return 100; // Standard company default policy limit: 100 BDT
 }
 
 /**
  * Validate Lunch Policy & User-Based Authorization.
  * 
  * Rules:
- * - If detected as Lunch (via Category or Description):
- *   - Check User Role:
- *     - ADMIN / MD: Authorized to submit and override higher amounts.
- *     - STAFF: Unauthorized to exceed Lunch Limit (amount <= lunchLimit).
- * - If Category Mismatch:
- *   - Flag mismatch and request user clarification before proceeding.
- * - If Ambiguous:
- *   - Prompt confirmation instead of silently bypassing.
- * - Generate immutable Audit Log Record.
+ * - বিলের মধ্যে কোন আলাদা ক্যাটাগরি থাকবে না।
+ * - Driver ছাড়া কেউ 100 টাকার বেশি লাঞ্চ বিল লেখলে Warning দিবে।
+ * - কিন্তু বিল সাবমিট করতে কোন রকম বাঁধা প্রদান করা হবে না (Submission is never blocked, allowed: true).
  */
 export function validateLunchPolicy(params: {
   amount: number;
   reason: string;
   category?: string;
-  role: UserRole;
-  actorName: string;
+  role?: UserRole;
+  actorName?: string;
+  staff?: { designation?: string; name?: string; role?: string } | null;
+  isDriver?: boolean;
   billingRules?: BillingRule[];
   userConfirmedCategoryAsLunch?: boolean;
   userClarifiedNotLunch?: boolean;
@@ -324,14 +340,16 @@ export function validateLunchPolicy(params: {
     amount,
     reason,
     category,
-    role,
-    actorName,
+    role = UserRole.STAFF,
+    actorName = 'Staff',
+    staff,
     billingRules,
     userConfirmedCategoryAsLunch,
     userClarifiedNotLunch,
   } = params;
 
-  const lunchLimit = getLunchLimitAmount(billingRules);
+  const lunchLimit = getLunchLimitAmount(billingRules); // 100
+  const isDriver = params.isDriver ?? isDriverStaff(staff);
   const now = new Date().toISOString();
 
   // If user explicitly clarified this is NOT lunch
@@ -342,61 +360,24 @@ export function validateLunchPolicy(params: {
       category: category || 'GENERAL',
       limit: lunchLimit,
       amount,
+      isDriver,
+      hasWarning: false,
       requiresClarification: false,
       auditRecord: {
         action: 'CATEGORY_CLARIFICATION',
-        details: `User clarified description "${reason}" is NOT Lunch. Retained category "${category || 'GENERAL'}".`,
+        details: `User clarified description "${reason}" is NOT Lunch.`,
         timestamp: now,
         actor: actorName,
       },
     };
   }
 
-  // Detect lunch
+  // Detect lunch from description (reason)
   const detection = detectLunchExpense(reason, userConfirmedCategoryAsLunch ? 'LUNCH' : category);
   const isLunch = detection.isLunch || Boolean(userConfirmedCategoryAsLunch);
   const effectiveCategory = isLunch ? 'LUNCH' : (category || 'GENERAL');
 
-  // Handle Category Mismatch or Ambiguity requiring clarification
-  if (detection.requiresClarification && !userConfirmedCategoryAsLunch) {
-    if (detection.isCategoryMismatch) {
-      return {
-        allowed: false,
-        lunchDetected: true,
-        category: effectiveCategory,
-        limit: lunchLimit,
-        amount,
-        requiresClarification: true,
-        clarificationMessage: `বিবরণে "${detection.detectedTerm || 'লাঞ্চ'}" উল্লেখ রয়েছে কিন্তু ক্যাটাগরি "${category}" নির্বাচিত। এটি কি লাঞ্চ বিল?`,
-        auditRecord: {
-          action: 'CATEGORY_CLARIFICATION',
-          details: `Category mismatch detected: Category "${category}" vs description "${reason}". Clarification required.`,
-          timestamp: now,
-          actor: actorName,
-        },
-      };
-    }
-
-    if (detection.confidence === 'AMBIGUOUS') {
-      return {
-        allowed: false,
-        lunchDetected: true,
-        category: effectiveCategory,
-        limit: lunchLimit,
-        amount,
-        requiresClarification: true,
-        clarificationMessage: `খরচের বিবরণীতে "${detection.detectedTerm}" চিহ্নিত হয়েছে। এটি কি দুপুরের লাঞ্চ বিল? নিশ্চিত করুন।`,
-        auditRecord: {
-          action: 'CATEGORY_CLARIFICATION',
-          details: `Ambiguous lunch variant "${detection.detectedTerm}" detected in "${reason}". User confirmation required.`,
-          timestamp: now,
-          actor: actorName,
-        },
-      };
-    }
-  }
-
-  // If not lunch, check passes normally
+  // If not lunch, check passes normally without warnings
   if (!isLunch) {
     return {
       allowed: true,
@@ -404,63 +385,37 @@ export function validateLunchPolicy(params: {
       category: effectiveCategory,
       limit: lunchLimit,
       amount,
+      isDriver,
+      hasWarning: false,
       requiresClarification: false,
     };
   }
 
-  // Lunch is detected: ENFORCE LIMIT & USER-BASED AUTHORIZATION POLICY
-  const isStaff = role === UserRole.STAFF;
-  const isExecutive = role === UserRole.ADMIN || role === UserRole.MD;
+  // LUNCH DETECTED
+  // Rule: Driver ছাড়া কেউ 100 টাকার বেশি লাঞ্চ বিল লেখলে Warning দিবে, কিন্তু বিল সাবমিট করতে কোন রকম বাঁধা প্রদান করা হবে না।
+  const isOverLimit = amount > lunchLimit;
+  const shouldWarn = !isDriver && isOverLimit;
 
-  if (amount > lunchLimit) {
-    if (isStaff) {
-      // Standard staff is strictly unauthorized to exceed lunch bill limit
-      const policyError = `লাঞ্চ বিলের সর্বোচ্চ অনুমোদিত সীমা ৳${lunchLimit}। আপনার দাবিকৃত পরিমাণ ৳${amount} স্টাফ পলিসি অনুযায়ী অনুমোদিত নয়।`;
-      return {
-        allowed: false,
-        lunchDetected: true,
-        category: 'LUNCH',
-        limit: lunchLimit,
-        amount,
-        requiresClarification: false,
-        policyError,
-        auditRecord: {
-          action: 'POLICY_REJECTION',
-          details: `Lunch policy violation rejected for staff "${actorName}": Amount ৳${amount} exceeds authorized limit ৳${lunchLimit}. Reason: "${reason}"`,
-          timestamp: now,
-          actor: actorName,
-        },
-      };
-    } else if (isExecutive) {
-      // Admin / MD authorized override
-      return {
-        allowed: true,
-        lunchDetected: true,
-        category: 'LUNCH',
-        limit: lunchLimit,
-        amount,
-        requiresClarification: false,
-        auditRecord: {
-          action: 'POLICY_OVERRIDE',
-          details: `Executive authorization (${role} "${actorName}"): Lunch bill ৳${amount} exceeds standard limit ৳${lunchLimit}. Reason: "${reason}"`,
-          timestamp: now,
-          actor: actorName,
-        },
-      };
-    }
+  let warningMessage: string | undefined;
+  if (shouldWarn) {
+    warningMessage = `ড্রাইভার ব্যতীত সাধারণ লাঞ্চ বিলের নির্ধারিত সীমা ৳${lunchLimit} (আপনার উল্লেখিত বিল: ৳${amount})। তবে আপনি চাইলে এই বিলটি স্বাভাবিকভাবে সাবমিট করতে পারেন Admin এর অনুমতি থাকলে।`;
   }
 
-  // Amount within limit
   return {
-    allowed: true,
+    allowed: true, // CRITICAL: NEVER BLOCK SUBMISSION ("বিল সাবমিট করতে কোন রকম বাঁধা প্রধান করা হবে না")
     lunchDetected: true,
-    category: 'LUNCH',
+    category: effectiveCategory,
     limit: lunchLimit,
     amount,
-    requiresClarification: false,
+    isDriver,
+    hasWarning: shouldWarn,
+    warningMessage,
+    requiresClarification: false, // No category clarification blocking
     auditRecord: {
-      action: 'POLICY_CHECK',
-      details: `Lunch bill verified within limit: ৳${amount} <= ৳${lunchLimit}. Category: LUNCH.`,
+      action: shouldWarn ? 'POLICY_OVERRIDE' : 'POLICY_CHECK',
+      details: shouldWarn
+        ? `Non-driver lunch bill ৳${amount} exceeds standard limit ৳${lunchLimit}. Warning issued; submission allowed.`
+        : `Lunch bill verified: ৳${amount} (Driver: ${isDriver ? 'Yes' : 'No'}).`,
       timestamp: now,
       actor: actorName,
     },

@@ -25,6 +25,7 @@ const SYNC_QUEUE_KEY = 'offline_sync_queue';
 export interface SubmitExpenseOptions {
   userRole?: UserRole;
   billingRules?: BillingRule[];
+  staff?: { lunchLimit?: number; name?: string } | null;
   userConfirmedCategoryAsLunch?: boolean;
   userClarifiedNotLunch?: boolean;
 }
@@ -52,6 +53,7 @@ export async function submitExpenseBill(
     role: userRole,
     actorName: expenseData.staffName || 'Staff',
     billingRules: options?.billingRules,
+    staff: options?.staff,
     userConfirmedCategoryAsLunch: options?.userConfirmedCategoryAsLunch,
     userClarifiedNotLunch: options?.userClarifiedNotLunch,
   });

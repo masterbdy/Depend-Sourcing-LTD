@@ -3450,6 +3450,7 @@ const App: React.FC = () => {
             staffList={staffList}
             setStaffList={updateStaffList}
             role={role!}
+            billingRules={billingRules}
             expenses={expenses}
             setExpenses={updateExpenses}
             advances={advances}

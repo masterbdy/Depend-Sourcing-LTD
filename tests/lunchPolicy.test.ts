@@ -158,74 +158,73 @@ console.log('Mismatch (Selected Transport, Typed লান্স বিল):');
 console.log(`  requiresClarification: ${mismatchTest1.requiresClarification} (Expected: true)`);
 console.log(`  message: ${mismatchTest1.clarificationMessage}\n`);
 
-// 9. AUTHORIZED VS UNAUTHORIZED USER POLICY TESTS
-console.log('--- Testing User-Based Authorization & Lunch Limit Policy ---');
-// Staff submitting 200 (limit is 150) -> Must be rejected!
-const staffExceedTest = validateLunchPolicy({
-  amount: 200,
-  reason: 'লাঞ্চ বিল ২০০ টাকা',
-  category: 'LUNCH',
-  role: UserRole.STAFF,
-  actorName: 'Rahim Uddin',
-  billingRules: testBillingRules,
-});
-console.log('Staff Exceeding Limit (৳200 > ৳150):');
-console.log(`  allowed: ${staffExceedTest.allowed} (Expected: false)`);
-console.log(`  policyError: ${staffExceedTest.policyError}`);
-console.log(`  auditRecord: ${JSON.stringify(staffExceedTest.auditRecord)}\n`);
+// 8. DRIVER VS NON-DRIVER LUNCH POLICY (100 TAKA RULE)
+console.log('--- Testing Driver vs Non-Driver Lunch Policy (100 BDT Rule) ---');
 
-// Staff submitting 150 (limit is 150) -> Must be allowed!
-const staffWithinLimitTest = validateLunchPolicy({
+// Non-Driver submitting 150 (limit is 100) -> Warning given, but allowed: true (NEVER blocked)!
+const nonDriverExceedTest = validateLunchPolicy({
   amount: 150,
   reason: 'লাঞ্চ বিল ১৫০ টাকা',
-  category: 'LUNCH',
   role: UserRole.STAFF,
   actorName: 'Rahim Uddin',
-  billingRules: testBillingRules,
+  staff: { name: 'Rahim Uddin', designation: 'Merchandiser' },
+  isDriver: false,
 });
-console.log('Staff Within Limit (৳150 <= ৳150):');
+console.log('Non-Driver Exceeding Limit (৳150 > ৳100):');
+console.log(`  allowed: ${nonDriverExceedTest.allowed} (Expected: true)`);
+console.log(`  hasWarning: ${nonDriverExceedTest.hasWarning} (Expected: true)`);
+console.log(`  warningMessage: ${nonDriverExceedTest.warningMessage}`);
+console.log(`  auditRecord: ${JSON.stringify(nonDriverExceedTest.auditRecord)}\n`);
+
+// Driver submitting 150 (limit is 100) -> NO warning, allowed: true!
+const driverExceedTest = validateLunchPolicy({
+  amount: 150,
+  reason: 'লাঞ্চ বিল ১৫০ টাকা',
+  role: UserRole.STAFF,
+  actorName: 'Abdul Jalil',
+  staff: { name: 'Abdul Jalil', designation: 'Office Driver' },
+  isDriver: true,
+});
+console.log('Driver Exceeding Limit (৳150 > ৳100):');
+console.log(`  allowed: ${driverExceedTest.allowed} (Expected: true)`);
+console.log(`  hasWarning: ${driverExceedTest.hasWarning} (Expected: false)`);
+console.log(`  warningMessage: ${driverExceedTest.warningMessage || 'None'}\n`);
+
+// Non-Driver submitting 100 (within limit) -> NO warning, allowed: true!
+const staffWithinLimitTest = validateLunchPolicy({
+  amount: 100,
+  reason: 'লাঞ্চ বিল ১০০ টাকা',
+  role: UserRole.STAFF,
+  actorName: 'Rahim Uddin',
+  staff: { name: 'Rahim Uddin', designation: 'Merchandiser' },
+  isDriver: false,
+});
+console.log('Non-Driver Within Limit (৳100 <= ৳100):');
 console.log(`  allowed: ${staffWithinLimitTest.allowed} (Expected: true)`);
-console.log(`  auditRecord: ${JSON.stringify(staffWithinLimitTest.auditRecord)}\n`);
+console.log(`  hasWarning: ${staffWithinLimitTest.hasWarning} (Expected: false)\n`);
 
-// Admin / MD submitting 250 (limit is 150) -> Must be allowed with Executive Override!
-const adminOverrideTest = validateLunchPolicy({
-  amount: 250,
-  reason: 'Guest lunch with client',
-  category: 'LUNCH',
-  role: UserRole.ADMIN,
-  actorName: 'Managing Director',
-  billingRules: testBillingRules,
-});
-console.log('Admin / Executive Override (৳250 > ৳150):');
-console.log(`  allowed: ${adminOverrideTest.allowed} (Expected: true)`);
-console.log(`  auditRecord action: ${adminOverrideTest.auditRecord?.action} (Expected: POLICY_OVERRIDE)\n`);
-
-// 10. DIRECT API / TRUSTED SUBMISSION PATH TEST
-console.log('--- Testing Trusted Submission Path (submitExpenseBill) ---');
+// 9. DIRECT SUBMISSION PATH TEST (Always allowed with status PENDING)
+console.log('--- Testing Submission Path (submitExpenseBill) ---');
 async function runTrustedPathTest() {
-  const rejectedDirect = await submitExpenseBill(
+  const result = await submitExpenseBill(
     {
-      id: 'test_bill_unauthorized',
+      id: 'test_bill_non_driver_lunch',
       staffId: 'ST-001',
-      staffName: 'Abdul Karim',
-      amount: 220,
-      reason: 'lanch bill 220',
-      category: 'LUNCH',
+      staffName: 'Rahim Uddin',
+      amount: 180,
+      reason: 'লাঞ্চ বিল ১৮০ টাকা',
       status: 'PENDING',
       createdAt: new Date().toISOString(),
     },
-    'test_bill_unauthorized',
+    'test_bill_non_driver_lunch',
     null,
     {
       userRole: UserRole.STAFF,
-      billingRules: testBillingRules,
     }
   );
-  console.log('Direct submission call by Staff with ৳220:');
-  console.log(`  result.success: ${rejectedDirect.result.success} (Expected: false)`);
-  console.log(`  result.error: ${rejectedDirect.result.error} (Expected: POLICY_VIOLATION)`);
-  console.log(`  expense.status: ${rejectedDirect.updatedExpense.status} (Expected: REJECTED)`);
-  console.log(`  auditTrail recorded: ${rejectedDirect.updatedExpense.auditTrail?.length || 0} entries\n`);
+  console.log('Direct submission call by Non-Driver with ৳180:');
+  console.log(`  result.success: ${result.result.success} (Expected: true)`);
+  console.log(`  expense.status: ${result.updatedExpense.status} (Expected: PENDING)`);
 }
 
 // 11. PERFORMANCE & TYPING BENCHMARK
