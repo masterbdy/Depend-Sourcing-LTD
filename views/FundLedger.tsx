@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { PlusCircle, History, Landmark, Wallet, ArrowUpCircle, Trash2, Search, Calendar, FilterX, Info, ArrowDownLeft, ArrowUpRight, Banknote, AlertTriangle, TrendingUp, Sparkles } from 'lucide-react';
 import { FundEntry, UserRole, Expense, AdvanceLog, Staff } from '../types';
 import { sendFundAddedEmailToMD } from '../services/emailService';
+import { perf } from '../services/performanceDiagnostics';
 
 interface FundProps {
   funds: FundEntry[];
@@ -43,6 +44,13 @@ const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = 
   const [searchTerm, setSearchTerm] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+
+  // Performance Instrumentation for Fund Ledger loading
+  useEffect(() => {
+    perf.measure('Fund Ledger loading', 'ledger', () => {
+      return { fundsCount: funds.length, expensesCount: expenses.length, advancesCount: advances.length };
+    });
+  }, []);
 
   // --- MERGE & PREPARE DATA ---
   const allTransactions = useMemo(() => {

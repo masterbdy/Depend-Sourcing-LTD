@@ -67,6 +67,7 @@ import {
 import SpellCheckerAssistant from './SpellCheckerAssistant';
 import DictionaryManagerModal from './DictionaryManagerModal';
 import { PaymentVoucherModal } from '../components/PaymentVoucherModal';
+import { perf } from '../services/performanceDiagnostics';
 import {
   generatePremiumVoucherHTML,
   printCorporateVoucher,
@@ -195,12 +196,7 @@ const SubmitExpenseModal: React.FC<SubmitExpenseModalProps> = ({
     error?: string;
   } | null>(null);
 
-  // Policy validation & Category Clarification states
-  const [clarificationPrompt, setClarificationPrompt] = useState<{
-    message: string;
-    detectedTerm?: string;
-    pendingData: typeof formData;
-  } | null>(null);
+
   // Target staff & Driver detection
   const targetStaff = useMemo(() => {
     const sId = role === UserRole.STAFF ? (activeStaff ? activeStaff.id : formData.staffId) : formData.staffId;
@@ -254,6 +250,10 @@ const SubmitExpenseModal: React.FC<SubmitExpenseModalProps> = ({
           }));
         }
       }
+    } catch {}
+
+    try {
+      perf.measure('Bill Entry initial loading', 'bill_submit', () => true);
     } catch {}
   }, []);
 
@@ -572,16 +572,21 @@ const SubmitExpenseModal: React.FC<SubmitExpenseModalProps> = ({
     }
 
     try {
-      const { result, updatedExpense } = await submitExpenseBill(
-        newExpenseDraft,
-        billId,
-        firebaseConfig,
-        {
-          userRole: role,
-          billingRules,
-          userConfirmedCategoryAsLunch: userConfirmedAsLunch,
-          userClarifiedNotLunch: userClarifiedNotLunch,
-        }
+      const { result, updatedExpense } = await perf.measure(
+        'Bill submission/save',
+        'bill_submit',
+        () =>
+          submitExpenseBill(
+            newExpenseDraft,
+            billId,
+            firebaseConfig,
+            {
+              userRole: role,
+              billingRules,
+              userConfirmedCategoryAsLunch: userConfirmedAsLunch,
+              userClarifiedNotLunch: userClarifiedNotLunch,
+            }
+          )
       );
       setExpenses((prev) => [updatedExpense, ...prev.filter((e) => e.id !== updatedExpense.id)]);
       setSubmissionFeedback({
@@ -1848,6 +1853,13 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({
 
   // Pagination / Progressive Rendering: displays first 30 cards, user can load more with 1 click
   const [visibleCount, setVisibleCount] = useState(30);
+
+  // Performance Instrumentation for Previous Bills loading
+  useEffect(() => {
+    perf.measure('Previous Bills loading', 'bill_submit', () => {
+      return { totalBills: expenses.length, visible: visibleCount };
+    });
+  }, []);
 
   // Dictionary & Spell checker modal
   const [companyDict, setCompanyDict] = useState<CompanyDictionaryEntry[]>(() => getStoredCompanyDictionary());

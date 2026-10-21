@@ -59,6 +59,9 @@ export default defineConfig({
     hmr: false
   },
   define: {
-    'process.env.GOOGLE_MAPS_PLATFORM_KEY': JSON.stringify(process.env.GOOGLE_MAPS_PLATFORM_KEY || '')
+    'process.env.GOOGLE_MAPS_PLATFORM_KEY': JSON.stringify(process.env.GOOGLE_MAPS_PLATFORM_KEY || ''),
+    '__APP_VERSION__': JSON.stringify('1.1.0'),
+    '__BUILD_TIMESTAMP__': JSON.stringify(new Date().toISOString()),
+    '__BUILD_COMMIT__': JSON.stringify(process.env.VERCEL_GIT_COMMIT_SHA || process.env.COMMIT_REF || 'local-build')
   }
 });

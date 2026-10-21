@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { Expense, UserRole, Staff, AdvanceLog, StaffLocation } from "../types";
 import { BanglaDateConverter } from "bangla-date-converter";
+import { perf } from "../services/performanceDiagnostics";
 
 interface DashboardProps {
   totalExpense: number;
@@ -109,6 +110,13 @@ const DashboardView: React.FC<DashboardProps> = ({
       return () => clearTimeout(timer);
     }
   }, [isBirthday]);
+
+  // Performance Instrumentation for Dashboard data loading
+  useEffect(() => {
+    perf.measure('Dashboard data loading', 'navigation', () => {
+      return { totalExpense, pendingApprovals, count: expenses.length };
+    });
+  }, []);
 
   // --- STATS CALCULATION ---
   // Advance Breakdown

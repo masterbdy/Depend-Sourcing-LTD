@@ -22,6 +22,7 @@ import {
   Cloud,
   WifiOff,
   Menu,
+  Activity,
   X,
   Lock,
   ArrowRightLeft,
@@ -48,6 +49,7 @@ import {
   Megaphone,
   Radar,
   ShieldAlert,
+  ShieldCheck,
   MessageCircleMore,
   MessageCircle,
   Download,
@@ -130,6 +132,9 @@ const MobileBillManagement = lazy(() => import("./views/MobileBillManagement"));
 const SavedPlacesView = lazy(() => import("./views/SavedPlaces"));
 const LearningAcademyView = lazy(() => import("./views/LearningAcademy"));
 const StaffBatteryView = lazy(() => import("./views/StaffBattery"));
+const SystemHealthView = lazy(() => import("./views/SystemHealthView"));
+const SafeUpdateRecoveryView = lazy(() => import("./views/SafeUpdateRecoveryView"));
+import { safeUpdateRecovery } from "./services/safeUpdateRecoveryService";
 
 import localforage from "localforage";
 import {
@@ -2734,58 +2739,59 @@ const App: React.FC = () => {
   };
 
   const handleExport = () => {
-    const data = {
-      staffList,
-      expenses,
-      movements,
-      billingRules,
-      funds,
-      notices,
-      advances,
-      complaints,
-      messages,
-      attendanceList,
-      products,
-      productEditors,
-      searchCount,
-      visitCount,
-      phoneBook,
-      exportDate: new Date().toISOString(),
-      version: "1.0",
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `backup_depend_sourcing_${new Date().toISOString().split("T")[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    try {
+      const { blob, filename } = safeUpdateRecovery.generateSecureBackup(
+        currentUser || "Admin",
+        role || UserRole.ADMIN,
+        {
+          staffList,
+          expenses,
+          funds,
+          advances,
+          movements,
+          billingRules,
+          appNotes,
+          products,
+        }
+      );
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      alert(e?.message || "এক্সপোর্ট করতে সমস্যা হয়েছে।");
+    }
   };
 
-  const handleImport = (jsonString: string) => {
+  const handleImport = async (jsonString: string) => {
     try {
-      const data = JSON.parse(jsonString);
-      if (data.staffList) updateStaffList(data.staffList);
-      if (data.expenses) updateExpenses(data.expenses);
-      if (data.movements) updateMovements(data.movements);
-      if (data.billingRules) updateBillingRules(data.billingRules);
-      if (data.funds) updateFunds(data.funds);
-      if (data.notices) updateNotices(data.notices);
-      if (data.advances) updateAdvances(data.advances);
-      if (data.customPopups) updateCustomPopups(data.customPopups);
-      if (data.complaints) updateComplaints(data.complaints);
-      if (data.messages) updateMessages(data.messages);
-      if (data.attendanceList) updateAttendance(data.attendanceList);
-      if (data.products) updateProducts(data.products);
-      if (data.productEditors) updateProductEditors(data.productEditors);
-      if (data.searchCount) setSearchCount(data.searchCount);
-      if (data.visitCount) setVisitCount(data.visitCount);
-      if (data.phoneBook) updatePhoneBook(data.phoneBook);
-      alert("ডাটা ইমপোর্ট সফল হয়েছে!");
+      const summary = safeUpdateRecovery.validateImportFile(jsonString);
+      if (!summary.isValid) {
+        alert(`ভুল ফাইল ফরম্যাট! ${summary.error || "ইমপোর্ট ব্যর্থ হয়েছে।"}`);
+        return;
+      }
+      const res = await safeUpdateRecovery.applyVerifiedImport(
+        jsonString,
+        role || UserRole.ADMIN,
+        currentUser || "Admin",
+        {
+          updateStaffList,
+          updateExpenses,
+          updateFunds,
+          updateAdvances,
+          updateMovements,
+          updateBillingRules,
+          updateAppNotes,
+          updateProducts,
+          currentExpenses: expenses,
+          currentStaff: staffList,
+        }
+      );
+      alert(res.message);
     } catch (e) {
       console.error(e);
       alert("ভুল ফাইল ফরম্যাট! ইমপোর্ট ব্যর্থ হয়েছে।");
@@ -3224,6 +3230,22 @@ const App: React.FC = () => {
         bgColor: "bg-gray-50",
       },
       {
+        id: "system-health",
+        label: "System Health",
+        icon: Activity,
+        roles: [UserRole.ADMIN, UserRole.MD],
+        color: "text-emerald-600",
+        bgColor: "bg-emerald-50",
+      },
+      {
+        id: "update-recovery",
+        label: "আপডেট ও রিকভারি",
+        icon: ShieldCheck,
+        roles: [UserRole.ADMIN, UserRole.MD, UserRole.STAFF],
+        color: "text-blue-600",
+        bgColor: "bg-blue-50",
+      },
+      {
         id: "support",
         label: "সাপোর্ট সেন্টার",
         icon: Headphones,
@@ -3540,6 +3562,49 @@ const App: React.FC = () => {
             companyLogo={companyLogo}
             setCompanyLogo={updateCompanyLogo}
           />
+        );
+      case "system-health":
+      case "system-health-monitor":
+        return (
+          <Suspense fallback={<ViewLoadingFallback label="System Health Monitor..." />}>
+            <SystemHealthView
+              role={role!}
+              currentUser={currentUser}
+              firebaseConfig={firebaseConfig}
+              isCloudEnabled={isCloudEnabled}
+              expenses={expenses}
+              onNavigate={(tab) => setActiveTab(tab)}
+            />
+          </Suspense>
+        );
+      case "update-recovery":
+      case "safe-update-recovery":
+        return (
+          <Suspense fallback={<ViewLoadingFallback label="Safe Update & Recovery Center..." />}>
+            <SafeUpdateRecoveryView
+              role={role!}
+              currentUser={currentUser}
+              firebaseConfig={firebaseConfig}
+              isCloudEnabled={isCloudEnabled}
+              expenses={expenses}
+              setExpenses={updateExpenses}
+              staffList={staffList}
+              setStaffList={updateStaffList}
+              funds={funds}
+              setFunds={updateFunds}
+              advances={advances}
+              setAdvances={updateAdvances}
+              movements={movements}
+              setMovements={updateMovements}
+              billingRules={billingRules}
+              setBillingRules={updateBillingRules}
+              appNotes={appNotes}
+              setAppNotes={updateAppNotes}
+              products={products}
+              setProducts={updateProducts}
+              onNavigate={(tab) => setActiveTab(tab)}
+            />
+          </Suspense>
         );
       case "support":
         return <SupportView />;

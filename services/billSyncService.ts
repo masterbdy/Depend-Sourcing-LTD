@@ -3,6 +3,8 @@ import localforage from 'localforage';
 import { getApp, getApps } from 'firebase/app';
 import { getDatabase, ref, update } from 'firebase/database';
 import { validateLunchPolicy } from './lunchPolicyService';
+import { systemHealth } from './systemHealthService';
+import { perf } from './performanceDiagnostics';
 
 export interface SubmissionResult {
   success: boolean;
@@ -170,13 +172,15 @@ export async function submitExpenseBill(
         syncError: null,
       };
 
-      // Perform atomic server write with timeout
-      await Promise.race([
-        update(ref(db, 'expenses'), { [billId]: sanitizedPayload }),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('SERVER_TIMEOUT')), 12000)
-        ),
-      ]);
+      // Perform atomic server write with timeout & performance instrumentation
+      await perf.measure('Firebase writes', 'bill_submit', () =>
+        Promise.race([
+          update(ref(db, 'expenses'), { [billId]: sanitizedPayload }),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('SERVER_TIMEOUT')), 5000)
+          ),
+        ])
+      );
 
       // Server write was resolved by Firebase Realtime Database
       expenseToPersist.syncStatus = 'SUBMITTED';
@@ -185,6 +189,10 @@ export async function submitExpenseBill(
 
       // Remove from offline queue if it was queued previously
       await removeQueuedOfflineExpense(billId);
+
+      try {
+        systemHealth.markSyncConfirmed(billId);
+      } catch {}
 
       notifySyncStatusChange();
 
@@ -210,6 +218,18 @@ export async function submitExpenseBill(
       expenseToPersist.syncError = isTimeout
         ? 'সার্ভার রেসপন্স টাইমআউট (১২ সেকেন্ড)'
         : (err?.message || 'সার্ভার সংযোগ বিচ্ছিন্ন');
+
+      // Record diagnostic incident without blocking execution
+      try {
+        systemHealth.recordIncident({
+          type: 'SYNC_FAILED',
+          title: isTimeout ? 'সার্ভার রেসপন্স টাইমআউট' : 'বিল সিঙ্ক ব্যর্থতা',
+          severity: isTimeout ? 'WARNING' : 'CRITICAL',
+          affectedService: 'Firebase',
+          message: `বিল (${billId}) সার্ভারে পাঠাতে ব্যর্থ: ${expenseToPersist.syncError}`,
+          recommendedAction: 'ইন্টারনেট কানেকশন ও ফায়ারবেস কনফিগারেশন চেক করুন। অফলাইন কিউতে বিল সংরক্ষিত রয়েছে।',
+        });
+      } catch {}
 
       // Queue for background retry
       await queueOfflineExpense(expenseToPersist);
@@ -332,9 +352,22 @@ export async function syncAllPendingBills(
     const safeForStorage = finalExpenses.map(({ voucherImage, ...rest }) => rest);
     localStorage.setItem('expenses', JSON.stringify(safeForStorage));
     await localforage.setItem('expenses', JSON.stringify(finalExpenses));
-  } catch (e) {
-    console.warn('Failed to update local store after batch sync', e);
+  } catch (storageErr) {
+    console.warn('Storage sync update error:', storageErr);
   }
+
+  try {
+    if (syncedCount > 0) {
+      systemHealth.markSyncConfirmed();
+    }
+    systemHealth.logEvent({
+      type: 'SYNC_STATUS',
+      severity: failedCount > 0 ? 'WARNING' : 'INFO',
+      service: 'SyncQueue',
+      summary: `Batch sync completed: ${syncedCount} synced, ${failedCount} failed`,
+      details: { syncedCount, failedCount, total: pendingBills.length },
+    });
+  } catch {}
 
   notifySyncStatusChange();
 
@@ -383,6 +416,7 @@ export async function queueOfflineExpense(expense: Expense): Promise<void> {
  * Remove an expense from the offline sync queue
  */
 export async function removeQueuedOfflineExpense(billId: string): Promise<void> {
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return;
   try {
     const queueStr = localStorage.getItem(SYNC_QUEUE_KEY);
     if (queueStr) {
@@ -401,6 +435,7 @@ export async function removeQueuedOfflineExpense(billId: string): Promise<void> 
  * Get count of unsynced expenses
  */
 export function getUnsyncedBillCount(): number {
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return 0;
   try {
     const queueStr = localStorage.getItem(SYNC_QUEUE_KEY);
     if (!queueStr) return 0;

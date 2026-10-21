@@ -700,6 +700,80 @@ Return ONLY valid JSON matching this exact structure:
     }
   });
 
+  // System Health Monitor Diagnostics endpoint
+  app.get('/api/system-health/status', (req, res) => {
+    try {
+      const memory = process.memoryUsage();
+      return res.json({
+        status: 'OK',
+        uptime: Math.floor(process.uptime()),
+        timestamp: new Date().toISOString(),
+        nodeVersion: process.version,
+        memoryMb: {
+          rss: Math.round(memory.rss / (1024 * 1024)),
+          heapTotal: Math.round(memory.heapTotal / (1024 * 1024)),
+          heapUsed: Math.round(memory.heapUsed / (1024 * 1024)),
+        },
+      });
+    } catch (err: any) {
+      return res.status(500).json({ status: 'ERROR', error: err?.message || 'Internal health check error' });
+    }
+  });
+
+  // App Release & Version Verification endpoint
+  app.get('/api/app-version', (req, res) => {
+    try {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      return res.json({
+        version: '1.1.0',
+        buildTimestamp: new Date().toISOString(),
+        minSupportedVersion: '1.0.0',
+        releaseName: 'Safe Update & Recovery Center',
+        environment: process.env.NODE_ENV || 'production',
+        serverUptime: Math.floor(process.uptime()),
+        serviceStatus: 'HEALTHY',
+      });
+    } catch (err: any) {
+      return res.status(500).json({ status: 'ERROR', error: err?.message || 'Version check failed' });
+    }
+  });
+
+  // System Health Incident Reporting (Sanitized, bounded telemetry)
+  app.post('/api/system-health/report-incident', (req, res) => {
+    try {
+      const payload = req.body;
+      // Payload size & structure validation
+      if (!payload || typeof payload !== 'object') {
+        return res.status(400).json({ error: 'Invalid payload' });
+      }
+
+      // Check payload string size limit (max 10KB)
+      if (JSON.stringify(payload).length > 10240) {
+        return res.status(413).json({ error: 'Telemetry payload too large' });
+      }
+
+      // Role permission check: must be Admin or MD
+      const { role, incident } = payload;
+      if (role !== UserRole.ADMIN && role !== UserRole.MD) {
+        return res.status(403).json({ error: 'Unauthorized to submit system diagnostic incidents' });
+      }
+
+      if (!incident || !incident.id || !incident.type) {
+        return res.status(400).json({ error: 'Incident must have id and type' });
+      }
+
+      // Log technical incident on server console in structured format
+      console.log(`[SYSTEM HEALTH INCIDENT] [${incident.severity || 'INFO'}] #${incident.id}: ${incident.title} (Service: ${incident.affectedService})`);
+
+      return res.json({
+        success: true,
+        receivedAt: new Date().toISOString(),
+      });
+    } catch (err: any) {
+      return res.status(500).json({ error: err?.message || 'Failed to record incident' });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({

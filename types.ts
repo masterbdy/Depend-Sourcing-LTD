@@ -121,7 +121,8 @@ export type BillSyncStatus =
   | 'SAVED_OFFLINE'
   | 'SYNCING'
   | 'SUBMITTED'
-  | 'FAILED';
+  | 'FAILED'
+  | 'CONFLICT';
 
 export interface Expense {
   id: string;
@@ -297,3 +298,112 @@ export interface SavedLocation {
   addedAt: string;
   isDeleted?: boolean;
 }
+
+// ==========================================
+// Safe Update & Recovery Center Types
+// ==========================================
+
+export type RecoveryHealthStatus =
+  | 'HEALTHY'
+  | 'ATTENTION_REQUIRED'
+  | 'OFFLINE'
+  | 'CHECKING'
+  | 'UNKNOWN';
+
+export type UpdateCheckStatus =
+  | 'UP_TO_DATE'
+  | 'UPDATE_AVAILABLE'
+  | 'CHECK_FAILED'
+  | 'UNAVAILABLE';
+
+export interface AppVersionInfo {
+  currentVersion: string;
+  latestVersion?: string;
+  buildIdentifier: string;
+  buildTimestamp: string;
+  status: UpdateCheckStatus;
+  releaseNotes?: string;
+  lastChecked?: string;
+  isUpdateAvailable: boolean;
+}
+
+export interface DataConflictRecord {
+  id: string;
+  recordId: string;
+  recordType: 'expense';
+  detectedAt: string;
+  localVersion: Expense;
+  serverVersion: Partial<Expense>;
+  conflictReason: string;
+  status: 'UNRESOLVED' | 'RESOLVED';
+  resolutionType?: 'USE_SERVER' | 'USE_LOCAL' | 'KEEP_BOTH';
+  resolvedBy?: string;
+  resolvedAt?: string;
+  resolutionNote?: string;
+}
+
+export interface QueueRetryItem {
+  id: string;
+  billId: string;
+  staffName: string;
+  amount: number;
+  reason: string;
+  createdAt: string;
+  lastSyncAttempt: string;
+  syncStatus: BillSyncStatus;
+  syncError?: string;
+  attempts: number;
+  nextEligibleRetry?: number;
+  isEligibleForRetry: boolean;
+}
+
+export interface CacheCollectionIntegrity {
+  name: string;
+  count: number;
+  status: 'OK' | 'EMPTY' | 'CORRUPTED';
+  error?: string;
+  lastVerified: string;
+}
+
+export interface CacheIntegrityReport {
+  isHealthy: boolean;
+  indexedDbAvailable: boolean;
+  localStorageAvailable: boolean;
+  collections: Record<string, CacheCollectionIntegrity>;
+  storageQuota?: {
+    usageMb: number;
+    quotaMb: number;
+    percentUsed: number;
+  };
+  timestamp: string;
+}
+
+export interface SafeBackupManifest {
+  manifestVersion: string;
+  appName: string;
+  schemaVersion: string;
+  exportedAt: string;
+  exportedBy: string;
+  recordCounts: Record<string, number>;
+  checksum: string;
+  securityDisclaimer: string;
+}
+
+export interface ImportPreviewSummary {
+  isValid: boolean;
+  error?: string;
+  manifest?: SafeBackupManifest;
+  counts: {
+    staffToAdd: number;
+    staffToUpdate: number;
+    expensesToAdd: number;
+    expensesToUpdate: number;
+    fundsCount: number;
+    advancesCount: number;
+    rulesCount: number;
+    notesCount: number;
+  };
+  conflictsWithOfflineQueue: number;
+  requiresConfirmation: boolean;
+}
+

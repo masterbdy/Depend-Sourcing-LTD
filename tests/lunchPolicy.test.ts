@@ -144,19 +144,19 @@ const structuredCategoryTests = [
 ];
 structuredCategoryTests.forEach((t) => recordTest('Structured Category Priority', t.desc, t.expected, t.cat));
 
-// 8. CATEGORY-DESCRIPTION MISMATCH TESTS
-console.log('--- Testing Category-Description Mismatch ---');
-const mismatchTest1 = validateLunchPolicy({
+// 8. NO SEPARATE CATEGORY & NON-BLOCKING SUBMISSION
+console.log('--- Testing Non-Blocking Submission Policy ---');
+const policyTest1 = validateLunchPolicy({
   amount: 140,
   reason: 'লান্স বিল ১৪০ টাকা',
-  category: 'TRANSPORT',
   role: UserRole.STAFF,
   actorName: 'Abdul Karim',
   billingRules: testBillingRules,
 });
-console.log('Mismatch (Selected Transport, Typed লান্স বিল):');
-console.log(`  requiresClarification: ${mismatchTest1.requiresClarification} (Expected: true)`);
-console.log(`  message: ${mismatchTest1.clarificationMessage}\n`);
+console.log('Non-Driver with Lunch ৳140:');
+console.log(`  allowed: ${policyTest1.allowed} (Expected: true)`);
+console.log(`  hasWarning: ${policyTest1.hasWarning} (Expected: true)`);
+console.log(`  warningMessage: ${policyTest1.warningMessage}\n`);
 
 // 8. DRIVER VS NON-DRIVER LUNCH POLICY (100 TAKA RULE)
 console.log('--- Testing Driver vs Non-Driver Lunch Policy (100 BDT Rule) ---');

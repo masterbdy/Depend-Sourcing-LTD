@@ -1,5 +1,6 @@
 import localforage from 'localforage';
 import { Staff, UserRole } from '../types';
+import { perf } from './performanceDiagnostics';
 
 export const CACHE_SCHEMA_VERSION = 2;
 export const ACTIVE_PROFILE_KEY = 'active_profile_v2';
@@ -271,18 +272,23 @@ export async function fetchSingleStaffProfile(
   if (!userId || !firebaseConfig || !firebaseConfig.databaseURL) return null;
   if (typeof navigator !== 'undefined' && !navigator.onLine) return null;
 
-  try {
-    const { getApp } = await import('firebase/app');
-    const { getDatabase, ref, get } = await import('firebase/database');
-    const app = getApp();
-    const db = getDatabase(app, firebaseConfig.databaseURL);
-    const snap = await get(ref(db, `staffList/${userId}`));
-    if (snap.exists()) {
-      const val = snap.val();
-      return { ...val, id: userId };
+  return perf.measure('Staff profile loading', 'staff', async () => {
+    try {
+      const { getApp } = await import('firebase/app');
+      const { getDatabase, ref, get } = await import('firebase/database');
+      const app = getApp();
+      const db = getDatabase(app, firebaseConfig.databaseURL);
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('FETCH_TIMEOUT')), 2500)
+      );
+      const snap: any = await Promise.race([get(ref(db, `staffList/${userId}`)), timeoutPromise]);
+      if (snap && snap.exists && snap.exists()) {
+        const val = snap.val();
+        return { ...val, id: userId };
+      }
+    } catch (err) {
+      console.warn(`Failed direct fetch for staff member ${userId}`, err);
     }
-  } catch (err) {
-    console.warn(`Failed direct fetch for staff member ${userId}`, err);
-  }
-  return null;
+    return null;
+  });
 }

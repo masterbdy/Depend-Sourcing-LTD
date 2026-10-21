@@ -104,11 +104,8 @@ class PerformanceDiagnosticService {
       const completionTime = performance.now();
       const localProcessing = Math.max(0, localEnd - handlerStartTime - networkDuration);
 
-      // Measure time until next browser animation frame (paint)
-      requestAnimationFrame(() => {
-        const renderTime = performance.now();
-        const renderDuration = Math.max(0, renderTime - completionTime);
-        const totalDuration = renderTime - clickTime;
+      const record = (renderDurationMs: number) => {
+        const totalDuration = Math.max(0, (completionTime - clickTime) + renderDurationMs);
 
         const metric: PerfMetric = {
           id: actionId,
@@ -119,7 +116,7 @@ class PerformanceDiagnosticService {
           handlerStartTime,
           localProcessingDuration: Number(localProcessing.toFixed(2)),
           networkDuration: Number(networkDuration.toFixed(2)),
-          renderDuration: Number(renderDuration.toFixed(2)),
+          renderDuration: Number(renderDurationMs.toFixed(2)),
           totalDuration: Number(totalDuration.toFixed(2)),
           success,
           error: errorMsg,
@@ -127,7 +124,24 @@ class PerformanceDiagnosticService {
         };
 
         this.recordMetric(metric);
-      });
+      };
+
+      // Measure time until next browser animation frame (paint) if window is active and visible
+      if (
+        typeof window !== 'undefined' &&
+        typeof requestAnimationFrame === 'function' &&
+        document.visibilityState === 'visible'
+      ) {
+        requestAnimationFrame(() => {
+          const renderTime = performance.now();
+          const rawDuration = Math.max(0, renderTime - completionTime);
+          // If browser tab throttling caused rAF to pause (> 400ms), don't attribute idle background wait to UI lag
+          const renderDuration = rawDuration > 400 ? 16 : rawDuration;
+          record(renderDuration);
+        });
+      } else {
+        record(16);
+      }
     }
   }
 

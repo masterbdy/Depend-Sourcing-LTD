@@ -1,0 +1,7 @@
+{
+  "version": "1.1.0",
+  "buildTimestamp": "2026-10-21T12:00:00.000Z",
+  "minSupportedVersion": "1.0.0",
+  "releaseName": "Safe Update & Recovery Center",
+  "notes": "Added Safe Update & Recovery Center with offline sync protection, idempotent retry, conflict resolution, and sanitized backup verification."
+}
