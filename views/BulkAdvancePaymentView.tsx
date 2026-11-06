@@ -103,6 +103,7 @@ export const BulkAdvancePaymentView: React.FC<BulkAdvancePaymentProps> = ({
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showResetConfirmModal, setShowResetConfirmModal] = useState(false);
+  const [validationWarning, setValidationWarning] = useState<string | null>(null);
 
   // Post-submission summary receipt
   const [latestSummary, setLatestSummary] = useState<BatchTransactionSummary | null>(null);
@@ -281,10 +282,28 @@ export const BulkAdvancePaymentView: React.FC<BulkAdvancePaymentProps> = ({
     return list;
   }, [eligibleStaff, staffInputs, globalBatchNote, staffBalances]);
 
-  // Execute batch disbursement commit
+  // Open Mandatory Confirmation Dialog (does NOT process any transaction)
+  const handleOpenConfirmation = () => {
+    // Revalidate: Check if every amount is zero or empty
+    const validRecipients = eligibleStaff.filter((s) => Number(staffInputs[s.id]?.amount || 0) > 0);
+    if (validRecipients.length === 0 || metrics.totalAdvanceAmount <= 0) {
+      setValidationWarning('কোনো কর্মচারীর জন্য অগ্রিম টাকার পরিমাণ লিখা হয়নি। অনুগ্রহ করে কমপক্ষে একজন কর্মচারীর জন্য পরিমাণ লিখুন।');
+      return;
+    }
+    // Open mandatory confirmation dialog without modifying any records
+    setShowConfirmModal(true);
+  };
+
+  // Execute batch disbursement commit ONLY after explicit confirmation
   const handleConfirmAndExecute = async () => {
-    if (recipientsList.length === 0) return;
-    if (isSubmitting) return; // Prevent duplicate clicks
+    // 1. Immediate revalidation right before processing
+    const currentValidRecipients = eligibleStaff.filter((s) => Number(staffInputs[s.id]?.amount || 0) > 0);
+    if (currentValidRecipients.length === 0 || metrics.totalAdvanceAmount <= 0) {
+      setValidationWarning('কোনো বৈধ অগ্রিম পরিমাণ পাওয়া যায়নি। অনুগ্রহ করে পুনরায় পরীক্ষা করুন।');
+      setShowConfirmModal(false);
+      return;
+    }
+    if (isSubmitting) return; // Prevent double-click & duplicate execution
 
     setIsSubmitting(true);
 
@@ -1001,12 +1020,12 @@ export const BulkAdvancePaymentView: React.FC<BulkAdvancePaymentProps> = ({
 
                   <button
                     type="button"
-                    disabled={metrics.recipientsCount === 0 || metrics.totalAdvanceAmount <= 0}
-                    onClick={() => setShowConfirmModal(true)}
-                    className={`h-11 px-6 rounded-xl text-sm font-black flex items-center gap-2 transition-all shadow-[0_4px_16px_rgba(16,185,129,0.3)] ${
+                    disabled={isSubmitting}
+                    onClick={handleOpenConfirmation}
+                    className={`h-11 px-6 rounded-xl text-sm font-black flex items-center gap-2 transition-all shadow-[0_4px_16px_rgba(16,185,129,0.3)] cursor-pointer ${
                       metrics.recipientsCount > 0 && metrics.totalAdvanceAmount > 0
-                        ? 'bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 text-white active:scale-95 cursor-pointer'
-                        : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+                        ? 'bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 text-white active:scale-95'
+                        : 'bg-slate-200 hover:bg-slate-300 text-slate-600 border border-slate-300/80 shadow-none'
                     }`}
                   >
                     <Send className="w-4 h-4" />
@@ -1155,12 +1174,12 @@ export const BulkAdvancePaymentView: React.FC<BulkAdvancePaymentProps> = ({
             {/* Submit Advance Payment Button */}
             <button
               type="button"
-              disabled={metrics.recipientsCount === 0 || metrics.totalAdvanceAmount <= 0}
-              onClick={() => setShowConfirmModal(true)}
-              className={`flex-1 h-11 px-4 rounded-xl text-xs sm:text-sm font-black flex items-center justify-center gap-2 transition-all shadow-[0_4px_16px_rgba(16,185,129,0.35)] ${
+              disabled={isSubmitting}
+              onClick={handleOpenConfirmation}
+              className={`flex-1 h-11 px-4 rounded-xl text-xs sm:text-sm font-black flex items-center justify-center gap-2 transition-all shadow-[0_4px_16px_rgba(16,185,129,0.35)] cursor-pointer ${
                 metrics.recipientsCount > 0 && metrics.totalAdvanceAmount > 0
-                  ? 'bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 text-white active:scale-95 cursor-pointer'
-                  : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-white/5 shadow-none'
+                  ? 'bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 text-white active:scale-95'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-white/10 shadow-none'
               }`}
             >
               <Send className="w-4 h-4" />
@@ -1287,6 +1306,32 @@ export const BulkAdvancePaymentView: React.FC<BulkAdvancePaymentProps> = ({
       )}
 
       {/* =========================================================================
+          8. MODAL: VALIDATION WARNING (NO AMOUNT ENTERED)
+         ========================================================================= */}
+      {validationWarning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl border border-amber-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-4 border border-amber-200 shadow-sm">
+              <AlertTriangle className="w-7 h-7" />
+            </div>
+            <h3 className="text-base font-bold text-slate-900 mb-2">
+              সতর্কবার্তা (Warning)
+            </h3>
+            <p className="text-xs text-slate-600 mb-6 leading-relaxed">
+              {validationWarning}
+            </p>
+            <button
+              type="button"
+              onClick={() => setValidationWarning(null)}
+              className="w-full py-2.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl transition-all shadow-md shadow-amber-600/30 cursor-pointer"
+            >
+              ঠিক আছে (OK)
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
           8. MODAL: RESET CONFIRMATION
          ========================================================================= */}
       {showResetConfirmModal && (
@@ -1334,18 +1379,18 @@ export const BulkAdvancePaymentView: React.FC<BulkAdvancePaymentProps> = ({
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-slate-900">
-                    পেমেন্ট পর্যালোচনা ও চূড়ান্ত অনুমোদন
+                    অগ্রিম পেমেন্ট নিশ্চিতকরণ (Confirmation)
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Bulk Advance Disbursement Verification
+                    লেনদেন কার্যকর করার পূর্বে মোট টাকা ও কর্মচারী তালিকা পর্যালোচনা করুন
                   </p>
                 </div>
               </div>
               <button
                 type="button"
                 disabled={isSubmitting}
-                onClick={() => setShowConfirmModal(false)}
-                className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center"
+                onClick={() => !isSubmitting && setShowConfirmModal(false)}
+                className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors disabled:opacity-50"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1430,21 +1475,21 @@ export const BulkAdvancePaymentView: React.FC<BulkAdvancePaymentProps> = ({
             </div>
 
             {/* Footer Buttons */}
-            <div className="flex items-center justify-end gap-2.5 pt-4 mt-4 border-t border-slate-100">
+            <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5 pt-4 mt-4 border-t border-slate-100">
               <button
                 type="button"
                 disabled={isSubmitting}
-                onClick={() => setShowConfirmModal(false)}
-                className="px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+                onClick={() => !isSubmitting && setShowConfirmModal(false)}
+                className="w-full sm:w-auto px-5 py-2.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl transition-colors disabled:opacity-50 cursor-pointer"
               >
-                পুনর্বিবেচনা
+                বাতিল (Cancel)
               </button>
 
               <button
                 type="button"
-                disabled={isSubmitting}
+                disabled={isSubmitting || recipientsList.length === 0}
                 onClick={handleConfirmAndExecute}
-                className="px-6 py-2.5 text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-md shadow-emerald-600/30 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                className="w-full sm:w-auto px-6 py-2.5 text-xs font-black bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 text-white rounded-xl shadow-md shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {isSubmitting ? (
                   <>
@@ -1454,7 +1499,7 @@ export const BulkAdvancePaymentView: React.FC<BulkAdvancePaymentProps> = ({
                 ) : (
                   <>
                     <Check className="w-4 h-4 stroke-[3]" />
-                    <span>চূড়ান্ত বিতরণ সম্পন্ন করুন</span>
+                    <span>নিশ্চিত ও বিতরণ করুন (Confirm & Submit)</span>
                   </>
                 )}
               </button>

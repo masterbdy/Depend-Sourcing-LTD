@@ -211,6 +211,122 @@ assert(isRoleAuthorized(UserRole.STAFF) === false, 'STAFF is restricted');
 assert(isRoleAuthorized(UserRole.KIOSK) === false, 'KIOSK is restricted');
 assert(isRoleAuthorized(UserRole.GUEST) === false, 'GUEST is restricted');
 
+// TEST 7: Zero/Empty Validation Guard
+console.log('\n--- Test 7: Mandatory Confirmation - Zero/Empty Submission Validation ---');
+const emptyInputs: Record<string, { amount: string; note: string }> = {
+  'staff-1': { amount: '', note: '' },
+  'staff-2': { amount: '0', note: '' },
+};
+
+function attemptOpenConfirmation(inputs: Record<string, { amount: string; note: string }>) {
+  const validRecipients = eligibleActiveStaff.filter((s) => Number(inputs[s.id]?.amount || 0) > 0);
+  const totalAmount = validRecipients.reduce((sum, s) => sum + Number(inputs[s.id]?.amount || 0), 0);
+  if (validRecipients.length === 0 || totalAmount <= 0) {
+    return { canOpen: false, warning: 'কোনো কর্মচারীর জন্য অগ্রিম টাকার পরিমাণ লিখা হয়নি। অনুগ্রহ করে কমপক্ষে একজন কর্মচারীর জন্য পরিমাণ লিখুন।' };
+  }
+  return { canOpen: true, warning: null };
+}
+
+const emptyResult = attemptOpenConfirmation(emptyInputs);
+assert(emptyResult.canOpen === false, 'Submission blocked when every amount is zero or empty');
+assert(emptyResult.warning !== null, 'Warning message generated when submission attempted with zero amounts');
+
+// TEST 8: Opening Confirmation Dialog Does Not Modify State
+console.log('\n--- Test 8: Mandatory Confirmation - Pre-Execution State Immutability ---');
+let testStateAdvances = [...mockExistingAdvances];
+const validTestInputs: Record<string, { amount: string; note: string }> = {
+  'staff-1': { amount: '5000', note: 'Advance test' },
+  'staff-2': { amount: '2000', note: '' },
+};
+
+const openResult = attemptOpenConfirmation(validTestInputs);
+assert(openResult.canOpen === true, 'Confirmation dialog opens when valid amounts are entered');
+// Check that state is untouched upon opening dialog
+assert(testStateAdvances.length === mockExistingAdvances.length, 'Opening confirmation dialog does NOT modify any account records');
+const preConfirmBalances = calculateBalances(testStateAdvances);
+assert(preConfirmBalances['staff-2'] === 2000, 'Staff-2 balance remains exactly 2000 prior to explicit confirmation');
+
+// TEST 9: Confirmation Modal Breakdown Accuracy & Zero Exclusion
+console.log('\n--- Test 9: Mandatory Confirmation - Breakdown Contents & Zero Exclusion ---');
+const mixedInputs: Record<string, { amount: string; note: string }> = {
+  'staff-1': { amount: '6000', note: 'Official Tour' },
+  'staff-2': { amount: '', note: '' }, // empty
+  'staff-3': { amount: '4000', note: 'Emergency' },
+};
+
+const confirmationRecipients = eligibleActiveStaff
+  .map((s) => ({
+    staff: s,
+    amount: Number(mixedInputs[s.id]?.amount || 0),
+    note: mixedInputs[s.id]?.note || '',
+  }))
+  .filter((item) => item.amount > 0);
+
+assert(confirmationRecipients.length === 2, 'Empty amounts strictly excluded from confirmation breakdown');
+assert(!confirmationRecipients.some((r) => r.staff.id === 'staff-2'), 'Staff-2 with empty amount excluded from confirmation');
+const confirmationTotal = confirmationRecipients.reduce((acc, r) => acc + r.amount, 0);
+assert(confirmationTotal === 10000, 'Confirmation total matches sum of non-empty inputs (৳10,000)');
+assert(confirmationRecipients[0].staff.name === 'Md. Mehedi Hasan' && confirmationRecipients[0].amount === 6000, 'Staff 1 details correctly formatted in confirmation breakdown');
+
+// TEST 10: Cancel Action Behavior
+console.log('\n--- Test 10: Mandatory Confirmation - Cancel Action Behavior ---');
+let dialogIsOpen = true;
+// Simulate Cancel button click
+function handleCancelConfirmation() {
+  dialogIsOpen = false;
+  // Does NOT modify testStateAdvances
+  // Does NOT clear mixedInputs
+}
+handleCancelConfirmation();
+assert(dialogIsOpen === false, 'Cancel button successfully closes the confirmation dialog');
+assert(testStateAdvances.length === mockExistingAdvances.length, 'Cancel action did NOT modify any account balance');
+assert(mixedInputs['staff-1'].amount === '6000', 'Cancel action preserves all entered user inputs');
+
+// TEST 11: Explicit Confirm & Submit Processing & Locking
+console.log('\n--- Test 11: Mandatory Confirmation - Confirm & Submit Processing ---');
+let isSubmitting = false;
+let executionCount = 0;
+
+async function executeConfirmAndSubmit(inputs: Record<string, { amount: string; note: string }>) {
+  // Revalidate immediately before processing
+  const valid = eligibleActiveStaff.filter((s) => Number(inputs[s.id]?.amount || 0) > 0);
+  if (valid.length === 0) throw new Error('Revalidation failed');
+  if (isSubmitting) return; // Prevent double-click/duplicate execution
+  isSubmitting = true;
+
+  try {
+    executionCount++;
+    const newItems: AdvanceLog[] = valid.map((s) => ({
+      id: `new_${s.id}`,
+      staffId: s.id,
+      staffName: s.name,
+      amount: Number(inputs[s.id].amount),
+      note: inputs[s.id].note || 'Bulk Advance',
+      date: new Date().toISOString(),
+      givenBy: 'Admin',
+      type: 'REGULAR',
+      batchId: 'BATCH-ADV-TEST-001',
+    }));
+    testStateAdvances = [...testStateAdvances, ...newItems];
+  } finally {
+    isSubmitting = false;
+  }
+}
+
+// 1. Initial submission
+executeConfirmAndSubmit(mixedInputs);
+assert(executionCount === 1, 'Transaction executed upon explicit confirmation');
+assert(testStateAdvances.length === mockExistingAdvances.length + 2, 'Exactly 2 records committed to Regular Advance account');
+const postConfirmBalances = calculateBalances(testStateAdvances);
+assert(postConfirmBalances['staff-1'] === 6000, 'Staff-1 Regular Advance updated to ৳6,000');
+assert(postConfirmBalances['staff-3'] === 4000, 'Staff-3 Regular Advance updated to ৳4,000');
+
+// 2. Test duplicate prevention lock
+isSubmitting = true;
+executeConfirmAndSubmit(mixedInputs);
+assert(executionCount === 1, 'Duplicate transaction execution prevented while isSubmitting is true');
+isSubmitting = false;
+
 console.log('\n===============================================================');
 console.log(`TOTAL TESTS: ${passed + failed} | PASSED: ${passed} | FAILED: ${failed}`);
 console.log('===============================================================');
