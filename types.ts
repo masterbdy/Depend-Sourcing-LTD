@@ -200,6 +200,9 @@ export interface AdvanceLog {
   isDeleted?: boolean;
   isHardDeleted?: boolean;
   type?: 'REGULAR' | 'SALARY'; 
+  batchId?: string;
+  batchNote?: string;
+  transactionId?: string;
 }
 
 export interface Complaint {

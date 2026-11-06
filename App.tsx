@@ -134,6 +134,7 @@ const LearningAcademyView = lazy(() => import("./views/LearningAcademy"));
 const StaffBatteryView = lazy(() => import("./views/StaffBattery"));
 const SystemHealthView = lazy(() => import("./views/SystemHealthView"));
 const SafeUpdateRecoveryView = lazy(() => import("./views/SafeUpdateRecoveryView"));
+const BulkAdvancePaymentView = lazy(() => import("./views/BulkAdvancePaymentView"));
 import { safeUpdateRecovery } from "./services/safeUpdateRecoveryService";
 
 import localforage from "localforage";
@@ -3206,6 +3207,14 @@ const App: React.FC = () => {
         bgColor: "bg-indigo-50",
       },
       {
+        id: "bulk-advance",
+        label: "বাল্ক অগ্রিম পেমেন্ট",
+        icon: WalletCards,
+        roles: [UserRole.ADMIN, UserRole.MD],
+        color: "text-emerald-700",
+        bgColor: "bg-emerald-50",
+      },
+      {
         id: "movements",
         label: "মুভমেন্ট লগ",
         icon: Footprints,
@@ -3485,6 +3494,19 @@ const App: React.FC = () => {
             onUpdatePoints={handlePointUpdate}
             highlightStaffId={highlightStaffId}
             setHighlightStaffId={setHighlightStaffId}
+          />
+        );
+      case "bulk-advance":
+        return (
+          <BulkAdvancePaymentView
+            staffList={staffList}
+            advances={advances}
+            setAdvances={updateAdvances}
+            role={role!}
+            currentUser={currentUser}
+            cashOnHand={cashOnHand}
+            onNavigateToLedger={() => setActiveTab("funds")}
+            onBack={() => setActiveTab("dashboard")}
           />
         );
       case "movements":
@@ -4178,7 +4200,7 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col h-full overflow-hidden relative pb-[70px] md:pb-0">
+      <main className={`flex-1 flex flex-col h-full overflow-hidden relative ${activeTab === "bulk-advance" ? "pb-0" : "pb-[70px] md:pb-0"}`}>
         <header
           className={`h-16 flex items-center justify-between px-6 shrink-0 relative z-20 ${isDarkMode ? "bg-gray-900/80 backdrop-blur-md border-b border-white/10" : "bg-white border-b border-gray-200"}`}
         >
@@ -4353,7 +4375,7 @@ const App: React.FC = () => {
         </header>
 
         <div
-          className={`flex-1 overflow-y-auto p-6 md:p-8 ${isDarkMode ? "bg-transparent" : "bg-gray-50"}`}
+          className={`flex-1 overflow-y-auto ${activeTab === "bulk-advance" ? "p-2 sm:p-6 md:p-8" : "p-6 md:p-8"} ${isDarkMode ? "bg-transparent" : "bg-gray-50"}`}
         >
           <div className="max-w-7xl mx-auto">
             <Suspense fallback={<DashboardSkeleton role={role} isDarkMode={isDarkMode} />}>
@@ -4363,56 +4385,58 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      <div className="md:hidden fixed bottom-4 left-4 right-4 bg-gray-900/90 backdrop-blur-lg border border-white/10 rounded-2xl flex justify-around items-center px-2 h-16 z-50 shadow-2xl">
-        {bottomNavItems.map((item) => {
-          const isActive = activeTab === item.id;
-          const badge = badgeCounts[item.id] || 0;
+      {activeTab !== "bulk-advance" && (
+        <div className="md:hidden fixed bottom-4 left-4 right-4 bg-gray-900/90 backdrop-blur-lg border border-white/10 rounded-2xl flex justify-around items-center px-2 h-16 z-50 shadow-2xl">
+          {bottomNavItems.map((item) => {
+            const isActive = activeTab === item.id;
+            const badge = badgeCounts[item.id] || 0;
 
-          return (
-            <button
-              key={item.id}
-              onClick={() => {
-                setActiveTab(item.id);
-                setIsMoreMenuOpen(false);
-              }}
-              className="relative w-full flex flex-col items-center justify-center"
-            >
-              <div
-                className={`transition-all duration-300 flex items-center justify-center ${
-                  isActive
-                    ? "w-12 h-12 bg-gradient-to-tr from-indigo-500 to-purple-500 rounded-full shadow-[0_8px_16px_rgba(99,102,241,0.5)] -translate-y-5 border-4 border-gray-900"
-                    : "w-10 h-10 text-gray-400 hover:text-gray-200"
-                }`}
+            return (
+              <button
+                key={item.id}
+                onClick={() => {
+                  setActiveTab(item.id);
+                  setIsMoreMenuOpen(false);
+                }}
+                className="relative w-full flex flex-col items-center justify-center"
               >
-                <item.icon
-                  className={`transition-all ${isActive ? "w-5 h-5 text-white" : "w-5 h-5"}`}
-                />
+                <div
+                  className={`transition-all duration-300 flex items-center justify-center ${
+                    isActive
+                      ? "w-12 h-12 bg-gradient-to-tr from-indigo-500 to-purple-500 rounded-full shadow-[0_8px_16px_rgba(99,102,241,0.5)] -translate-y-5 border-4 border-gray-900"
+                      : "w-10 h-10 text-gray-400 hover:text-gray-200"
+                  }`}
+                >
+                  <item.icon
+                    className={`transition-all ${isActive ? "w-5 h-5 text-white" : "w-5 h-5"}`}
+                  />
 
-                {badge > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-black px-1 rounded-full min-w-[1rem] h-4 flex items-center justify-center border border-gray-900">
-                    {badge > 9 ? "9+" : badge}
-                  </span>
-                )}
-              </div>
-              <span
-                className={`text-[10px] font-bold transition-all duration-300 absolute -bottom-1 ${isActive ? "opacity-100 text-indigo-300 translate-y-0" : "opacity-0 translate-y-2"}`}
-              >
-                {item.label}
-              </span>
-            </button>
-          );
-        })}
-        <button
-          onClick={() => setIsMoreMenuOpen(true)}
-          className="relative w-full flex flex-col items-center justify-center"
-        >
-          <div
-            className={`transition-all duration-300 flex items-center justify-center w-10 h-10 text-gray-400 hover:text-gray-200 ${isMoreMenuOpen ? "text-white" : ""}`}
+                  {badge > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-black px-1 rounded-full min-w-[1rem] h-4 flex items-center justify-center border border-gray-900">
+                      {badge > 9 ? "9+" : badge}
+                    </span>
+                  )}
+                </div>
+                <span
+                  className={`text-[10px] font-bold transition-all duration-300 absolute -bottom-1 ${isActive ? "opacity-100 text-indigo-300 translate-y-0" : "opacity-0 translate-y-2"}`}
+                >
+                  {item.label}
+                </span>
+              </button>
+            );
+          })}
+          <button
+            onClick={() => setIsMoreMenuOpen(true)}
+            className="relative w-full flex flex-col items-center justify-center"
           >
-            <Menu className="w-6 h-6" />
-          </div>
-        </button>
-      </div>
+            <div
+              className={`transition-all duration-300 flex items-center justify-center w-10 h-10 text-gray-400 hover:text-gray-200 ${isMoreMenuOpen ? "text-white" : ""}`}
+            >
+              <Menu className="w-6 h-6" />
+            </div>
+          </button>
+        </div>
+      )}
 
       {isMoreMenuOpen && (
         <div className="fixed inset-0 z-[60] md:hidden">
