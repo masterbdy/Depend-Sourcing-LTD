@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F172A" />
+      <stop offset="50%" stop-color="#0B192C" />
+      <stop offset="100%" stop-color="#061220" />
+    </linearGradient>
+    <linearGradient id="rimGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8" stop-opacity="0.6" />
+      <stop offset="50%" stop-color="#6366F1" stop-opacity="0.3" />
+      <stop offset="100%" stop-color="#0EA5E9" stop-opacity="0.1" />
+    </linearGradient>
+    <linearGradient id="dGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="45%" stop-color="#2563EB" />
+      <stop offset="100%" stop-color="#1D4ED8" />
+    </linearGradient>
+    <linearGradient id="sGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34D399" />
+      <stop offset="50%" stop-color="#06B6D4" />
+      <stop offset="100%" stop-color="#4F46E5" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDE047" />
+      <stop offset="100%" stop-color="#F59E0B" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="12" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="16" stdDeviation="20" flood-color="#000000" flood-opacity="0.6" />
+    </filter>
+  </defs>
+
+  <!-- Background Base -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+  <rect width="512" height="512" rx="112" fill="none" stroke="url(#rimGrad)" stroke-width="4" />
+
+  <!-- Inner Soft Glow -->
+  <circle cx="256" cy="220" r="160" fill="#2563EB" opacity="0.18" filter="url(#glow)" />
+  <circle cx="320" cy="270" r="120" fill="#06B6D4" opacity="0.15" filter="url(#glow)" />
+
+  <!-- Monogram & Emblem Group -->
+  <g filter="url(#shadow)">
+    <!-- Shield / Diamond Contour Geometry -->
+    <path d="M256 64 L370 128 L370 270 Q370 360 256 414 Q142 360 142 270 L142 128 Z"
+          fill="none" stroke="url(#rimGrad)" stroke-width="3" opacity="0.4" />
+
+    <!-- Stylized 'D' Shape (Left Arch) -->
+    <path d="M176 148 L252 148 C302 148 336 178 336 226 C336 274 302 304 252 304 L216 304 L216 348 L176 348 Z M216 188 L216 264 L250 264 C276 264 294 250 294 226 C294 202 276 188 250 188 Z"
+          fill="url(#dGrad)" />
+
+    <!-- Stylized 'S' Ribbon (Interlocking Dynamic Sourcing Wave) -->
+    <path d="M312 178 C284 162 254 168 238 182 C220 198 222 216 238 228 L278 254 C314 278 316 312 288 334 C260 356 216 352 188 336 L198 304 C222 318 252 322 268 310 C284 296 282 280 266 268 L226 242 C194 218 190 184 218 162 C246 140 294 144 322 160 Z"
+      fill="url(#sGrad)" opacity="0.95" />
+
+    <!-- Brand Gold Star Sparkle (Top Right Accent) -->
+    <path d="M366 112 L372 130 L390 136 L372 142 L366 160 L360 142 L342 136 L360 130 Z"
+          fill="url(#goldGrad)" filter="url(#glow)" />
+    
+    <!-- Mini Emerald Node Accent -->
+    <circle cx="216" cy="348" r="6" fill="#34D399" />
+  </g>
+
+  <!-- Brand Typography -->
+  <text x="256" y="440"
+        text-anchor="middle"
+        font-family="system-ui, -apple-system, sans-serif"
+        font-size="28"
+        font-weight="900"
+        letter-spacing="5"
+        fill="#FFFFFF">DEPEND SOURCING</text>
+  <text x="256" y="468"
+        text-anchor="middle"
+        font-family="system-ui, -apple-system, sans-serif"
+        font-size="13"
+        font-weight="700"
+        letter-spacing="3"
+        fill="#38BDF8">OFFICE &amp; BILLING CENTER</text>
+</svg>

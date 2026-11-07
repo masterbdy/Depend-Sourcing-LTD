@@ -701,11 +701,19 @@ Return ONLY valid JSON matching this exact structure:
   });
 
   // System Health Monitor Diagnostics endpoint
-  app.get('/api/system-health/status', (req, res) => {
+  app.get(['/api/system-health/status', '/api/health'], (req, res) => {
     try {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+
       const memory = process.memoryUsage();
       return res.json({
         status: 'OK',
+        healthy: true,
+        service: 'Depend Sourcing API',
+        runtime: 'Express / Node.js Server',
         uptime: Math.floor(process.uptime()),
         timestamp: new Date().toISOString(),
         nodeVersion: process.version,
@@ -713,6 +721,10 @@ Return ONLY valid JSON matching this exact structure:
           rss: Math.round(memory.rss / (1024 * 1024)),
           heapTotal: Math.round(memory.heapTotal / (1024 * 1024)),
           heapUsed: Math.round(memory.heapUsed / (1024 * 1024)),
+        },
+        capabilities: {
+          emailService: true,
+          aiTutor: Boolean(process.env.GEMINI_API_KEY),
         },
       });
     } catch (err: any) {

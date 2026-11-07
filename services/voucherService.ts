@@ -1,6 +1,7 @@
 import QRCode from 'qrcode';
 import { Expense, Staff, AdvanceLog, UserRole } from '../types';
 import { numberToWordsEnglish, numberToWordsBengali } from './numberToWords';
+import { perf } from './performanceDiagnostics';
 
 export interface StaffVoucherStats {
   staffTodayAdvances: number;
@@ -527,8 +528,11 @@ export function getStaffVoucherStats(
   };
 }
 
+const qrCodeCache = new Map<string, string>();
+
 /**
  * Generates an SVG or PNG QR Code data URL containing verifiable voucher metadata.
+ * Uses in-memory memoization cache for ultra-fast rendering.
  */
 export async function generateVoucherQRCode(
   voucherId: string,
@@ -537,26 +541,39 @@ export async function generateVoucherQRCode(
   date: string,
   status: string
 ): Promise<string> {
+  const qrPayload = JSON.stringify({
+    vch: `DS-VCH-${voucherId.toUpperCase()}`,
+    payee: staffName,
+    amt: `BDT ${amount}`,
+    date: date.split('T')[0],
+    st: status,
+    issuer: 'Depend Sourcing Ltd.',
+    sec: Math.abs(hashCode(voucherId + amount)).toString(36).toUpperCase(),
+  });
+
+  if (qrCodeCache.has(qrPayload)) {
+    return qrCodeCache.get(qrPayload)!;
+  }
+
   try {
-    const qrPayload = JSON.stringify({
-      vch: `DS-VCH-${voucherId.toUpperCase()}`,
-      payee: staffName,
-      amt: `BDT ${amount}`,
-      date: date.split('T')[0],
-      st: status,
-      issuer: 'Depend Sourcing Ltd.',
-      sec: Math.abs(hashCode(voucherId + amount)).toString(36).toUpperCase(),
+    const dataUrl = await perf.measure('Generate Voucher QR', 'voucher', async () => {
+      return await QRCode.toDataURL(qrPayload, {
+        width: 140,
+        margin: 1,
+        color: {
+          dark: '#142B4A',
+          light: '#FFFFFF',
+        },
+        errorCorrectionLevel: 'M',
+      });
     });
 
-    return await QRCode.toDataURL(qrPayload, {
-      width: 140,
-      margin: 1,
-      color: {
-        dark: '#142B4A',
-        light: '#FFFFFF',
-      },
-      errorCorrectionLevel: 'M',
-    });
+    if (qrCodeCache.size > 200) {
+      const firstKey = qrCodeCache.keys().next().value;
+      if (firstKey) qrCodeCache.delete(firstKey);
+    }
+    qrCodeCache.set(qrPayload, dataUrl);
+    return dataUrl;
   } catch (err) {
     console.warn('QR Code generation fallback:', err);
     return '';

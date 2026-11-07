@@ -1,22 +1,47 @@
 {
-  "name": "Depend Sourcing Billing",
-  "short_name": "Depend App",
-  "description": "Staff Management & Billing Control Center",
-  "theme_color": "#4f46e5",
-  "background_color": "#ffffff",
+  "id": "/",
+  "name": "Depend Sourcing Ltd.",
+  "short_name": "Depend Sourcing",
+  "description": "Office Management, Automated Billing & Financial Control Center for Depend Sourcing Ltd.",
+  "lang": "bn-BD",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "start_url": "/",
+  "theme_color": "#0b192c",
+  "background_color": "#0b192c",
+  "categories": ["business", "finance", "productivity"],
   "icons": [
     {
       "src": "/pwa-192x192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "/pwa-512x512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
     }
   ]
 }

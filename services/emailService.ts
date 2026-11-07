@@ -1,3 +1,5 @@
+import { perf } from './performanceDiagnostics';
+
 /**
  * Backend Email Service integration.
  * Makes a POST request to our Custom Node.js Express server.
@@ -29,15 +31,17 @@ export const sendOTPEmail = async (email: string, otpCode: string, name: string)
   };
 
   try {
-    const response = await fetch('/api/send-email', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        to: email,
-        subject,
-        html,
-        smtpConfig: getSmtpConfig()
-      }),
+    const response = await perf.measure('Send Email OTP', 'api', async () => {
+      return await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: email,
+          subject,
+          html,
+          smtpConfig: getSmtpConfig(),
+        }),
+      });
     });
     
     if (!response.ok) {
@@ -76,10 +80,12 @@ export const sendFundAddedEmailToMD = async (amount: number, source: string, add
   };
 
   try {
-    const response = await fetch('/api/send-email', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to: mdEmail, subject, html, smtpConfig: getSmtpConfig() }),
+    const response = await perf.measure('Send Fund Email', 'api', async () => {
+      return await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: mdEmail, subject, html, smtpConfig: getSmtpConfig() }),
+      });
     });
 
     if (!response.ok) {
@@ -122,10 +128,12 @@ export const sendBillStatusEmailToStaff = async (staffEmail: string, staffName: 
   };
 
   try {
-    const response = await fetch('/api/send-email', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to: staffEmail, subject, html, smtpConfig: getSmtpConfig() }),
+    const response = await perf.measure('Send Bill Status Email', 'api', async () => {
+      return await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: staffEmail, subject, html, smtpConfig: getSmtpConfig() }),
+      });
     });
 
     if (!response.ok) {

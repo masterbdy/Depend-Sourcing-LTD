@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { Settings, Save, Clock, Download, Upload, Database, ShieldCheck, ExternalLink, HelpCircle, Code, Check, AlertTriangle, Package, UserCheck, X, Image as ImageIcon, Trash2, Info, Mail, ShieldAlert, RefreshCw, FileSignature, GraduationCap, Search, Power } from 'lucide-react';
 import { BillingRule, UserRole, Staff } from '../types';
 import packageJson from '../package.json';
+import { PWAInstallButton } from '../components/PWAInstallButton';
 
 interface SettingsProps {
   billingRules: BillingRule[];
@@ -1056,6 +1057,29 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
               </div>
           </div>
       )}
+
+      {/* PWA Mobile App Installation & Offline Status */}
+      <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 transition-all duration-300 hover:shadow-md">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+              <Download className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold text-gray-800 dark:text-white tracking-tight">অফিসিয়াল মোবাইল অ্যাপ (PWA)</h2>
+                <span className="text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 px-2 py-0.5 rounded-full font-bold">Android & iOS</span>
+              </div>
+              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                Google Chrome বা Safari দিয়ে সরাসরি ফোনে ইনস্টল করুন। APK ছাড়াই ফুলস্ক্রিন অ্যাপ মোডে চলবে।
+              </p>
+            </div>
+          </div>
+          <div className="shrink-0">
+            <PWAInstallButton variant="banner" />
+          </div>
+        </div>
+      </div>
 
       {/* App Info */}
       <div className="bg-white dark:bg-gray-800 p-5 sm:p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all duration-300 hover:shadow-md">
