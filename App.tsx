@@ -138,7 +138,6 @@ const BulkAdvancePaymentView = lazy(() => import("./views/BulkAdvancePaymentView
 import { safeUpdateRecovery } from "./services/safeUpdateRecoveryService";
 import { systemHealth } from "./services/systemHealthService";
 import { perf } from "./services/performanceDiagnostics";
-import { PWAInstallButton } from "./components/PWAInstallButton";
 import { PWAUpdatePrompt } from "./components/PWAUpdatePrompt";
 
 import localforage from "localforage";
@@ -4107,11 +4106,6 @@ const App: React.FC = () => {
             </button>
           </div>
 
-          {/* Direct PWA Mobile Install on Login Screen */}
-          <div className="mt-3">
-            <PWAInstallButton variant="login" />
-          </div>
-
           <div className="mt-6 flex flex-col items-center gap-3">
             {isCloudEnabled ? (
               <span className="flex items-center gap-1.5 text-[10px] text-green-400 bg-green-900/30 px-3 py-1 rounded-full font-bold border border-green-500/30 shadow-lg shadow-green-900/20">
@@ -4217,7 +4211,17 @@ const App: React.FC = () => {
             <Share2 className="w-5 h-5 transition-transform group-hover:scale-110" />
             <span>অ্যাপ শেয়ার করুন</span>
           </button>
-          <PWAInstallButton variant="sidebar" />
+          {deferredPrompt && (
+            <div className="px-4 mb-2 relative z-10">
+              <button
+                onClick={handleInstallClick}
+                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-bold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 ring-1 ring-emerald-500/20 transition-all group"
+              >
+                <Download className="w-5 h-5 transition-transform group-hover:scale-110" />
+                <span>অ্যাপ ইন্সটল করুন</span>
+              </button>
+            </div>
+          )}
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-bold text-red-400 hover:text-white hover:bg-red-500/10 hover:ring-1 hover:ring-red-500/20 transition-all group"
@@ -4247,8 +4251,7 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <PWAInstallButton variant="header" />
+          <div className="flex items-center gap-4">
             <button
               onClick={toggleTheme}
               className={`p-2 rounded-full transition-all active:scale-95 ${isDarkMode ? "bg-white/10 text-yellow-400 hover:bg-white/20" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
@@ -4583,7 +4586,14 @@ const App: React.FC = () => {
               >
                 <Share2 className="w-4 h-4" /> অ্যাপ শেয়ার করুন
               </button>
-              <PWAInstallButton variant="sidebar" className="!px-0 !mb-2" />
+              {deferredPrompt && (
+                <button
+                  onClick={handleInstallClick}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400 hover:bg-emerald-100 transition-colors mb-2"
+                >
+                  <Download className="w-4 h-4" /> অ্যাপ ইন্সটল করুন
+                </button>
+              )}
               <button
                 onClick={handleLogout}
                 className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400 hover:bg-red-100 transition-colors"

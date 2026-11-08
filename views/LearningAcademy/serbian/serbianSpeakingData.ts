@@ -1,0 +1,245 @@
+import { SerbianPracticePhrase } from './types';
+
+export interface SerbianSpeakingCategory {
+  id: string;
+  label: string;
+  labelBn: string;
+  icon: string;
+}
+
+export const SERBIAN_SPEAKING_CATEGORIES: SerbianSpeakingCategory[] = [
+  { id: 'all', label: 'All Speaking Drills', labelBn: 'সব স্পিকিং ড্রিল', icon: '🎙️' },
+  { id: 'greetings', label: 'Greetings & Introductions', labelBn: 'কুশল বিনিময় ও পরিচয়', icon: '🤝' },
+  { id: 'questions', label: 'Asking & Answering Questions', labelBn: 'প্রশ্ন ও উত্তর বিনিময়', icon: '❓' },
+  { id: 'daily', label: 'Daily Conversations', labelBn: 'দৈনন্দিন কথোপকথন', icon: '💬' },
+  { id: 'restaurant', label: 'Shopping & Restaurants', labelBn: 'শপিং ও রেস্তোরাঁ', icon: '☕' },
+  { id: 'travel', label: 'Travel & Directions', labelBn: 'ভ্রমণ ও দিকনির্দেশনা', icon: '🚕' },
+  { id: 'workplace', label: 'Workplace & Business', labelBn: 'কর্মক্ষেত্র ও অফিস', icon: '💼' },
+  { id: 'roleplay', label: 'Real-Life Roleplay', labelBn: 'বাস্তব জীবনের রোল-প্লে', icon: '🎭' },
+];
+
+export const SERBIAN_SPEAKING_PHRASES: SerbianPracticePhrase[] = [
+  // 1. Greetings and Introductions
+  {
+    id: 'sp-sr-1',
+    cyrillic: 'Здраво, како си данас?',
+    latin: 'Zdravo, kako si danas?',
+    bengaliPronunciation: 'য্দ্রাভো, কাকো সি দানাস?',
+    bengaliMeaning: 'হ্যালো, আজ কেমন আছো?',
+    englishMeaning: 'Hello, how are you today?',
+    category: 'greetings',
+    audioPrompt: 'Zdravo, kako si danas?',
+  },
+  {
+    id: 'sp-sr-2',
+    cyrillic: 'Добар дан, драго ми је што смо се упознали.',
+    latin: 'Dobar dan, drago mi je što smo se upoznali.',
+    bengaliPronunciation: 'দোবার দান, দ্রাগো মি ইয়ে শ্তো স্মো সে উপোয্নালি।',
+    bengaliMeaning: 'শুভ দিন, আপনার সাথে পরিচিত হয়ে খুব ভালো লাগলো।',
+    englishMeaning: 'Good day, nice to meet you.',
+    category: 'greetings',
+    audioPrompt: 'Dobar dan, drago mi je što smo se upoznali.',
+  },
+  {
+    id: 'sp-sr-3',
+    cyrillic: 'Моје име је Мехеди, ја сам из Бангладеша.',
+    latin: 'Moje ime je Mehedi, ja sam iz Bangladeša.',
+    bengaliPronunciation: 'মোয়ে ইমে ইয়ে মেহেদী, ইয়া সাম ইয বাংলাদেশা।',
+    bengaliMeaning: 'আমার নাম মেহেদী, আমি বাংলাদেশ থেকে এসেছি।',
+    englishMeaning: 'My name is Mehedi, I am from Bangladesh.',
+    category: 'greetings',
+    audioPrompt: 'Moje ime je Mehedi, ja sam iz Bangladeša.',
+  },
+  {
+    id: 'sp-sr-4',
+    cyrillic: 'Добродошли у Србију и желим вам угодан боравак!',
+    latin: 'Dobrodošli u Srbiju i želim vam ugodan boravak!',
+    bengaliPronunciation: 'দোব্রোদোশ্লি উ সর্‌বিয়ু ই ঝেলিম ভাম উগোদন বোরাভাক!',
+    bengaliMeaning: 'সার্বিয়ায় আপনাকে স্বাগতম, আপনার সুন্দর অবস্থান কামনা করছি!',
+    englishMeaning: 'Welcome to Serbia and have a pleasant stay!',
+    category: 'greetings',
+    audioPrompt: 'Dobrodošli u Srbiju i želim vam ugodan boravak!',
+  },
+
+  // 2. Asking & Answering Questions
+  {
+    id: 'sp-sr-5',
+    cyrillic: 'Да ли говорите енглески језик?',
+    latin: 'Da li govorite engleski jezik?',
+    bengaliPronunciation: 'দা লি গোভোরিতে এঙ্গ্লেস্কি ইয়েযিক?',
+    bengaliMeaning: 'আপনি কি ইংরেজি ভাষা বলতে পারেন?',
+    englishMeaning: 'Do you speak English?',
+    category: 'questions',
+    audioPrompt: 'Da li govorite engleski jezik?',
+  },
+  {
+    id: 'sp-sr-6',
+    cyrillic: 'Како се зове ово место на српском?',
+    latin: 'Kako se zove ovo mesto na srpskom?',
+    bengaliPronunciation: 'কাকো সে যোভে ওভো মেস্তো না সর্‌প্সকোম?',
+    bengaliMeaning: 'সার্বিয়ান ভাষায় এই স্থানটির নাম কী?',
+    englishMeaning: 'What is this place called in Serbian?',
+    category: 'questions',
+    audioPrompt: 'Kako se zove ovo mesto na srpskom?',
+  },
+  {
+    id: 'sp-sr-7',
+    cyrillic: 'Колико је сати сада у Београду?',
+    latin: 'Koliko je sati sada u Beogradu?',
+    bengaliPronunciation: 'কোলিকো ইয়ে সাতি সাদার উ বেওগ্রাদু?',
+    bengaliMeaning: 'এখন বেলগ্রেডে কয়টা বাজে?',
+    englishMeaning: 'What time is it in Belgrade now?',
+    category: 'questions',
+    audioPrompt: 'Koliko je sati sada u Beogradu?',
+  },
+  {
+    id: 'sp-sr-8',
+    cyrillic: 'Можете ли ми помоћи, молим вас?',
+    latin: 'Možete li mi pomoći, molim vas?',
+    bengaliPronunciation: 'মোজ়েতে লি মি পোমোচি, মোলিম ভাস?',
+    bengaliMeaning: 'দয়া করে আমাকে একটু সাহায্য করতে পারেন?',
+    englishMeaning: 'Could you help me, please?',
+    category: 'questions',
+    audioPrompt: 'Možete li mi pomoći, molim vas?',
+  },
+
+  // 3. Daily Conversations
+  {
+    id: 'sp-sr-9',
+    cyrillic: 'Хвала вам пуно на лепом времену.',
+    latin: 'Hvala vam puno na lepom vremenu.',
+    bengaliPronunciation: 'খ্ভালা ভাম পুনো না লেপোম ভ্রে মেনু।',
+    bengaliMeaning: 'সুন্দর সময়ের জন্য আপনাকে অনেক ধন্যবাদ।',
+    englishMeaning: 'Thank you very much for the nice time.',
+    category: 'daily',
+    audioPrompt: 'Hvala vam puno na lepom vremenu.',
+  },
+  {
+    id: 'sp-sr-10',
+    cyrillic: 'Нема на чему, увек ми је задовољство!',
+    latin: 'Nema na čemu, uvek mi je zadovoljstvo!',
+    bengaliPronunciation: 'নেমা না চিমু, উভেক মি ইয়ে যাদকভোল্যস্তভো!',
+    bengaliMeaning: 'কোনো ব্যাপার না, এটা সবসময়ই আমার আনন্দের বিষয়!',
+    englishMeaning: 'You are welcome, always my pleasure!',
+    category: 'daily',
+    audioPrompt: 'Nema na čemu, uvek mi je zadovoljstvo!',
+  },
+  {
+    id: 'sp-sr-11',
+    cyrillic: 'Видимо се сутра ујутру на истом месту.',
+    latin: 'Vidimo se sutra ujutru na istom mestu.',
+    bengaliPronunciation: 'ভিদিমো সে সুত্রা উয়ুত্রু না ইস্তোম মেস্তু।',
+    bengaliMeaning: 'আগামীকাল সকালে একই জায়গায় দেখা হবে।',
+    englishMeaning: 'See you tomorrow morning at the same place.',
+    category: 'daily',
+    audioPrompt: 'Vidimo se sutra ujutru na istom mestu.',
+  },
+
+  // 4. Shopping and Restaurants
+  {
+    id: 'sp-sr-12',
+    cyrillic: 'Једну домаћу кафу и флаширану воду, молим вас.',
+    latin: 'Jednu domaću kafu i flaširanu vodu, molim vas.',
+    bengaliPronunciation: 'ইয়েদ্নু দোমাচু কাফু ই ফ্লাশিরানু ভোঁদু, মোলিম ভাস।',
+    bengaliMeaning: 'এক কাপ সার্বিয়ান ঐতিহ্যবাহী কফি এবং বোতলজাত পানি দিন, দয়া করে।',
+    englishMeaning: 'One domestic coffee and bottled water, please.',
+    category: 'restaurant',
+    audioPrompt: 'Jednu domaću kafu i flaširanu vodu, molim vas.',
+  },
+  {
+    id: 'sp-sr-13',
+    cyrillic: 'Колико кошта овај производ са порезом?',
+    latin: 'Koliko košta ovaj proizvod sa porezom?',
+    bengaliPronunciation: 'কোলিকো কোশ্তা ওভায় প্রোইযভোদ সা পোরেযোম?',
+    bengaliMeaning: 'ট্যাক্সসহ এই পণ্যের মোট দাম কত?',
+    englishMeaning: 'How much does this product cost with tax?',
+    category: 'restaurant',
+    audioPrompt: 'Koliko košta ovaj proizvod sa porezom?',
+  },
+  {
+    id: 'sp-sr-14',
+    cyrillic: 'Рачун, молим вас. Желим да платим картицом.',
+    latin: 'Račun, molim vas. Želim da platim karticom.',
+    bengaliPronunciation: 'রাচুন, মোলিম ভাস। ঝেলিম দা প্লাতিম কার্তিৎসম।',
+    bengaliMeaning: 'বিল দিন, দয়া করে। আমি কার্ডে পরিশোধ করতে চাই।',
+    englishMeaning: 'The check, please. I want to pay with card.',
+    category: 'restaurant',
+    audioPrompt: 'Račun, molim vas. Želim da platim karticom.',
+  },
+
+  // 5. Travel & Directions
+  {
+    id: 'sp-sr-15',
+    cyrillic: 'Опростите, где је најближа железничка станица?',
+    latin: 'Oprostite, gde je najbliža železnička stanica?',
+    bengaliPronunciation: 'ওপ্রোস্তিতে, গ্দে ইয়ে নাইব্লিঝা ঝেলেযনিচকা স্তানিত্সা?',
+    bengaliMeaning: 'মাফ করবেন, সবচেয়ে নিকটবর্তী রেলওয়ে স্টেশনটি কোথায়?',
+    englishMeaning: 'Excuse me, where is the nearest train station?',
+    category: 'travel',
+    audioPrompt: 'Oprostite, gde je najbliža železnička stanica?',
+  },
+  {
+    id: 'sp-sr-16',
+    cyrillic: 'Идите право, а затим скрените лево на раскрсници.',
+    latin: 'Idite pravo, a zatim skrenite levo na raskrsnici.',
+    bengaliPronunciation: 'ইদিতে প্রাভো, আ যাতিম স্ক্রেনিতে লেভো না রাস্ক্রস্নিৎসি।',
+    bengaliMeaning: 'সোজা যান, তারপর চৌরাস্তার মোড়ে বামে ঘুরুন।',
+    englishMeaning: 'Go straight, and then turn left at the intersection.',
+    category: 'travel',
+    audioPrompt: 'Idite pravo, a zatim skrenite levo na raskrsnici.',
+  },
+  {
+    id: 'sp-sr-17',
+    cyrillic: 'Треба ми такси до хотела у центру града.',
+    latin: 'Treba mi taksi do hotela u centru grada.',
+    bengaliPronunciation: 'ত্রেবা মি তাক্সি দো হোতেলা উ ৎসেন্ট্রু গ্রাদা।',
+    bengaliMeaning: 'সিটি সেন্টারের হোটেলে যাওয়ার জন্য আমার একটি ট্যাক্সি দরকার।',
+    englishMeaning: 'I need a taxi to the hotel in city center.',
+    category: 'travel',
+    audioPrompt: 'Treba mi taksi do hotela u centru grada.',
+  },
+
+  // 6. Workplace & Business
+  {
+    id: 'sp-sr-18',
+    cyrillic: 'Ја сам из међународне компаније Depend Sourcing.',
+    latin: 'Ja sam iz međunarodne kompanije Depend Sourcing.',
+    bengaliPronunciation: 'ইয়া সাম ইয মেজুনারোদনে কোম্পানিয়ে ডিপেন্ড সোর্সিং।',
+    bengaliMeaning: 'আমি আন্তর্জাতিক কোম্পানি ডিপেন্ড সোর্সিং থেকে এসেছি।',
+    englishMeaning: 'I am from the international company Depend Sourcing.',
+    category: 'workplace',
+    audioPrompt: 'Ja sam iz međunarodne kompanije Depend Sourcing.',
+  },
+  {
+    id: 'sp-sr-19',
+    cyrillic: 'Да ли можемо потврдити коначни рок испоруке данас?',
+    latin: 'Da li možemo potvrditi konačni rok isporuke danas?',
+    bengaliPronunciation: 'দা লি মোঝে মো পোত্বর্‌দিতি কোনাচনি রোক ইস্পোরুকে দানাস?',
+    bengaliMeaning: 'আমরা কি আজ চূড়ান্ত ডেলিভারি সময়সীমা নিশ্চিত করতে পারি?',
+    englishMeaning: 'Can we confirm the final delivery deadline today?',
+    category: 'workplace',
+    audioPrompt: 'Da li možemo potvrditi konačni rok isporuke danas?',
+  },
+  {
+    id: 'sp-sr-20',
+    cyrillic: 'Послаћу вам ажурирану фактуру и уговор путем мејла.',
+    latin: 'Poslaću vam ažuriranu fakturu i ugovor putem mejla.',
+    bengaliPronunciation: 'পোস্লাচু ভাম আঝুরিরানু ফাক্তুরু ই উগোভর পুতেম মেইলা।',
+    bengaliMeaning: 'আমি ইমেইলের মাধ্যমে আপনাকে আপডেট করা চালান ও চুক্তিপত্র পাঠাব।',
+    englishMeaning: 'I will send you the updated invoice and contract by email.',
+    category: 'workplace',
+    audioPrompt: 'Poslaću vam ažuriranu fakturu i ugovor putem mejla.',
+  },
+
+  // 7. Real-Life Roleplay
+  {
+    id: 'sp-sr-21',
+    cyrillic: 'Спремни смо за дугорочну и успешну пословну сарадњу.',
+    latin: 'Spremni smo za dugoročnu i uspešnu poslovnu saradnju.',
+    bengaliPronunciation: 'স্প্রেম্নি স্মো যা দুগোরোচ্নু ই উস্পেশ্নু পোস্লোভনু সারাদন্যু।',
+    bengaliMeaning: 'আমরা দীর্ঘমেয়াদী এবং সফল ব্যবসায়িক সহযোগিতার জন্য প্রস্তুত।',
+    englishMeaning: 'We are ready for a long-term and successful business cooperation.',
+    category: 'roleplay',
+    audioPrompt: 'Spremni smo za dugoročnu i uspešnu poslovnu saradnju.',
+  },
+];

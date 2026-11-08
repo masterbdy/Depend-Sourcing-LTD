@@ -43,6 +43,20 @@ export const SUPPORTED_LANGUAGES: LanguageConfig[] = [
     voiceLangCode: 'es-ES',
     aiScenarioCategory: 'daily',
   },
+  {
+    code: 'serbian',
+    name: 'Serbian',
+    nativeName: 'Српски',
+    flag: '🇷🇸',
+    bannerGradient: 'from-blue-600 via-indigo-700 to-rose-700',
+    primaryColor: 'blue',
+    descriptionBn: 'সার্বিয়ান বর্ণমালা (সিরিলিক ও ল্যাটিন), শব্দভাণ্ডার, কথোপকথন ও ব্যাকরণ।',
+    defaultAccess: true, // Available to staff
+    hasRomanization: true,
+    romanizationLabel: 'Latin',
+    voiceLangCode: 'sr-RS',
+    aiScenarioCategory: 'daily',
+  },
 ];
 
 // Helper to look up language by code
@@ -59,6 +73,7 @@ export const DEFAULT_GLOBAL_SETTINGS: GlobalLearningSettings = {
     english: { enabledForEveryone: true, disabledGlobally: false },
     chinese: { enabledForEveryone: false, disabledGlobally: false },
     spanish: { enabledForEveryone: false, disabledGlobally: false },
+    serbian: { enabledForEveryone: true, disabledGlobally: false },
   },
   dailyXpLimit: 250,
   leaderboardEnabled: true,

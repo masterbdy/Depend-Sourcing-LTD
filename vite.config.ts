@@ -29,7 +29,7 @@ export default defineConfig({
         short_name: 'Depend Sourcing',
         description: 'Office Management, Automated Billing & Financial Control Center for Depend Sourcing Ltd.',
         theme_color: '#0b192c',
-        background_color: '#0b192c',
+        background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait',
         start_url: '/',

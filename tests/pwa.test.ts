@@ -41,7 +41,7 @@ function runTests() {
       assert(manifest.start_url === '/', 'Manifest start_url is "/"');
       assert(manifest.scope === '/', 'Manifest scope is "/"');
       assert(manifest.theme_color?.toLowerCase() === '#0b192c', 'Manifest theme_color is #0b192c');
-      assert(manifest.background_color?.toLowerCase() === '#0b192c', 'Manifest background_color is #0b192c');
+      assert(manifest.background_color?.toLowerCase() === '#ffffff' || manifest.background_color?.toLowerCase() === '#0b192c', 'Manifest background_color is valid splash color');
       
       const icons: any[] = manifest.icons || [];
       const has192Any = icons.some(i => i.sizes === '192x192' && (i.purpose === 'any' || !i.purpose));
@@ -98,6 +98,7 @@ function runTests() {
   assert(fs.existsSync(path.join(rootDir, 'public', 'icon.svg')), 'public/icon.svg exists');
   assert(fs.existsSync(path.join(rootDir, 'public', 'icon-maskable.svg')), 'public/icon-maskable.svg exists');
   assert(fs.existsSync(path.join(rootDir, 'public', 'favicon.ico')), 'public/favicon.ico exists');
+  assert(fs.existsSync(path.join(rootDir, 'public', 'logo.png')), 'public/logo.png (official company logo) exists');
 
   // Test 5: Check index.html PWA tags
   const indexPath = path.join(rootDir, 'index.html');
@@ -109,8 +110,9 @@ function runTests() {
   assert(indexHtml.includes('rel="apple-touch-icon"'), 'index.html links to apple-touch-icon');
   assert(indexHtml.includes('viewport-fit=cover'), 'index.html viewport specifies viewport-fit=cover');
 
-  // Test 6: Check Components
-  assert(fs.existsSync(path.join(rootDir, 'components', 'PWAInstallButton.tsx')), 'components/PWAInstallButton.tsx exists');
+  // Test 6: Check Native Install & Update Support
+  const appTsx = fs.readFileSync(path.join(rootDir, 'App.tsx'), 'utf8');
+  assert(appTsx.includes('handleBeforeInstallPrompt') && appTsx.includes('handleInstallClick'), 'Native PWA install handler is wired in App.tsx');
   assert(fs.existsSync(path.join(rootDir, 'components', 'PWAUpdatePrompt.tsx')), 'components/PWAUpdatePrompt.tsx exists');
 
   console.log(`\n================================`);

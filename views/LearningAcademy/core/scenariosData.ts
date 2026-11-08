@@ -87,5 +87,52 @@ export const UNIVERSAL_AI_SCENARIOS: UniversalConversationScenario[] = [
     initialTarget: 'Proponemos un 30% de depósito inicial y el saldo restante contra documentos de embarque.',
     initialBengali: 'আমরা ৩০% প্রাথমিক ডিপোজিট এবং অবশিষ্ট অর্থ শিপিং ডকুমেন্টের বিপরীতে পরিশোধের প্রস্তাব করছি।',
     systemPrompt: 'You are a seasoned trade partner negotiating contracts and payment terms in Spanish.'
+  },
+
+  // Serbian Scenarios
+  {
+    id: 'se-sc-greetings',
+    title: 'Belgrade Greetings & Introductions',
+    titleBn: 'বেলগ্রেডে কুশল বিনিময় ও প্রথম পরিচিতি',
+    category: 'daily',
+    level: 'beginner',
+    initialTarget: 'Здраво! Добар дан. Како сте данас? (Zdravo! Dobar dan. Kako ste danas?)',
+    initialRomanized: 'Zdravo! Dobar dan. Kako ste danas?',
+    initialBengali: 'হ্যালো! শুভ দিন। আজ আপনি কেমন আছেন?',
+    systemPrompt: 'You are a warm Serbian colleague welcoming a new international partner in Belgrade. Speak clear Serbian with Cyrillic and Latin romanization and explain meanings in Bengali.'
+  },
+  {
+    id: 'se-sc-daily',
+    title: 'Daily Office & Workplace Serbian',
+    titleBn: 'দৈনন্দিন অফিস ও কাজের সার্বিয়ান',
+    category: 'daily',
+    level: 'intermediate',
+    initialTarget: 'Добар дан! Имамо ли састанак о новој испоруци у 10 сати? (Dobar dan! Imamo li sastanak o novoj isporuci u 10 sati?)',
+    initialRomanized: 'Dobar dan! Imamo li sastanak o novoj isporuci u 10 sati?',
+    initialBengali: 'শুভ দিন! সকাল ১০টায় কি নতুন ডেলিভারি নিয়ে আমাদের মিটিং আছে?',
+    systemPrompt: 'Roleplay as an office manager in Serbia discussing daily scheduling and meetings with Depend Sourcing staff.'
+  },
+  {
+    id: 'se-sc-restaurant',
+    title: 'Restaurant & Food Orders in Serbia',
+    titleBn: 'রেস্তোরাঁ ও ক্যাফেতে খাবার অর্ডার',
+    category: 'food',
+    level: 'beginner',
+    initialTarget: 'Изволите, добар дан! Шта желите да попијете и поједете? (Izvolite, dobar dan! Šta želite da popijete i pojedete?)',
+    initialRomanized: 'Izvolite, dobar dan! Šta želite da popijete i pojedete?',
+    initialBengali: 'স্বাগতম, শুভ দিন! আপনি কী পান করতে এবং খেতে পছন্দ করবেন?',
+    systemPrompt: 'You are a friendly Serbian restaurant waiter assisting a foreign guest with local dishes and drinks.'
+  },
+  {
+    id: 'se-sc-business',
+    title: 'European Trade & Sourcing Negotiation',
+    titleBn: 'ইউরোপীয় ট্রেডিং ও সোর্সিং চুক্তি আলোচনা',
+    category: 'negotiation',
+    level: 'advanced',
+    initialTarget: 'Поштовани партнери, наш циљ је дугорочна сарадња са компанијом Depend Sourcing. Какав је ваш рок испоруке? (Poštovani partneri, naš cilj je dugoročna saradnja sa kompanijom Depend Sourcing. Kakav je vaš rok isporuke?)',
+    initialRomanized: 'Poštovani partneri, naš cilj je dugoročna saradnja sa kompanijom Depend Sourcing. Kakav je vaš rok isporuke?',
+    initialBengali: 'শ্রদ্ধেয় পার্টনারগণ, ডিপেন্ড সোর্সিং কোম্পানির সাথে দীর্ঘমেয়াদী অংশীদারিত্ব আমাদের লক্ষ্য। আপনাদের ডেলিভারির সময়সীমা কেমন?',
+    systemPrompt: 'Roleplay as a European sourcing and trade partner discussing contract terms, shipping deadlines, and partnership with Depend Sourcing.'
   }
 ];
+

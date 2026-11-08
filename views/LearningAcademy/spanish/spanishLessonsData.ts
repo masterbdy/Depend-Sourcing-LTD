@@ -1,4 +1,4 @@
-import { UniversalDailyLesson } from './types';
+import { UniversalDailyLesson } from '../core/types';
 
 export const SPANISH_LESSONS_DATA: UniversalDailyLesson[] = [
   {
