@@ -73,6 +73,7 @@ import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import {
   getDatabase,
   ref,
+  get,
   onValue,
   set,
   update,
@@ -97,6 +98,8 @@ import {
   PhoneBookEntry,
   AppNote,
   CustomPopup,
+  DailyReminderUserState,
+  ReminderActionType,
 } from "./types";
 import {
   INITIAL_STAFF,
@@ -172,6 +175,24 @@ import {
   resolveNotificationTab,
 } from "./services/notificationDesignService";
 import { resolvePreviousAppTab } from "./services/bulkAdvanceSafety";
+import { BillReminderGlassBanner } from "./components/BillReminderGlassBanner";
+import {
+  getDhakaTimeParts,
+  evaluateAttendanceSlot,
+  evaluateBillSlot,
+  composeAttendance9Reminder,
+  composeAttendance10Reminder,
+  composeBill8Reminder,
+  composeBillSnoozeFollowUp,
+  composePopMessagePush,
+  applyReminderActionToState,
+  normalizeDailyReminderState,
+  createInitialDailyReminderState,
+  sanitizeFirebaseKey,
+  hasUserCheckedInOnDate,
+  isStaffEligibleForDailyReminders,
+  MAX_DAILY_BILL_REMINDERS,
+} from "./services/reminderCore";
 
 // Safe LocalStorage Helper
 const safeGetItem = (key: string, defaultValue: string | null = null) => {
@@ -372,13 +393,39 @@ const App: React.FC = () => {
       preferredFirstNameOnly: true,
     }),
   );
+  const [billEntryOpenTrigger, setBillEntryOpenTrigger] = useState<number>(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get("openBillEntry") === "1" ? 1 : 0;
+    } catch {
+      return 0;
+    }
+  });
+  const [pendingDeepLinkPopupId, setPendingDeepLinkPopupId] = useState<string | null>(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get("popupId");
+    } catch {
+      return null;
+    }
+  });
+  const [billReminderBanner, setBillReminderBanner] = useState<{
+    title: string;
+    message: string;
+    reminderCount: number;
+    maxReminders: number;
+  } | null>(null);
   const [activeTab, setActiveTab] = useState(() => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
       const tabParam = urlParams.get("tab");
-      if (tabParam) {
-        const resolved = resolveNotificationTab(tabParam);
+      const hasBillParam = urlParams.has("openBillEntry");
+      const hasPopupParam = urlParams.has("popupId");
+      if (tabParam || hasBillParam || hasPopupParam) {
+        const resolved = tabParam ? resolveNotificationTab(tabParam) : (safeGetItem("last_active_tab") || "dashboard");
         urlParams.delete("tab");
+        urlParams.delete("openBillEntry");
+        urlParams.delete("popupId");
         const remainingQuery = urlParams.toString();
         const cleanUrl = `${window.location.pathname}${remainingQuery ? `?${remainingQuery}` : ""}${window.location.hash}`;
         window.history.replaceState({}, "", cleanUrl);
@@ -479,18 +526,34 @@ const App: React.FC = () => {
     setActiveTab(targetTab);
   }, []);
 
-  // Listen for Service Worker notification clicks while app window is already open
+  // Listen for Service Worker notification clicks & foreground FCM events while app is open
   useEffect(() => {
-    if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
-    const handleSwMessage = (event: MessageEvent) => {
-      if (event.data?.type === "NOTIFICATION_NAVIGATE" && event.data?.tab) {
-        setActiveTab(resolveNotificationTab(event.data.tab));
-      }
-    };
-    navigator.serviceWorker.addEventListener("message", handleSwMessage);
-    return () => {
-      navigator.serviceWorker.removeEventListener("message", handleSwMessage);
-    };
+    if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+      const handleSwMessage = (event: MessageEvent) => {
+        if (event.data?.type === "NOTIFICATION_NAVIGATE") {
+          if (event.data?.tab) {
+            setActiveTab(resolveNotificationTab(event.data.tab));
+          }
+          if (event.data?.openBillEntry) {
+            setBillReminderBanner(null);
+            setBillEntryOpenTrigger((prev) => prev + 1);
+          }
+          if (event.data?.popupId) {
+            setPendingDeepLinkPopupId(String(event.data.popupId));
+          }
+        } else if (event.data?.type === "REMINDER_ACTION") {
+          setBillReminderBanner(null);
+          if (event.data?.action === "NOW_OPENED") {
+            setActiveTab("expenses");
+            setBillEntryOpenTrigger((prev) => prev + 1);
+          }
+        }
+      };
+      navigator.serviceWorker.addEventListener("message", handleSwMessage);
+      return () => {
+        navigator.serviceWorker.removeEventListener("message", handleSwMessage);
+      };
+    }
   }, []);
 
   // Automatic performance instrumentation for target modules
@@ -1027,7 +1090,14 @@ const App: React.FC = () => {
       message: string,
       type: AppNotification["type"] = "INFO",
       link?: string,
-      dedupeOpts?: { dedupeKey?: string; cooldownMs?: number },
+      dedupeOpts?: {
+        dedupeKey?: string;
+        cooldownMs?: number;
+        url?: string;
+        actions?: Array<{ action: string; title: string }>;
+        tag?: string;
+        extraData?: Record<string, string>;
+      },
     ) => {
       const cleanMessage = stripNotificationEmojis(message) || message;
       const cleanTitle = formatNotificationTitle(
@@ -1081,12 +1151,17 @@ const App: React.FC = () => {
           message: cleanMessage,
           type,
           link,
+          url: dedupeOpts?.url,
+          actions: dedupeOpts?.actions,
+          tag: dedupeOpts?.tag,
+          extraData: dedupeOpts?.extraData,
         });
         const fallbackOptions = buildFallbackNotificationOptions({
           title: cleanTitle,
           message: cleanMessage,
           type,
           link,
+          tag: dedupeOpts?.tag,
         });
 
         const showFallbackNotification = () => {
@@ -2380,48 +2455,379 @@ const App: React.FC = () => {
 
   const attendanceListRef = useRef<Attendance[]>(attendanceList);
   attendanceListRef.current = attendanceList;
+  const expensesListRef = useRef<Expense[]>(expenses);
+  expensesListRef.current = expenses;
 
+  const myStaffProfile = useMemo(() => {
+    if (!currentUser || !Array.isArray(staffList)) return null;
+    return staffList.find((s) => s.name === currentUser && !s.isHardDeleted && !s.deletedAt) || null;
+  }, [currentUser, staffList]);
+
+  // Sync FCM token on session restore as well as manual login when Notification permission is already granted
+  const fcmSyncAttemptedRef = useRef<string | null>(null);
   useEffect(() => {
     if (
       !currentUser ||
       !role ||
-      role === UserRole.MD ||
-      role === UserRole.GUEST
-    )
+      role === UserRole.GUEST ||
+      role === UserRole.KIOSK ||
+      !isCloudEnabled ||
+      !firebaseConfig?.apiKey ||
+      !myStaffProfile
+    ) {
       return;
+    }
+    if (typeof window === "undefined" || !("Notification" in window) || Notification.permission !== "granted") {
+      return;
+    }
+    const syncKey = `${myStaffProfile.id}`;
+    if (fcmSyncAttemptedRef.current === syncKey) return;
+    fcmSyncAttemptedRef.current = syncKey;
 
-    const checkAttendance = () => {
-      const today = new Date().toISOString().split("T")[0];
-      const amICheckedIn = attendanceListRef.current.some(
-        (a) => a.date === today && a.staffName === currentUser,
-      );
+    getUserFCMToken(firebaseConfig)
+      .then((token) => {
+        if (!token) return;
+        if (myStaffProfile.fcmToken !== token) {
+          updateStaffList((prev: Staff[]) =>
+            prev.map((s) =>
+              s.id === myStaffProfile.id
+                ? { ...s, fcmToken: token, updatedAt: new Date().toISOString() }
+                : s,
+            ),
+          );
+        }
+      })
+      .catch(() => {});
+  }, [currentUser, role, isCloudEnabled, firebaseConfig, myStaffProfile]);
 
-      if (!amICheckedIn) {
-        const reminder = composeHumanNotification({
-          kind: "ATTENDANCE_REMINDER",
-          recipientName: recipientNameRef.current,
+  const sendReminderActionToServer = useCallback(
+    async (action: ReminderActionType) => {
+      if (!myStaffProfile) return;
+      const { dateBn, nowMs } = getDhakaTimeParts();
+      const staffKey = sanitizeFirebaseKey(myStaffProfile.id);
+
+      // Update local fallback state & RTDB even if backend endpoint or service account is unavailable
+      const localStateKey = `depend_reminder_state_${dateBn}_${staffKey}`;
+      try {
+        const rawLocal = safeGetItem(localStateKey);
+        const parsedLocal = rawLocal ? JSON.parse(rawLocal) : null;
+        const base = normalizeDailyReminderState(parsedLocal, dateBn, myStaffProfile);
+        const { nextState, accepted } = applyReminderActionToState(base, action, nowMs);
+        if (accepted) {
+          safeSetItem(localStateKey, JSON.stringify(nextState));
+          if (isCloudEnabled && firebaseConfig?.databaseURL) {
+            try {
+              const app = getApp();
+              const db = getDatabase(app, firebaseConfig.databaseURL);
+              await set(ref(db, `reminderStates/${dateBn}/${staffKey}`), nextState);
+            } catch {}
+          }
+        }
+      } catch {}
+
+      try {
+        await fetch("/api/reminders/action", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action,
+            staffId: myStaffProfile.id,
+            staffName: myStaffProfile.name,
+            dateBn,
+          }),
         });
-        handleAddNotification(
-          reminder.title,
-          reminder.message,
-          reminder.type,
-          reminder.link,
-          {
-            dedupeKey: reminder.dedupeKey,
-            cooldownMs: reminder.cooldownMs,
-          },
-        );
+      } catch {}
+    },
+    [myStaffProfile, isCloudEnabled, firebaseConfig],
+  );
+
+  const handleBillSubmittedForReminder = useCallback(
+    (_expense: Expense) => {
+      setBillReminderBanner(null);
+      sendReminderActionToServer("BILL_SUBMITTED_CONFIRMED");
+    },
+    [sendReminderActionToServer],
+  );
+
+  // Listen for foreground FCM messages dispatched by notifications.ts
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleForegroundPush = (event: Event) => {
+      const payload = (event as CustomEvent)?.detail;
+      if (!payload) return;
+      const data = payload.data || {};
+      const title = String(payload.notification?.title || data.title || "Depend Sourcing Ltd.");
+      const body = String(payload.notification?.body || data.body || "");
+      const link = data.tab ? resolveNotificationTab(data.tab) : undefined;
+      const slot = data.slot ? String(data.slot) : undefined;
+
+      handleAddNotification(title, body, slot?.startsWith("BILL_") ? "WARNING" : "INFO", link, {
+        dedupeKey: data.tag ? `fcm:${data.tag}:${data.slot || ""}` : undefined,
+        cooldownMs: 60 * 1000,
+        url: data.url,
+        tag: data.tag,
+        extraData: data,
+      });
+
+      if (slot === "BILL_8PM" || slot === "BILL_FOLLOWUP_1" || slot === "BILL_FOLLOWUP_2") {
+        const count = Number(data.reminderCount) || (slot === "BILL_8PM" ? 1 : slot === "BILL_FOLLOWUP_1" ? 2 : 3);
+        setBillReminderBanner({
+          title,
+          message: body,
+          reminderCount: Math.min(MAX_DAILY_BILL_REMINDERS, count),
+          maxReminders: MAX_DAILY_BILL_REMINDERS,
+        });
+      }
+
+      if (data.popupId) {
+        setPendingDeepLinkPopupId(String(data.popupId));
       }
     };
 
-    const initialTimeout = setTimeout(checkAttendance, 15000);
-    const interval = setInterval(checkAttendance, 30 * 60 * 1000);
+    window.addEventListener("depend-fcm-foreground", handleForegroundPush);
+    return () => {
+      window.removeEventListener("depend-fcm-foreground", handleForegroundPush);
+    };
+  }, [handleAddNotification]);
+
+  // Immediately clear/suppress today's remaining attendance reminders upon check-in
+  useEffect(() => {
+    if (!myStaffProfile || !isStaffEligibleForDailyReminders(myStaffProfile)) return;
+    const { dateBn, nowMs } = getDhakaTimeParts();
+    if (!hasUserCheckedInOnDate(attendanceList, myStaffProfile, dateBn)) return;
+
+    const staffKey = sanitizeFirebaseKey(myStaffProfile.id);
+    const localStateKey = `depend_reminder_state_${dateBn}_${staffKey}`;
+    try {
+      const rawLocal = safeGetItem(localStateKey);
+      const parsedLocal = rawLocal ? JSON.parse(rawLocal) : null;
+      const base = normalizeDailyReminderState(parsedLocal, dateBn, myStaffProfile);
+      if (base.attendanceSuppressedReason !== "CHECKED_IN_TODAY") {
+        const updatedState: DailyReminderUserState = {
+          ...base,
+          attendanceSuppressedReason: "CHECKED_IN_TODAY",
+          updatedAt: new Date(nowMs).toISOString(),
+        };
+        safeSetItem(localStateKey, JSON.stringify(updatedState));
+        if (isCloudEnabled && firebaseConfig?.databaseURL) {
+          try {
+            const app = getApp();
+            const db = getDatabase(app, firebaseConfig.databaseURL);
+            update(ref(db, `reminderStates/${dateBn}/${staffKey}`), {
+              attendanceSuppressedReason: "CHECKED_IN_TODAY",
+              updatedAt: updatedState.updatedAt,
+            }).catch(() => {});
+          } catch {}
+        }
+      }
+    } catch {}
+  }, [attendanceList, myStaffProfile, isCloudEnabled, firebaseConfig]);
+
+  // Coordinated Asia/Dhaka Daily Attendance (09:00 AM & 10:00 AM BDT ONLY)
+  // and Bill Submission (08:00 PM / 20:00 BDT + 10m Snooze Follow-ups, max 3/day) Engine.
+  // Replaces the legacy immediate/midnight attendance timer so reminders NEVER fire at 00:00 or app open outside schedule.
+  useEffect(() => {
+    if (!currentUser || !role || !myStaffProfile || !isStaffEligibleForDailyReminders(myStaffProfile)) {
+      return;
+    }
+
+    let isCancelled = false;
+
+    const claimIdempotencySlot = async (
+      dateBn: string,
+      lockKey: string,
+      meta: Record<string, string>,
+    ): Promise<boolean> => {
+      const localLockKey = `depend_reminder_lock_${lockKey}`;
+      if (safeGetItem(localLockKey) === "1") return false;
+
+      if (isCloudEnabled && firebaseConfig?.databaseURL) {
+        try {
+          const app = getApp();
+          const db = getDatabase(app, firebaseConfig.databaseURL);
+          const lockRef = ref(db, `reminderIdempotency/${dateBn}/${lockKey}`);
+          const txResult = await runTransaction(lockRef, (current) => {
+            if (current !== null) return; // Abort — already sent by server cron or another tab
+            return { ...meta, source: "CLIENT", createdAt: new Date().toISOString() };
+          });
+          if (!txResult.committed) {
+            safeSetItem(localLockKey, "1");
+            return false;
+          }
+        } catch {
+          // Offline / RTDB transaction unavailable — fall back to localStorage lock
+        }
+      }
+
+      safeSetItem(localLockKey, "1");
+      return true;
+    };
+
+    const runCoordinatorCheck = async () => {
+      if (isCancelled) return;
+      const dhakaTime = getDhakaTimeParts();
+      const { dateBn, nowMs } = dhakaTime;
+      const staffKey = sanitizeFirebaseKey(myStaffProfile.id);
+      const localStateKey = `depend_reminder_state_${dateBn}_${staffKey}`;
+
+      let state = normalizeDailyReminderState(null, dateBn, myStaffProfile);
+      try {
+        const rawLocal = safeGetItem(localStateKey);
+        if (rawLocal) {
+          state = normalizeDailyReminderState(JSON.parse(rawLocal), dateBn, myStaffProfile);
+        }
+      } catch {}
+
+      if (isCloudEnabled && firebaseConfig?.databaseURL) {
+        try {
+          const app = getApp();
+          const db = getDatabase(app, firebaseConfig.databaseURL);
+          const snap = await get(ref(db, `reminderStates/${dateBn}/${staffKey}`));
+          if (snap.exists()) {
+            state = normalizeDailyReminderState(snap.val(), dateBn, myStaffProfile);
+            safeSetItem(localStateKey, JSON.stringify(state));
+          }
+        } catch {}
+      }
+
+      if (isCancelled) return;
+
+      // 1. Evaluate Attendance Slot (strictly 09:00 AM or 10:00 AM Asia/Dhaka ONLY)
+      const attEval = evaluateAttendanceSlot({
+        dhakaTime,
+        state,
+        staff: myStaffProfile,
+        attendanceList: attendanceListRef.current,
+      });
+
+      if (attEval.shouldSend && attEval.slot) {
+        const lockKey = `${dateBn}_${staffKey}_${attEval.slot}`;
+        const claimed = await claimIdempotencySlot(dateBn, lockKey, {
+          staffId: myStaffProfile.id,
+          slot: attEval.slot,
+        });
+        if (claimed && !isCancelled) {
+          const composed =
+            attEval.slot === "ATTENDANCE_9AM"
+              ? composeAttendance9Reminder(myStaffProfile.name)
+              : composeAttendance10Reminder(myStaffProfile.name);
+
+          handleAddNotification(composed.title, composed.body, "WARNING", "attendance", {
+            dedupeKey: `sched:${lockKey}`,
+            cooldownMs: 6 * 60 * 60 * 1000,
+            url: composed.url,
+            tag: composed.tag,
+            actions: composed.actions,
+            extraData: { slot: composed.slot, dateBn, staffId: myStaffProfile.id },
+          });
+
+          const nowIso = new Date(nowMs).toISOString();
+          const updatedState: DailyReminderUserState = {
+            ...state,
+            ...(attEval.slot === "ATTENDANCE_9AM"
+              ? { attendance9SentAt: nowIso }
+              : { attendance10SentAt: nowIso }),
+            updatedAt: nowIso,
+          };
+          state = updatedState;
+          safeSetItem(localStateKey, JSON.stringify(updatedState));
+          if (isCloudEnabled && firebaseConfig?.databaseURL) {
+            try {
+              const app = getApp();
+              const db = getDatabase(app, firebaseConfig.databaseURL);
+              set(ref(db, `reminderStates/${dateBn}/${staffKey}`), updatedState).catch(() => {});
+            } catch {}
+          }
+        }
+      }
+
+      if (isCancelled) return;
+
+      // 2. Evaluate Daily Bill Submission Reminder (20:00 BDT + due 10-min snooze follow-ups, max 3/day)
+      const billEval = evaluateBillSlot({
+        dhakaTime,
+        state,
+        staff: myStaffProfile,
+        expenses: expensesListRef.current,
+      });
+
+      if (billEval.shouldSend && billEval.slot) {
+        const lockKey = `${dateBn}_${staffKey}_${billEval.slot}`;
+        const claimed = await claimIdempotencySlot(dateBn, lockKey, {
+          staffId: myStaffProfile.id,
+          slot: billEval.slot,
+        });
+        if (claimed && !isCancelled) {
+          const composed =
+            billEval.slot === "BILL_8PM"
+              ? composeBill8Reminder(myStaffProfile.name)
+              : composeBillSnoozeFollowUp(
+                  myStaffProfile.name,
+                  billEval.slot === "BILL_FOLLOWUP_1" ? 1 : 2,
+                );
+
+          const nextCount = Math.min(MAX_DAILY_BILL_REMINDERS, state.billReminderCount + 1);
+          const nowIso = new Date(nowMs).toISOString();
+          const updatedState: DailyReminderUserState = {
+            ...state,
+            billReminderCount: nextCount,
+            billLastSentAt: nowIso,
+            billSnoozeUntil: undefined,
+            ...(billEval.slot === "BILL_8PM" ? { billInitialSentAt: nowIso } : {}),
+            ...(billEval.slot === "BILL_FOLLOWUP_1" ? { billFollowUp1SentAt: nowIso } : {}),
+            ...(billEval.slot === "BILL_FOLLOWUP_2" ? { billFollowUp2SentAt: nowIso } : {}),
+            updatedAt: nowIso,
+          };
+
+          safeSetItem(localStateKey, JSON.stringify(updatedState));
+          if (isCloudEnabled && firebaseConfig?.databaseURL) {
+            try {
+              const app = getApp();
+              const db = getDatabase(app, firebaseConfig.databaseURL);
+              set(ref(db, `reminderStates/${dateBn}/${staffKey}`), updatedState).catch(() => {});
+            } catch {}
+          }
+
+          setBillReminderBanner({
+            title: composed.title,
+            message: composed.body,
+            reminderCount: nextCount,
+            maxReminders: MAX_DAILY_BILL_REMINDERS,
+          });
+
+          handleAddNotification(composed.title, composed.body, "WARNING", "expenses", {
+            dedupeKey: `sched:${lockKey}`,
+            cooldownMs: 8 * 60 * 1000,
+            url: composed.url,
+            tag: composed.tag,
+            actions: composed.actions,
+            extraData: {
+              slot: composed.slot,
+              dateBn,
+              staffId: myStaffProfile.id,
+              reminderCount: String(nextCount),
+            },
+          });
+        }
+      }
+    };
+
+    const initialTimer = setTimeout(runCoordinatorCheck, 1500);
+    const intervalId = setInterval(runCoordinatorCheck, 30 * 1000);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        runCoordinatorCheck();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
-      clearTimeout(initialTimeout);
-      clearInterval(interval);
+      isCancelled = true;
+      clearTimeout(initialTimer);
+      clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [currentUser, role, handleAddNotification]);
+  }, [currentUser, role, myStaffProfile, isCloudEnabled, firebaseConfig, handleAddNotification]);
 
   const requestNotificationPermission = () => {
     if ("Notification" in window && Notification.permission === "default") {
@@ -2566,7 +2972,21 @@ const App: React.FC = () => {
     if (currentUser && customPopups.length > 0) {
       const myProfile = staffList.find((s) => s.name === currentUser);
       if (myProfile) {
-        // Find popups that target this user or ALL
+        if (pendingDeepLinkPopupId) {
+          const deepLinkedPopup = customPopups.find(
+            (p) =>
+              p.id === pendingDeepLinkPopupId &&
+              (p.targetUserId === myProfile.id || p.targetUserId === "ALL"),
+          );
+          if (deepLinkedPopup) {
+            setActiveCustomPopup(deepLinkedPopup);
+            safeSetItem(`last_seen_popup_${myProfile.id}`, deepLinkedPopup.id);
+            setPendingDeepLinkPopupId(null);
+            return;
+          }
+        }
+
+        // Find popups that target ONLY this user or ALL
         const myPopups = customPopups.filter(
           (p) => p.targetUserId === myProfile.id || p.targetUserId === "ALL"
         );
@@ -2578,17 +2998,38 @@ const App: React.FC = () => {
           const latest = myPopups[0];
           const lastSeenPopupId = safeGetItem(`last_seen_popup_${myProfile.id}`);
           if (lastSeenPopupId !== latest.id) {
-            // Show the popup
+            // Preserve in-app modal popup experience
             setActiveCustomPopup(latest);
-            // Mark as seen immediately so it doesn't reappear on reload
             safeSetItem(`last_seen_popup_${myProfile.id}`, latest.id);
-            
-            // Optionally auto-hide after some time or let user manually close it. Let's keep it manual.
+
+            // Also dispatch local/SW push notification (strictly deduplicated per recipient & popup ID)
+            const pushKey = `last_pushed_popup_${myProfile.id}`;
+            if (safeGetItem(pushKey) !== latest.id) {
+              safeSetItem(pushKey, latest.id);
+              const popComposed = composePopMessagePush({
+                popup: latest,
+                recipientFullName: currentUser,
+              });
+              handleAddNotification(
+                popComposed.title,
+                popComposed.body,
+                "INFO",
+                popComposed.link,
+                {
+                  dedupeKey: `popup:${latest.id}`,
+                  cooldownMs: 24 * 60 * 60 * 1000,
+                  url: popComposed.url,
+                  tag: popComposed.tag,
+                  actions: popComposed.actions,
+                  extraData: { popupId: latest.id },
+                },
+              );
+            }
           }
         }
       }
     }
-  }, [currentUser, customPopups, staffList]);
+  }, [currentUser, customPopups, staffList, pendingDeepLinkPopupId, handleAddNotification]);
 
   useEffect(() => {
     if (role === UserRole.STAFF && currentUser && advances.length > 0) {
@@ -3014,17 +3455,22 @@ const App: React.FC = () => {
           }
         }
 
-        // Request FCM Token for push notifications
-        if (firebaseConfig && firebaseConfig.apiKey) {
+        // Request FCM Token for push notifications (Staff & Admin)
+        if (
+          firebaseConfig &&
+          firebaseConfig.apiKey &&
+          authenticatedUser!.role !== UserRole.KIOSK &&
+          authenticatedUser!.role !== UserRole.GUEST
+        ) {
           getUserFCMToken(firebaseConfig).then((token) => {
-            if (token && authenticatedUser!.role === UserRole.STAFF) {
-              const myUser = staffList.find(
+            if (token) {
+              const targetUser = staffList.find(
                 (s) => s.name === authenticatedUser!.name,
               );
-              if (myUser && myUser.fcmToken !== token) {
-                setStaffList((prev) =>
+              if (targetUser && targetUser.fcmToken !== token) {
+                updateStaffList((prev: Staff[]) =>
                   prev.map((s) =>
-                    s.id === myUser.id
+                    s.id === targetUser.id
                       ? {
                           ...s,
                           fcmToken: token,
@@ -3981,6 +4427,8 @@ const App: React.FC = () => {
             firebaseConfig={firebaseConfig}
             isCloudEnabled={isCloudEnabled}
             billingRules={billingRules}
+            openEntryTrigger={billEntryOpenTrigger}
+            onBillSubmittedSuccess={handleBillSubmittedForReminder}
           />
         );
       case "reports":
@@ -5791,6 +6239,32 @@ const App: React.FC = () => {
               setWhatsappSummaryStaff((prev) => (prev ? { ...prev, mobile: newPhone } : null));
             }
           }}
+        />
+      )}
+
+      {/* Daily 8:00 PM Bill Submission Reminder Glassmorphism Dialog (3 Compact Action Buttons) */}
+      {billReminderBanner && (
+        <BillReminderGlassBanner
+          title={billReminderBanner.title}
+          message={billReminderBanner.message}
+          canSnooze={billReminderBanner.reminderCount < billReminderBanner.maxReminders}
+          reminderCount={billReminderBanner.reminderCount}
+          maxReminders={billReminderBanner.maxReminders}
+          onBillNow={() => {
+            setBillReminderBanner(null);
+            sendReminderActionToServer("NOW_OPENED");
+            setActiveTab("expenses");
+            setBillEntryOpenTrigger((prev) => prev + 1);
+          }}
+          onSnooze10m={() => {
+            setBillReminderBanner(null);
+            sendReminderActionToServer("SNOOZE_10M");
+          }}
+          onNoBillToday={() => {
+            setBillReminderBanner(null);
+            sendReminderActionToServer("NO_BILL_TODAY");
+          }}
+          onDismiss={() => setBillReminderBanner(null)}
         />
       )}
 

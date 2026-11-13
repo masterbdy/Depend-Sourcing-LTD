@@ -92,6 +92,8 @@ interface ExpenseProps {
   firebaseConfig?: any;
   isCloudEnabled?: boolean;
   billingRules?: BillingRule[];
+  openEntryTrigger?: number;
+  onBillSubmittedSuccess?: (expense: Expense) => void;
 }
 
 // In-memory date string caching to prevent repeated Date allocations per render
@@ -146,6 +148,7 @@ interface SubmitExpenseModalProps {
   setTypoSuggestions?: React.Dispatch<React.SetStateAction<any[]>>;
   onUnsyncedCountChange: () => void;
   billingRules?: BillingRule[];
+  onBillSubmittedSuccess?: (expense: Expense) => void;
 }
 
 const SubmitExpenseModal: React.FC<SubmitExpenseModalProps> = ({
@@ -167,6 +170,7 @@ const SubmitExpenseModal: React.FC<SubmitExpenseModalProps> = ({
   setTypoSuggestions,
   onUnsyncedCountChange,
   billingRules = [],
+  onBillSubmittedSuccess,
 }) => {
   const initialStaffId = useMemo(() => {
     if (role === UserRole.STAFF && currentUser) {
@@ -597,6 +601,10 @@ const SubmitExpenseModal: React.FC<SubmitExpenseModalProps> = ({
         error: result.error,
       });
 
+      if (result.success && result.status === 'SUBMITTED') {
+        onBillSubmittedSuccess?.(updatedExpense);
+      }
+
       // Clear local-first draft on successful submission
       try {
         localStorage.removeItem('ais_bill_draft_v1');
@@ -658,6 +666,9 @@ const SubmitExpenseModal: React.FC<SubmitExpenseModalProps> = ({
         message: res.message,
         error: res.updatedExpense.syncError,
       });
+      if (res.success && res.status === 'SUBMITTED') {
+        onBillSubmittedSuccess?.(res.updatedExpense);
+      }
     } catch (err: any) {
       alert(`পুনরায় চেষ্টা ব্যর্থ: ${err?.message}`);
     } finally {
@@ -1811,9 +1822,22 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({
   firebaseConfig,
   isCloudEnabled = true,
   billingRules = [],
+  openEntryTrigger,
+  onBillSubmittedSuccess,
 }) => {
   // Modal open states
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
+
+  // Open Bill Entry modal directly when deep-linked from Bill Reminder notification ("এখনই করছি")
+  useEffect(() => {
+    if (
+      openEntryTrigger &&
+      openEntryTrigger > 0 &&
+      (role === UserRole.ADMIN || role === UserRole.STAFF)
+    ) {
+      setIsSubmitModalOpen(true);
+    }
+  }, [openEntryTrigger, role]);
   const [isCorrectionModalOpen, setIsCorrectionModalOpen] = useState(false);
   const [correctionTarget, setCorrectionTarget] = useState<{
     id: string;
@@ -1957,6 +1981,12 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({
           const res = await syncAllPendingBills(expenses, firebaseConfig);
           setExpenses(res.updatedExpenses);
           if (res.syncedCount > 0) {
+            const prevIds = new Set(unsynced.map((u) => u.id));
+            res.updatedExpenses.forEach((item) => {
+              if (prevIds.has(item.id) && item.syncStatus === 'SUBMITTED') {
+                onBillSubmittedSuccess?.(item);
+              }
+            });
             setSyncBannerMessage(`✅ নেটওয়ার্ক ফিরে আসায় ${res.syncedCount} টি বিল সার্ভারে স্বয়ংক্রিয়ভাবে সিঙ্ক হয়েছে।`);
             setTimeout(() => setSyncBannerMessage(null), 6000);
           }
@@ -2107,6 +2137,16 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({
       });
       setExpenses(res.updatedExpenses);
       if (res.syncedCount > 0) {
+        const unsyncedIds = new Set(
+          expenses
+            .filter((e) => !e.isDeleted && (e.syncStatus === 'SAVED_OFFLINE' || e.syncStatus === 'FAILED'))
+            .map((e) => e.id),
+        );
+        res.updatedExpenses.forEach((item) => {
+          if (unsyncedIds.has(item.id) && item.syncStatus === 'SUBMITTED') {
+            onBillSubmittedSuccess?.(item);
+          }
+        });
         setSyncBannerMessage(`✅ ${res.syncedCount} টি বিল সফলভাবে সার্ভারে জমা হয়েছে!`);
       } else if (res.failedCount > 0) {
         setSyncBannerMessage(`⚠️ ${res.failedCount} টি বিল সার্ভারে জমা হতে পারেনি। ইন্টারনেট কানেকশন চেক করুন।`);
@@ -2128,6 +2168,9 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({
         const res = await retryExpenseBillSync(expense, firebaseConfig);
         setExpenses((prev) => prev.map((e) => (e.id === res.updatedExpense.id ? res.updatedExpense : e)));
         if (res.success) {
+          if (res.status === 'SUBMITTED') {
+            onBillSubmittedSuccess?.(res.updatedExpense);
+          }
           setSyncBannerMessage(
             `✅ বিল #${res.updatedExpense.clientSubmissionId ? res.updatedExpense.clientSubmissionId.replace('bill_', '') : res.updatedExpense.id.substring(0, 8)} সার্ভারে সিঙ্ক হয়েছে!`
           );
@@ -2567,6 +2610,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({
         setTypoSuggestions={setTypoSuggestions}
         onUnsyncedCountChange={() => setUnsyncedCount(getUnsyncedBillCount())}
         billingRules={billingRules}
+        onBillSubmittedSuccess={onBillSubmittedSuccess}
       />
 
       {/* CORRECTION MODAL (Isolated, 0ms Typing Latency & Manual AI Check) */}

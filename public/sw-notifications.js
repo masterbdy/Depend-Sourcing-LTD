@@ -1,9 +1,10 @@
 /**
  * Shared Notification Presentation & Click Navigation Handler
  * Used by both Workbox SW (vite-plugin-pwa) and firebase-messaging-sw.js
- * Ensures Depend Sourcing Ltd. official branding, clean Bangla hierarchy,
+ * Ensures Depend Sourcing Ltd. official branding, warm Bangla + Emoji rendering,
  * unmodified /logo.png Large Icon, monochrome /notification-badge.png Small Icon,
- * and Android Web Push click routing.
+ * Bill Reminder interactive Action handling (bill_now, bill_snooze_10m, bill_none),
+ * and Android Web Push click routing even when app is in background/closed.
  */
 
 self.DEPEND_NOTIF_ASSETS = {
@@ -21,9 +22,10 @@ self.resolveDependAssetUrl = function (assetPath) {
   return assetPath;
 };
 
+// Strip only harsh alert glyph clutter while preserving warm conversational emojis like 😊
 self.stripDependNotificationEmojis = function (text) {
   return String(text || '')
-    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\uFE0F]/gu, '')
+    .replace(/[⚠️❌🔔🚨📢]+/gu, '')
     .replace(/[ \t]{2,}/g, ' ')
     .trim();
 };
@@ -57,6 +59,8 @@ self.buildDependNotificationPayload = function (rawPayload) {
   var targetUrl = '/';
   if (explicitUrl && typeof explicitUrl === 'string' && explicitUrl.startsWith('/')) {
     targetUrl = explicitUrl;
+  } else if (data.popupId) {
+    targetUrl = '/?tab=dashboard&popupId=' + encodeURIComponent(data.popupId);
   } else if (targetTab && typeof targetTab === 'string') {
     targetUrl = '/?tab=' + encodeURIComponent(targetTab);
   }
@@ -102,7 +106,8 @@ self.buildDependNotificationPayload = function (rawPayload) {
     category === 'error' ||
     category === 'expenses' ||
     category === 'login' ||
-    category === 'attendance';
+    category === 'attendance' ||
+    category === 'popup';
 
   var officialLargeIcon = self.resolveDependAssetUrl(self.DEPEND_NOTIF_ASSETS.LARGE_ICON);
   var officialBadgeIcon = self.resolveDependAssetUrl(self.DEPEND_NOTIF_ASSETS.BADGE_ICON);
@@ -117,7 +122,25 @@ self.buildDependNotificationPayload = function (rawPayload) {
     funds: 'লেজার দেখুন',
     notices: 'নোটিশ পড়ুন',
   };
-  var actionTitle = (targetTab && actionLabels[targetTab]) || 'অ্যাপে দেখুন';
+
+  var parsedActions = null;
+  if (Array.isArray(data.actions) && data.actions.length > 0) {
+    parsedActions = data.actions;
+  } else if (typeof data.actionsJson === 'string' && data.actionsJson.trim()) {
+    try {
+      var candidate = JSON.parse(data.actionsJson);
+      if (Array.isArray(candidate) && candidate.length > 0) {
+        parsedActions = candidate;
+      }
+    } catch (e) {}
+  }
+
+  var resolvedActions = parsedActions || [
+    {
+      action: 'open',
+      title: (targetTab && actionLabels[targetTab]) || 'অ্যাপে দেখুন',
+    },
+  ];
 
   var options = {
     body: finalBody,
@@ -129,12 +152,7 @@ self.buildDependNotificationPayload = function (rawPayload) {
     vibrate: isActionable ? [180, 70, 180] : [120, 50, 120],
     requireInteraction: isActionable,
     silent: false,
-    actions: [
-      {
-        action: 'open',
-        title: actionTitle,
-      },
-    ],
+    actions: resolvedActions,
     data: Object.assign({}, data, {
       tab: targetTab || 'dashboard',
       url: targetUrl,
@@ -149,12 +167,67 @@ self.buildDependNotificationPayload = function (rawPayload) {
   return { title: cleanTitle, options: options };
 };
 
+self.sendReminderActionFromSW = function (actionType, data) {
+  if (!data || !data.staffId) return Promise.resolve();
+  var apiUrl;
+  try {
+    apiUrl = new URL('/api/reminders/action', self.location.origin).href;
+  } catch (e) {
+    return Promise.resolve();
+  }
+  return fetch(apiUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: actionType,
+      staffId: data.staffId,
+      staffName: data.staffName || undefined,
+      dateBn: data.dateBn || undefined,
+    }),
+  }).catch(function () {});
+};
+
 self.addEventListener('notificationclick', function (event) {
   event.notification.close();
 
+  var action = event.action || '';
   var data = (event.notification && event.notification.data) || {};
-  var targetTab = data.tab || data.link || '';
-  var rawUrl = data.url || (targetTab ? '/?tab=' + encodeURIComponent(targetTab) : '/');
+
+  // Background-safe Bill Reminder snooze / disable buttons
+  if (action === 'bill_snooze_10m' || action === 'bill_none') {
+    var mappedAction = action === 'bill_snooze_10m' ? 'SNOOZE_10M' : 'NO_BILL_TODAY';
+    event.waitUntil(
+      Promise.all([
+        self.sendReminderActionFromSW(mappedAction, data),
+        self.clients
+          .matchAll({ type: 'window', includeUncontrolled: true })
+          .then(function (clientList) {
+            for (var i = 0; i < clientList.length; i++) {
+              var client = clientList[i];
+              if (client && client.url && client.url.indexOf(self.location.origin) === 0) {
+                if (typeof client.postMessage === 'function') {
+                  client.postMessage({
+                    type: 'REMINDER_ACTION',
+                    action: mappedAction,
+                    staffId: data.staffId,
+                    dateBn: data.dateBn,
+                  });
+                }
+              }
+            }
+          }),
+      ]).catch(function () {})
+    );
+    return;
+  }
+
+  var targetTab = action === 'bill_now' ? 'expenses' : (data.tab || data.link || '');
+  var openBillEntry = action === 'bill_now' || Boolean(data.openBillEntry);
+  var rawUrl =
+    action === 'bill_now'
+      ? '/?tab=expenses&openBillEntry=1'
+      : data.url || (data.popupId ? '/?tab=dashboard&popupId=' + encodeURIComponent(data.popupId) : (targetTab ? '/?tab=' + encodeURIComponent(targetTab) : '/'));
+
   var fullTargetUrl;
   try {
     fullTargetUrl = new URL(rawUrl, self.location.origin).href;
@@ -162,31 +235,40 @@ self.addEventListener('notificationclick', function (event) {
     fullTargetUrl = self.location.origin + '/';
   }
 
+  var sideEffects = [];
+  if (action === 'bill_now' && data.staffId) {
+    sideEffects.push(self.sendReminderActionFromSW('NOW_OPENED', data));
+  }
+
   event.waitUntil(
-    self.clients
-      .matchAll({ type: 'window', includeUncontrolled: true })
-      .then(function (clientList) {
-        for (var i = 0; i < clientList.length; i++) {
-          var client = clientList[i];
-          if (client && client.url && client.url.indexOf(self.location.origin) === 0) {
-            if (typeof client.postMessage === 'function') {
-              client.postMessage({
-                type: 'NOTIFICATION_NAVIGATE',
-                tab: targetTab || 'dashboard',
-                url: rawUrl,
-              });
-            }
-            if ('focus' in client) {
-              return client.focus();
+    Promise.all(sideEffects).then(function () {
+      return self.clients
+        .matchAll({ type: 'window', includeUncontrolled: true })
+        .then(function (clientList) {
+          for (var i = 0; i < clientList.length; i++) {
+            var client = clientList[i];
+            if (client && client.url && client.url.indexOf(self.location.origin) === 0) {
+              if (typeof client.postMessage === 'function') {
+                client.postMessage({
+                  type: 'NOTIFICATION_NAVIGATE',
+                  tab: targetTab || 'dashboard',
+                  url: rawUrl,
+                  openBillEntry: openBillEntry,
+                  popupId: data.popupId || null,
+                });
+              }
+              if ('focus' in client) {
+                return client.focus();
+              }
             }
           }
-        }
-        if (self.clients.openWindow) {
-          return self.clients.openWindow(fullTargetUrl);
-        }
-      })
-      .catch(function (err) {
-        console.error('[sw-notifications] Click navigation failed:', err);
-      })
+          if (self.clients.openWindow) {
+            return self.clients.openWindow(fullTargetUrl);
+          }
+        })
+        .catch(function (err) {
+          console.error('[sw-notifications] Click navigation failed:', err);
+        });
+    })
   );
 });

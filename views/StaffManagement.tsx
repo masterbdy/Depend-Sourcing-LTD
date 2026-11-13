@@ -744,10 +744,25 @@ const StaffManagementView: React.FC<StaffProps> = ({
       targetUserId: popupData.staffId,
       title: popupData.title.trim(),
       message: popupData.message.trim(),
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      senderName: currentUser || "Admin",
+      senderRole: role,
     };
     if (setCustomPopups) {
       setCustomPopups((prev) => [...prev, newPopup]);
+      // Trigger server-side FCM phone push notification exclusively for target recipient(s)
+      fetch("/api/send-push", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: "POP_MESSAGE",
+          popupId: newPopup.id,
+          targetUserId: newPopup.targetUserId,
+          title: newPopup.title,
+          message: newPopup.message,
+          senderName: newPopup.senderName,
+        }),
+      }).catch(() => {});
       alert("সফলভাবে পপআপ মেসেজ পাঠানো হয়েছে!");
       setIsPopupModalOpen(false);
     }

@@ -281,12 +281,41 @@ export interface PhoneBookEntry {
 
 export interface CustomPopup {
   id: string;
-  targetUserId: string; // The staffId of the targeted user
+  targetUserId: string; // The staffId of the targeted user or 'ALL'
   title: string;
   message: string;
   icon?: string;
   timestamp: string;
+  senderName?: string;
+  senderRole?: string;
   seenBy?: string[]; // To track who saw it
+}
+
+export type ReminderActionType =
+  | 'NOW_OPENED'
+  | 'SNOOZE_10M'
+  | 'NO_BILL_TODAY'
+  | 'BILL_SUBMITTED_CONFIRMED';
+
+export interface DailyReminderUserState {
+  date: string; // YYYY-MM-DD in Asia/Dhaka
+  staffId: string;
+  staffName: string;
+  attendance9SentAt?: string;
+  attendance10SentAt?: string;
+  attendanceSuppressedReason?: 'CHECKED_IN_BEFORE_9' | 'CHECKED_IN_TODAY';
+  billReminderCount: number; // Max 3 per day (initial + up to 2 snooze follow-ups)
+  billInitialSentAt?: string;
+  billLastSentAt?: string;
+  billFollowUp1SentAt?: string;
+  billFollowUp2SentAt?: string;
+  billNoBillToday?: boolean;
+  billNoBillAt?: string;
+  billSnoozeUntil?: number; // Epoch ms (strictly +10 min when snoozed)
+  billSnoozeSequence?: number;
+  billSubmittedTodayAt?: string;
+  updatedAt: string;
+  lastDeliveryStatus?: string;
 }
 
 export interface SavedLocation {

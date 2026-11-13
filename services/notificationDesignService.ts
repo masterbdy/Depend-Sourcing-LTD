@@ -95,9 +95,9 @@ const INVALID_NAME_TOKENS = new Set([
 ]);
 
 const EMOJI_AND_SYMBOL_PREFIX_REGEX =
-  /^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\uFE0F\u200D\s]+/gu;
+  /^[⚠️❌🔔🚨📢]+/gu;
 const ALL_DECORATIVE_EMOJIS_REGEX =
-  /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\uFE0F]/gu;
+  /[⚠️❌🔔🚨📢]/gu;
 
 export function resolveNotificationTab(rawTab?: string | null): string {
   if (!rawTab || typeof rawTab !== 'string') return 'dashboard';
@@ -186,9 +186,14 @@ export function formatNotificationTitle(
       : COMPANY_FULL_NAME;
   }
 
-  // If caller already personalized title with recipientName, preserve cleanly without double prefixing
-  if (recipientName && !cleaned.toLowerCase().startsWith(recipientName.toLowerCase())) {
-    // Keep concise within Android single-line title limit (~42 chars)
+  // If caller already personalized title with recipientName or formal Bangla greeting, preserve cleanly
+  const normalizedLower = cleaned.toLowerCase();
+  if (
+    recipientName &&
+    !normalizedLower.startsWith(recipientName.toLowerCase()) &&
+    !cleaned.startsWith('আসসালামু আলাইকুম')
+  ) {
+    // Keep concise within Android single-line title limit (~48 chars)
     const candidate = `${recipientName}, ${cleaned}`;
     if (candidate.length <= 48) {
       return candidate;
@@ -507,11 +512,14 @@ export interface BuildNotifOptionsParams {
   message: string;
   type?: AppNotifType;
   link?: string;
+  url?: string;
   tag?: string;
   image?: string;
   timestampMs?: number;
   requireInteraction?: boolean;
   renotify?: boolean;
+  actions?: Array<{ action: string; title: string }>;
+  extraData?: Record<string, any>;
 }
 
 export interface ServiceWorkerNotificationOptions extends NotificationOptions {
@@ -539,6 +547,15 @@ export function buildServiceWorkerNotificationOptions(
 
   const safeTag = params.tag || `depend-sourcing-${tab || type.toLowerCase()}`;
   const actionTitle = TAB_ACTION_LABELS_BN[tab] || 'অ্যাপে দেখুন';
+  const resolvedActions =
+    Array.isArray(params.actions) && params.actions.length > 0
+      ? params.actions
+      : [
+          {
+            action: 'open',
+            title: actionTitle,
+          },
+        ];
 
   return {
     body: formatNotificationBody(params.message, {
@@ -555,18 +572,14 @@ export function buildServiceWorkerNotificationOptions(
     vibrate: isUrgent ? [180, 70, 180] : [120, 50, 120],
     requireInteraction: isUrgent,
     silent: false,
-    actions: [
-      {
-        action: 'open',
-        title: actionTitle,
-      },
-    ],
+    actions: resolvedActions,
     data: {
       tab,
       link: tab,
-      url: `/?tab=${encodeURIComponent(tab)}`,
+      url: params.url || `/?tab=${encodeURIComponent(tab)}`,
       type,
       timestamp: timestampMs,
+      ...(params.extraData || {}),
     },
   };
 }

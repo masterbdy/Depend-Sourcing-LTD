@@ -5,7 +5,16 @@ import nodemailer from 'nodemailer';
 import { GoogleGenAI } from '@google/genai';
 import { validateLunchPolicy } from './services/lunchPolicyService';
 import { buildLessonPrompt, validateLessonQuality, generateCuratedFallbackLesson } from './services/lessonGeneratorService';
-import { UserRole } from './types';
+import {
+  dispatchPopPushNotifications,
+  processReminderUserAction,
+  runScheduledRemindersCycle,
+} from './services/serverReminderScheduler';
+import {
+  getFirebaseServerConfigStatus,
+  sendFcmPushMessage,
+} from './services/firebaseServerClient';
+import { ReminderActionType, UserRole } from './types';
 
 async function startServer() {
   const app = express();
@@ -1273,6 +1282,96 @@ Return ONLY valid JSON matching this exact structure:
     }
   });
 
+  // Push Notification Dispatch Endpoint (Targeted Pop Messages & Direct Push)
+  app.post('/api/send-push', async (req, res) => {
+    try {
+      const body = req.body || {};
+      if (body.kind === 'POP_MESSAGE' || body.popupId) {
+        if (!body.popupId || !body.targetUserId || !body.title || !body.message) {
+          return res.status(400).json({
+            ok: false,
+            error: 'Missing popupId, targetUserId, title, or message',
+          });
+        }
+        const result = await dispatchPopPushNotifications({
+          popupId: String(body.popupId),
+          targetUserId: String(body.targetUserId),
+          title: String(body.title),
+          message: String(body.message),
+          senderName: body.senderName ? String(body.senderName) : undefined,
+        });
+        return res.json(result);
+      }
+
+      const { token, title, body: msgBody, data } = body;
+      if (!token || !title) {
+        return res.status(400).json({ ok: false, error: 'Missing token or title' });
+      }
+      const pushRes = await sendFcmPushMessage({
+        token: String(token),
+        title: String(title),
+        body: String(msgBody || ''),
+        link: data?.link || data?.tab || 'dashboard',
+        url: data?.url,
+        tag: data?.tag,
+        category: data?.type,
+      });
+      return res.status(pushRes.ok ? 200 : pushRes.missingCredentials ? 503 : 500).json(pushRes);
+    } catch (err: any) {
+      return res.status(500).json({ ok: false, error: err?.message || 'Push dispatch failed' });
+    }
+  });
+
+  // Per-User Reminder Action Persistence Endpoint (works for SW background action buttons too)
+  app.post('/api/reminders/action', async (req, res) => {
+    try {
+      const { action, staffId, staffName, dateBn } = req.body || {};
+      const allowed = new Set<ReminderActionType>([
+        'NOW_OPENED',
+        'SNOOZE_10M',
+        'NO_BILL_TODAY',
+        'BILL_SUBMITTED_CONFIRMED',
+      ]);
+      if (!action || !allowed.has(action)) {
+        return res.status(400).json({ ok: false, error: 'Invalid reminder action' });
+      }
+      if (!staffId || typeof staffId !== 'string') {
+        return res.status(400).json({ ok: false, error: 'Missing staffId' });
+      }
+      const result = await processReminderUserAction({
+        action,
+        staffId,
+        staffName: staffName ? String(staffName) : undefined,
+        dateBn: dateBn ? String(dateBn) : undefined,
+      });
+      return res.status(result.ok ? 200 : 500).json(result);
+    } catch (err: any) {
+      return res.status(500).json({ ok: false, error: err?.message || 'Reminder action failed' });
+    }
+  });
+
+  // Scheduled Attendance (09:00 & 10:00 BDT) & Bill (20:00 BDT + 10m Snooze) Cron Endpoint
+  app.all('/api/cron-reminders', async (req, res) => {
+    const configuredSecret = process.env.CRON_SECRET?.trim();
+    if (configuredSecret) {
+      const authHeader = req.headers?.authorization || '';
+      const querySecret = req.query?.secret;
+      if (authHeader !== `Bearer ${configuredSecret}` && querySecret !== configuredSecret) {
+        return res.status(401).json({ ok: false, error: 'Unauthorized cron invocation' });
+      }
+    }
+    try {
+      const simulatedNow =
+        req.query?.nowMs && !Number.isNaN(Number(req.query.nowMs))
+          ? Number(req.query.nowMs)
+          : Date.now();
+      const report = await runScheduledRemindersCycle(simulatedNow);
+      return res.json(report);
+    } catch (err: any) {
+      return res.status(500).json({ ok: false, error: err?.message || 'Reminder cron failed' });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
@@ -1291,6 +1390,21 @@ Return ONLY valid JSON matching this exact structure:
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://localhost:${PORT}`);
+
+    // Persistent Express background scheduler loop (checks Asia/Dhaka schedules & 10-min snoozes every 60s)
+    const serverCfg = getFirebaseServerConfigStatus();
+    if (serverCfg.canSendFcmPush) {
+      const runTick = () => {
+        runScheduledRemindersCycle(Date.now()).catch((err) => {
+          console.warn('[server-scheduler] Reminder cycle warning:', err);
+        });
+      };
+      setTimeout(runTick, 15_000);
+      setInterval(runTick, 60_000);
+      console.log('[server-scheduler] Active (60s Asia/Dhaka attendance & bill reminder loop enabled).');
+    } else {
+      console.log('[server-scheduler] Passive mode: FIREBASE_SERVICE_ACCOUNT_JSON not configured; FCM background pushes await credentials.');
+    }
   });
 }
 
