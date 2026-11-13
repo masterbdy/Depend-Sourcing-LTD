@@ -19,6 +19,9 @@ export default defineConfig({
         'pwa-512x512.png',
         'pwa-maskable-192x192.png',
         'pwa-maskable-512x512.png',
+        'logo.png',
+        'notification-badge.png',
+        'sw-notifications.js',
         'manifest.webmanifest',
         'manifest.json',
         'version.json'
@@ -69,6 +72,7 @@ export default defineConfig({
         ]
       },
       workbox: {
+        importScripts: ['/sw-notifications.js'],
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,webmanifest,json}'],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\/.*/],

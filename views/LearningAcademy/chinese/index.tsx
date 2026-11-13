@@ -12,7 +12,11 @@ import {
   RotateCcw,
   CheckCircle2,
   Layers,
-  ArrowRight
+  ArrowRight,
+  Headphones,
+  BookOpen,
+  Trophy,
+  Brain
 } from 'lucide-react';
 import { UserChineseProgress } from './types';
 import { ChineseDayByDayView } from './ChineseDayByDayView';
@@ -20,8 +24,16 @@ import { ChineseSupplierSimulator } from './ChineseSupplierSimulator';
 import { ChineseVocabularyView } from './ChineseVocabularyView';
 import { CHINESE_LESSONS_DATA } from './chineseLessonsData';
 import { CHINESE_VOCABULARY_DATA } from './chineseVocabularyData';
+import { getLanguageConfig } from '../core/languagesRegistry';
+import { UniversalListeningStudio } from '../core/UniversalListeningStudio';
+import { UniversalGrammarBuilder } from '../core/UniversalGrammarBuilder';
+import { UniversalSpeakingExam } from '../core/UniversalSpeakingExam';
+import { UniversalPersonalAssistant } from '../core/UniversalPersonalAssistant';
+import { UserLanguageProgress, CefrLevel, SpeakingExamResult, UniversalDailyLesson } from '../core/types';
+import { ChineseLessonDay } from './types';
 import { getDatabase, ref, onValue, set } from 'firebase/database';
 import { getApp } from 'firebase/app';
+import { getAllLessons, requestNextAdaptiveLesson } from '../../../services/dynamicLessonManager';
 
 interface ChineseAcademyViewProps {
   currentUser: string | null;
@@ -34,7 +46,10 @@ export const ChineseAcademyView: React.FC<ChineseAcademyViewProps> = ({
   firebaseConfig,
   isCloudEnabled,
 }) => {
-  const [activeTab, setActiveTab] = useState<'days' | 'simulator' | 'vocab'>('days');
+  const langConfig = getLanguageConfig('chinese');
+  const [activeTab, setActiveTab] = useState<
+    'days' | 'simulator' | 'listening' | 'grammar' | 'vocab' | 'exam' | 'assistant'
+  >('days');
   const [isSpeaking, setIsSpeaking] = useState(false);
 
   // Safe user key for storage & Firebase isolation
@@ -119,6 +134,119 @@ export const ChineseAcademyView: React.FC<ChineseAcademyViewProps> = ({
     },
     [safeUserId, storageKey, firebaseConfig]
   );
+
+  // Dynamic & Foundational Chinese Lessons State
+  const [allLessons, setAllLessons] = useState<ChineseLessonDay[]>(CHINESE_LESSONS_DATA);
+  const [isGeneratingNext, setIsGeneratingNext] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    getAllLessons('chinese', safeUserId, firebaseConfig).then((loaded) => {
+      if (mounted && loaded && loaded.length > 0) {
+        // Convert UniversalDailyLesson to ChineseLessonDay for any dynamic day >= 13
+        const converted: ChineseLessonDay[] = loaded.map((u) => {
+          const existing = CHINESE_LESSONS_DATA.find((c) => c.day === u.day);
+          if (existing) return existing;
+          return {
+            day: u.day,
+            title: u.title,
+            titleBn: u.titleBn,
+            stage: 'Orders & Negotiations',
+            objectiveBn: u.objectiveBn,
+            xpReward: u.xpReward,
+            coreWords: (u.vocabulary || []).map((v) => ({
+              character: v.targetWord,
+              pinyin: v.romanized || '',
+              pronunciationBn: v.bengaliPronunciation,
+              meaningBn: v.bengaliMeaning,
+              audioText: v.audioText || v.targetWord,
+              contextNoteBn: v.exampleBengali,
+            })),
+            dialogue: (u.conversation || []).map((c) => ({
+              speaker: c.speaker,
+              speakerRoleBn: c.speakerRoleBn,
+              chinese: c.targetText,
+              pinyin: c.romanized || '',
+              pronunciationBn: c.bengaliPronunciation,
+              meaningBn: c.bengaliMeaning,
+            })),
+            businessTipBn: u.businessTipBn || 'উইচ্যাটে দ্রুত ও মার্জিত যোগাযোগ বজায় রাখুন।',
+            quiz: (u.quiz || []).map((q) => ({
+              id: q.id,
+              question: q.question,
+              questionBn: q.questionBn,
+              options: q.options,
+              correctAnswer: q.correctAnswer,
+              explanationBn: q.explanationBn,
+            })),
+          };
+        });
+        setAllLessons(converted);
+      }
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [safeUserId, firebaseConfig]);
+
+  const handleGenerateNextLesson = async (targetDay: number) => {
+    setIsGeneratingNext(true);
+    try {
+      const res = await requestNextAdaptiveLesson({
+        language: 'chinese',
+        currentDay: targetDay,
+        completedDays: progress.completedDays,
+        safeUserId,
+        weakTopics: progress.weakTopics,
+        firebaseConfig,
+      });
+      if (res?.success && res.lesson) {
+        const u = res.lesson;
+        const newLesson: ChineseLessonDay = {
+          day: u.day,
+          title: u.title,
+          titleBn: u.titleBn,
+          stage: 'Orders & Negotiations',
+          objectiveBn: u.objectiveBn,
+          xpReward: u.xpReward,
+          coreWords: (u.vocabulary || []).map((v) => ({
+            character: v.targetWord,
+            pinyin: v.romanized || '',
+            pronunciationBn: v.bengaliPronunciation,
+            meaningBn: v.bengaliMeaning,
+            audioText: v.audioText || v.targetWord,
+            contextNoteBn: v.exampleBengali,
+          })),
+          dialogue: (u.conversation || []).map((c) => ({
+            speaker: c.speaker,
+            speakerRoleBn: c.speakerRoleBn,
+            chinese: c.targetText,
+            pinyin: c.romanized || '',
+            pronunciationBn: c.bengaliPronunciation,
+            meaningBn: c.bengaliMeaning,
+          })),
+          businessTipBn: u.businessTipBn || 'উইচ্যাটে দ্রুত ও মার্জিত যোগাযোগ বজায় রাখুন।',
+          quiz: (u.quiz || []).map((q) => ({
+            id: q.id,
+            question: q.question,
+            questionBn: q.questionBn,
+            options: q.options,
+            correctAnswer: q.correctAnswer,
+            explanationBn: q.explanationBn,
+          })),
+        };
+
+        setAllLessons((prev) => {
+          const map = new Map<number, ChineseLessonDay>();
+          prev.forEach((l) => map.set(l.day, l));
+          map.set(newLesson.day, newLesson);
+          return Array.from(map.values()).sort((a, b) => a.day - b.day);
+        });
+      }
+    } finally {
+      setIsGeneratingNext(false);
+    }
+  };
 
   // Speech helper for Chinese
   const speakChinese = useCallback((text: string) => {
@@ -309,41 +437,89 @@ export const ChineseAcademyView: React.FC<ChineseAcademyViewProps> = ({
       </div>
 
       {/* Module Navigation Tabs */}
-      <div className="bg-white dark:bg-gray-800 p-2 rounded-2xl border border-gray-100 dark:border-gray-700/60 shadow-xs flex flex-wrap gap-2">
+      <div className="bg-white dark:bg-gray-800 p-2 rounded-2xl border border-gray-100 dark:border-gray-700/60 shadow-xs flex flex-wrap gap-2 overflow-x-auto">
         <button
           onClick={() => setActiveTab('days')}
-          className={`flex-1 min-w-[140px] py-3 px-4 rounded-xl text-xs md:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+          className={`py-2.5 px-3.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 whitespace-nowrap transition-all ${
             activeTab === 'days'
               ? 'bg-red-600 text-white shadow-md shadow-red-600/20'
               : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50'
           }`}
         >
-          <Calendar className="w-4 h-4" />
-          <span>📅 দিনভিত্তিক কোর্স (Day 1 - {totalLessons})</span>
+          <Calendar className="w-3.5 h-3.5" />
+          <span>📅 কোর্স মডিউল (Day 1 - {totalLessons})</span>
         </button>
 
         <button
           onClick={() => setActiveTab('simulator')}
-          className={`flex-1 min-w-[140px] py-3 px-4 rounded-xl text-xs md:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+          className={`py-2.5 px-3.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 whitespace-nowrap transition-all ${
             activeTab === 'simulator'
               ? 'bg-red-600 text-white shadow-md shadow-red-600/20'
               : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50'
           }`}
         >
-          <Building2 className="w-4 h-4" />
-          <span>🤖 চীনা সাপ্লায়ার সিমুলেটর (AI Simulator)</span>
+          <Building2 className="w-3.5 h-3.5" />
+          <span>🤖 চীনা সাপ্লায়ার সিমুলেটর</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('listening')}
+          className={`py-2.5 px-3.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 whitespace-nowrap transition-all ${
+            activeTab === 'listening'
+              ? 'bg-red-600 text-white shadow-md shadow-red-600/20'
+              : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50'
+          }`}
+        >
+          <Headphones className="w-3.5 h-3.5" />
+          <span>🎧 লিসনিং স্টুডিও (Multi-Speed)</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('grammar')}
+          className={`py-2.5 px-3.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 whitespace-nowrap transition-all ${
+            activeTab === 'grammar'
+              ? 'bg-red-600 text-white shadow-md shadow-red-600/20'
+              : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50'
+          }`}
+        >
+          <BookOpen className="w-3.5 h-3.5" />
+          <span>📚 ব্যাকরণ ও সিনট্যাক্স</span>
         </button>
 
         <button
           onClick={() => setActiveTab('vocab')}
-          className={`flex-1 min-w-[140px] py-3 px-4 rounded-xl text-xs md:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+          className={`py-2.5 px-3.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 whitespace-nowrap transition-all ${
             activeTab === 'vocab'
               ? 'bg-red-600 text-white shadow-md shadow-red-600/20'
               : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50'
           }`}
         >
-          <BookmarkCheck className="w-4 h-4" />
-          <span>📖 বিজনেস শব্দভাণ্ডার ({CHINESE_VOCABULARY_DATA.length} Words)</span>
+          <BookmarkCheck className="w-3.5 h-3.5" />
+          <span>📖 শব্দভাণ্ডার ({CHINESE_VOCABULARY_DATA.length} Words)</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('exam')}
+          className={`py-2.5 px-3.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 whitespace-nowrap transition-all ${
+            activeTab === 'exam'
+              ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-md'
+              : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50'
+          }`}
+        >
+          <Trophy className="w-3.5 h-3.5 text-amber-300" />
+          <span>🏆 CEFR স্পিকিং পরীক্ষা</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('assistant')}
+          className={`py-2.5 px-3.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 whitespace-nowrap transition-all ${
+            activeTab === 'assistant'
+              ? 'bg-indigo-600 text-white shadow-md'
+              : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50'
+          }`}
+        >
+          <Brain className="w-3.5 h-3.5" />
+          <span>🧠 AI পার্সোনাল কোচ</span>
         </button>
       </div>
 
@@ -354,6 +530,9 @@ export const ChineseAcademyView: React.FC<ChineseAcademyViewProps> = ({
           onCompleteDay={handleCompleteDay}
           speakChinese={speakChinese}
           isSpeaking={isSpeaking}
+          lessons={allLessons}
+          onGenerateNextLesson={handleGenerateNextLesson}
+          isGeneratingNext={isGeneratingNext}
         />
       )}
 
@@ -366,12 +545,72 @@ export const ChineseAcademyView: React.FC<ChineseAcademyViewProps> = ({
         />
       )}
 
+      {activeTab === 'listening' && (
+        <UniversalListeningStudio
+          langConfig={langConfig}
+          onAwardXp={handleAwardXp}
+          speakText={(txt, code, rate) => speakChinese(txt, rate)}
+          isSpeaking={isSpeaking}
+        />
+      )}
+
+      {activeTab === 'grammar' && (
+        <UniversalGrammarBuilder
+          langConfig={langConfig}
+          onAwardXp={handleAwardXp}
+          speakText={(txt) => speakChinese(txt)}
+        />
+      )}
+
       {activeTab === 'vocab' && (
         <ChineseVocabularyView
           masteredIds={progress.vocabularyMastered || []}
           onMarkMastered={handleMarkMastered}
           speakChinese={speakChinese}
           isSpeaking={isSpeaking}
+        />
+      )}
+
+      {activeTab === 'exam' && (
+        <UniversalSpeakingExam
+          langConfig={langConfig}
+          currentCefrLevel="A1"
+          userName={currentUser || 'Staff Member'}
+          onExamCompleted={(res) => {
+            if (res.passed) handleAwardXp(150);
+          }}
+          speakText={(txt, code, rate) => speakChinese(txt, rate)}
+          isSpeaking={isSpeaking}
+        />
+      )}
+
+      {activeTab === 'assistant' && (
+        <UniversalPersonalAssistant
+          langConfig={langConfig}
+          progress={{
+            userId: safeUserId,
+            languageCode: 'chinese',
+            currentDay: progress.currentDay,
+            completedDays: progress.completedDays,
+            xp: progress.xp,
+            streak: progress.streak,
+            level: 'beginner',
+            cefrLevel: 'A1',
+            lastActiveDate: progress.lastActiveDate,
+            masteredWordIds: progress.vocabularyMastered,
+            conversationMinutes: progress.simulatorMinutes,
+            completedQuizzesCount: progress.completedDays.length,
+            correctAnswersCount: progress.completedDays.length * 4,
+            unlockedBadges: [],
+            practiceDistribution: {
+              speakingMinutes: Math.max(12, progress.simulatorMinutes || 12),
+              listeningMinutes: 8,
+              vocabMinutes: Math.max(5, (progress.vocabularyMastered || []).length),
+              grammarMinutes: 4,
+            },
+          }}
+          onNavigateToTab={(tab) => setActiveTab(tab as any)}
+          onStartExam={() => setActiveTab('exam')}
         />
       )}
     </div>

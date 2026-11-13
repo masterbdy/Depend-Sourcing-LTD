@@ -3,9 +3,18 @@ import { getApp, getApps } from 'firebase/app';
 import { getDatabase, ref, get, onValue, set, serverTimestamp } from 'firebase/database';
 import { getAuth } from 'firebase/auth';
 import { getUnsyncedBillCount } from './billSyncService';
-import { perf, PerfMetric, OverallPerfSummary } from './performanceDiagnostics';
+import {
+  perf,
+  PerfMetric,
+  OverallPerfSummary,
+  ActionPerfSummary,
+  SlowOperationRecord,
+  CanonicalOperationReport,
+} from './performanceDiagnostics';
 
-export type HealthStatus = 'HEALTHY' | 'DEGRADED' | 'WARNING' | 'CRITICAL' | 'UNKNOWN';
+export type { ActionPerfSummary, SlowOperationRecord, CanonicalOperationReport };
+
+export type HealthStatus = 'HEALTHY' | 'DEGRADED' | 'WARNING' | 'CRITICAL' | 'UNKNOWN' | 'OFFLINE' | 'UNAVAILABLE';
 export type IncidentSeverity = 'CRITICAL' | 'WARNING' | 'INFO';
 export type IncidentStatus = 'OPEN' | 'INVESTIGATING' | 'RESOLVED';
 
@@ -147,14 +156,24 @@ export interface SystemHealthSnapshot {
     totalTracked: number;
     slowOperationsCount: number;
     failedOperationsCount: number;
+    successCount: number;
     overallAvgMs: number;
+    overallMinMs: number;
     overallMaxMs: number;
+    overallP50Ms: number;
     overallP95Ms: number;
+    overallP99Ms: number | null;
     isSampleSufficient: boolean;
     sampleNotice: string;
     thresholds: PerfThresholds;
-    summary: Record<string, { count: number; avgTotal: number; maxTotal: number; avgNet: number }>;
-    byCategory: Record<string, { count: number; avgTotal: number; p95Total: number; slowCount: number; failedCount: number }>;
+    summary: Record<string, ActionPerfSummary>;
+    byAction: Record<string, ActionPerfSummary>;
+    byCategory: Record<
+      string,
+      { count: number; avgTotal: number; minTotal: number; maxTotal: number; p95Total: number; slowCount: number; failedCount: number }
+    >;
+    slowOperations: SlowOperationRecord[];
+    canonicalOperations: CanonicalOperationReport[];
     recentMetrics: PerfMetric[];
   };
 }
@@ -249,6 +268,7 @@ class SystemHealthService {
       if (thStr) {
         this.thresholds = { ...DEFAULT_THRESHOLDS, ...JSON.parse(thStr) };
       }
+      perf.setThresholds(this.thresholds);
     } catch {}
 
     this.lastSyncConfirmedAt = localStorage.getItem(STORAGE_KEYS.LAST_SUCCESSFUL_SYNC);
@@ -312,6 +332,7 @@ class SystemHealthService {
       ...this.thresholds,
       ...t,
     };
+    perf.setThresholds(this.thresholds);
     this.persistState();
     this.logEvent({
       type: 'ADMIN_ACTION',
@@ -362,6 +383,7 @@ class SystemHealthService {
     affectedService: Incident['affectedService'];
     message: string;
     recommendedAction: string;
+    isPeriodicScan?: boolean;
   }): Incident {
     const now = new Date().toISOString();
 
@@ -373,7 +395,9 @@ class SystemHealthService {
     );
 
     if (existing) {
-      existing.occurrenceCount += 1;
+      if (!params.isPeriodicScan) {
+        existing.occurrenceCount += 1;
+      }
       existing.lastOccurrence = now;
       existing.message = params.message;
       if (params.severity === 'CRITICAL' && existing.severity !== 'CRITICAL') {
@@ -598,8 +622,8 @@ class SystemHealthService {
     error?: string;
   }> {
     const candidateEndpoints = [
-      '/api/system-health/status',
       '/api/health',
+      '/api/system-health/status',
       '/api/app-version',
     ];
 
@@ -609,8 +633,9 @@ class SystemHealthService {
     for (const ep of candidateEndpoints) {
       try {
         const epStart = performance.now();
+        const PROBE_TIMEOUT_MS = 2500;
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000);
+        const timeoutId = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
 
         const res = await fetch(ep, {
           method: 'GET',
@@ -664,9 +689,11 @@ class SystemHealthService {
         }
       } catch (err: any) {
         if (err.name === 'AbortError') {
-          lastError = { category: 'TIMEOUT', ep, msg: 'API রিকোয়েস্ট ৪ সেকেন্ডে টাইমআউট হয়েছে' };
+          lastError = { category: 'TIMEOUT', ep, msg: 'API রিকোয়েস্ট ২.৫ সেকেন্ডে টাইমআউট হয়েছে' };
+          break; // Do not waste extra timeout cycles on secondary candidates when primary endpoint timed out
         } else if (err?.message?.includes('Failed to fetch') || err?.message?.includes('NetworkError')) {
           lastError = { category: 'SERVER_UNAVAILABLE', ep, msg: 'সার্ভার সংযোগ বিচ্ছিন্ন বা CORS কনফিগারেশন অনুপস্থিত' };
+          break; // Fail fast if server is unreachable
         } else {
           lastError = { category: 'CORS_ERROR', ep, msg: err?.message || 'অজ্ঞাত ত্রুটি' };
         }
@@ -698,7 +725,7 @@ class SystemHealthService {
       failureCategory === 'ENDPOINT_MISSING'
         ? 'হেলথ ডায়াগনস্টিক এন্ডপয়েন্ট অনুপস্থিত (HTTP 404)'
         : failureCategory === 'TIMEOUT'
-        ? 'সার্ভার রেসপন্স টাইমআউট (>৪ সেকেন্ড)'
+        ? 'সার্ভার রেসপন্স টাইমআউট (>২.৫ সেকেন্ড)'
         : 'সার্ভার কানেকশন পাওয়া যায়নি (অফলাইন বা পোর্ট অমিল)';
 
     return {
@@ -767,6 +794,7 @@ class SystemHealthService {
           affectedService: 'IndexedDB',
           message: `লোকাল IndexedDB/LocalStorage রিড-রাইট ব্যর্থ হয়েছে: ${storageError}`,
           recommendedAction: 'ব্রাউজার প্রাইভেট মোড অথবা স্টোরেজ পারমিশন পরীক্ষা করুন।',
+          isPeriodicScan: true,
         });
       }
 
@@ -784,16 +812,22 @@ class SystemHealthService {
       let authUid: string | undefined;
       let authExpiresAt: string | undefined;
       let permissionDeniedCount = 0;
-      let appCheckStatus: SystemHealthSnapshot['firebase']['appCheckStatus'] = 'NOT_CONFIGURED';
+      const appCheckSiteKey =
+        firebaseConfig?.appCheckSiteKey ||
+        (typeof import.meta !== 'undefined' ? (import.meta as any).env?.VITE_FIREBASE_APP_CHECK_SITE_KEY : undefined);
+      const isAppCheckConfigured = Boolean(appCheckSiteKey && String(appCheckSiteKey).trim().length > 0);
+      let appCheckStatus: SystemHealthSnapshot['firebase']['appCheckStatus'] = isAppCheckConfigured ? 'ACTIVE' : 'NOT_CONFIGURED';
       const diagnosticLocation = '.info/serverTimeOffset & .info/connected';
 
       const appCheckInfo: AppCheckDiagnosticInfo = {
-        status: 'NOT_CONFIGURED',
+        status: isAppCheckConfigured ? 'ACTIVE' : 'NOT_CONFIGURED',
         provider: 'reCAPTCHA v3 (Web)',
-        enforcementMode: 'MONITORING_ONLY',
+        enforcementMode: 'MONITORING_ONLY', // Never enable enforcement automatically
         attestationProvider: 'ReCaptchaV3Provider',
         isSafe: true, // Non-enforced ensures legitimate staff devices will not be blocked
-        recommendation: 'কনসোল থেকে reCAPTCHA v3 সাইট কী যুক্ত করে মনিটরিং মোডে পর্যবেক্ষণ করার পরামর্শ দেওয়া হচ্ছে।',
+        recommendation: isAppCheckConfigured
+          ? 'App Check সাইট কী কনফিগার করা আছে। মনিটরিং মোডে ভ্যালিড রিকোয়েস্ট মেট্রিক পর্যবেক্ষণ অব্যাহত রাখুন।'
+          : 'কনসোল থেকে reCAPTCHA v3 সাইট কী যুক্ত করে মনিটরিং মোডে পর্যবেক্ষণ করার পরামর্শ দেওয়া হচ্ছে।',
         roadmap: [
           '১. Firebase Console > App Check সেকশনে ওয়েব অ্যাপটি রেজিস্টার করুন।',
           '২. Google Cloud reCAPTCHA এন্টারপ্রাইজ অথবা reCAPTCHA v3 থেকে একটি পাবলিক সাইট কী সংগ্রহ করুন।',
@@ -853,17 +887,21 @@ class SystemHealthService {
             });
 
             // Read clock offset as true round-trip ping without touching user tables
+            let queryStart = performance.now();
             try {
+              queryStart = performance.now();
               const offsetSnap = await Promise.race([
                 get(serverTimeOffsetRef),
                 new Promise<never>((_, reject) => setTimeout(() => reject(new Error('OFFSET_TIMEOUT')), 2000)),
               ]);
+              const queryDuration = Number((performance.now() - queryStart).toFixed(1));
               if (offsetSnap.exists()) {
-                fbRoundTripLatencyMs = Number((performance.now() - fbStart).toFixed(1));
+                fbRoundTripLatencyMs = queryDuration;
+                fbReadLatencyMs = queryDuration;
               }
-            } catch {}
-
-            fbReadLatencyMs = Number((performance.now() - fbStart).toFixed(1));
+            } catch {
+              fbReadLatencyMs = Number((performance.now() - queryStart).toFixed(1));
+            }
 
             // Independent Firebase Auth check
             try {
@@ -921,6 +959,7 @@ class SystemHealthService {
                 affectedService: 'Firebase',
                 message: `Firebase Realtime Database রেসপন্স দেয়নি: ${fbError}`,
                 recommendedAction: 'ইন্টারনেট প্রক্সি, ফায়ারওয়াল অথবা ফায়ারবেস কনফিগারেশন চেক করুন। অফলাইন কিউতে ডাটা নিরাপদ থাকবে।',
+                isPeriodicScan: true,
               });
             }
           } else {
@@ -1002,11 +1041,30 @@ class SystemHealthService {
           title: 'অতিরিক্ত ধীরগতি অপারেশন (High Latency Detected)',
           severity: 'WARNING',
           affectedService: 'System',
-          message: `সাম্প্রতিক অপারেশনের মধ্যে ${slowCount} টি অপারেশনে ৩ সেকেন্ডের বেশি সময় লেগেছে (P95: ${perfSummary.overallP95Ms}ms)।`,
+          message: `সাম্প্রতিক অপারেশনের মধ্যে ${slowCount} টি অপারেশনে ${this.thresholds.slowMs / 1000} সেকেন্ডের বেশি সময় লেগেছে (P95: ${perfSummary.overallP95Ms}ms)।`,
           recommendedAction: 'পারফরম্যান্স ট্যাবে ধীরগতির রুট বা অ্যাকশন পরীক্ষা করুন।',
+          isPeriodicScan: true,
         });
       } else if (slowInc && slowCount <= 1) {
-        this.resolveIncident(slowInc.id, 'সাম্প্রতিক অপারেশনের গতি স্বাভাবিক মাত্রায় ফিরে এসেছে (<১ সেকেন্ড)।', 'System Auto-Recovery');
+        this.resolveIncident(slowInc.id, `সাম্প্রতিক অপারেশনের গতি স্বাভাবিক মাত্রায় ফিরে এসেছে (<${this.thresholds.normalMs / 1000} সেকেন্ড)।`, 'System Auto-Recovery');
+      }
+
+      // Resolve local session role regardless of Firebase online status
+      let sessionObj: any = null;
+      if (typeof localStorage !== 'undefined') {
+        try {
+          const s = localStorage.getItem('active_session');
+          if (s) sessionObj = JSON.parse(s);
+        } catch {}
+      }
+      if (authStatus === 'UNKNOWN') {
+        const fallbackUser = userContext?.currentUser || sessionObj?.username || sessionObj?.email;
+        if (fallbackUser) {
+          authStatus = 'SESSION_AUTHENTICATED';
+          authEmail = fallbackUser;
+        } else {
+          authStatus = 'NOT_LOGGED_IN';
+        }
       }
 
       // 7. Read-only Security Diagnostics
@@ -1018,7 +1076,8 @@ class SystemHealthService {
         let suspiciousKeyFound = false;
         for (let i = 0; i < localStorage.length; i++) {
           const k = localStorage.key(i) || '';
-          if (k.toLowerCase().includes('password') || k.toLowerCase().includes('secret_key')) {
+          const lk = k.toLowerCase();
+          if (lk.includes('password') || lk.includes('secret_key') || lk.includes('database_secret')) {
             suspiciousKeyFound = true;
             auditFindings.push(`সন্দেহজনক স্টোরেজ কী শনাক্ত হয়েছে: ${k}`);
           }
@@ -1028,8 +1087,29 @@ class SystemHealthService {
         }
       }
 
-      const securityStatus: HealthStatus =
-        this.securityViolationsCount > 0 ? 'WARNING' : permissionDeniedCount > 0 ? 'DEGRADED' : 'HEALTHY';
+      const authEnforced =
+        authStatus === 'FIREBASE_AUTH_ACTIVE' ||
+        authStatus === 'SESSION_AUTHENTICATED' ||
+        authStatus === 'ANONYMOUS';
+      const resolvedRole = userContext?.role || sessionObj?.role || undefined;
+      const validRoles = ['ADMIN', 'MD', 'STAFF', 'KIOSK'];
+      const rolePermissionValid = Boolean(
+        authEnforced && resolvedRole && validRoles.includes(String(resolvedRole).toUpperCase())
+      );
+
+      if (!authEnforced) {
+        auditFindings.push('সক্রিয় অথেনটিকেটেড সেশন শনাক্ত হয়নি (Unauthenticated context)');
+      }
+      if (permissionDeniedCount > 0) {
+        auditFindings.push(`Firebase পারমিশন ডিনাইড ইভেন্ট: ${permissionDeniedCount} টি`);
+      }
+
+      let securityStatus: HealthStatus = 'HEALTHY';
+      if (permissionDeniedCount > 0 || sensitiveExposureRisk === 'MEDIUM') {
+        securityStatus = 'DEGRADED';
+      } else if (this.securityViolationsCount > 0 || !authEnforced) {
+        securityStatus = 'WARNING';
+      }
 
       // 8. Overall System Status Determination
       const openIncidents = this.incidents.filter((i) => i.status !== 'RESOLVED');
@@ -1042,7 +1122,7 @@ class SystemHealthService {
         overallStatus = 'OFFLINE';
       } else if (!indexedDbAvailable || !localStorageAvailable || criticalIncidents.length > 0) {
         overallStatus = 'CRITICAL';
-      } else if (fbStatus === 'UNAVAILABLE' || fbStatus === 'CRITICAL') {
+      } else if (fbStatus === 'UNAVAILABLE') {
         overallStatus = 'CRITICAL';
       } else if (fbStatus !== 'HEALTHY' || !serverDiag.available || pendingCount > 10 || warningIncidents.length > 0) {
         // Optional backend failure or pending queue makes overall app DEGRADED, NOT CRITICAL!
@@ -1113,9 +1193,9 @@ class SystemHealthService {
         },
         security: {
           status: securityStatus,
-          authEnforced: true,
-          currentUserRole: userContext?.role || (authStatus === 'SESSION_AUTHENTICATED' || authStatus === 'FIREBASE_AUTH_ACTIVE' || authStatus === 'AUTHENTICATED' ? 'Verified Session' : 'Unauthenticated Guard'),
-          rolePermissionValid: true,
+          authEnforced,
+          currentUserRole: resolvedRole || (authEnforced ? 'Verified Session' : 'Unauthenticated Guard'),
+          rolePermissionValid,
           unauthorizedAccessAttempts: this.securityViolationsCount,
           sensitiveExposureRisk,
           sessionExpiresInHours: authExpiresAt ? Math.max(0, Math.round((new Date(authExpiresAt).getTime() - Date.now()) / 3600000)) : undefined,
@@ -1132,14 +1212,21 @@ class SystemHealthService {
           totalTracked: perfSummary.totalTracked,
           slowOperationsCount: perfSummary.slowCount,
           failedOperationsCount: perfSummary.failedCount,
+          successCount: perfSummary.successCount,
           overallAvgMs: perfSummary.overallAvgMs,
+          overallMinMs: perfSummary.overallMinMs,
           overallMaxMs: perfSummary.overallMaxMs,
+          overallP50Ms: perfSummary.overallP50Ms,
           overallP95Ms: perfSummary.overallP95Ms,
+          overallP99Ms: perfSummary.overallP99Ms,
           isSampleSufficient: perfSummary.isSampleSufficient,
           sampleNotice: perfSummary.sampleNotice,
           thresholds: this.thresholds,
-          summary: perf.getSummary(),
+          summary: perfSummary.byAction,
+          byAction: perfSummary.byAction,
           byCategory: perfSummary.byCategory,
+          slowOperations: perfSummary.slowOperations,
+          canonicalOperations: perfSummary.canonicalOperations,
           recentMetrics: perf.getMetrics().slice(-15).reverse(),
         },
       };
@@ -1181,18 +1268,77 @@ class SystemHealthService {
   public generateSanitizedReport(): string {
     const s = this.lastSnapshot;
     const now = new Date().toISOString();
-    return `# Depend Sourcing - System Health Diagnostic Report
+    const livePerf = s ? s.perf : perf.getOverallSummary();
+    const slowThresholdMs = s?.perf.thresholds?.slowMs || perf.getThresholds().slowMs;
+
+    const scrub = (t: string): string =>
+      String(t || '')
+        .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[REDACTED_IDENTITY]')
+        .replace(/\bBearer\s+[A-Za-z0-9\-._~+/]+=*/gi, 'Bearer [REDACTED_TOKEN]')
+        .replace(/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g, '[REDACTED_JWT]')
+        .replace(/\b(password|user_password|apiKey|databaseSecret|secret_key|access_token)\s*[:=]\s*[^\s,;]+/gi, '$1=[REDACTED]')
+        .replace(/(?:\+?88)?01[3-9]\d{8}\b/g, '[REDACTED_PHONE]');
+
+    const canonicalRows = livePerf.canonicalOperations
+      .map((op) => {
+        const statusLabel =
+          op.status === 'NOT_TRACKED'
+            ? 'NOT TRACKED'
+            : op.status === 'LIMITED_SAMPLE'
+            ? 'LIMITED SAMPLE'
+            : op.status;
+        if (op.samples === 0) {
+          return `${op.operation}| 0| N/A| N/A| N/A| N/A| 0| ${statusLabel}`;
+        }
+        return `${op.operation}| ${op.samples}| ${op.avgMs}ms| ${op.minMs}ms| ${op.maxMs}ms| ${op.p95Ms}ms| ${op.failedCount}| ${statusLabel}`;
+      })
+      .join('\n');
+
+    const actionEntries = Object.values(livePerf.byAction || {});
+    const detailedActionLines =
+      actionEntries.length > 0
+        ? actionEntries
+            .map((a) => {
+              const p99Text = a.p99Total !== null ? `${a.p99Total}ms` : 'N/A (<20 samples)';
+              return `- ${scrub(a.action)} [${a.category}]: Samples=${a.count} (${a.sampleStatus}) | Avg=${a.avgTotal}ms | Min=${a.minTotal}ms | Max=${a.maxTotal}ms | P50=${a.p50Total}ms | P95=${a.p95Total}ms | P99=${p99Text} | Success=${a.successCount} | Failed=${a.failedCount} | Slow=${a.slowCount} | Last=${a.lastDurationMs}ms @ ${a.lastExecutedAt}`;
+            })
+            .join('\n')
+        : '- No tracked operations recorded in the active session.';
+
+    const slowOps = livePerf.slowOperations || [];
+    const slowOpsSection =
+      slowOps.length > 0
+        ? slowOps
+            .map(
+              (so) =>
+                `- ${scrub(so.action)} [${so.category}]: Threshold=${so.thresholdMs}ms | Occurrences=${so.occurrences} | Max=${so.maxDurationMs}ms | Last=${so.lastSlowDurationMs}ms | Recent=${so.lastOccurrenceAt}`
+            )
+            .join('\n')
+        : `- No slow operations detected above ${slowThresholdMs}ms threshold.`;
+
+    const totalTracked = 'totalTracked' in livePerf ? livePerf.totalTracked : 0;
+    const overallSlowCount =
+      'slowOperationsCount' in livePerf ? livePerf.slowOperationsCount : livePerf.slowCount;
+    const overallFailedCount =
+      'failedOperationsCount' in livePerf ? livePerf.failedOperationsCount : livePerf.failedCount;
+    const overallP99Text =
+      livePerf.overallP99Ms !== null && livePerf.overallP99Ms !== undefined
+        ? `${livePerf.overallP99Ms}ms`
+        : 'INSUFFICIENT_SAMPLE (<20 samples)';
+
+    return scrub(`# Depend Sourcing - System Health Diagnostic Report
 Generated: ${now}
 Overall Status: ${s ? s.overallStatus : 'UNKNOWN'}
 
 ## 1. Environment & Connectivity
 - Browser Online: ${s?.network.online ? 'YES' : 'NO'}
 - Network RTT: ${s?.network.rtt || 'N/A'}ms (Downlink: ${s?.network.downlink || 'N/A'} Mbps)
-- Firebase Connected: ${s?.firebase.connected ? 'YES' : 'NO'} (${s?.firebase.status})
+- Firebase Connected: ${s?.firebase.connected ? 'YES' : 'NO'} (${s?.firebase.status || 'UNKNOWN'})
 - Firebase Read Latency: ${s?.firebase.readLatencyMs || 0}ms
 - Firebase RTDB Probe: ${s?.firebase.diagnosticLocation || '.info/serverTimeOffset'}
 - Auth Diagnostic State: ${s?.firebase.authStatus || 'UNKNOWN'}
-${s?.firebase.authEmail ? `- Authenticated Identity: ${s.firebase.authEmail}\n` : ''}- Backend API Server: ${s?.server.available ? 'OK' : 'DEGRADED'} (${s?.server.latencyMs || 0}ms)
+- Session Access Level: [ROLE_CLASSIFIED: ${s?.security.currentUserRole || 'STANDARD'}]
+- Backend API Server: ${s?.server.available ? 'OK' : 'DEGRADED'} (${s?.server.latencyMs || 0}ms)
 - Backend Architecture: ${s?.server.serverType || 'Unknown'} (Role: Optional Supporting Service)
 - Backend Endpoint Tested: ${s?.server.endpointUsed || 'N/A'} (HTTP: ${s?.server.httpStatus || 'N/A'})
 ${s?.server.failureReason ? `- Backend Diagnosis: ${s.server.failureReason}\n` : ''}- LocalStorage: ${s?.storage.localStorageAvailable ? 'Available' : 'Unavailable'}
@@ -1209,16 +1355,32 @@ ${s?.server.failureReason ? `- Backend Diagnosis: ${s.server.failureReason}\n` :
 - Duplicate Writes Detected: ${s?.sync.duplicateWriteDetected ? 'YES' : 'NO'}
 
 ## 3. Performance Metrics
-- Tracked Operations: ${s?.perf.totalTracked || 0}
-- Sample Sufficiency: ${s?.perf.isSampleSufficient ? 'Sufficient' : 'Limited'} (${s?.perf.sampleNotice})
-- Overall Average Latency: ${s?.perf.overallAvgMs || 0}ms
-- Maximum Latency: ${s?.perf.overallMaxMs || 0}ms
-- P95 Latency: ${s?.perf.overallP95Ms || 0}ms
-- Operations > 3000ms: ${s?.perf.slowOperationsCount || 0}
-- Failed Operations: ${s?.perf.failedOperationsCount || 0}
+### Overall Performance Summary
+- Total Tracked Operations: ${totalTracked}
+- Sample Sufficiency: ${livePerf.isSampleSufficient ? 'Sufficient' : 'Limited'} (${livePerf.sampleNotice})
+- Overall Average Latency: ${livePerf.overallAvgMs}ms
+- Overall Minimum Latency: ${livePerf.overallMinMs}ms
+- Overall P50 Latency: ${livePerf.overallP50Ms}ms
+- Overall Maximum Latency: ${livePerf.overallMaxMs}ms
+- Overall P95 Latency: ${livePerf.overallP95Ms}ms
+- Overall P99 Latency: ${overallP99Text}
+- Total Successful Operations: ${livePerf.successCount}
+- Total Failed Operations: ${overallFailedCount}
+- Total Slow Operations (> ${slowThresholdMs}ms): ${overallSlowCount}
+
+### Individual Operation Table
+Operation| Samples| Average| Min| Max| P95| Failed| Status
+${canonicalRows}
+
+### Tracked Source Operations Detail
+${detailedActionLines}
+
+### Slow Operation Detection (> ${slowThresholdMs}ms)
+${slowOpsSection}
 
 ## 4. Security & Access Audit
 - Security Status: ${s?.security.status || 'UNKNOWN'}
+- Authentication Enforced: ${s?.security.authEnforced ? 'YES' : 'NO'}
 - Role Enforcement: ${s?.security.rolePermissionValid ? 'Enforced' : 'Unverified'}
 - User Role: ${s?.security.currentUserRole || 'Verified Session'}
 - Sensitive Exposure Risk: ${s?.security.sensitiveExposureRisk || 'NONE'}
@@ -1231,17 +1393,16 @@ ${
   s && s.incidents.list.filter((i) => i.status !== 'RESOLVED').length > 0
     ? s.incidents.list
         .filter((i) => i.status !== 'RESOLVED')
-        .map(
-          (i) =>
-            `- [${i.severity}] #${i.id} (${i.affectedService}): ${i.title}\n  Occurrences: ${i.occurrenceCount} | Status: ${i.status}\n  Action: ${i.recommendedAction}`
-        )
+        .map((i) => {
+          return `- [${i.severity}] #${i.id} (${i.affectedService}): ${scrub(i.title)}\n  Occurrences: ${i.occurrenceCount} | Status: ${i.status}\n  Action: ${scrub(i.recommendedAction)}`;
+        })
         .join('\n')
     : 'No open incidents. All services operating normally.'
 }
 
 ## 6. Security Confirmation
-- Sanitized report strictly contains NO user passwords, vouchers, credentials, tokens, or financial records.
-`;
+- Sanitized report strictly contains NO user passwords, vouchers, credentials, tokens, personal phone numbers, or financial records.
+`);
   }
 }
 

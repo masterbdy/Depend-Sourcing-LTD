@@ -668,14 +668,28 @@ export const SystemHealthView: React.FC<SystemHealthViewProps> = ({
                   <ShieldCheck className="w-4 h-4 text-emerald-600" />
                   <span>নিরাপত্তা স্ট্যাটাস</span>
                 </div>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
-                  {snapshot?.security.status || 'HEALTHY'}
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${
+                    snapshot?.security.status === 'CRITICAL'
+                      ? 'bg-rose-100 text-rose-800 border-rose-300'
+                      : snapshot?.security.status === 'DEGRADED' || snapshot?.security.status === 'WARNING'
+                      ? 'bg-amber-100 text-amber-800 border-amber-300'
+                      : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                  }`}
+                >
+                  {snapshot?.security.status || 'UNKNOWN'}
                 </span>
               </div>
               <div className="text-[11px] space-y-1.5 text-slate-600 dark:text-slate-400">
                 <div className="flex justify-between">
                   <span>রোল পারমিশন এনফোর্সমেন্ট:</span>
-                  <span className="font-bold text-emerald-600">Active</span>
+                  <span
+                    className={`font-bold ${
+                      snapshot?.security.rolePermissionValid ? 'text-emerald-600' : 'text-amber-600'
+                    }`}
+                  >
+                    {snapshot?.security.rolePermissionValid ? 'Active' : 'Unverified'}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span>অননুমোদিত চেষ্টা:</span>
@@ -685,7 +699,17 @@ export const SystemHealthView: React.FC<SystemHealthViewProps> = ({
                 </div>
                 <div className="flex justify-between">
                   <span>সংবেদনশীল ডাটা লিক ঝুঁকি:</span>
-                  <span className="font-bold text-emerald-600">None (Sanitized)</span>
+                  <span
+                    className={`font-bold ${
+                      snapshot?.security.sensitiveExposureRisk && snapshot.security.sensitiveExposureRisk !== 'NONE'
+                        ? 'text-rose-600'
+                        : 'text-emerald-600'
+                    }`}
+                  >
+                    {snapshot?.security.sensitiveExposureRisk && snapshot.security.sensitiveExposureRisk !== 'NONE'
+                      ? snapshot.security.sensitiveExposureRisk
+                      : 'None (Sanitized)'}
+                  </span>
                 </div>
               </div>
             </div>
@@ -777,9 +801,9 @@ export const SystemHealthView: React.FC<SystemHealthViewProps> = ({
                     <span className="font-bold text-slate-800 dark:text-white">
                       {snapshot?.firebase.authStatus}
                     </span>
-                    {snapshot?.firebase.authEmail && (
+                    {snapshot?.security.currentUserRole && (
                       <span className="text-[10px] bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 px-1.5 py-0.5 rounded font-mono">
-                        {snapshot.firebase.authEmail}
+                        {snapshot.security.currentUserRole}
                       </span>
                     )}
                   </div>
@@ -990,92 +1014,257 @@ export const SystemHealthView: React.FC<SystemHealthViewProps> = ({
       {/* 7. TAB 4: ADVANCED PERFORMANCE & P95 LATENCY */}
       {activeSubTab === 'performance' && (
         <div className="space-y-5">
-          {/* Performance Overview Banner */}
-          <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <Gauge className="w-5 h-5 text-indigo-600" />
-                <h3 className="text-sm font-black text-slate-900 dark:text-white">
-                  পারফরম্যান্স লেটেন্সি ও P95 অ্যানালিটিক্স
-                </h3>
+          {/* Overall Performance Summary (Clearly Separated from Per-Operation Stats) */}
+          <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Gauge className="w-5 h-5 text-indigo-600" />
+                  <h3 className="text-sm font-black text-slate-900 dark:text-white">
+                    সামগ্রিক পারফরম্যান্স সারাংশ (Overall Performance Summary)
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  {snapshot?.perf.sampleNotice}
+                </p>
               </div>
-              <p className="text-xs text-slate-500 mt-1">
-                {snapshot?.perf.sampleNotice}
-              </p>
+              <span className="text-[11px] font-mono font-bold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-300">
+                Normal &lt; {snapshot?.perf.thresholds?.normalMs || 1000}ms | Slow &gt; {snapshot?.perf.thresholds?.slowMs || 3000}ms
+              </span>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5 text-xs">
               <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-center">
-                <span className="text-[10px] text-slate-400 uppercase font-bold block">গড় লেটেন্সি (Avg)</span>
+                <span className="text-[10px] text-slate-400 uppercase font-bold block">Tracked</span>
+                <span className="text-sm font-black font-mono text-slate-800 dark:text-white">
+                  {snapshot?.perf.totalTracked || 0}
+                </span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-center">
+                <span className="text-[10px] text-slate-400 uppercase font-bold block">Avg</span>
                 <span className="text-sm font-black font-mono text-indigo-600 dark:text-indigo-400">
                   {snapshot?.perf.overallAvgMs || 0} ms
                 </span>
               </div>
               <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-center">
-                <span className="text-[10px] text-slate-400 uppercase font-bold block">P95 লেটেন্সি (95th %)</span>
+                <span className="text-[10px] text-slate-400 uppercase font-bold block">Min</span>
+                <span className="text-sm font-black font-mono text-emerald-600">
+                  {snapshot?.perf.overallMinMs || 0} ms
+                </span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-center">
+                <span className="text-[10px] text-slate-400 uppercase font-bold block">P50</span>
+                <span className="text-sm font-black font-mono text-blue-600 dark:text-blue-400">
+                  {snapshot?.perf.overallP50Ms || 0} ms
+                </span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-center">
+                <span className="text-[10px] text-slate-400 uppercase font-bold block">P95</span>
                 <span className="text-sm font-black font-mono text-indigo-600 dark:text-indigo-400">
                   {snapshot?.perf.overallP95Ms || 0} ms
                 </span>
               </div>
               <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-center">
-                <span className="text-[10px] text-slate-400 uppercase font-bold block">সর্বোচ্চ লেটেন্সি (Max)</span>
+                <span className="text-[10px] text-slate-400 uppercase font-bold block">Max</span>
                 <span className="text-sm font-black font-mono text-slate-800 dark:text-white">
                   {snapshot?.perf.overallMaxMs || 0} ms
+                </span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-center">
+                <span className="text-[10px] text-slate-400 uppercase font-bold block">Success / Fail</span>
+                <span className="text-sm font-black font-mono text-emerald-600">
+                  {snapshot?.perf.successCount || 0} / <span className="text-rose-600">{snapshot?.perf.failedOperationsCount || 0}</span>
+                </span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-center">
+                <span className="text-[10px] text-slate-400 uppercase font-bold block">Slow Ops</span>
+                <span className={`text-sm font-black font-mono ${(snapshot?.perf.slowOperationsCount || 0) > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                  {snapshot?.perf.slowOperationsCount || 0}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Aggregated Operations Table */}
+          {/* Slow Operation Detection Alert Card */}
+          {snapshot?.perf.slowOperations && snapshot.perf.slowOperations.length > 0 && (
+            <div className="bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-2xl p-4 space-y-2">
+              <div className="flex items-center gap-2 text-xs font-black text-amber-900 dark:text-amber-200">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>ধীরগতি অপারেশন শনাক্ত হয়েছে (Slow Operation Detection &gt; {snapshot.perf.thresholds.slowMs}ms)</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px]">
+                {snapshot.perf.slowOperations.map((so) => (
+                  <div key={so.action} className="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-amber-200/70 dark:border-amber-800/60 flex items-center justify-between">
+                    <div>
+                      <div className="font-bold text-slate-900 dark:text-white">{so.action}</div>
+                      <div className="text-slate-500">
+                        Occurrences: <b className="text-rose-600">{so.occurrences}</b> • Max: <b>{so.maxDurationMs}ms</b> • Last: <b>{so.lastSlowDurationMs}ms</b>
+                      </div>
+                    </div>
+                    <div className="text-[10px] font-mono text-slate-400 text-right">
+                      {new Date(so.lastOccurrenceAt).toLocaleTimeString('bn-BD')}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Canonical Core Operations Matrix (Shows NOT TRACKED / LIMITED SAMPLE honestly) */}
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-xs">
             <div className="p-4 border-b border-slate-100 dark:border-slate-700 font-bold text-xs text-slate-800 dark:text-white flex items-center justify-between">
-              <span>অপারেশন ভিত্তিক গড় ও P95 লেটেন্সি</span>
+              <span>কোর অপারেশন পারফরম্যান্স টেবিল (Core Operations Breakdown)</span>
+              <span className="text-[11px] text-slate-400">অপারেশন অনুযায়ী পৃথক পরিসংখ্যান</span>
+            </div>
+            <div className="overflow-x-auto custom-scrollbar">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 dark:bg-slate-900/60 text-slate-500 uppercase tracking-wider font-bold">
+                  <tr>
+                    <th className="py-2.5 px-3">Operation</th>
+                    <th className="py-2.5 px-3">Samples</th>
+                    <th className="py-2.5 px-3">Average</th>
+                    <th className="py-2.5 px-3">Min</th>
+                    <th className="py-2.5 px-3">Max</th>
+                    <th className="py-2.5 px-3">P95</th>
+                    <th className="py-2.5 px-3">Failed</th>
+                    <th className="py-2.5 px-3">Last Latency</th>
+                    <th className="py-2.5 px-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 font-medium">
+                  {(snapshot?.perf.canonicalOperations || []).map((op) => (
+                    <tr key={op.operation} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/30">
+                      <td className="py-2.5 px-3 font-bold text-slate-900 dark:text-white">{op.operation}</td>
+                      <td className="py-2.5 px-3 font-mono">{op.samples}</td>
+                      <td className="py-2.5 px-3 font-mono text-indigo-600 dark:text-indigo-400">
+                        {op.avgMs !== null ? `${op.avgMs} ms` : 'N/A'}
+                      </td>
+                      <td className="py-2.5 px-3 font-mono text-slate-600 dark:text-slate-300">
+                        {op.minMs !== null ? `${op.minMs} ms` : 'N/A'}
+                      </td>
+                      <td className="py-2.5 px-3 font-mono text-slate-600 dark:text-slate-300">
+                        {op.maxMs !== null ? `${op.maxMs} ms` : 'N/A'}
+                      </td>
+                      <td className="py-2.5 px-3 font-mono font-bold text-blue-600">
+                        {op.p95Ms !== null ? `${op.p95Ms} ms` : 'N/A'}
+                      </td>
+                      <td className="py-2.5 px-3 font-mono text-rose-600">{op.failedCount}</td>
+                      <td className="py-2.5 px-3 font-mono text-slate-600 dark:text-slate-300">
+                        {op.lastDurationMs !== null ? `${op.lastDurationMs} ms` : 'N/A'}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                            op.status === 'NOT_TRACKED'
+                              ? 'bg-slate-100 text-slate-500'
+                              : op.status === 'LIMITED_SAMPLE'
+                              ? 'bg-blue-50 text-blue-700'
+                              : op.status === 'SLOW'
+                              ? 'bg-rose-100 text-rose-800'
+                              : op.status === 'MODERATE'
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-emerald-100 text-emerald-800'
+                          }`}
+                        >
+                          {op.status === 'NOT_TRACKED'
+                            ? 'NOT TRACKED'
+                            : op.status === 'LIMITED_SAMPLE'
+                            ? 'LIMITED SAMPLE'
+                            : op.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Aggregated Source Operations Table */}
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-xs">
+            <div className="p-4 border-b border-slate-100 dark:border-slate-700 font-bold text-xs text-slate-800 dark:text-white flex items-center justify-between">
+              <span>বিস্তারিত অ্যাকশন ভিত্তিক লেটেন্সি ও পার্সেন্টাইল (Detailed Tracked Operations)</span>
               <span className="text-[11px] text-slate-400">মোট ট্র্যাকিং: {snapshot?.perf.totalTracked || 0} টি</span>
             </div>
             <div className="overflow-x-auto custom-scrollbar">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 dark:bg-slate-900/60 text-slate-500 uppercase tracking-wider font-bold">
                   <tr>
-                    <th className="py-2.5 px-4">অ্যাকশন</th>
-                    <th className="py-2.5 px-4">মোট স্যাম্পল</th>
-                    <th className="py-2.5 px-4">গড় সময় (Avg)</th>
-                    <th className="py-2.5 px-4">P95 সময়</th>
-                    <th className="py-2.5 px-4">সর্বোচ্চ সময় (Max)</th>
-                    <th className="py-2.5 px-4">স্ট্যাটাস</th>
+                    <th className="py-2.5 px-3">Operation</th>
+                    <th className="py-2.5 px-3">Samples</th>
+                    <th className="py-2.5 px-3">Min</th>
+                    <th className="py-2.5 px-3">Avg</th>
+                    <th className="py-2.5 px-3">P50</th>
+                    <th className="py-2.5 px-3">P95</th>
+                    <th className="py-2.5 px-3">P99</th>
+                    <th className="py-2.5 px-3">Max</th>
+                    <th className="py-2.5 px-3">OK / Fail</th>
+                    <th className="py-2.5 px-3">Slow</th>
+                    <th className="py-2.5 px-3">Last</th>
+                    <th className="py-2.5 px-3">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 font-medium">
                   {snapshot?.perf.summary && Object.keys(snapshot.perf.summary).length > 0 ? (
-                    Object.entries(snapshot.perf.summary).map(([action, s]) => (
-                      <tr key={action} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/30">
-                        <td className="py-2.5 px-4 font-bold text-slate-900 dark:text-white">{action}</td>
-                        <td className="py-2.5 px-4 font-mono">{s.count} বার</td>
-                        <td className="py-2.5 px-4 font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                          {s.avgTotal} ms
-                        </td>
-                        <td className="py-2.5 px-4 font-mono font-bold text-blue-600">
-                          {s.p95Total ? `${s.p95Total} ms` : `${s.avgTotal} ms`}
-                        </td>
-                        <td className="py-2.5 px-4 font-mono text-slate-600 dark:text-slate-300">{s.maxTotal} ms</td>
-                        <td className="py-2.5 px-4">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                              s.avgTotal > 3000
-                                ? 'bg-rose-100 text-rose-800'
-                                : s.avgTotal > 1000
-                                ? 'bg-amber-100 text-amber-800'
-                                : 'bg-emerald-100 text-emerald-800'
-                            }`}
-                          >
-                            {s.avgTotal > 3000 ? 'Slow' : s.avgTotal > 1000 ? 'Moderate' : 'Fast'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
+                    Object.entries(snapshot.perf.summary).map(([action, s]) => {
+                      const slowLimit = snapshot?.perf.thresholds?.slowMs || 3000;
+                      const normalLimit = snapshot?.perf.thresholds?.normalMs || 1000;
+                      return (
+                        <tr key={action} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/30">
+                          <td className="py-2.5 px-3 font-bold text-slate-900 dark:text-white">
+                            <div>{action}</div>
+                            <div className="text-[10px] font-mono text-slate-400">{s.category}</div>
+                          </td>
+                          <td className="py-2.5 px-3 font-mono">{s.count}</td>
+                          <td className="py-2.5 px-3 font-mono text-slate-600 dark:text-slate-300">{s.minTotal} ms</td>
+                          <td className="py-2.5 px-3 font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                            {s.avgTotal} ms
+                          </td>
+                          <td className="py-2.5 px-3 font-mono text-slate-600 dark:text-slate-300">{s.p50Total} ms</td>
+                          <td className="py-2.5 px-3 font-mono font-bold text-blue-600">{s.p95Total} ms</td>
+                          <td className="py-2.5 px-3 font-mono text-slate-500">
+                            {s.p99Total !== null ? `${s.p99Total} ms` : '—'}
+                          </td>
+                          <td className="py-2.5 px-3 font-mono text-slate-600 dark:text-slate-300">{s.maxTotal} ms</td>
+                          <td className="py-2.5 px-3 font-mono">
+                            <span className="text-emerald-600">{s.successCount}</span> /{' '}
+                            <span className="text-rose-600">{s.failedCount}</span>
+                          </td>
+                          <td className="py-2.5 px-3 font-mono text-amber-600">{s.slowCount}</td>
+                          <td className="py-2.5 px-3 font-mono text-[11px] text-slate-600 dark:text-slate-300">
+                            <div>{s.lastDurationMs} ms</div>
+                            <div className="text-[9px] text-slate-400">
+                              {new Date(s.lastExecutedAt).toLocaleTimeString('bn-BD')}
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                                s.slowCount > 0 || s.avgTotal > slowLimit
+                                  ? 'bg-rose-100 text-rose-800'
+                                  : !s.isSampleSufficient
+                                  ? 'bg-blue-50 text-blue-700'
+                                  : s.avgTotal > normalLimit
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : 'bg-emerald-100 text-emerald-800'
+                              }`}
+                            >
+                              {s.slowCount > 0 || s.avgTotal > slowLimit
+                                ? 'Slow'
+                                : !s.isSampleSufficient
+                                ? 'Limited Sample'
+                                : s.avgTotal > normalLimit
+                                ? 'Moderate'
+                                : 'Fast'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
                   ) : (
                     <tr>
-                      <td colSpan={6} className="py-8 text-center text-slate-400 text-xs">
-                        এখনো পর্যন্ত পর্যাপ্ত অপারেশন রেকর্ড হয়নি। অ্যাপ্লিকেশনে কাজ করলে স্বয়ংক্রিয়ভাবে পরিমাপ হবে।
+                      <td colSpan={12} className="py-8 text-center text-slate-400 text-xs">
+                        এখনো পর্যন্ত কোনো অপারেশন রেকর্ড হয়নি। অ্যাপ্লিকেশনে কাজ করলে স্বয়ংক্রিয়ভাবে পরিমাপ হবে।
                       </td>
                     </tr>
                   )}
@@ -1099,7 +1288,9 @@ export const SystemHealthView: React.FC<SystemHealthViewProps> = ({
               <div className="space-y-2.5">
                 <div className="flex justify-between p-2.5 bg-slate-50 dark:bg-slate-900 rounded-xl">
                   <span className="text-slate-600 dark:text-slate-400">রোল ভিত্তিক অ্যাক্সেস কন্ট্রোল (RBAC):</span>
-                  <span className="font-bold text-emerald-600">সক্রিয় (Active)</span>
+                  <span className={`font-bold ${snapshot?.security.rolePermissionValid ? 'text-emerald-600' : 'text-amber-600'}`}>
+                    {snapshot?.security.rolePermissionValid ? 'Enforced (Active)' : 'Unverified'}
+                  </span>
                 </div>
                 <div className="flex justify-between p-2.5 bg-slate-50 dark:bg-slate-900 rounded-xl">
                   <span className="text-slate-600 dark:text-slate-400">অননুমোদিত অ্যাক্সেস প্রচেষ্টা:</span>
@@ -1109,25 +1300,58 @@ export const SystemHealthView: React.FC<SystemHealthViewProps> = ({
                 </div>
                 <div className="flex justify-between p-2.5 bg-slate-50 dark:bg-slate-900 rounded-xl">
                   <span className="text-slate-600 dark:text-slate-400">সংবেদনশীল ডাটা এক্সপোজার ঝুঁকি:</span>
-                  <span className="font-bold text-emerald-600">None (Sanitized)</span>
+                  <span
+                    className={`font-bold ${
+                      snapshot?.security.sensitiveExposureRisk && snapshot.security.sensitiveExposureRisk !== 'NONE'
+                        ? 'text-rose-600'
+                        : 'text-emerald-600'
+                    }`}
+                  >
+                    {snapshot?.security.sensitiveExposureRisk && snapshot.security.sensitiveExposureRisk !== 'NONE'
+                      ? `${snapshot.security.sensitiveExposureRisk} Risk Detected`
+                      : 'None (Sanitized)'}
+                  </span>
                 </div>
               </div>
 
               <div className="space-y-2.5">
                 <div className="flex justify-between p-2.5 bg-slate-50 dark:bg-slate-900 rounded-xl">
                   <span className="text-slate-600 dark:text-slate-400">App Check কনফিগারেশন:</span>
-                  <span className="font-bold text-slate-700 dark:text-slate-300">Standard Web Policy</span>
+                  <span className="font-bold text-slate-700 dark:text-slate-300">
+                    {snapshot?.firebase.appCheck.status || 'NOT_CONFIGURED'} ({snapshot?.firebase.appCheck.enforcementMode || 'MONITORING_ONLY'})
+                  </span>
                 </div>
                 <div className="flex justify-between p-2.5 bg-slate-50 dark:bg-slate-900 rounded-xl">
                   <span className="text-slate-600 dark:text-slate-400">টেলিমেট্রি তথ্য সুরক্ষা:</span>
-                  <span className="font-bold text-emerald-600">PII ও পাসওয়ার্ড মুক্ত</span>
+                  <span className="font-bold text-emerald-600">Sanitized (Zero-PII Report)</span>
                 </div>
                 <div className="flex justify-between p-2.5 bg-slate-50 dark:bg-slate-900 rounded-xl">
                   <span className="text-slate-600 dark:text-slate-400">নিরাপত্তা স্থিতি:</span>
-                  <span className="font-bold text-emerald-600">{snapshot?.security.status}</span>
+                  <span
+                    className={`font-bold ${
+                      snapshot?.security.status === 'HEALTHY'
+                        ? 'text-emerald-600'
+                        : snapshot?.security.status === 'WARNING' || snapshot?.security.status === 'DEGRADED'
+                        ? 'text-amber-600'
+                        : 'text-rose-600'
+                    }`}
+                  >
+                    {snapshot?.security.status || 'UNKNOWN'}
+                  </span>
                 </div>
               </div>
             </div>
+
+            {snapshot?.security.auditFindings && snapshot.security.auditFindings.length > 0 && (
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl text-xs space-y-1">
+                <div className="font-bold text-amber-800 dark:text-amber-300">সিকিউরিটি অডিট পর্যবেক্ষণ (Audit Findings):</div>
+                {snapshot.security.auditFindings.map((finding, idx) => (
+                  <div key={idx} className="text-[11px] text-amber-700 dark:text-amber-400">
+                    • {finding}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -1,9 +1,21 @@
 importScripts('https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.8.1/firebase-messaging-compat.js');
+importScripts('/sw-notifications.js');
 
 const urlParams = new URLSearchParams(location.search);
 const apiKey = urlParams.get('apiKey');
 const projectId = urlParams.get('projectId');
+
+const NOTIF_ASSET_CACHE = 'depend-notif-assets-v1';
+const NOTIF_ASSETS = ['/logo.png', '/notification-badge.png'];
+
+self.addEventListener('install', function(event) {
+  event.waitUntil(
+    caches.open(NOTIF_ASSET_CACHE).then(function(cache) {
+      return cache.addAll(NOTIF_ASSETS).catch(function() {});
+    })
+  );
+});
 
 if (apiKey && projectId) {
   const firebaseConfig = {
@@ -21,18 +33,33 @@ if (apiKey && projectId) {
 
     messaging.onBackgroundMessage(function(payload) {
       console.log('[firebase-messaging-sw.js] Received background message ', payload);
-      
-      const notificationTitle = payload.notification?.title || payload.data?.title || 'New Notification';
+
+      if (typeof self.buildDependNotificationPayload === 'function') {
+        const built = self.buildDependNotificationPayload(payload);
+        return self.registration.showNotification(built.title, built.options);
+      }
+
+      const notificationTitle = payload.notification?.title || payload.data?.title || 'Depend Sourcing Ltd.';
       const notificationOptions = {
-        body: payload.notification?.body || payload.data?.body,
-        icon: '/pwa-192x192.png',
-        badge: '/pwa-192x192.png',
-        vibrate: [200, 100, 200],
+        body: payload.notification?.body || payload.data?.body || '',
+        icon: new URL('/logo.png', self.location.origin).href,
+        badge: new URL('/notification-badge.png', self.location.origin).href,
+        tag: payload.data?.tag || 'depend-sourcing-push',
+        renotify: true,
+        timestamp: Date.now(),
+        vibrate: [180, 80, 180],
         requireInteraction: true,
-        data: payload.data
+        data: {
+          ...(payload.data || {}),
+          url: payload.data?.url || (payload.data?.tab ? `/?tab=${encodeURIComponent(payload.data.tab)}` : '/'),
+        },
       };
 
-      self.registration.showNotification(notificationTitle, notificationOptions);
+      if (payload.notification?.image || payload.data?.image) {
+        notificationOptions.image = payload.notification?.image || payload.data?.image;
+      }
+
+      return self.registration.showNotification(notificationTitle, notificationOptions);
     });
   } catch (error) {
     console.error('Error initializing Firebase in SW:', error);

@@ -30,6 +30,11 @@ import {
   Briefcase
 } from 'lucide-react';
 import { Staff, AdvanceLog, UserRole } from '../types';
+import {
+  createSubmissionKey,
+  CommittedBatchGuard,
+  appendUniqueAdvanceLogs,
+} from '../services/bulkAdvanceSafety';
 
 interface BulkAdvancePaymentProps {
   staffList: Staff[];
@@ -102,11 +107,25 @@ export const BulkAdvancePaymentView: React.FC<BulkAdvancePaymentProps> = ({
   // Confirmation & safety modals
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
+  const submissionKeyRef = useRef<string>(createSubmissionKey());
+  const committedGuardRef = useRef<CommittedBatchGuard | null>(null);
+  if (!committedGuardRef.current) {
+    committedGuardRef.current = new CommittedBatchGuard();
+  }
   const [showResetConfirmModal, setShowResetConfirmModal] = useState(false);
   const [validationWarning, setValidationWarning] = useState<string | null>(null);
 
   // Post-submission summary receipt
   const [latestSummary, setLatestSummary] = useState<BatchTransactionSummary | null>(null);
+
+  const handleExitReceiptAndNavigateBack = () => {
+    setLatestSummary(null);
+    setShowConfirmModal(false);
+    if (onBack) {
+      onBack();
+    }
+  };
 
   // Track focused card for auto-scroll on mobile
   const [activeFocusedId, setActiveFocusedId] = useState<string | null>(null);
@@ -243,6 +262,7 @@ export const BulkAdvancePaymentView: React.FC<BulkAdvancePaymentProps> = ({
   const handleResetAll = () => {
     setStaffInputs({});
     setGlobalBatchNote('');
+    submissionKeyRef.current = createSubmissionKey();
     setShowResetConfirmModal(false);
   };
 
@@ -296,19 +316,28 @@ export const BulkAdvancePaymentView: React.FC<BulkAdvancePaymentProps> = ({
 
   // Execute batch disbursement commit ONLY after explicit confirmation
   const handleConfirmAndExecute = async () => {
-    // 1. Immediate revalidation right before processing
+    // 1. Synchronous double-tap lock & idempotency guard
+    if (isSubmittingRef.current || isSubmitting) return;
+
+    const currentSubmissionKey = submissionKeyRef.current;
+    if (committedGuardRef.current?.hasKey(currentSubmissionKey)) {
+      setShowConfirmModal(false);
+      return;
+    }
+
+    // 2. Immediate revalidation right before processing
     const currentValidRecipients = eligibleStaff.filter((s) => Number(staffInputs[s.id]?.amount || 0) > 0);
     if (currentValidRecipients.length === 0 || metrics.totalAdvanceAmount <= 0) {
       setValidationWarning('কোনো বৈধ অগ্রিম পরিমাণ পাওয়া যায়নি। অনুগ্রহ করে পুনরায় পরীক্ষা করুন।');
       setShowConfirmModal(false);
       return;
     }
-    if (isSubmitting) return; // Prevent double-click & duplicate execution
 
+    isSubmittingRef.current = true;
     setIsSubmitting(true);
 
     try {
-      // 1. Generate unique Batch ID: BATCH-ADV-YYYYMMDD-XXXX
+      // 3. Generate unique Batch ID: BATCH-ADV-YYYYMMDD-XXXX
       const todayStr = batchDate.replace(/-/g, '');
       const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
       const batchId = `BATCH-ADV-${todayStr}-${randomSuffix}`;
@@ -319,7 +348,7 @@ export const BulkAdvancePaymentView: React.FC<BulkAdvancePaymentProps> = ({
       submitDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
       const isoTimestamp = submitDate.toISOString();
 
-      // 2. Generate individual AdvanceLog items
+      // 4. Generate individual AdvanceLog items
       const newAdvanceLogs: AdvanceLog[] = recipientsList.map((item, index) => {
         const itemIndex = String(index + 1).padStart(2, '0');
         const transactionId = `ADV-TXN-${todayStr}-${randomSuffix}-${itemIndex}`;
@@ -345,10 +374,11 @@ export const BulkAdvancePaymentView: React.FC<BulkAdvancePaymentProps> = ({
         };
       });
 
-      // 3. Atomically update application state & trigger syncData via createUpdater
-      setAdvances((prev) => [...(prev || []), ...newAdvanceLogs]);
+      // 5. Record committed idempotency token and atomically append unique logs
+      committedGuardRef.current?.markCommitted(currentSubmissionKey);
+      setAdvances((prev) => appendUniqueAdvanceLogs(prev, newAdvanceLogs));
 
-      // 4. Create summary receipt
+      // 6. Create summary receipt
       const summary: BatchTransactionSummary = {
         batchId,
         batchNote: globalBatchNote || 'বাল্ক অগ্রিম পেমেন্ট',
@@ -371,13 +401,16 @@ export const BulkAdvancePaymentView: React.FC<BulkAdvancePaymentProps> = ({
       setLatestSummary(summary);
       setShowConfirmModal(false);
 
-      // Clear input fields for next batch
+      // Clear input fields and rotate submission key so back/refresh cannot replay this batch
       setStaffInputs({});
       setGlobalBatchNote('');
+      submissionKeyRef.current = createSubmissionKey();
     } catch (err) {
       console.error('Error during bulk advance payment:', err);
-      alert('পেমেন্ট প্রসেস করার সময় ত্রুটি হয়েছে। অনুগ্রহ করে ইন্টারনেট সংযোগ চেক করে পুনরায় চেষ্টা করুন।');
+      setValidationWarning('পেমেন্ট প্রসেস করার সময় ত্রুটি হয়েছে। অনুগ্রহ করে ইন্টারনেট সংযোগ চেক করে পুনরায় চেষ্টা করুন।');
+      setShowConfirmModal(false);
     } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -1133,7 +1166,12 @@ export const BulkAdvancePaymentView: React.FC<BulkAdvancePaymentProps> = ({
       {/* =========================================================================
           6. SMART SCROLLING: PERMANENTLY ACCESSIBLE MOBILE STICKY ACTION BAR
          ========================================================================= */}
-      {activeTab === 'entry' && (
+      {activeTab === 'entry' &&
+        !latestSummary &&
+        !showConfirmModal &&
+        !showPresetModal &&
+        !showResetConfirmModal &&
+        !validationWarning && (
         <div className="md:hidden fixed bottom-0 left-0 right-0 z-[60] bg-slate-950/95 backdrop-blur-xl border-t border-slate-800 shadow-[0_-12px_30px_rgba(0,0,0,0.6)] px-3 pt-2.5 pb-[max(12px,env(safe-area-inset-bottom,12px))]">
           {/* Top Mini Strip: Live Total Amount & Recipient Count */}
           <div className="flex items-center justify-between pb-2 border-b border-white/10 text-xs">
@@ -1309,7 +1347,7 @@ export const BulkAdvancePaymentView: React.FC<BulkAdvancePaymentProps> = ({
           8. MODAL: VALIDATION WARNING (NO AMOUNT ENTERED)
          ========================================================================= */}
       {validationWarning && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-150">
           <div className="bg-white rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl border border-amber-200 animate-in fade-in zoom-in-95 duration-150">
             <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-4 border border-amber-200 shadow-sm">
               <AlertTriangle className="w-7 h-7" />
@@ -1335,7 +1373,7 @@ export const BulkAdvancePaymentView: React.FC<BulkAdvancePaymentProps> = ({
           8. MODAL: RESET CONFIRMATION
          ========================================================================= */}
       {showResetConfirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
           <div className="bg-white rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
             <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-4 border border-rose-100 shadow-sm">
               <RotateCcw className="w-7 h-7" />
@@ -1370,7 +1408,7 @@ export const BulkAdvancePaymentView: React.FC<BulkAdvancePaymentProps> = ({
           9. MODAL: FINAL REVIEW & SUBMISSION BREAKDOWN
          ========================================================================= */}
       {showConfirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm overflow-y-auto">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-7 shadow-2xl border border-slate-200 my-8 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div className="flex items-center gap-3">
@@ -1512,17 +1550,35 @@ export const BulkAdvancePaymentView: React.FC<BulkAdvancePaymentProps> = ({
           10. MODAL: POST-SUBMISSION VOUCHER & RECEIPT
          ========================================================================= */}
       {latestSummary && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 my-8 animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-5 sm:p-8 shadow-2xl border border-slate-200 my-auto animate-in fade-in zoom-in-95 duration-150">
+            {/* Top Navigation Bar with Visible Back Button */}
+            <div className="flex items-center justify-between gap-2 pb-4 mb-4 border-b border-slate-100">
+              {onBack ? (
+                <button
+                  type="button"
+                  onClick={handleExitReceiptAndNavigateBack}
+                  title="আগের স্ক্রিনে ফিরে যান"
+                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-800 border border-slate-200 text-xs font-bold transition-all cursor-pointer shrink-0"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>ফিরে যান (Back)</span>
+                </button>
+              ) : (
+                <div />
+              )}
+
+              <span className="text-[11px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+                বিতরণ সফলভাবে সম্পন্ন
+              </span>
+            </div>
+
             {/* Header Badge */}
-            <div className="text-center pb-6 border-b border-slate-100">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-b from-emerald-400 to-teal-600 text-white flex items-center justify-center mx-auto mb-3.5 shadow-lg shadow-emerald-500/30">
+            <div className="text-center pb-5 border-b border-slate-100">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-b from-emerald-400 to-teal-600 text-white flex items-center justify-center mx-auto mb-3 shadow-lg shadow-emerald-500/30">
                 <CheckCircle2 className="w-8 h-8" />
               </div>
-              <span className="text-xs font-black uppercase tracking-wider text-emerald-800 bg-emerald-50 px-3.5 py-1 rounded-full border border-emerald-200">
-                বিতরণ সফলভাবে সম্পন্ন (Disbursement Success)
-              </span>
-              <h2 className="text-xl sm:text-2xl font-black text-slate-900 mt-2.5">
+              <h2 className="text-xl sm:text-2xl font-black text-slate-900">
                 বাল্ক অগ্রিম পেমেন্ট ভাউচার
               </h2>
               <p className="text-xs text-slate-500 font-mono mt-1 font-bold">
@@ -1561,7 +1617,7 @@ export const BulkAdvancePaymentView: React.FC<BulkAdvancePaymentProps> = ({
             {/* Breakdown */}
             <div className="mt-2 space-y-2">
               <div className="text-xs font-bold text-slate-700">বিতরণ বিবরণী</div>
-              <div className="max-h-60 overflow-y-auto border border-slate-200 rounded-2xl divide-y divide-slate-100 text-xs">
+              <div className="max-h-56 overflow-y-auto border border-slate-200 rounded-2xl divide-y divide-slate-100 text-xs">
                 {latestSummary.items.map((item, idx) => (
                   <div key={item.transactionId} className="p-3 flex items-center justify-between">
                     <div className="flex items-center gap-2.5">
@@ -1585,12 +1641,12 @@ export const BulkAdvancePaymentView: React.FC<BulkAdvancePaymentProps> = ({
             </div>
 
             {/* Actions */}
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-6 mt-6 border-t border-slate-100">
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-5 mt-5 border-t border-slate-100">
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => window.print()}
-                  className="px-3.5 py-2.5 text-xs font-bold rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-1.5 transition-colors"
+                  className="px-3.5 py-2.5 text-xs font-bold rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <Printer className="w-4 h-4" />
                   <span>প্রিন্ট রিসিট</span>
@@ -1599,14 +1655,14 @@ export const BulkAdvancePaymentView: React.FC<BulkAdvancePaymentProps> = ({
                 <button
                   type="button"
                   onClick={() => handleExportCSV(latestSummary)}
-                  className="px-3.5 py-2.5 text-xs font-bold rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-1.5 transition-colors"
+                  className="px-3.5 py-2.5 text-xs font-bold rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <Download className="w-4 h-4" />
                   <span>CSV ডাউনলোড</span>
                 </button>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {onNavigateToLedger && (
                   <button
                     type="button"
@@ -1614,16 +1670,27 @@ export const BulkAdvancePaymentView: React.FC<BulkAdvancePaymentProps> = ({
                       setLatestSummary(null);
                       onNavigateToLedger();
                     }}
-                    className="px-4 py-2.5 text-xs font-bold rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+                    className="px-4 py-2.5 text-xs font-bold rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer"
                   >
                     ফান্ড লেজারে দেখুন
+                  </button>
+                )}
+
+                {onBack && (
+                  <button
+                    type="button"
+                    onClick={handleExitReceiptAndNavigateBack}
+                    className="px-4 py-2.5 text-xs font-bold rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    <span>আগের স্ক্রিনে ফিরুন</span>
                   </button>
                 )}
 
                 <button
                   type="button"
                   onClick={() => setLatestSummary(null)}
-                  className="px-6 py-2.5 text-xs font-black rounded-xl bg-slate-900 text-white hover:bg-slate-800 transition-colors shadow-md"
+                  className="px-5 py-2.5 text-xs font-black rounded-xl bg-slate-900 text-white hover:bg-slate-800 transition-colors shadow-md cursor-pointer"
                 >
                   সম্পন্ন (Done)
                 </button>
@@ -1637,7 +1704,7 @@ export const BulkAdvancePaymentView: React.FC<BulkAdvancePaymentProps> = ({
           11. MODAL: DETAILED HISTORICAL BATCH AUDIT MODAL
          ========================================================================= */}
       {selectedBatchHistory && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm overflow-y-auto">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 my-8 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div>

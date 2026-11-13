@@ -11,16 +11,25 @@ import {
   CheckCircle2,
   Layers,
   ArrowRight,
-  MessageSquare
+  MessageSquare,
+  Headphones,
+  BookOpen,
+  Trophy,
+  Brain
 } from 'lucide-react';
 import { getLanguageConfig } from '../core/languagesRegistry';
 import { UniversalDailyLessonsList } from '../core/UniversalDailyLessonsList';
 import { UniversalVocabularyView } from '../core/UniversalVocabularyView';
 import { UniversalAIConversation } from '../core/UniversalAIConversation';
+import { UniversalListeningStudio } from '../core/UniversalListeningStudio';
+import { UniversalGrammarBuilder } from '../core/UniversalGrammarBuilder';
+import { UniversalSpeakingExam } from '../core/UniversalSpeakingExam';
+import { UniversalPersonalAssistant } from '../core/UniversalPersonalAssistant';
 import { SPANISH_LESSONS_DATA, SPANISH_VOCABULARY_LIST } from './spanishLessonsData';
-import { UserLanguageProgress } from '../core/types';
+import { UserLanguageProgress, CefrLevel, SpeakingExamResult, UniversalDailyLesson } from '../core/types';
 import { getDatabase, ref, onValue, set } from 'firebase/database';
 import { getApp } from 'firebase/app';
+import { getAllLessons, requestNextAdaptiveLesson } from '../../../services/dynamicLessonManager';
 
 interface SpanishAcademyViewProps {
   currentUser: string | null;
@@ -28,13 +37,22 @@ interface SpanishAcademyViewProps {
   isCloudEnabled?: boolean;
 }
 
+type SpanishSubTab =
+  | 'days'
+  | 'listening'
+  | 'conversation'
+  | 'grammar'
+  | 'vocab'
+  | 'exam'
+  | 'assistant';
+
 export const SpanishAcademyView: React.FC<SpanishAcademyViewProps> = ({
   currentUser,
   firebaseConfig,
   isCloudEnabled,
 }) => {
   const langConfig = getLanguageConfig('spanish');
-  const [activeTab, setActiveTab] = useState<'days' | 'vocab' | 'conversation'>('days');
+  const [activeTab, setActiveTab] = useState<SpanishSubTab>('days');
   const [isSpeaking, setIsSpeaking] = useState(false);
 
   // Safe user key for storage & Firebase isolation
@@ -54,12 +72,21 @@ export const SpanishAcademyView: React.FC<SpanishAcademyViewProps> = ({
     xp: 0,
     streak: 1,
     level: 'beginner',
+    cefrLevel: 'A1',
     lastActiveDate: new Date().toISOString().split('T')[0],
     masteredWordIds: [],
-    conversationMinutes: 0,
+    conversationMinutes: 10,
     completedQuizzesCount: 0,
     correctAnswersCount: 0,
     unlockedBadges: [],
+    practiceDistribution: {
+      speakingMinutes: 15,
+      listeningMinutes: 8,
+      vocabMinutes: 5,
+      grammarMinutes: 3,
+    },
+    weakTopics: [],
+    examHistory: [],
   };
 
   // State
@@ -117,20 +144,60 @@ export const SpanishAcademyView: React.FC<SpanishAcademyViewProps> = ({
     [safeUserId, storageKey, firebaseConfig]
   );
 
-  // Speech helper for Spanish
-  const speakText = useCallback((text: string, langCode: string = 'es-ES') => {
-    if (!('speechSynthesis' in window)) return;
+  // Dynamic & Foundational Spanish Lessons State
+  const [allLessons, setAllLessons] = useState<UniversalDailyLesson[]>(SPANISH_LESSONS_DATA);
+  const [isGeneratingNext, setIsGeneratingNext] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    getAllLessons('spanish', safeUserId, firebaseConfig).then((loaded) => {
+      if (mounted && loaded && loaded.length > 0) {
+        setAllLessons(loaded);
+      }
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [safeUserId, firebaseConfig]);
+
+  const handleGenerateNextLesson = async (targetDay: number) => {
+    setIsGeneratingNext(true);
+    try {
+      const res = await requestNextAdaptiveLesson({
+        language: 'spanish',
+        currentDay: targetDay,
+        completedDays: progress.completedDays,
+        safeUserId,
+        weakTopics: progress.weakTopics,
+        firebaseConfig,
+      });
+      if (res?.success && res.lesson) {
+        setAllLessons((prev) => {
+          const map = new Map<number, UniversalDailyLesson>();
+          prev.forEach((l) => map.set(l.day, l));
+          map.set(res.lesson.day, res.lesson);
+          return Array.from(map.values()).sort((a, b) => a.day - b.day);
+        });
+      }
+    } finally {
+      setIsGeneratingNext(false);
+    }
+  };
+
+  // Speech helper with optional playback speed
+  const speakText = useCallback((text: string, langCode: string = 'es-ES', rate: number = 0.9) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
     try {
       window.speechSynthesis.cancel();
       const clean = text.replace(/\(.*?\)/g, '').trim();
       const utterance = new SpeechSynthesisUtterance(clean);
       utterance.lang = langCode;
-      utterance.rate = 0.88;
+      utterance.rate = rate;
 
       const voices = window.speechSynthesis.getVoices();
       const esVoice =
-        voices.find((v) => v.lang.startsWith('es') || v.lang.includes('Spanish')) ||
-        voices.find((v) => v.lang.includes('ES'));
+        voices.find((v) => v.lang.startsWith('es') && (v.name.includes('Spain') || v.name.includes('Castilian') || v.name.includes('Mexico'))) ||
+        voices.find((v) => v.lang.startsWith('es'));
 
       if (esVoice) utterance.voice = esVoice;
 
@@ -144,7 +211,7 @@ export const SpanishAcademyView: React.FC<SpanishAcademyViewProps> = ({
     }
   }, []);
 
-  // Complete a Day lesson - Guaranteed duplicate XP protection
+  // Complete a Day lesson
   const handleCompleteDay = (dayNumber: number, xpReward: number) => {
     setProgress((prev) => {
       const alreadyDone = (prev.completedDays || []).includes(dayNumber);
@@ -160,7 +227,7 @@ export const SpanishAcademyView: React.FC<SpanishAcademyViewProps> = ({
         completedDays: newCompleted,
         currentDay: nextDay,
         xp: updatedXp,
-        level: updatedXp > 150 ? 'elementary' : 'beginner',
+        level: updatedXp > 250 ? 'intermediate' : updatedXp > 100 ? 'elementary' : 'beginner',
         lastActiveDate: new Date().toISOString().split('T')[0],
       };
 
@@ -169,13 +236,33 @@ export const SpanishAcademyView: React.FC<SpanishAcademyViewProps> = ({
     });
   };
 
-  // Award XP for conversation or quiz
+  // Award XP
   const handleAwardXp = (amount: number, reason: string) => {
     setProgress((prev) => {
       const updatedXp = prev.xp + amount;
+      const prevDist = prev.practiceDistribution || {
+        speakingMinutes: 15,
+        listeningMinutes: 8,
+        vocabMinutes: 5,
+        grammarMinutes: 3,
+      };
+
+      const isSpeakingActivity = reason.toLowerCase().includes('speaking') || reason.toLowerCase().includes('conversation');
+      const isListeningActivity = reason.toLowerCase().includes('listening');
+      const isVocabActivity = reason.toLowerCase().includes('vocab');
+      const isGrammarActivity = reason.toLowerCase().includes('grammar');
+
+      const updatedDist = {
+        speakingMinutes: isSpeakingActivity ? prevDist.speakingMinutes + 2 : prevDist.speakingMinutes,
+        listeningMinutes: isListeningActivity ? prevDist.listeningMinutes + 2 : prevDist.listeningMinutes,
+        vocabMinutes: isVocabActivity ? prevDist.vocabMinutes + 1 : prevDist.vocabMinutes,
+        grammarMinutes: isGrammarActivity ? prevDist.grammarMinutes + 1 : prevDist.grammarMinutes,
+      };
+
       const updated: UserLanguageProgress = {
         ...prev,
         xp: updatedXp,
+        practiceDistribution: updatedDist,
         lastActiveDate: new Date().toISOString().split('T')[0],
       };
       persistProgress(updated);
@@ -200,6 +287,36 @@ export const SpanishAcademyView: React.FC<SpanishAcademyViewProps> = ({
     });
   };
 
+  // Exam handler
+  const handleExamCompleted = (result: SpeakingExamResult) => {
+    setProgress((prev) => {
+      const history = [...(prev.examHistory || []), result];
+      let newCefrLevel: CefrLevel = prev.cefrLevel || 'A1';
+
+      if (result.passed) {
+        const nextMap: Record<CefrLevel, CefrLevel> = {
+          A1: 'A2',
+          A2: 'B1',
+          B1: 'B2',
+          B2: 'C1',
+          C1: 'C2',
+          C2: 'C2',
+        };
+        newCefrLevel = nextMap[newCefrLevel];
+      }
+
+      const updated: UserLanguageProgress = {
+        ...prev,
+        cefrLevel: newCefrLevel,
+        examHistory: history,
+        xp: prev.xp + (result.passed ? 150 : 30),
+      };
+
+      persistProgress(updated);
+      return updated;
+    });
+  };
+
   return (
     <div className="space-y-6">
       {/* Top Gamification Bar */}
@@ -210,9 +327,9 @@ export const SpanishAcademyView: React.FC<SpanishAcademyViewProps> = ({
           </div>
           <div>
             <h2 className="text-base md:text-lg font-black text-gray-900 dark:text-white flex items-center gap-2">
-              <span>{langConfig.name} Academy</span>
+              <span>{langConfig.name} Academy (Español)</span>
               <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
-                {progress.level}
+                CEFR {progress.cefrLevel || 'A1'}
               </span>
             </h2>
             <p className="text-xs text-gray-500">
@@ -235,36 +352,89 @@ export const SpanishAcademyView: React.FC<SpanishAcademyViewProps> = ({
       </div>
 
       {/* Navigation Sub-Tabs */}
-      <div className="flex bg-gray-100 dark:bg-gray-900 p-1.5 rounded-2xl max-w-md">
+      <div className="flex bg-gray-100 dark:bg-gray-900 p-1.5 rounded-2xl overflow-x-auto gap-1.5 max-w-full">
         <button
           onClick={() => setActiveTab('days')}
-          className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
             activeTab === 'days'
               ? 'bg-white dark:bg-gray-800 text-amber-600 dark:text-amber-400 shadow-xs'
-              : 'text-gray-600 dark:text-gray-400'
+              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
           }`}
         >
-          📅 ডেইলি লেসন
+          <Calendar className="w-3.5 h-3.5 inline mr-1" />
+          ডেইলি লেসন
         </button>
+
         <button
-          onClick={() => setActiveTab('vocab')}
-          className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
-            activeTab === 'vocab'
+          onClick={() => setActiveTab('listening')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+            activeTab === 'listening'
               ? 'bg-white dark:bg-gray-800 text-amber-600 dark:text-amber-400 shadow-xs'
-              : 'text-gray-600 dark:text-gray-400'
+              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
           }`}
         >
-          📖 ভোকাবুলারি ({SPANISH_VOCABULARY_LIST.length})
+          <Headphones className="w-3.5 h-3.5 inline mr-1" />
+          লিসনিং স্টুডিও (২৫%)
         </button>
+
         <button
           onClick={() => setActiveTab('conversation')}
-          className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
             activeTab === 'conversation'
               ? 'bg-white dark:bg-gray-800 text-amber-600 dark:text-amber-400 shadow-xs'
-              : 'text-gray-600 dark:text-gray-400'
+              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
           }`}
         >
-          🤖 AI কনভারসেশন
+          <MessageSquare className="w-3.5 h-3.5 inline mr-1" />
+          AI কনভারসেশন টিউটর
+        </button>
+
+        <button
+          onClick={() => setActiveTab('grammar')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+            activeTab === 'grammar'
+              ? 'bg-white dark:bg-gray-800 text-amber-600 dark:text-amber-400 shadow-xs'
+              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+          }`}
+        >
+          <BookOpen className="w-3.5 h-3.5 inline mr-1" />
+          ব্যাকরণ ও সিনট্যাক্স
+        </button>
+
+        <button
+          onClick={() => setActiveTab('vocab')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+            activeTab === 'vocab'
+              ? 'bg-white dark:bg-gray-800 text-amber-600 dark:text-amber-400 shadow-xs'
+              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+          }`}
+        >
+          <BookmarkCheck className="w-3.5 h-3.5 inline mr-1" />
+          ভোকাবুলারি ({SPANISH_VOCABULARY_LIST.length})
+        </button>
+
+        <button
+          onClick={() => setActiveTab('exam')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+            activeTab === 'exam'
+              ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-xs'
+              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+          }`}
+        >
+          <Trophy className="w-3.5 h-3.5 inline mr-1 text-amber-300" />
+          CEFR স্পিকিং পরীক্ষা
+        </button>
+
+        <button
+          onClick={() => setActiveTab('assistant')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+            activeTab === 'assistant'
+              ? 'bg-indigo-600 text-white shadow-xs'
+              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+          }`}
+        >
+          <Brain className="w-3.5 h-3.5 inline mr-1" />
+          AI পার্সোনাল কোচ
         </button>
       </div>
 
@@ -272,20 +442,20 @@ export const SpanishAcademyView: React.FC<SpanishAcademyViewProps> = ({
       {activeTab === 'days' && (
         <UniversalDailyLessonsList
           langConfig={langConfig}
-          lessons={SPANISH_LESSONS_DATA}
+          lessons={allLessons}
           progress={progress}
           onCompleteDay={handleCompleteDay}
           speakText={speakText}
           isSpeaking={isSpeaking}
+          onGenerateNextLesson={handleGenerateNextLesson}
+          isGeneratingNext={isGeneratingNext}
         />
       )}
 
-      {activeTab === 'vocab' && (
-        <UniversalVocabularyView
+      {activeTab === 'listening' && (
+        <UniversalListeningStudio
           langConfig={langConfig}
-          vocabulary={SPANISH_VOCABULARY_LIST}
-          masteredIds={progress.masteredWordIds || []}
-          onMarkMastered={handleToggleMastered}
+          onAwardXp={handleAwardXp}
           speakText={speakText}
           isSpeaking={isSpeaking}
         />
@@ -300,6 +470,46 @@ export const SpanishAcademyView: React.FC<SpanishAcademyViewProps> = ({
           isSpeaking={isSpeaking}
         />
       )}
+
+      {activeTab === 'grammar' && (
+        <UniversalGrammarBuilder
+          langConfig={langConfig}
+          onAwardXp={handleAwardXp}
+          speakText={speakText}
+        />
+      )}
+
+      {activeTab === 'vocab' && (
+        <UniversalVocabularyView
+          langConfig={langConfig}
+          vocabulary={SPANISH_VOCABULARY_LIST}
+          masteredIds={progress.masteredWordIds || []}
+          onMarkMastered={handleToggleMastered}
+          speakText={speakText}
+          isSpeaking={isSpeaking}
+        />
+      )}
+
+      {activeTab === 'exam' && (
+        <UniversalSpeakingExam
+          langConfig={langConfig}
+          currentCefrLevel={progress.cefrLevel || 'A1'}
+          userName={currentUser || 'Staff Member'}
+          onExamCompleted={handleExamCompleted}
+          speakText={speakText}
+          isSpeaking={isSpeaking}
+        />
+      )}
+
+      {activeTab === 'assistant' && (
+        <UniversalPersonalAssistant
+          langConfig={langConfig}
+          progress={progress}
+          onNavigateToTab={(tab) => setActiveTab(tab as SpanishSubTab)}
+          onStartExam={() => setActiveTab('exam')}
+        />
+      )}
     </div>
   );
 };
+export default SpanishAcademyView;

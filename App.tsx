@@ -161,6 +161,13 @@ localforage.config({
   description: 'Stores large app data'
 });
 import { getUserFCMToken } from "./notifications";
+import {
+  formatNotificationTitle,
+  buildServiceWorkerNotificationOptions,
+  buildFallbackNotificationOptions,
+  resolveNotificationTab,
+} from "./services/notificationDesignService";
+import { resolvePreviousAppTab } from "./services/bulkAdvanceSafety";
 
 // Safe LocalStorage Helper
 const safeGetItem = (key: string, defaultValue: string | null = null) => {
@@ -355,8 +362,125 @@ const App: React.FC = () => {
     return cached?.name || null;
   });
   const [activeTab, setActiveTab] = useState(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const tabParam = urlParams.get("tab");
+      if (tabParam) {
+        const resolved = resolveNotificationTab(tabParam);
+        urlParams.delete("tab");
+        const remainingQuery = urlParams.toString();
+        const cleanUrl = `${window.location.pathname}${remainingQuery ? `?${remainingQuery}` : ""}${window.location.hash}`;
+        window.history.replaceState({}, "", cleanUrl);
+        return resolved;
+      }
+    } catch {}
     return safeGetItem("last_active_tab") || "dashboard";
   });
+
+  const tabHistoryRef = useRef<string[]>(
+    activeTab !== "dashboard" ? ["dashboard", activeTab] : [activeTab],
+  );
+  const prevSyncedTabRef = useRef<string>(activeTab);
+  const isPopStateNavRef = useRef(false);
+
+  // Sync Android system back button / swipe gesture (popstate) with in-app tab history
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.history) return;
+    try {
+      const currentUrl =
+        window.location.pathname + window.location.search + window.location.hash;
+      const initialTab = prevSyncedTabRef.current;
+
+      if (initialTab && initialTab !== "dashboard") {
+        window.history.replaceState(
+          { ...(window.history.state || {}), appTab: "dashboard", isRootFallback: true },
+          "",
+          currentUrl,
+        );
+        window.history.pushState({ appTab: initialTab }, "", currentUrl);
+        tabHistoryRef.current = ["dashboard", initialTab];
+      } else {
+        window.history.replaceState(
+          { ...(window.history.state || {}), appTab: "dashboard" },
+          "",
+          currentUrl,
+        );
+        tabHistoryRef.current = ["dashboard"];
+      }
+    } catch {}
+
+    const handlePopState = (event: PopStateEvent) => {
+      const current = prevSyncedTabRef.current;
+      const nextStateTab =
+        event.state && typeof event.state.appTab === "string"
+          ? resolveNotificationTab(event.state.appTab)
+          : null;
+
+      const targetTab =
+        nextStateTab && nextStateTab !== current
+          ? nextStateTab
+          : current !== "dashboard"
+          ? resolvePreviousAppTab(tabHistoryRef.current, current, "dashboard")
+          : null;
+
+      if (!targetTab || targetTab === current) return;
+
+      isPopStateNavRef.current = true;
+      const stack = tabHistoryRef.current;
+      if (stack.length > 1 && stack[stack.length - 1] === current) {
+        stack.pop();
+      }
+      if (stack[stack.length - 1] !== targetTab) {
+        stack.push(targetTab);
+      }
+      setActiveTab(targetTab);
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, []);
+
+  const handleNavigateBackFromBulkAdvance = useCallback(() => {
+    const targetTab = resolvePreviousAppTab(
+      tabHistoryRef.current,
+      "bulk-advance",
+      "dashboard",
+    );
+
+    try {
+      if (
+        typeof window !== "undefined" &&
+        window.history &&
+        window.history.state?.appTab === "bulk-advance" &&
+        tabHistoryRef.current.length > 1
+      ) {
+        window.history.back();
+        return;
+      }
+    } catch {}
+
+    tabHistoryRef.current = tabHistoryRef.current.filter((t) => t !== "bulk-advance");
+    if (tabHistoryRef.current[tabHistoryRef.current.length - 1] !== targetTab) {
+      tabHistoryRef.current.push(targetTab);
+    }
+    setActiveTab(targetTab);
+  }, []);
+
+  // Listen for Service Worker notification clicks while app window is already open
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
+    const handleSwMessage = (event: MessageEvent) => {
+      if (event.data?.type === "NOTIFICATION_NAVIGATE" && event.data?.tab) {
+        setActiveTab(resolveNotificationTab(event.data.tab));
+      }
+    };
+    navigator.serviceWorker.addEventListener("message", handleSwMessage);
+    return () => {
+      navigator.serviceWorker.removeEventListener("message", handleSwMessage);
+    };
+  }, []);
 
   // Automatic performance instrumentation for target modules
   useEffect(() => {
@@ -372,15 +496,36 @@ const App: React.FC = () => {
     };
 
     const target = tabCategoryMap[activeTab];
-    if (target) {
+    if (!target) return;
+
+    const startTime = performance.now();
+    let rafId: number | null = null;
+    if (typeof requestAnimationFrame === 'function') {
+      rafId = requestAnimationFrame(() => {
+        const measuredMs = Math.max(0, performance.now() - startTime);
+        perf.recordDirectMetric({
+          action: target.name,
+          category: target.category,
+          durationMs: Number(measuredMs.toFixed(2)),
+          networkDurationMs: 0,
+          success: true,
+        });
+      });
+    } else {
       perf.recordDirectMetric({
         action: target.name,
         category: target.category,
-        durationMs: 42,
+        durationMs: Number(Math.max(0, performance.now() - startTime).toFixed(2)),
         networkDurationMs: 0,
         success: true,
       });
     }
+
+    return () => {
+      if (rafId !== null && typeof cancelAnimationFrame === 'function') {
+        cancelAnimationFrame(rafId);
+      }
+    };
   }, [activeTab]);
   const [isFirebaseLoaded, setIsFirebaseLoaded] = useState(false);
   const [isFinancialLive, setIsFinancialLive] = useState(false);
@@ -731,9 +876,34 @@ const App: React.FC = () => {
   }, [role]);
 
   useEffect(() => {
-    if (activeTab) {
-      safeSetItem("last_active_tab", activeTab);
+    if (!activeTab) return;
+    safeSetItem("last_active_tab", activeTab);
+
+    if (prevSyncedTabRef.current === activeTab) return;
+    prevSyncedTabRef.current = activeTab;
+
+    if (isPopStateNavRef.current) {
+      isPopStateNavRef.current = false;
+      return;
     }
+
+    const stack = tabHistoryRef.current;
+    if (stack[stack.length - 1] !== activeTab) {
+      stack.push(activeTab);
+      if (stack.length > 30) {
+        stack.shift();
+      }
+    }
+
+    try {
+      if (typeof window !== "undefined" && window.history) {
+        const currentUrl =
+          window.location.pathname + window.location.search + window.location.hash;
+        if (window.history.state?.appTab !== activeTab) {
+          window.history.pushState({ appTab: activeTab }, "", currentUrl);
+        }
+      }
+    } catch {}
   }, [activeTab]);
 
   const handleInstallClick = () => {
@@ -815,12 +985,14 @@ const App: React.FC = () => {
       type: AppNotification["type"] = "INFO",
       link?: string,
     ) => {
+      const cleanTitle = formatNotificationTitle(title, type);
+      const timestampIso = new Date().toISOString();
       const newNotif: AppNotification = {
         id: Math.random().toString(36).substr(2, 9),
-        title,
+        title: cleanTitle,
         message,
         type,
-        timestamp: new Date().toISOString(),
+        timestamp: timestampIso,
         isRead: false,
         link,
       };
@@ -841,20 +1013,45 @@ const App: React.FC = () => {
           audio.play().catch(() => {});
         } catch (e) {}
 
-        const options = {
-          body: message,
-          icon: "https://cdn-icons-png.flaticon.com/512/1041/1041916.png",
-          tag: "depend-sourcing-msg",
+        const swOptions = buildServiceWorkerNotificationOptions({
+          title: cleanTitle,
+          message,
+          type,
+          link,
+        });
+        const fallbackOptions = buildFallbackNotificationOptions({
+          title: cleanTitle,
+          message,
+          type,
+          link,
+        });
+
+        const showFallbackNotification = () => {
+          try {
+            const fallbackNotif = new Notification(cleanTitle, fallbackOptions);
+            fallbackNotif.onclick = () => {
+              try { window.focus(); } catch {}
+              if (link) {
+                setActiveTab(resolveNotificationTab(link));
+              }
+              fallbackNotif.close();
+            };
+          } catch (e) {}
         };
+
         try {
           if (navigator.serviceWorker) {
-            navigator.serviceWorker.ready.then((registration) => {
-              registration.showNotification(title, options).catch(() => {
-                try { new Notification(title, options); } catch(e) {}
+            navigator.serviceWorker.ready
+              .then((registration) => {
+                registration.showNotification(cleanTitle, swOptions).catch(() => {
+                  showFallbackNotification();
+                });
+              })
+              .catch(() => {
+                showFallbackNotification();
               });
-            });
           } else {
-            new Notification(title, options);
+            showFallbackNotification();
           }
         } catch (e) {
           console.error("Notification UI error", e);
@@ -1345,20 +1542,54 @@ const App: React.FC = () => {
           const notif = snapshot.val();
           if (notif && notif.timestamp >= now && !notif.read) {
             if ("Notification" in window && Notification.permission === "granted") {
-              const options = {
-                body: notif.message,
-                icon: "/pwa-192x192.png",
-                tag: "admin-login-notify"
+              const targetLink = notif.link || "staff";
+              const cleanTitle = formatNotificationTitle(
+                notif.title || "নতুন স্টাফ লগইন অ্যালার্ট",
+                "WARNING",
+              );
+              const parsedTs = Date.parse(notif.timestamp);
+              const timestampMs = !Number.isNaN(parsedTs) ? parsedTs : Date.now();
+              const swOptions = buildServiceWorkerNotificationOptions({
+                title: cleanTitle,
+                message: notif.message || "",
+                type: "WARNING",
+                link: targetLink,
+                tag: "admin-login-notify",
+                timestampMs,
+              });
+              const fallbackOptions = buildFallbackNotificationOptions({
+                title: cleanTitle,
+                message: notif.message || "",
+                type: "WARNING",
+                link: targetLink,
+                tag: "admin-login-notify",
+                timestampMs,
+              });
+
+              const showAdminFallback = () => {
+                try {
+                  const fallbackNotif = new Notification(cleanTitle, fallbackOptions);
+                  fallbackNotif.onclick = () => {
+                    try { window.focus(); } catch {}
+                    setActiveTab(resolveNotificationTab(targetLink));
+                    fallbackNotif.close();
+                  };
+                } catch (e) {}
               };
+
               try {
                 if (navigator.serviceWorker) {
-                  navigator.serviceWorker.ready.then((registration) => {
-                    registration.showNotification(notif.title, options).catch(() => {
-                      try { new Notification(notif.title, options); } catch(e){}
+                  navigator.serviceWorker.ready
+                    .then((registration) => {
+                      registration.showNotification(cleanTitle, swOptions).catch(() => {
+                        showAdminFallback();
+                      });
+                    })
+                    .catch(() => {
+                      showAdminFallback();
                     });
-                  });
                 } else {
-                  new Notification(notif.title, options);
+                  showAdminFallback();
                 }
               } catch (e) {
                 console.error("Admin Notification UI error", e);
@@ -2076,7 +2307,7 @@ const App: React.FC = () => {
 
       if (!amICheckedIn) {
         handleAddNotification(
-          "⚠️ হাজিরা রিমাইন্ডার",
+          "হাজিরা রিমাইন্ডার",
           "আপনি আজ এখনো হাজিরা (Check-In) দেননি। দ্রুত হাজিরা নিশ্চিত করুন।",
           "WARNING",
           "attendance",
@@ -2497,8 +2728,9 @@ const App: React.FC = () => {
           const db = getDatabase(app, dbUrl);
           const notifRef = push(ref(db, 'adminNotifications'));
           await set(notifRef, {
-            title: 'New Login Alert',
-            message: `${username} just logged in.\nDevice: ${deviceInfo}\nBattery: ${batteryLevel}\nLocation: ${loc}`,
+            title: 'নতুন স্টাফ লগইন অ্যালার্ট',
+            message: `${username} সিস্টেমে লগইন করেছেন।\nডিভাইস: ${deviceInfo}\nব্যাটারি: ${batteryLevel}\nলোকেশন: ${loc}`,
+            link: 'staff',
             timestamp: new Date().toISOString(),
             read: false
           });
@@ -3538,7 +3770,7 @@ const App: React.FC = () => {
             currentUser={currentUser}
             cashOnHand={cashOnHand}
             onNavigateToLedger={() => setActiveTab("funds")}
-            onBack={() => setActiveTab("dashboard")}
+            onBack={handleNavigateBackFromBulkAdvance}
           />
         );
       case "movements":

@@ -591,20 +591,21 @@ export const LearningAcademyView: React.FC<LearningAcademyViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* 3D Glassmorphism Hero Banner (Matches User Mockup) */}
-      <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-r from-blue-700 via-indigo-800 to-purple-900 p-6 md:p-8 text-white shadow-2xl border border-white/15">
+      {/* 3D Glassmorphism Hero Banner (Matches User 3D Reference) */}
+      <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-[#0B192C] via-[#1E3A8A] to-[#4C1D95] p-6 md:p-8 text-white shadow-2xl border border-white/20">
         {/* Glowing 3D Glass Orbs & Depth Elements */}
-        <div className="absolute -top-24 -right-24 w-96 h-96 bg-cyan-400/20 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -top-24 -right-24 w-96 h-96 bg-cyan-400/25 rounded-full blur-3xl pointer-events-none animate-float" />
+        <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-purple-500/25 rounded-full blur-3xl pointer-events-none animate-float-delayed" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white/5 via-transparent to-transparent pointer-events-none" />
 
         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-          <div className="space-y-2.5 max-w-xl">
+          <div className="space-y-3 max-w-xl">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/15 backdrop-blur-md border border-white/25 text-xs font-black tracking-wide text-cyan-200 shadow-inner">
-              <Sparkles className="w-4 h-4 text-amber-300" />
+              <Sparkles className="w-4 h-4 text-amber-300 animate-spin" style={{ animationDuration: '6s' }} />
               <span>Your Global Language Partner • বিশ্বমানের ভাষা শিক্ষা</span>
             </div>
 
-            <h1 className="text-3xl md:text-5xl font-black tracking-tight text-white flex items-center gap-3">
+            <h1 className="text-3xl md:text-5xl font-black tracking-tight text-white flex items-center gap-3 drop-shadow-sm">
               <span>Learning Center</span>
             </h1>
 
@@ -612,31 +613,31 @@ export const LearningAcademyView: React.FC<LearningAcademyViewProps> = ({
               Learn • Practice • Speak • Grow. আন্তর্জাতিক বায়ার প্রেজেন্টেশন, সাপ্লায়ার নেগোশিয়েশন ও সার্বিয়ান ভাষা শেখার প্রিমিয়াম 3D প্ল্যাটফর্ম।
             </p>
 
-            {/* 3D Stats Counter Pill Box */}
+            {/* 3D Stats Counter Pill Box with Floating Depth */}
             <div className="flex flex-wrap items-center gap-3 pt-2">
-              <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 text-xs font-bold text-amber-300 shadow-sm">
-                <Trophy className="w-4 h-4 text-amber-400" />
+              <div className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-white/10 backdrop-blur-md border border-white/25 text-xs font-black text-amber-300 shadow-lg shadow-black/10 hover:scale-105 transition-transform cursor-default">
+                <Trophy className="w-4 h-4 text-amber-400 drop-shadow" />
                 <span>12 Courses</span>
               </div>
-              <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 text-xs font-bold text-orange-300 shadow-sm">
-                <Flame className="w-4 h-4 text-orange-400" />
+              <div className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-white/10 backdrop-blur-md border border-white/25 text-xs font-black text-orange-300 shadow-lg shadow-black/10 hover:scale-105 transition-transform cursor-default">
+                <Flame className="w-4 h-4 text-orange-400 drop-shadow" />
                 <span>45 Day Streak</span>
               </div>
-              <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 text-xs font-bold text-emerald-300 shadow-sm">
-                <Star className="w-4 h-4 text-yellow-400" />
+              <div className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-white/10 backdrop-blur-md border border-white/25 text-xs font-black text-emerald-300 shadow-lg shadow-black/10 hover:scale-105 transition-transform cursor-default">
+                <Star className="w-4 h-4 text-yellow-400 drop-shadow" />
                 <span>85% Progress</span>
               </div>
             </div>
           </div>
 
-          {/* Quick Action Navigation Buttons */}
-          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto shrink-0">
+          {/* Quick Action Navigation Buttons with Micro-interactions */}
+          <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto shrink-0">
             <button
               onClick={() => setActiveTab('home')}
-              className={`px-4 py-2.5 rounded-2xl text-xs md:text-sm font-bold flex items-center gap-2 transition-all active:scale-95 shadow-md ${
+              className={`px-4 py-2.5 rounded-2xl text-xs md:text-sm font-black flex items-center gap-2 transition-all duration-200 active:scale-[0.96] shadow-md hover:brightness-105 ${
                 activeTab === 'home'
-                  ? 'bg-white text-slate-900 shadow-lg'
-                  : 'bg-white/10 hover:bg-white/20 text-white border border-white/20'
+                  ? 'bg-white text-slate-900 shadow-xl ring-2 ring-white/50'
+                  : 'bg-white/10 hover:bg-white/20 text-white border border-white/20 backdrop-blur-md'
               }`}
             >
               <Home className="w-4 h-4" />
@@ -646,15 +647,15 @@ export const LearningAcademyView: React.FC<LearningAcademyViewProps> = ({
             {/* Serbian Course Button with NEW badge */}
             <button
               onClick={() => setActiveTab('serbian')}
-              className={`px-4 py-2.5 rounded-2xl text-xs md:text-sm font-black flex items-center gap-2 transition-all active:scale-95 shadow-md relative ${
+              className={`px-4 py-2.5 rounded-2xl text-xs md:text-sm font-black flex items-center gap-2 transition-all duration-200 active:scale-[0.96] shadow-md relative hover:brightness-105 ${
                 activeTab === 'serbian'
-                  ? 'bg-rose-600 text-white shadow-rose-600/30'
-                  : 'bg-white/15 hover:bg-white/25 text-white border border-white/20'
+                  ? 'bg-gradient-to-r from-rose-600 to-red-600 text-white shadow-xl shadow-rose-600/40 ring-2 ring-rose-400/50'
+                  : 'bg-white/15 hover:bg-white/25 text-white border border-white/25 backdrop-blur-md'
               }`}
             >
-              <span>🇷🇸</span>
+              <span className="text-base">🇷🇸</span>
               <span>Serbian (Српски)</span>
-              <span className="px-1.5 py-0.2 rounded-md bg-rose-500 text-[10px] font-black uppercase text-white">
+              <span className="px-1.5 py-0.5 rounded-md bg-rose-500 text-[10px] font-black uppercase text-white shadow-xs">
                 New
               </span>
             </button>
@@ -668,13 +669,13 @@ export const LearningAcademyView: React.FC<LearningAcademyViewProps> = ({
                   <button
                     key={lang.code}
                     onClick={() => setActiveTab(lang.code)}
-                    className={`px-4 py-2.5 rounded-2xl text-xs md:text-sm font-bold flex items-center gap-2 transition-all active:scale-95 shadow-md ${
+                    className={`px-4 py-2.5 rounded-2xl text-xs md:text-sm font-bold flex items-center gap-2 transition-all duration-200 active:scale-[0.96] shadow-md hover:brightness-105 ${
                       isActive
-                        ? 'bg-violet-600 text-white shadow-violet-600/30'
-                        : 'bg-white/10 hover:bg-white/20 text-white border border-white/20'
+                        ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-xl shadow-violet-600/40 ring-2 ring-violet-400/50'
+                        : 'bg-white/10 hover:bg-white/20 text-white border border-white/20 backdrop-blur-md'
                     }`}
                   >
-                    <span>{lang.flag}</span>
+                    <span className="text-base">{lang.flag}</span>
                     <span>{lang.name}</span>
                   </button>
                 );
@@ -684,10 +685,10 @@ export const LearningAcademyView: React.FC<LearningAcademyViewProps> = ({
             {isAdminOrMD && (
               <button
                 onClick={() => setActiveTab('admin')}
-                className={`px-4 py-2.5 rounded-2xl text-xs md:text-sm font-bold flex items-center gap-2 transition-all active:scale-95 shadow-md ${
+                className={`px-4 py-2.5 rounded-2xl text-xs md:text-sm font-bold flex items-center gap-2 transition-all duration-200 active:scale-[0.96] shadow-md hover:brightness-105 ${
                   activeTab === 'admin'
-                    ? 'bg-amber-600 text-white shadow-amber-600/30'
-                    : 'bg-white/10 hover:bg-white/20 text-white border border-white/20'
+                    ? 'bg-gradient-to-r from-amber-600 to-yellow-600 text-white shadow-xl shadow-amber-600/40 ring-2 ring-amber-400/50'
+                    : 'bg-white/10 hover:bg-white/20 text-white border border-white/20 backdrop-blur-md'
                 }`}
               >
                 <ShieldCheck className="w-4 h-4" />
@@ -701,8 +702,8 @@ export const LearningAcademyView: React.FC<LearningAcademyViewProps> = ({
       {/* VIEW: HOME DASHBOARD (Organized into 9 Sections) */}
       {activeTab === 'home' && (
         <div className="space-y-6 animate-in fade-in duration-200">
-          {/* Section Sub-Navigation Bar */}
-          <div className="flex bg-white dark:bg-gray-800 p-2 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-x-auto scrollbar-none gap-1.5">
+          {/* Horizontal Sub-Navigation Bar with Glassmorphic Backdrop */}
+          <div className="flex bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-2 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-lg shadow-blue-950/5 overflow-x-auto scrollbar-none gap-1.5">
             {[
               { id: 'courses', label: 'My Courses', icon: BookOpen },
               { id: 'continue', label: 'Continue Learning', icon: ArrowRight },
@@ -720,10 +721,10 @@ export const LearningAcademyView: React.FC<LearningAcademyViewProps> = ({
                 <button
                   key={tab.id}
                   onClick={() => setActiveSection(tab.id as DashboardSection)}
-                  className={`px-3.5 py-2 rounded-2xl text-xs font-bold flex items-center gap-2 whitespace-nowrap transition-all active:scale-95 ${
+                  className={`px-4 py-2 rounded-2xl text-xs font-black flex items-center gap-2 whitespace-nowrap transition-all duration-200 active:scale-[0.96] ${
                     isSelected
-                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/20'
-                      : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/60'
+                      ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-md shadow-blue-600/30'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100/80 dark:hover:bg-slate-800/80'
                   }`}
                 >
                   <Icon className="w-4 h-4" />
@@ -752,42 +753,49 @@ export const LearningAcademyView: React.FC<LearningAcademyViewProps> = ({
                 {/* 1. Serbian Course 3D Card (Highlighted) */}
                 <div
                   onClick={() => setActiveTab('serbian')}
-                  className="group relative cursor-pointer overflow-hidden rounded-3xl bg-gradient-to-br from-blue-600 via-indigo-700 to-rose-700 p-6 text-white shadow-xl hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 border border-white/20 active:scale-[0.99]"
+                  className="group relative cursor-pointer overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#1E3A8A] via-[#2563EB] to-[#BE123C] p-6 text-white shadow-xl shadow-blue-950/20 hover:shadow-2xl hover:shadow-rose-500/25 transition-all duration-300 hover:-translate-y-1.5 border border-white/25 active:scale-[0.98]"
                 >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="w-16 h-16 rounded-2xl bg-white/15 backdrop-blur-md border border-white/20 flex items-center justify-center text-4xl shadow-inner group-hover:scale-105 transition-transform">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-rose-400/20 rounded-full blur-2xl pointer-events-none group-hover:scale-125 transition-transform" />
+
+                  <div className="flex items-start justify-between mb-4 relative z-10">
+                    <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-4xl shadow-inner group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
                       🇷🇸
                     </div>
-                    <span className="px-2.5 py-1 rounded-full bg-rose-500 text-white text-[10px] font-black uppercase tracking-wider shadow-md animate-pulse">
+                    <span className="px-3 py-1 rounded-full bg-rose-500 text-white text-[10px] font-black uppercase tracking-wider shadow-lg shadow-rose-600/40 animate-pulse">
                       New Course
                     </span>
                   </div>
 
-                  <div className="space-y-1">
-                    <h4 className="text-2xl font-black text-white flex items-center gap-2">
+                  <div className="space-y-1 relative z-10">
+                    <h4 className="text-2xl font-black text-white flex items-center gap-2 drop-shadow-xs">
                       <span>Serbian</span>
                       <span className="text-lg text-rose-200 font-serif">Српски</span>
                     </h4>
-                    <p className="text-xs text-blue-100/90 font-medium">
+                    <p className="text-xs text-blue-100/95 font-medium leading-relaxed">
                       Speak Serbian with Confidence! বর্ণমালা, শব্দ ও ১২টি পূর্ণাঙ্গ পাঠ।
                     </p>
                   </div>
 
-                  {/* Progress stats */}
-                  <div className="mt-4 pt-3 border-t border-white/20 space-y-2">
+                  {/* Progress stats with animated shimmer */}
+                  <div className="mt-4 pt-3 border-t border-white/20 space-y-2 relative z-10">
                     <div className="flex items-center justify-between text-xs font-bold">
                       <span className="text-blue-100">অগ্রগতি (Progress)</span>
-                      <span className="text-white">{srProgressPct}%</span>
+                      <span className="text-white font-black">{srProgressPct}%</span>
                     </div>
-                    <div className="w-full h-2 rounded-full bg-white/20 overflow-hidden">
-                      <div className="h-full bg-emerald-400 rounded-full" style={{ width: `${Math.max(5, srProgressPct)}%` }} />
+                    <div className="w-full h-2.5 rounded-full bg-black/25 overflow-hidden p-0.5 border border-white/15">
+                      <div
+                        className="h-full bg-gradient-to-r from-emerald-400 to-cyan-300 rounded-full relative overflow-hidden transition-all duration-700"
+                        style={{ width: `${Math.max(6, srProgressPct)}%` }}
+                      >
+                        <div className="absolute inset-0 animate-shimmer" />
+                      </div>
                     </div>
                   </div>
 
-                  <div className="mt-4 flex items-center justify-between text-xs font-bold text-blue-100">
-                    <span>{srCompletedCount} / 12 Lessons Completed</span>
-                    <span className="flex items-center gap-1 group-hover:translate-x-1 transition-transform text-white">
-                      Start <ArrowRight className="w-3.5 h-3.5" />
+                  <div className="mt-4 flex items-center justify-between text-xs font-bold text-blue-100 relative z-10">
+                    <span className="text-emerald-300 font-black">{srCompletedCount} / 12 Lessons Completed</span>
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white/15 backdrop-blur-md border border-white/25 group-hover:bg-white group-hover:text-slate-900 transition-all font-black text-white shadow-xs">
+                      Start <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                     </span>
                   </div>
                 </div>
@@ -795,38 +803,45 @@ export const LearningAcademyView: React.FC<LearningAcademyViewProps> = ({
                 {/* 2. English Course 3D Card */}
                 <div
                   onClick={() => setActiveTab('english')}
-                  className="group relative cursor-pointer overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 to-purple-800 p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border border-white/20 active:scale-[0.99]"
+                  className="group relative cursor-pointer overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#3B0764] via-[#6D28D9] to-[#1E3A8A] p-6 text-white shadow-xl shadow-purple-950/20 hover:shadow-2xl hover:shadow-purple-500/25 transition-all duration-300 hover:-translate-y-1.5 border border-white/25 active:scale-[0.98]"
                 >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="w-16 h-16 rounded-2xl bg-white/15 backdrop-blur-md border border-white/20 flex items-center justify-center text-4xl shadow-inner group-hover:scale-105 transition-transform">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-400/20 rounded-full blur-2xl pointer-events-none group-hover:scale-125 transition-transform" />
+
+                  <div className="flex items-start justify-between mb-4 relative z-10">
+                    <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-4xl shadow-inner group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
                       🇬🇧
                     </div>
-                    <span className="px-2.5 py-1 rounded-full bg-violet-400/30 text-white text-[10px] font-black uppercase tracking-wider">
+                    <span className="px-3 py-1 rounded-full bg-violet-400/30 text-white text-[10px] font-black uppercase tracking-wider backdrop-blur-md border border-white/20">
                       Active
                     </span>
                   </div>
 
-                  <div className="space-y-1">
-                    <h4 className="text-2xl font-black text-white">English</h4>
-                    <p className="text-xs text-purple-100/90 font-medium">
+                  <div className="space-y-1 relative z-10">
+                    <h4 className="text-2xl font-black text-white drop-shadow-xs">English</h4>
+                    <p className="text-xs text-purple-100/95 font-medium leading-relaxed">
                       Learn & Speak. অফিস ইমেইল, মিটিং ও আন্তর্জাতিক বায়ার প্রেজেন্টেশন।
                     </p>
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-white/20 space-y-2">
+                  <div className="mt-4 pt-3 border-t border-white/20 space-y-2 relative z-10">
                     <div className="flex items-center justify-between text-xs font-bold">
                       <span className="text-purple-100">অগ্রগতি</span>
-                      <span className="text-white">{enProgressPct}%</span>
+                      <span className="text-white font-black">{enProgressPct}%</span>
                     </div>
-                    <div className="w-full h-2 rounded-full bg-white/20 overflow-hidden">
-                      <div className="h-full bg-cyan-400 rounded-full" style={{ width: `${Math.max(5, enProgressPct)}%` }} />
+                    <div className="w-full h-2.5 rounded-full bg-black/25 overflow-hidden p-0.5 border border-white/15">
+                      <div
+                        className="h-full bg-gradient-to-r from-cyan-400 to-blue-400 rounded-full relative overflow-hidden transition-all duration-700"
+                        style={{ width: `${Math.max(6, enProgressPct)}%` }}
+                      >
+                        <div className="absolute inset-0 animate-shimmer" />
+                      </div>
                     </div>
                   </div>
 
-                  <div className="mt-4 flex items-center justify-between text-xs font-bold text-purple-100">
-                    <span>{enCompletedCount} / 12 Lessons • Corporate Pro</span>
-                    <span className="flex items-center gap-1 group-hover:translate-x-1 transition-transform text-white">
-                      Continue <ArrowRight className="w-3.5 h-3.5" />
+                  <div className="mt-4 flex items-center justify-between text-xs font-bold text-purple-100 relative z-10">
+                    <span className="text-cyan-200 font-black">{enCompletedCount} / 12 Lessons • Pro</span>
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white/15 backdrop-blur-md border border-white/25 group-hover:bg-white group-hover:text-slate-900 transition-all font-black text-white shadow-xs">
+                      Continue <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                     </span>
                   </div>
                 </div>
@@ -834,38 +849,45 @@ export const LearningAcademyView: React.FC<LearningAcademyViewProps> = ({
                 {/* 3. Spanish Course 3D Card */}
                 <div
                   onClick={() => isAuthorizedForLanguage('spanish') && setActiveTab('spanish')}
-                  className="group relative cursor-pointer overflow-hidden rounded-3xl bg-gradient-to-br from-amber-500 to-orange-700 p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border border-white/20 active:scale-[0.99]"
+                  className="group relative cursor-pointer overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#7C2D12] via-[#EA580C] to-[#C2410C] p-6 text-white shadow-xl shadow-orange-950/20 hover:shadow-2xl hover:shadow-amber-500/25 transition-all duration-300 hover:-translate-y-1.5 border border-white/25 active:scale-[0.98]"
                 >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="w-16 h-16 rounded-2xl bg-white/15 backdrop-blur-md border border-white/20 flex items-center justify-center text-4xl shadow-inner group-hover:scale-105 transition-transform">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-amber-400/20 rounded-full blur-2xl pointer-events-none group-hover:scale-125 transition-transform" />
+
+                  <div className="flex items-start justify-between mb-4 relative z-10">
+                    <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-4xl shadow-inner group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
                       🇪🇸
                     </div>
-                    <span className="px-2.5 py-1 rounded-full bg-white/20 text-white text-[10px] font-black uppercase tracking-wider">
+                    <span className="px-3 py-1 rounded-full bg-white/25 text-white text-[10px] font-black uppercase tracking-wider backdrop-blur-md border border-white/20">
                       Español
                     </span>
                   </div>
 
-                  <div className="space-y-1">
-                    <h4 className="text-2xl font-black text-white">Spanish</h4>
-                    <p className="text-xs text-amber-100/90 font-medium">
+                  <div className="space-y-1 relative z-10">
+                    <h4 className="text-2xl font-black text-white drop-shadow-xs">Spanish</h4>
+                    <p className="text-xs text-amber-100/95 font-medium leading-relaxed">
                       Habla Español. বেসিক স্প্যানিশ, উচ্চারণ ও দৈনন্দিন বিজনেস কথপোকথন।
                     </p>
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-white/20 space-y-2">
+                  <div className="mt-4 pt-3 border-t border-white/20 space-y-2 relative z-10">
                     <div className="flex items-center justify-between text-xs font-bold">
                       <span className="text-amber-100">অগ্রগতি</span>
-                      <span className="text-white">{esProgressPct}%</span>
+                      <span className="text-white font-black">{esProgressPct}%</span>
                     </div>
-                    <div className="w-full h-2 rounded-full bg-white/20 overflow-hidden">
-                      <div className="h-full bg-amber-300 rounded-full" style={{ width: `${Math.max(5, esProgressPct)}%` }} />
+                    <div className="w-full h-2.5 rounded-full bg-black/25 overflow-hidden p-0.5 border border-white/15">
+                      <div
+                        className="h-full bg-gradient-to-r from-amber-300 to-yellow-400 rounded-full relative overflow-hidden transition-all duration-700"
+                        style={{ width: `${Math.max(6, esProgressPct)}%` }}
+                      >
+                        <div className="absolute inset-0 animate-shimmer" />
+                      </div>
                     </div>
                   </div>
 
-                  <div className="mt-4 flex items-center justify-between text-xs font-bold text-amber-100">
-                    <span>{esCompletedCount} / 10 Lessons • Daily</span>
-                    <span className="flex items-center gap-1 group-hover:translate-x-1 transition-transform text-white">
-                      Practice <ArrowRight className="w-3.5 h-3.5" />
+                  <div className="mt-4 flex items-center justify-between text-xs font-bold text-amber-100 relative z-10">
+                    <span className="text-yellow-300 font-black">{esCompletedCount} / 10 Lessons • Daily</span>
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white/15 backdrop-blur-md border border-white/25 group-hover:bg-white group-hover:text-slate-900 transition-all font-black text-white shadow-xs">
+                      Practice <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                     </span>
                   </div>
                 </div>
@@ -873,49 +895,56 @@ export const LearningAcademyView: React.FC<LearningAcademyViewProps> = ({
                 {/* 4. Chinese Course 3D Card */}
                 <div
                   onClick={() => isAuthorizedForLanguage('chinese') && setActiveTab('chinese')}
-                  className="group relative cursor-pointer overflow-hidden rounded-3xl bg-gradient-to-br from-rose-600 to-red-800 p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border border-white/20 active:scale-[0.99]"
+                  className="group relative cursor-pointer overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#881337] via-[#BE123C] to-[#991B1B] p-6 text-white shadow-xl shadow-red-950/20 hover:shadow-2xl hover:shadow-red-500/25 transition-all duration-300 hover:-translate-y-1.5 border border-white/25 active:scale-[0.98]"
                 >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="w-16 h-16 rounded-2xl bg-white/15 backdrop-blur-md border border-white/20 flex items-center justify-center text-4xl shadow-inner group-hover:scale-105 transition-transform">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-400/20 rounded-full blur-2xl pointer-events-none group-hover:scale-125 transition-transform" />
+
+                  <div className="flex items-start justify-between mb-4 relative z-10">
+                    <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-4xl shadow-inner group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
                       🇨🇳
                     </div>
-                    <span className="px-2.5 py-1 rounded-full bg-white/20 text-white text-[10px] font-black uppercase tracking-wider">
+                    <span className="px-3 py-1 rounded-full bg-white/25 text-white text-[10px] font-black uppercase tracking-wider backdrop-blur-md border border-white/20">
                       中文
                     </span>
                   </div>
 
-                  <div className="space-y-1">
-                    <h4 className="text-2xl font-black text-white">Chinese (Mandarin)</h4>
-                    <p className="text-xs text-rose-100/90 font-medium">
+                  <div className="space-y-1 relative z-10">
+                    <h4 className="text-2xl font-black text-white drop-shadow-xs">Chinese (Mandarin)</h4>
+                    <p className="text-xs text-rose-100/95 font-medium leading-relaxed">
                       চায়না সাপ্লায়ার ও ফ্যাক্টরি নেগোশিয়েশন ও পিনয়িন স্পিকিং।
                     </p>
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-white/20 space-y-2">
+                  <div className="mt-4 pt-3 border-t border-white/20 space-y-2 relative z-10">
                     <div className="flex items-center justify-between text-xs font-bold">
                       <span className="text-rose-100">অগ্রগতি</span>
-                      <span className="text-white">{zhProgressPct}%</span>
+                      <span className="text-white font-black">{zhProgressPct}%</span>
                     </div>
-                    <div className="w-full h-2 rounded-full bg-white/20 overflow-hidden">
-                      <div className="h-full bg-amber-400 rounded-full" style={{ width: `${Math.max(5, zhProgressPct)}%` }} />
+                    <div className="w-full h-2.5 rounded-full bg-black/25 overflow-hidden p-0.5 border border-white/15">
+                      <div
+                        className="h-full bg-gradient-to-r from-amber-400 to-yellow-300 rounded-full relative overflow-hidden transition-all duration-700"
+                        style={{ width: `${Math.max(6, zhProgressPct)}%` }}
+                      >
+                        <div className="absolute inset-0 animate-shimmer" />
+                      </div>
                     </div>
                   </div>
 
-                  <div className="mt-4 flex items-center justify-between text-xs font-bold text-rose-100">
-                    <span>{zhCompletedCount} / 12 Lessons • Supplier Track</span>
-                    <span className="flex items-center gap-1 group-hover:translate-x-1 transition-transform text-white">
-                      Explore <ArrowRight className="w-3.5 h-3.5" />
+                  <div className="mt-4 flex items-center justify-between text-xs font-bold text-rose-100 relative z-10">
+                    <span className="text-amber-200 font-black">{zhCompletedCount} / 12 Lessons • Track</span>
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white/15 backdrop-blur-md border border-white/25 group-hover:bg-white group-hover:text-slate-900 transition-all font-black text-white shadow-xs">
+                      Explore <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                     </span>
                   </div>
                 </div>
 
                 {/* 5. French Course Preview */}
-                <div className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-sky-600 to-blue-800 p-6 text-white shadow-md border border-white/10 opacity-90">
+                <div className="group relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#0C4A6E] via-[#0284C7] to-[#1E3A8A] p-6 text-white shadow-lg border border-white/20 opacity-90 hover:opacity-100 transition-all duration-300">
                   <div className="flex items-start justify-between mb-4">
-                    <div className="w-16 h-16 rounded-2xl bg-white/15 backdrop-blur-md border border-white/20 flex items-center justify-center text-4xl shadow-inner">
+                    <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-4xl shadow-inner group-hover:scale-105 transition-transform">
                       🇫🇷
                     </div>
-                    <span className="px-2 py-0.5 rounded-full bg-white/20 text-[10px] font-black uppercase text-white">
+                    <span className="px-2.5 py-1 rounded-full bg-white/20 text-[10px] font-black uppercase text-white backdrop-blur-md border border-white/20">
                       Coming Soon
                     </span>
                   </div>
@@ -924,12 +953,12 @@ export const LearningAcademyView: React.FC<LearningAcademyViewProps> = ({
                 </div>
 
                 {/* 6. German Course Preview */}
-                <div className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-700 to-gray-900 p-6 text-white shadow-md border border-white/10 opacity-90">
+                <div className="group relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#1E293B] via-[#334155] to-[#0F172A] p-6 text-white shadow-lg border border-white/20 opacity-90 hover:opacity-100 transition-all duration-300">
                   <div className="flex items-start justify-between mb-4">
-                    <div className="w-16 h-16 rounded-2xl bg-white/15 backdrop-blur-md border border-white/20 flex items-center justify-center text-4xl shadow-inner">
+                    <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-4xl shadow-inner group-hover:scale-105 transition-transform">
                       🇩🇪
                     </div>
-                    <span className="px-2 py-0.5 rounded-full bg-white/20 text-[10px] font-black uppercase text-white">
+                    <span className="px-2.5 py-1 rounded-full bg-white/20 text-[10px] font-black uppercase text-white backdrop-blur-md border border-white/20">
                       Coming Soon
                     </span>
                   </div>
@@ -942,23 +971,27 @@ export const LearningAcademyView: React.FC<LearningAcademyViewProps> = ({
 
           {/* SECTION 2: CONTINUE LEARNING */}
           {activeSection === 'continue' && (
-            <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 border border-gray-100 dark:border-gray-700 shadow-sm space-y-4">
-              <h3 className="text-lg font-black text-gray-900 dark:text-white flex items-center gap-2">
+            <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl rounded-[2rem] p-6 md:p-8 border border-slate-200/80 dark:border-slate-800 shadow-xl shadow-blue-950/5 space-y-4">
+              <h3 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
                 <ArrowRight className="w-5 h-5 text-emerald-500" />
                 <span>Continue Where You Left Off (যেখানে থেমেছিলেন সেখান থেকে শুরু করুন)</span>
               </h3>
 
-              <div className="p-5 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-700 dark:to-gray-800 border border-blue-100 dark:border-gray-600 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <span className="text-4xl">🇷🇸</span>
+              <div className="p-6 rounded-3xl bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white border border-white/20 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-5 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-400/10 rounded-full blur-3xl pointer-events-none" />
+
+                <div className="flex items-center gap-4 relative z-10">
+                  <div className="w-16 h-16 rounded-2xl bg-white/15 backdrop-blur-md border border-white/20 flex items-center justify-center text-4xl shadow-inner animate-float">
+                    🇷🇸
+                  </div>
                   <div>
-                    <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wide">
+                    <span className="inline-block px-2.5 py-0.5 rounded-full bg-cyan-400/20 text-cyan-200 text-[10px] font-black uppercase tracking-wider mb-1 backdrop-blur-md border border-cyan-400/30">
                       Next Up in Serbian
                     </span>
-                    <h4 className="text-base font-black text-gray-900 dark:text-white">
+                    <h4 className="text-lg font-black text-white drop-shadow-xs">
                       Lesson {nextSerbianLesson.day}: {nextSerbianLesson.title} ({nextSerbianLesson.titleBn})
                     </h4>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                    <p className="text-xs text-blue-100/80 font-medium mt-0.5">
                       {nextSerbianLesson.objectiveBn}
                     </p>
                   </div>
@@ -966,7 +999,7 @@ export const LearningAcademyView: React.FC<LearningAcademyViewProps> = ({
 
                 <button
                   onClick={() => setActiveTab('serbian')}
-                  className="px-6 py-3 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs shadow-lg shadow-blue-600/30 flex items-center gap-2 transition active:scale-95 shrink-0"
+                  className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-black text-xs shadow-lg shadow-emerald-600/30 flex items-center gap-2 transition-all duration-200 hover:scale-[1.02] active:scale-[0.96] shrink-0 relative z-10"
                 >
                   <Play className="w-4 h-4 fill-current" />
                   <span>Resume Lesson {nextSerbianLesson.day}</span>
@@ -977,51 +1010,75 @@ export const LearningAcademyView: React.FC<LearningAcademyViewProps> = ({
 
           {/* SECTION 3: DAILY PRACTICE */}
           {activeSection === 'practice' && (
-            <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 border border-gray-100 dark:border-gray-700 shadow-sm space-y-4">
+            <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl rounded-[2rem] p-6 md:p-8 border border-slate-200/80 dark:border-slate-800 shadow-xl shadow-blue-950/5 space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-black text-gray-900 dark:text-white flex items-center gap-2">
+                <h3 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
                   <Flame className="w-5 h-5 text-orange-500" />
                   <span>Daily 5-Minute Practice (দৈনিক ৫ মিনিটের চর্চা)</span>
                 </h3>
-                <span className="text-xs bg-orange-100 text-orange-800 font-bold px-3 py-1 rounded-full">
+                <span className="text-xs bg-gradient-to-r from-orange-500 to-red-500 text-white font-black px-3.5 py-1.5 rounded-full shadow-md shadow-orange-500/20">
                   🔥 45 Day Streak
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-                <div className="p-4 rounded-2xl bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700 space-y-2">
-                  <span className="text-xs font-bold text-rose-500 block">🇷🇸 Serbian Phrase</span>
-                  <p className="text-lg font-black text-gray-900 dark:text-white">Како си данас?</p>
-                  <p className="text-xs text-blue-600 font-bold">Kako si danas? (কেমন আছো আজ?)</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
+                <div className="p-5 rounded-3xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 space-y-2.5 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-rose-500 uppercase tracking-wide">🇷🇸 Serbian Phrase</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-md bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 font-bold">Daily Drill</span>
+                  </div>
+                  <p className="text-xl font-black text-slate-900 dark:text-white">Како си данас?</p>
+                  <p className="text-xs text-blue-600 dark:text-blue-400 font-bold">Kako si danas? (কেমন আছো আজ?)</p>
                   <button
                     onClick={() => playSampleAudio('Kako si danas?')}
-                    className="text-xs text-gray-600 hover:text-blue-600 font-bold flex items-center gap-1 pt-1"
+                    className="text-xs text-slate-700 dark:text-slate-300 hover:text-blue-600 font-bold inline-flex items-center gap-1.5 pt-1 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 transition active:scale-95"
                   >
-                    <Volume2 className="w-3.5 h-3.5" /> Listen
+                    <Volume2 className="w-3.5 h-3.5 text-blue-500" /> Listen
                   </button>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700 space-y-2">
-                  <span className="text-xs font-bold text-blue-500 block">🇬🇧 English Corporate</span>
-                  <p className="text-lg font-black text-gray-900 dark:text-white">Could you please update the schedule?</p>
-                  <p className="text-xs text-violet-600 font-bold">অনুগ্রহ করে সময়সূচীটি আপডেট করবেন কি?</p>
+                <div className="p-5 rounded-3xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 space-y-2.5 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-red-500 uppercase tracking-wide">🇨🇳 Chinese Daily</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-md bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 font-bold">WeChat Pro</span>
+                  </div>
+                  <p className="text-xl font-black text-slate-900 dark:text-white">今天工作顺利吗？</p>
+                  <p className="text-xs text-red-600 dark:text-red-400 font-bold">Jīntiān gōngzuò shùnlì ma? (আজকের কাজ কেমন চলছে?)</p>
+                  <button
+                    onClick={() => playSampleAudio('今天工作顺利吗？', 'zh-CN')}
+                    className="text-xs text-slate-700 dark:text-slate-300 hover:text-red-600 font-bold inline-flex items-center gap-1.5 pt-1 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 transition active:scale-95"
+                  >
+                    <Volume2 className="w-3.5 h-3.5 text-red-500" /> Listen
+                  </button>
+                </div>
+
+                <div className="p-5 rounded-3xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 space-y-2.5 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-blue-500 uppercase tracking-wide">🇬🇧 English Corporate</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold">Meeting Pro</span>
+                  </div>
+                  <p className="text-xl font-black text-slate-900 dark:text-white">Could you please update the schedule?</p>
+                  <p className="text-xs text-violet-600 dark:text-violet-400 font-bold">অনুগ্রহ করে সময়সূচীটি আপডেট করবেন কি?</p>
                   <button
                     onClick={() => playSampleAudio('Could you please update the schedule?', 'en-US')}
-                    className="text-xs text-gray-600 hover:text-violet-600 font-bold flex items-center gap-1 pt-1"
+                    className="text-xs text-slate-700 dark:text-slate-300 hover:text-violet-600 font-bold inline-flex items-center gap-1.5 pt-1 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 transition active:scale-95"
                   >
-                    <Volume2 className="w-3.5 h-3.5" /> Listen
+                    <Volume2 className="w-3.5 h-3.5 text-violet-500" /> Listen
                   </button>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700 space-y-2">
-                  <span className="text-xs font-bold text-amber-500 block">🇪🇸 Spanish Daily</span>
-                  <p className="text-lg font-black text-gray-900 dark:text-white">Mucho gusto en conocerte.</p>
-                  <p className="text-xs text-amber-600 font-bold">আপনার সাথে পরিচিত হয়ে খুব ভালো লাগলো।</p>
+                <div className="p-5 rounded-3xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 space-y-2.5 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-amber-500 uppercase tracking-wide">🇪🇸 Spanish Daily</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-bold">Conversation</span>
+                  </div>
+                  <p className="text-xl font-black text-slate-900 dark:text-white">Mucho gusto en conocerte.</p>
+                  <p className="text-xs text-amber-600 dark:text-amber-400 font-bold">আপনার সাথে পরিচিত হয়ে খুব ভালো লাগলো।</p>
                   <button
                     onClick={() => playSampleAudio('Mucho gusto en conocerte.', 'es-ES')}
-                    className="text-xs text-gray-600 hover:text-amber-600 font-bold flex items-center gap-1 pt-1"
+                    className="text-xs text-slate-700 dark:text-slate-300 hover:text-amber-600 font-bold inline-flex items-center gap-1.5 pt-1 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 transition active:scale-95"
                   >
-                    <Volume2 className="w-3.5 h-3.5" /> Listen
+                    <Volume2 className="w-3.5 h-3.5 text-amber-500" /> Listen
                   </button>
                 </div>
               </div>
@@ -1030,38 +1087,38 @@ export const LearningAcademyView: React.FC<LearningAcademyViewProps> = ({
 
           {/* SECTION 4: VOCABULARY */}
           {activeSection === 'vocabulary' && (
-            <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 border border-gray-100 dark:border-gray-700 shadow-sm space-y-4">
-              <h3 className="text-lg font-black text-gray-900 dark:text-white flex items-center gap-2">
+            <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl rounded-[2rem] p-6 md:p-8 border border-slate-200/80 dark:border-slate-800 shadow-xl shadow-blue-950/5 space-y-4">
+              <h3 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
                 <Languages className="w-5 h-5 text-indigo-500" />
                 <span>Vocabulary Bank (শব্দকোষ সংগ্রহ)</span>
               </h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                সার্বিয়ান, ইংরেজি ও স্প্যানিশ ভাষার অতিপ্রয়োজনীয় শব্দমালা
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                সার্বিয়ান, চাইনিজ, ইংরেজি ও স্প্যানিশ ভাষার অতিপ্রয়োজনীয় শব্দমালা
               </p>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5 pt-2">
                 {[
-                  { word: 'Здраво (Zdravo)', meaning: 'হ্যালো / Hello', lang: '🇷🇸 Serbian' },
-                  { word: 'Хвала (Hvala)', meaning: 'ধন্যবাদ / Thanks', lang: '🇷🇸 Serbian' },
-                  { word: 'Молим (Molim)', meaning: 'দয়া করে / Please', lang: '🇷🇸 Serbian' },
-                  { word: 'Рачун (Račun)', meaning: 'বিল / Check', lang: '🇷🇸 Serbian' },
-                  { word: 'Уговор (Ugovor)', meaning: 'চুক্তি / Contract', lang: '🇷🇸 Serbian' },
-                  { word: 'Negotiation', meaning: 'দরকষাকষি', lang: '🇬🇧 English' },
-                  { word: 'Specification', meaning: 'পণ্যের বিবরণী', lang: '🇬🇧 English' },
-                  { word: 'Gracias', meaning: 'ধন্যবাদ', lang: '🇪🇸 Spanish' },
+                  { word: 'Здраво (Zdravo)', meaning: 'হ্যালো / Hello', lang: '🇷🇸 Serbian', code: 'sr-RS' },
+                  { word: 'Хвала (Hvala)', meaning: 'ধন্যবাদ / Thanks', lang: '🇷🇸 Serbian', code: 'sr-RS' },
+                  { word: '你好 (Nǐ hǎo)', meaning: 'হ্যালো / কেমন আছেন', lang: '🇨🇳 Chinese', code: 'zh-CN' },
+                  { word: '谢谢 (Xièxie)', meaning: 'ধন্যবাদ / Thanks', lang: '🇨🇳 Chinese', code: 'zh-CN' },
+                  { word: 'Negotiation', meaning: 'দরকষাকষি', lang: '🇬🇧 English', code: 'en-US' },
+                  { word: 'Specification', meaning: 'পণ্যের বিবরণী', lang: '🇬🇧 English', code: 'en-US' },
+                  { word: 'Mucho gusto', meaning: 'পরিচিত হয়ে আনন্দিত', lang: '🇪🇸 Spanish', code: 'es-ES' },
+                  { word: 'Muchas gracias', meaning: 'অনেক ধন্যবাদ', lang: '🇪🇸 Spanish', code: 'es-ES' },
                 ].map((item, idx) => (
                   <div
                     key={idx}
-                    className="p-3.5 rounded-2xl bg-gray-50 dark:bg-gray-700/40 border border-gray-100 dark:border-gray-700 flex items-center justify-between"
+                    className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/60 flex items-center justify-between hover:border-blue-400 dark:hover:border-blue-500 transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
                   >
                     <div>
-                      <span className="text-[10px] text-gray-400 font-bold uppercase">{item.lang}</span>
-                      <p className="text-sm font-black text-gray-900 dark:text-white">{item.word}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">{item.meaning}</p>
+                      <span className="text-[10px] text-slate-400 font-black uppercase tracking-wider">{item.lang}</span>
+                      <p className="text-sm font-black text-slate-900 dark:text-white">{item.word}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">{item.meaning}</p>
                     </div>
                     <button
-                      onClick={() => playSampleAudio(item.word.split('(')[0].trim())}
-                      className="p-2 rounded-xl text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition"
+                      onClick={() => playSampleAudio(item.word.split('(')[0].trim(), item.code)}
+                      className="p-2.5 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/60 transition active:scale-95"
                     >
                       <Volume2 className="w-4 h-4" />
                     </button>
@@ -1073,52 +1130,78 @@ export const LearningAcademyView: React.FC<LearningAcademyViewProps> = ({
 
           {/* SECTION 5: SPEAKING PRACTICE (Interactive 3D Studio Microphone) */}
           {activeSection === 'speaking' && (
-            <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 md:p-8 border border-gray-100 dark:border-gray-700 shadow-sm text-center space-y-6">
-              <div className="max-w-md mx-auto space-y-3">
-                <span className="px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-black uppercase">
+            <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl rounded-[2rem] p-6 md:p-8 border border-slate-200/80 dark:border-slate-800 shadow-xl shadow-blue-950/5 text-center space-y-6">
+              <div className="max-w-md mx-auto space-y-4">
+                <span className="px-3.5 py-1.5 rounded-full bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 text-xs font-black uppercase tracking-wider border border-blue-200 dark:border-blue-800">
                   Interactive Speaking Studio
                 </span>
-                <h3 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white">
+                <h3 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">
                   Speak in Serbian
                 </h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   মাইক্রোফোনে ট্যাপ করে স্পষ্ট সার্বিয়ান উচ্চারণ বলুন
                 </p>
 
-                {/* Target Word Card */}
-                <div className="p-6 rounded-3xl bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-700 dark:to-gray-800 border border-blue-200 dark:border-gray-600 space-y-2 shadow-inner">
-                  <h4 className="text-4xl font-black text-blue-700 dark:text-blue-300">Zdravo!</h4>
-                  <p className="text-sm font-bold text-gray-600 dark:text-gray-300">
+                {/* Target Word Card with 3D Depth */}
+                <div className="p-6 md:p-8 rounded-3xl bg-gradient-to-br from-blue-900 via-indigo-900 to-slate-900 text-white border border-white/20 space-y-3 shadow-xl relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-48 h-48 bg-cyan-400/15 rounded-full blur-2xl pointer-events-none" />
+                  <h4 className="text-4xl md:text-5xl font-black text-cyan-300 tracking-tight drop-shadow-md">
+                    Zdravo!
+                  </h4>
+                  <p className="text-sm font-bold text-blue-100/90">
                     Здраво! (বাংলা: য্দ্রাভো / অর্থ: হ্যালো!)
                   </p>
                   <button
                     onClick={() => playSampleAudio('Zdravo!')}
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white dark:bg-gray-900 text-xs font-bold text-blue-600 dark:text-blue-400 shadow-xs"
+                    className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-md text-xs font-black text-white shadow-md border border-white/25 transition active:scale-95"
                   >
                     <Volume2 className="w-3.5 h-3.5" /> শুনুন
                   </button>
+
+                  {/* Audio Equalizer Waveform Indicator */}
+                  <div className="flex items-center justify-center gap-1 pt-2">
+                    {[12, 24, 18, 30, 22, 14, 28, 16, 26, 12].map((height, i) => (
+                      <div
+                        key={i}
+                        className={`w-1 rounded-full transition-all duration-300 ${
+                          isSpeakingStudioRecording
+                            ? 'bg-rose-400 animate-pulse'
+                            : 'bg-cyan-400/60'
+                        }`}
+                        style={{ height: `${height}px` }}
+                      />
+                    ))}
+                  </div>
                 </div>
 
-                {/* Interactive Studio Microphone Button */}
-                <div className="pt-4">
-                  <button
-                    onClick={handleStartSpeakingStudio}
-                    disabled={isSpeakingStudioRecording}
-                    className={`w-24 h-24 rounded-full flex items-center justify-center text-white shadow-2xl transition-all duration-300 mx-auto ${
-                      isSpeakingStudioRecording
-                        ? 'bg-rose-500 ring-8 ring-rose-300 scale-105 animate-pulse'
-                        : 'bg-gradient-to-tr from-blue-600 via-indigo-600 to-rose-600 hover:scale-105 active:scale-95 shadow-blue-600/40'
-                    }`}
-                  >
-                    <Mic className={`w-10 h-10 ${isSpeakingStudioRecording ? 'animate-bounce' : ''}`} />
-                  </button>
-                  <p className="text-xs font-bold text-gray-500 dark:text-gray-400 mt-3">
-                    {isSpeakingStudioRecording ? 'রেকর্ড হচ্ছে...' : 'Tap to Speak (কথা বলতে চাপুন)'}
+                {/* Interactive Studio Microphone Button with Multi-Ring Pulse */}
+                <div className="pt-2">
+                  <div className="relative inline-block">
+                    {isSpeakingStudioRecording && (
+                      <>
+                        <div className="absolute -inset-4 rounded-full bg-rose-500/20 animate-ping pointer-events-none" />
+                        <div className="absolute -inset-2 rounded-full bg-rose-500/30 animate-pulse pointer-events-none" />
+                      </>
+                    )}
+                    <button
+                      onClick={handleStartSpeakingStudio}
+                      disabled={isSpeakingStudioRecording}
+                      className={`relative z-10 w-24 h-24 rounded-full flex items-center justify-center text-white shadow-2xl transition-all duration-300 mx-auto ${
+                        isSpeakingStudioRecording
+                          ? 'bg-rose-500 ring-8 ring-rose-300 scale-105 animate-pulse'
+                          : 'bg-gradient-to-tr from-blue-600 via-indigo-600 to-rose-600 hover:scale-105 active:scale-95 shadow-blue-600/40 ring-4 ring-blue-500/20'
+                      }`}
+                    >
+                      <Mic className={`w-10 h-10 ${isSpeakingStudioRecording ? 'animate-bounce' : ''}`} />
+                    </button>
+                  </div>
+                  <p className="text-xs font-black text-slate-500 dark:text-slate-400 mt-3">
+                    {isSpeakingStudioRecording ? '🎙️ শুনছি... স্পষ্ট করে বলুন!' : 'Tap to Speak (কথা বলতে চাপুন)'}
                   </p>
                 </div>
 
                 {speakingStudioFeedback && (
-                  <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-bold animate-in fade-in">
+                  <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-black shadow-sm animate-in fade-in">
                     {speakingStudioFeedback}
                   </div>
                 )}
@@ -1128,38 +1211,41 @@ export const LearningAcademyView: React.FC<LearningAcademyViewProps> = ({
 
           {/* SECTION 6: GRAMMAR */}
           {activeSection === 'grammar' && (
-            <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 border border-gray-100 dark:border-gray-700 shadow-sm space-y-4">
-              <h3 className="text-lg font-black text-gray-900 dark:text-white flex items-center gap-2">
+            <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl rounded-[2rem] p-6 md:p-8 border border-slate-200/80 dark:border-slate-800 shadow-xl shadow-blue-950/5 space-y-4">
+              <h3 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
                 <Layers className="w-5 h-5 text-purple-500" />
                 <span>Grammar Fundamentals (ব্যাকরণের মূল নিয়ম)</span>
               </h3>
 
-              <div className="space-y-3 pt-2">
-                <div className="p-4 rounded-2xl bg-gray-50 dark:bg-gray-700/40 border border-gray-100 dark:border-gray-700 space-y-2">
-                  <h4 className="text-sm font-black text-gray-900 dark:text-white">
-                    ১. সার্বিয়ান ভাষার ফোনেটিক নীতি (Phonetic Principle)
+              <div className="space-y-3.5 pt-2">
+                <div className="p-5 rounded-3xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/60 space-y-2">
+                  <h4 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-lg bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 flex items-center justify-center text-xs font-black">১</span>
+                    <span>সার্বিয়ান ভাষার ফোনেটিক নীতি (Phonetic Principle)</span>
                   </h4>
-                  <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed pl-8">
                     "Piši kao što govoriš, čitaj kako je napisano" — প্রতিটি বর্ণের একটি নির্দিষ্ট স্বতন্ত্র উচ্চারণ থাকে। ইংরেজি বা ফ্রেঞ্চের মতো কোনো অনুচ্চারিত সাইলেন্ট লেটার সার্বিয়ানে থাকে না।
                   </p>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-gray-50 dark:bg-gray-700/40 border border-gray-100 dark:border-gray-700 space-y-2">
-                  <h4 className="text-sm font-black text-gray-900 dark:text-white">
-                    ২. তিনটি লিঙ্গভেদ (Genders: Masculine, Feminine, Neuter)
+                <div className="p-5 rounded-3xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/60 space-y-2">
+                  <h4 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-lg bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 flex items-center justify-center text-xs font-black">২</span>
+                    <span>তিনটি লিঙ্গভেদ (Genders: Masculine, Feminine, Neuter)</span>
                   </h4>
-                  <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed pl-8">
                     • <strong>পুংলিঙ্গ (Masculine)</strong>: ব্যঞ্জনবর্ণে শেষ হয় (যেমন: Grad - শহর)<br />
                     • <strong>স্ত্রীলিঙ্গ (Feminine)</strong>: "-a" তে শেষ হয় (যেমন: Kafa - কফি, Voda - পানি)<br />
                     • <strong>ক্লীবলিঙ্গ (Neuter)</strong>: "-o" বা "-e" তে শেষ হয় (যেমন: Selo - গ্রাম, Pismo - চিঠি)
                   </p>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-gray-50 dark:bg-gray-700/40 border border-gray-100 dark:border-gray-700 space-y-2">
-                  <h4 className="text-sm font-black text-gray-900 dark:text-white">
-                    ৩. প্রশ্নবোধক বাক্য গঠন (Questions with "Da li")
+                <div className="p-5 rounded-3xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/60 space-y-2">
+                  <h4 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 flex items-center justify-center text-xs font-black">৩</span>
+                    <span>প্রশ্নবোধক বাক্য গঠন (Questions with "Da li")</span>
                   </h4>
-                  <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed pl-8">
                     যেকোনো সাধারণ বাক্যের শুরুতে "Da li" যুক্ত করলেই তা প্রশ্নবোধক বাক্যে রূপ নেয়। যেমন: "Govorite srpski" (আপনি সার্বিয়ান বলেন) → "Da li govorite srpski?" (আপনি কি সার্বিয়ান বলেন?)।
                   </p>
                 </div>
@@ -1169,37 +1255,37 @@ export const LearningAcademyView: React.FC<LearningAcademyViewProps> = ({
 
           {/* SECTION 7: QUIZZES (Interactive Dashboard Quiz Time) */}
           {activeSection === 'quizzes' && (
-            <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 md:p-8 border border-gray-100 dark:border-gray-700 shadow-sm space-y-5">
+            <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl rounded-[2rem] p-6 md:p-8 border border-slate-200/80 dark:border-slate-800 shadow-xl shadow-blue-950/5 space-y-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <span className="text-[11px] font-black uppercase text-blue-600 tracking-wider">
+                  <span className="inline-block px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 text-[11px] font-black uppercase tracking-wider mb-2">
                     Question {activeQuizQuestionIdx + 1} of {dashboardQuizList.length}
                   </span>
-                  <h3 className="text-xl font-black text-gray-900 dark:text-white">
+                  <h3 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white">
                     {dashboardQuizList[activeQuizQuestionIdx].q}
                   </h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
                     {dashboardQuizList[activeQuizQuestionIdx].qBn}
                   </p>
                 </div>
                 <div className="text-right">
-                  <span className="text-xs font-bold text-gray-400 block">স্কোর</span>
+                  <span className="text-xs font-bold text-slate-400 block">স্কোর</span>
                   <span className="text-lg font-black text-emerald-500">+{dashboardQuizScore} XP</span>
                 </div>
               </div>
 
               {/* Options */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2">
                 {dashboardQuizList[activeQuizQuestionIdx].options.map((opt) => {
                   const isSelected = selectedDashboardQuizAnswer === opt;
                   const isCorrect = opt === dashboardQuizList[activeQuizQuestionIdx].correct;
 
                   let style =
-                    'bg-gray-50 dark:bg-gray-700/40 border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100';
+                    'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:border-blue-400 hover:bg-slate-100/80';
                   if (isSelected) {
                     style = isCorrect
-                      ? 'bg-emerald-500 text-white border-emerald-600 font-black shadow-md'
-                      : 'bg-rose-500 text-white border-rose-600 font-bold';
+                      ? 'bg-emerald-500 text-white border-emerald-600 font-black shadow-lg shadow-emerald-500/30'
+                      : 'bg-rose-500 text-white border-rose-600 font-bold shadow-lg shadow-rose-500/30';
                   }
 
                   return (
@@ -1212,11 +1298,11 @@ export const LearningAcademyView: React.FC<LearningAcademyViewProps> = ({
                           setDashboardQuizScore((s) => s + 10);
                         }
                       }}
-                      className={`p-4 rounded-2xl border text-sm text-left transition font-medium flex items-center justify-between ${style}`}
+                      className={`p-4 rounded-2xl border text-sm text-left transition-all duration-200 font-medium flex items-center justify-between active:scale-[0.98] ${style}`}
                     >
                       <span>{opt}</span>
                       {isSelected && (
-                        <span>{isCorrect ? '✓' : '✗'}</span>
+                        <span className="text-base font-black">{isCorrect ? '✓' : '✗'}</span>
                       )}
                     </button>
                   );
@@ -1224,8 +1310,8 @@ export const LearningAcademyView: React.FC<LearningAcademyViewProps> = ({
               </div>
 
               {dashboardQuizFinished ? (
-                <div className="p-6 rounded-3xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-center space-y-3">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-500 text-white flex items-center justify-center mx-auto text-2xl shadow-md">
+                <div className="p-6 md:p-8 rounded-3xl bg-gradient-to-br from-emerald-500/10 via-teal-500/10 to-cyan-500/10 border border-emerald-300 dark:border-emerald-800 text-center space-y-3 shadow-md">
+                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center mx-auto text-2xl shadow-lg shadow-emerald-500/30 animate-bounce">
                     🎉
                   </div>
                   <h4 className="text-lg font-black text-emerald-900 dark:text-emerald-200">
@@ -1241,7 +1327,7 @@ export const LearningAcademyView: React.FC<LearningAcademyViewProps> = ({
                       setDashboardQuizScore(0);
                       setDashboardQuizFinished(false);
                     }}
-                    className="px-5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition"
+                    className="px-6 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow-lg shadow-emerald-600/30 transition active:scale-95"
                   >
                     আবার কুইজ দিন (Restart Quiz)
                   </button>
@@ -1258,7 +1344,7 @@ export const LearningAcademyView: React.FC<LearningAcademyViewProps> = ({
                         awardDashboardXpToSerbian(dashboardQuizScore + 10);
                       }
                     }}
-                    className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs shadow-md transition flex items-center gap-1.5"
+                    className="px-6 py-3 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs shadow-lg shadow-blue-600/30 transition flex items-center gap-2 active:scale-95"
                   >
                     <span>{activeQuizQuestionIdx < dashboardQuizList.length - 1 ? 'Next Question' : 'Finish Quiz'}</span>
                     <ArrowRight className="w-4 h-4" />
@@ -1270,12 +1356,15 @@ export const LearningAcademyView: React.FC<LearningAcademyViewProps> = ({
 
           {/* SECTION 8: ACHIEVEMENTS (3D Golden Trophy & Badges) */}
           {activeSection === 'achievements' && (
-            <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 md:p-8 border border-gray-100 dark:border-gray-700 shadow-sm space-y-6">
-              {/* Top Trophy Banner */}
-              <div className="text-center p-6 rounded-3xl bg-gradient-to-br from-amber-500/10 via-yellow-500/10 to-orange-500/10 border border-amber-500/20 space-y-2">
-                <span className="text-5xl block animate-bounce">🏆</span>
-                <h3 className="text-2xl font-black text-gray-900 dark:text-white">You're Awesome!</h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
+            <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl rounded-[2rem] p-6 md:p-8 border border-slate-200/80 dark:border-slate-800 shadow-xl shadow-blue-950/5 space-y-6">
+              {/* Top Trophy Banner with 3D Depth */}
+              <div className="text-center p-8 rounded-3xl bg-gradient-to-br from-amber-500/15 via-yellow-400/10 to-orange-500/15 border border-amber-400/30 space-y-3 relative overflow-hidden shadow-lg shadow-amber-500/10">
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 bg-yellow-400/20 rounded-full blur-3xl pointer-events-none" />
+                <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-amber-400 to-yellow-300 flex items-center justify-center text-5xl shadow-xl shadow-amber-500/40 mx-auto animate-float">
+                  🏆
+                </div>
+                <h3 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">You're Awesome!</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto font-medium">
                   Keep learning and earn more badges! প্রতিদিন চর্চা করে নতুন ব্যাজ আনলক করুন।
                 </p>
               </div>
@@ -1285,26 +1374,28 @@ export const LearningAcademyView: React.FC<LearningAcademyViewProps> = ({
                 {achievements.map((b) => (
                   <div
                     key={b.id}
-                    className={`p-4 rounded-3xl text-center border transition-all duration-300 flex flex-col items-center justify-between space-y-2 ${
+                    className={`p-4 rounded-3xl text-center border transition-all duration-300 flex flex-col items-center justify-between space-y-2.5 ${
                       b.unlocked
-                        ? 'bg-gradient-to-b from-gray-50 to-white dark:from-gray-700/60 dark:to-gray-800 border-amber-200 dark:border-amber-800/60 shadow-md hover:-translate-y-1'
-                        : 'bg-gray-100/60 dark:bg-gray-800/40 border-gray-200 dark:border-gray-700 opacity-50 grayscale'
+                        ? 'bg-gradient-to-b from-white to-slate-50 dark:from-slate-800/80 dark:to-slate-900 border-amber-300 dark:border-amber-600/50 shadow-lg shadow-amber-500/10 hover:-translate-y-1 hover:shadow-xl hover:shadow-amber-500/20'
+                        : 'bg-slate-100/60 dark:bg-slate-800/30 border-slate-200 dark:border-slate-800 opacity-40 grayscale'
                     }`}
                   >
                     <div
-                      className={`w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shadow-inner bg-gradient-to-tr ${b.color}`}
+                      className={`w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shadow-lg bg-gradient-to-tr ${b.color} ${
+                        b.unlocked ? 'animate-float' : ''
+                      }`}
                     >
                       {b.icon}
                     </div>
                     <div>
-                      <h4 className="text-xs font-black text-gray-900 dark:text-white">{b.title}</h4>
-                      <p className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">{b.titleBn}</p>
+                      <h4 className="text-xs font-black text-slate-900 dark:text-white">{b.title}</h4>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">{b.titleBn}</p>
                     </div>
                     <span
-                      className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                      className={`text-[9px] font-black px-2.5 py-0.5 rounded-full ${
                         b.unlocked
-                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
-                          : 'bg-gray-200 text-gray-500'
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300/40'
+                          : 'bg-slate-200 text-slate-500'
                       }`}
                     >
                       {b.unlocked ? 'Unlocked' : 'Locked'}
@@ -1317,19 +1408,19 @@ export const LearningAcademyView: React.FC<LearningAcademyViewProps> = ({
 
           {/* SECTION 9: LEARNING HISTORY */}
           {activeSection === 'history' && (
-            <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 border border-gray-100 dark:border-gray-700 shadow-sm space-y-4">
+            <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl rounded-[2rem] p-6 md:p-8 border border-slate-200/80 dark:border-slate-800 shadow-xl shadow-blue-950/5 space-y-4">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
-                  <h3 className="text-lg font-black text-gray-900 dark:text-white flex items-center gap-2">
+                  <h3 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
                     <Clock className="w-5 h-5 text-blue-500" />
                     <span>Learning History (শেখার ইতিহাস)</span>
                   </h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
                     আপনার সম্পন্ন করা লেসন ও অর্জিত পয়েন্টের বিস্তারিত লগ
                   </p>
                 </div>
 
-                <div className="px-4 py-2 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-bold flex items-center gap-2">
+                <div className="px-4 py-2 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-black flex items-center gap-2 shadow-xs">
                   <Target className="w-4 h-4 text-emerald-600" />
                   <span>🎯 Daily Goal: Complete 1 more lesson today!</span>
                 </div>
@@ -1339,14 +1430,14 @@ export const LearningAcademyView: React.FC<LearningAcademyViewProps> = ({
                 {historyEntries.map((item) => (
                   <div
                     key={item.id}
-                    className="p-4 rounded-2xl bg-gray-50 dark:bg-gray-700/40 border border-gray-100 dark:border-gray-700 flex items-center justify-between gap-3"
+                    className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/60 flex items-center justify-between gap-3 hover:border-blue-400 transition-all duration-200 hover:-translate-y-0.5 shadow-xs"
                   >
                     <div className="flex items-center gap-3">
                       <span className="text-2xl">{item.flag}</span>
                       <div>
-                        <span className="text-[10px] text-gray-400 font-bold uppercase">{item.course}</span>
-                        <h4 className="text-xs font-black text-gray-900 dark:text-white">{item.lesson}</h4>
-                        <p className="text-[11px] text-gray-500 dark:text-gray-400">{item.date}</p>
+                        <span className="text-[10px] text-slate-400 font-black uppercase tracking-wider">{item.course}</span>
+                        <h4 className="text-xs font-black text-slate-900 dark:text-white">{item.lesson}</h4>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">{item.date}</p>
                       </div>
                     </div>
 
@@ -1354,7 +1445,7 @@ export const LearningAcademyView: React.FC<LearningAcademyViewProps> = ({
                       <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 block">
                         {item.xp}
                       </span>
-                      <span className="text-[10px] text-gray-400 font-bold">Score: {item.score}</span>
+                      <span className="text-[10px] text-slate-400 font-bold">Score: {item.score}</span>
                     </div>
                   </div>
                 ))}

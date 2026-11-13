@@ -13,7 +13,9 @@ import {
   X,
   Building2,
   MessageSquareQuote,
-  Lightbulb
+  Lightbulb,
+  Zap,
+  Loader2,
 } from 'lucide-react';
 import { ChineseLessonDay, UserChineseProgress } from './types';
 import { CHINESE_LESSONS_DATA } from './chineseLessonsData';
@@ -23,6 +25,9 @@ interface ChineseDayByDayViewProps {
   onCompleteDay: (dayNumber: number, xpReward: number) => void;
   speakChinese: (text: string) => void;
   isSpeaking: boolean;
+  lessons?: ChineseLessonDay[];
+  onGenerateNextLesson?: (targetDay: number) => Promise<void>;
+  isGeneratingNext?: boolean;
 }
 
 export const ChineseDayByDayView: React.FC<ChineseDayByDayViewProps> = ({
@@ -30,7 +35,11 @@ export const ChineseDayByDayView: React.FC<ChineseDayByDayViewProps> = ({
   onCompleteDay,
   speakChinese,
   isSpeaking,
+  lessons,
+  onGenerateNextLesson,
+  isGeneratingNext = false,
 }) => {
+  const displayLessons = lessons && lessons.length > 0 ? lessons : CHINESE_LESSONS_DATA;
   const [activeLesson, setActiveLesson] = useState<ChineseLessonDay | null>(null);
   const [activeStep, setActiveStep] = useState<'words' | 'dialogue' | 'quiz'>('words');
 
@@ -92,7 +101,7 @@ export const ChineseDayByDayView: React.FC<ChineseDayByDayViewProps> = ({
               কোর্স অগ্রগতি
             </span>
             <span className="text-2xl font-black text-white">
-              {completedDays.length} / {CHINESE_LESSONS_DATA.length}
+              {completedDays.length} / {displayLessons.length}
             </span>
             <span className="text-[10px] text-yellow-300 block font-semibold mt-0.5">
               Day {progress.currentDay || 1} চলমান
@@ -101,9 +110,49 @@ export const ChineseDayByDayView: React.FC<ChineseDayByDayViewProps> = ({
         </div>
       </div>
 
+      {/* Fast-Track Adaptive Acceleration Bar */}
+      <div className="bg-gradient-to-r from-red-950/40 via-orange-950/30 to-amber-950/40 backdrop-blur-xl border border-red-500/30 rounded-3xl p-5 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-red-500 text-white flex items-center justify-center font-black shadow-lg shadow-red-500/20 shrink-0">
+            <Zap className="w-6 h-6 fill-current" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black uppercase text-amber-400 tracking-wider">Fast-Track Chinese</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">
+                কোনো দৈনিক সীমাবদ্ধতা নেই • Unlimited Pacing
+              </span>
+            </div>
+            <p className="text-xs text-slate-300 font-medium mt-0.5">
+              এক দিনে ১, ২, ৫ বা ৭ দিনের চীনা পাঠ সম্পূর্ণ করুন। পিনয়িন, ৪টি টোন ও সাপ্লায়ার কথোপকথন আয়ত্ত করুন।
+            </p>
+          </div>
+        </div>
+
+        {onGenerateNextLesson && (
+          <button
+            onClick={() => onGenerateNextLesson(displayLessons.length > 0 ? displayLessons[displayLessons.length - 1].day + 1 : 13)}
+            disabled={isGeneratingNext}
+            className="w-full md:w-auto px-5 py-3 rounded-2xl bg-gradient-to-r from-red-500 via-orange-500 to-amber-500 hover:from-red-400 hover:to-orange-400 text-white font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-red-500/25 active:scale-95 transition-all disabled:opacity-50"
+          >
+            {isGeneratingNext ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>AI চাইনিজ পাঠ প্রস্তুত হচ্ছে...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4" />
+                <span>পরবর্তী পাঠ আনলক করুন (Day {displayLessons.length > 0 ? displayLessons[displayLessons.length - 1].day + 1 : 13})</span>
+              </>
+            )}
+          </button>
+        )}
+      </div>
+
       {/* Days Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {CHINESE_LESSONS_DATA.map((lesson) => {
+        {displayLessons.map((lesson) => {
           const isCompleted = completedDays.includes(lesson.day);
           // Day 1 is always unlocked. Next day unlocks if previous day is completed.
           const isUnlocked = lesson.day === 1 || completedDays.includes(lesson.day - 1);
@@ -500,13 +549,28 @@ export const ChineseDayByDayView: React.FC<ChineseDayByDayViewProps> = ({
                         অভিনন্দন! আপনি Day {activeLesson.day} সম্পন্ন করেছেন। পরবর্তী দিনটি আনলক করা হবে।
                       </p>
 
-                      <button
-                        onClick={handleFinishDay}
-                        className="py-3 px-8 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-lg shadow-emerald-600/30 transition-all active:scale-95 inline-flex items-center gap-2"
-                      >
-                        <Award className="w-4 h-4" />
-                        <span>Day {activeLesson.day} সম্পন্ন করুন (+{activeLesson.xpReward} XP)</span>
-                      </button>
+                      <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-2">
+                        <button
+                          onClick={handleFinishDay}
+                          className="w-full sm:w-auto py-3 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-lg shadow-emerald-600/30 transition-all active:scale-95 inline-flex items-center justify-center gap-2"
+                        >
+                          <Award className="w-4 h-4" />
+                          <span>Day {activeLesson.day} সম্পন্ন করুন (+{activeLesson.xpReward} XP)</span>
+                        </button>
+                        {onGenerateNextLesson && (
+                          <button
+                            onClick={async () => {
+                              const nextDay = activeLesson.day + 1;
+                              handleFinishDay();
+                              await onGenerateNextLesson(nextDay);
+                            }}
+                            className="w-full sm:w-auto py-3 px-6 rounded-2xl bg-gradient-to-r from-red-500 to-amber-500 hover:from-red-600 hover:to-amber-600 text-white font-black text-xs shadow-lg shadow-red-500/25 transition-all active:scale-95 inline-flex items-center justify-center gap-2"
+                          >
+                            <Zap className="w-4 h-4 fill-current" />
+                            <span>পরবর্তী পাঠে যান (Day {activeLesson.day + 1})</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>

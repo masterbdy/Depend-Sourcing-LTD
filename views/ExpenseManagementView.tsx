@@ -253,7 +253,7 @@ const SubmitExpenseModal: React.FC<SubmitExpenseModalProps> = ({
     } catch {}
 
     try {
-      perf.measure('Bill Entry initial loading', 'bill_submit', () => true);
+      perf.measure('Bill Entry initial loading', 'bills', () => true);
     } catch {}
   }, []);
 
@@ -1856,7 +1856,7 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({
 
   // Performance Instrumentation for Previous Bills loading
   useEffect(() => {
-    perf.measure('Previous Bills loading', 'bill_submit', () => {
+    perf.measure('Previous Bills loading', 'bills', () => {
       return { totalBills: expenses.length, visible: visibleCount };
     });
   }, []);

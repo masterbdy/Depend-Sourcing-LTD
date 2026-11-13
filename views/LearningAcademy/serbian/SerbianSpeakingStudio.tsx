@@ -210,7 +210,7 @@ export const SerbianSpeakingStudio: React.FC<SerbianSpeakingStudioProps> = ({
         </div>
       </div>
 
-      {/* Categories Filter Pills */}
+      {/* Categories Filter Pills with 3D Glassmorphism */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
         {SERBIAN_SPEAKING_CATEGORIES.map((cat) => (
           <button
@@ -221,52 +221,54 @@ export const SerbianSpeakingStudio: React.FC<SerbianSpeakingStudioProps> = ({
               setEvaluationResult(null);
               setSpokenTranscript('');
             }}
-            className={`px-4 py-2 rounded-2xl text-xs font-black transition-all flex items-center gap-2 whitespace-nowrap shadow-xs active:scale-95 ${
+            className={`px-4 py-2.5 rounded-2xl text-xs font-black transition-all duration-200 flex items-center gap-2 whitespace-nowrap shadow-xs active:scale-95 ${
               selectedCategory === cat.id
-                ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30 ring-2 ring-blue-400'
-                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-100 dark:border-gray-700'
+                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/30 ring-2 ring-blue-400/50'
+                : 'bg-white/80 dark:bg-slate-800/80 backdrop-blur-md text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200/80 dark:border-slate-700'
             }`}
           >
-            <span>{cat.icon}</span>
+            <span className="text-sm">{cat.icon}</span>
             <span>{cat.labelBn}</span>
           </button>
         ))}
       </div>
 
-      {/* Main Speaking Practice Card */}
-      <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 md:p-8 border border-gray-100 dark:border-gray-700 shadow-md space-y-6">
+      {/* Main Speaking Practice Card with 3D Depth */}
+      <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl rounded-[2.5rem] p-6 md:p-8 border border-slate-200/80 dark:border-slate-800 shadow-xl shadow-blue-950/5 space-y-6">
         {/* Phrase Content Block */}
-        <div className="p-6 md:p-8 rounded-3xl bg-gradient-to-br from-blue-50/70 via-indigo-50/40 to-rose-50/50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 border border-blue-100 dark:border-gray-700 text-center space-y-4">
-          <div className="inline-block px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 text-xs font-bold uppercase tracking-wider">
+        <div className="p-6 md:p-8 rounded-3xl bg-gradient-to-br from-blue-950 via-indigo-950 to-slate-950 border border-white/20 text-center space-y-4 shadow-xl relative overflow-hidden text-white">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-400/10 rounded-full blur-3xl pointer-events-none" />
+
+          <div className="inline-block px-3.5 py-1 rounded-full bg-white/15 backdrop-blur-md border border-white/25 text-cyan-200 text-xs font-black uppercase tracking-wider">
             {activePhrase.category.toUpperCase()} • Phrase #{activePhraseIndex + 1}
           </div>
 
-          <div className="space-y-1">
-            <h3 className="text-2xl md:text-4xl font-black text-gray-900 dark:text-white tracking-tight">
+          <div className="space-y-1 relative z-10">
+            <h3 className="text-3xl md:text-5xl font-black text-white tracking-tight drop-shadow-sm">
               {activePhrase.cyrillic}
             </h3>
-            <p className="text-lg md:text-2xl font-bold text-blue-600 dark:text-blue-400">
+            <p className="text-xl md:text-3xl font-bold text-cyan-300">
               {activePhrase.latin}
             </p>
           </div>
 
-          <div className="max-w-md mx-auto pt-2 pb-1 border-t border-blue-200/50 dark:border-gray-700 space-y-1 text-xs md:text-sm">
-            <p className="font-bold text-amber-700 dark:text-amber-400">
+          <div className="max-w-md mx-auto pt-3 pb-1 border-t border-white/15 space-y-1.5 text-xs md:text-sm relative z-10">
+            <p className="font-black text-amber-300">
               উচ্চারণ: {activePhrase.bengaliPronunciation}
             </p>
-            <p className="text-gray-700 dark:text-gray-200 font-semibold">
+            <p className="text-slate-200 font-semibold">
               বাংলা অর্থ: {activePhrase.bengaliMeaning}
             </p>
-            <p className="text-gray-500 dark:text-gray-400 text-xs italic">
+            <p className="text-slate-400 text-xs italic">
               English: "{activePhrase.englishMeaning}"
             </p>
           </div>
 
           {/* Audio Controls */}
-          <div className="flex items-center justify-center gap-3 pt-2">
+          <div className="flex items-center justify-center gap-3 pt-2 relative z-10">
             <button
               onClick={handlePlayAudio}
-              className="px-5 py-2.5 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-2 shadow-md shadow-blue-600/30 transition active:scale-95"
+              className="px-6 py-2.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs flex items-center gap-2 shadow-lg shadow-blue-600/30 transition-all duration-200 active:scale-95"
             >
               <Volume2 className="w-4 h-4" />
               <span>উচ্চারণ শুনুন (Listen)</span>
@@ -277,11 +279,26 @@ export const SerbianSpeakingStudio: React.FC<SerbianSpeakingStudioProps> = ({
                 setSlowAudio(!slowAudio);
                 speakText(activePhrase.latin, 'sr-RS');
               }}
-              className="px-4 py-2.5 rounded-2xl bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-bold text-xs hover:bg-gray-200 transition"
+              className="px-5 py-2.5 rounded-2xl bg-white/15 hover:bg-white/25 text-white font-bold text-xs backdrop-blur-md border border-white/20 transition active:scale-95"
               title="আস্তে শুনুন"
             >
               🐢 আস্তে শুনুন
             </button>
+          </div>
+
+          {/* Equalizer Waveform Indicator */}
+          <div className="flex items-center justify-center gap-1.5 pt-2">
+            {[10, 22, 16, 28, 36, 20, 32, 14, 26, 12].map((height, i) => (
+              <div
+                key={i}
+                className={`w-1 rounded-full transition-all duration-300 ${
+                  isRecording
+                    ? 'bg-rose-400 animate-pulse'
+                    : 'bg-cyan-400/50'
+                }`}
+                style={{ height: `${height}px` }}
+              />
+            ))}
           </div>
         </div>
 
@@ -296,26 +313,34 @@ export const SerbianSpeakingStudio: React.FC<SerbianSpeakingStudioProps> = ({
             </div>
           ) : (
             <div className="space-y-4">
-              <p className="text-xs text-gray-500 dark:text-gray-400 font-bold">
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-black">
                 {isRecording
                   ? '🎙️ শুনছি... স্পষ্ট সার্বিয়ান ভাষায় বাক্যটি বলুন!'
                   : 'মাইক্রোফোনে ট্যাপ করে বাক্যটি জোরে বলুন (Tap to Speak)'}
               </p>
 
-              <button
-                onClick={isRecording ? handleStopRecording : handleStartRecording}
-                className={`w-24 h-24 rounded-full flex items-center justify-center text-white shadow-2xl transition-all duration-300 mx-auto ${
-                  isRecording
-                    ? 'bg-rose-500 ring-8 ring-rose-300 scale-105 animate-pulse'
-                    : 'bg-gradient-to-tr from-blue-600 via-indigo-600 to-rose-600 hover:scale-105 active:scale-95 shadow-blue-600/40'
-                }`}
-              >
-                {isRecording ? (
-                  <MicOff className="w-10 h-10 animate-spin" />
-                ) : (
-                  <Mic className="w-10 h-10" />
+              <div className="relative inline-block">
+                {isRecording && (
+                  <>
+                    <div className="absolute -inset-4 rounded-full bg-rose-500/20 animate-ping pointer-events-none" />
+                    <div className="absolute -inset-2 rounded-full bg-rose-500/30 animate-pulse pointer-events-none" />
+                  </>
                 )}
-              </button>
+                <button
+                  onClick={isRecording ? handleStopRecording : handleStartRecording}
+                  className={`relative z-10 w-24 h-24 rounded-full flex items-center justify-center text-white shadow-2xl transition-all duration-300 mx-auto ${
+                    isRecording
+                      ? 'bg-rose-500 ring-8 ring-rose-300 scale-105 animate-pulse'
+                      : 'bg-gradient-to-tr from-blue-600 via-indigo-600 to-rose-600 hover:scale-105 active:scale-95 shadow-blue-600/40 ring-4 ring-blue-500/20'
+                  }`}
+                >
+                  {isRecording ? (
+                    <MicOff className="w-10 h-10 animate-spin" />
+                  ) : (
+                    <Mic className="w-10 h-10" />
+                  )}
+                </button>
+              </div>
 
               {spokenTranscript && (
                 <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-2xl border text-xs max-w-sm mx-auto">

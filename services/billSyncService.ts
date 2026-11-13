@@ -30,6 +30,7 @@ export interface SubmitExpenseOptions {
   staff?: { lunchLimit?: number; name?: string } | null;
   userConfirmedCategoryAsLunch?: boolean;
   userClarifiedNotLunch?: boolean;
+  skipNotify?: boolean;
 }
 
 /**
@@ -136,7 +137,9 @@ export async function submitExpenseBill(
     // Save to offline queue
     await queueOfflineExpense(expenseToPersist);
 
-    notifySyncStatusChange();
+    if (!options?.skipNotify) {
+      notifySyncStatusChange();
+    }
 
     return {
       result: {
@@ -161,11 +164,14 @@ export async function submitExpenseBill(
       }
       const db = getDatabase(app, firebaseConfig.databaseURL);
 
-      // Strip large media for cloud safety if any (keep in local DB)
+      // Strip oversized media (>400KB) for cloud write safety to prevent RTDB latency bottlenecks on 0.4 Mbps networks
+      // The full voucher image is always preserved in local storage and IndexedDB
       const { voucherImage, ...cloudPayload } = expenseToPersist;
+      const isOversizedForCloud = voucherImage && voucherImage.length > 400 * 1024;
       const sanitizedPayload = {
         ...cloudPayload,
-        voucherImage: voucherImage && voucherImage.length < 5 * 1024 * 1024 ? voucherImage : null,
+        voucherImage: voucherImage && !isOversizedForCloud ? voucherImage : null,
+        hasLocalVoucher: !!voucherImage,
         syncStatus: 'SUBMITTED',
         submittedAt: submissionTimestamp,
         lastSyncAttempt: submissionTimestamp,
@@ -194,7 +200,9 @@ export async function submitExpenseBill(
         systemHealth.markSyncConfirmed(billId);
       } catch {}
 
-      notifySyncStatusChange();
+      if (!options?.skipNotify) {
+        notifySyncStatusChange();
+      }
 
       return {
         result: {
@@ -234,7 +242,9 @@ export async function submitExpenseBill(
       // Queue for background retry
       await queueOfflineExpense(expenseToPersist);
 
-      notifySyncStatusChange();
+      if (!options?.skipNotify) {
+        notifySyncStatusChange();
+      }
 
       return {
         result: {
@@ -256,7 +266,9 @@ export async function submitExpenseBill(
   expenseToPersist.syncStatus = 'SAVED_OFFLINE';
   expenseToPersist.syncError = 'সার্ভার কনফিগারেশন অনুপস্থিত';
   await queueOfflineExpense(expenseToPersist);
-  notifySyncStatusChange();
+  if (!options?.skipNotify) {
+    notifySyncStatusChange();
+  }
 
   return {
     result: {
@@ -276,7 +288,8 @@ export async function submitExpenseBill(
  */
 export async function retryExpenseBillSync(
   expense: Expense,
-  firebaseConfig?: any
+  firebaseConfig?: any,
+  options?: { skipNotify?: boolean }
 ): Promise<{ success: boolean; status: BillSyncStatus; updatedExpense: Expense; message: string }> {
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
     return {
@@ -295,7 +308,8 @@ export async function retryExpenseBillSync(
   const { result, updatedExpense } = await submitExpenseBill(
     expense,
     expense.id,
-    firebaseConfig
+    firebaseConfig,
+    { skipNotify: options?.skipNotify }
   );
 
   return {
@@ -329,7 +343,7 @@ export async function syncAllPendingBills(
   for (let i = 0; i < pendingBills.length; i++) {
     const bill = pendingBills[i];
     try {
-      const res = await retryExpenseBillSync(bill, firebaseConfig);
+      const res = await retryExpenseBillSync(bill, firebaseConfig, { skipNotify: true });
       updatedMap.set(res.updatedExpense.id, res.updatedExpense);
       if (res.success) {
         syncedCount++;
@@ -416,7 +430,7 @@ export async function queueOfflineExpense(expense: Expense): Promise<void> {
  * Remove an expense from the offline sync queue
  */
 export async function removeQueuedOfflineExpense(billId: string): Promise<void> {
-  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return;
+  if (typeof localStorage === 'undefined') return;
   try {
     const queueStr = localStorage.getItem(SYNC_QUEUE_KEY);
     if (queueStr) {
@@ -435,7 +449,7 @@ export async function removeQueuedOfflineExpense(billId: string): Promise<void> 
  * Get count of unsynced expenses
  */
 export function getUnsyncedBillCount(): number {
-  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return 0;
+  if (typeof localStorage === 'undefined') return 0;
   try {
     const queueStr = localStorage.getItem(SYNC_QUEUE_KEY);
     if (!queueStr) return 0;

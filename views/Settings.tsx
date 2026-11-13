@@ -739,13 +739,21 @@ const SettingsView: React.FC<SettingsProps> = ({ billingRules, setBillingRules, 
                
                <div className="space-y-4 text-sm text-gray-600 dark:text-gray-300">
                  <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-2xl border border-indigo-100 dark:border-indigo-800/30">
-                   <h5 className="font-bold text-indigo-700 dark:text-indigo-400 mb-2 text-sm">ধাপ ১: ডাটাবেস রুলস (জরুরী)</h5>
-                   <p className="text-xs mb-3 text-indigo-900/70 dark:text-indigo-200/70">মাল্টি-ডিভাইস কাজ না করার প্রধান কারণ পারমিশন না থাকা। Firebase Console {' > '} Realtime Database {' > '} Rules-এ গিয়ে নিচের কোডটি পেস্ট করে Publish করুন:</p>
-                   <div className="bg-gray-900 dark:bg-black/50 text-green-400 p-3 rounded-xl font-mono text-xs relative group select-all shadow-inner overflow-x-auto">
+                   <h5 className="font-bold text-indigo-700 dark:text-indigo-400 mb-2 text-sm">ধাপ ১: ডাটাবেস রুলস ও পারফরম্যান্স ইনডেক্সিং (নিরাপদ ও দ্রুতগতির)</h5>
+                   <p className="text-xs mb-3 text-indigo-900/70 dark:text-indigo-200/70">ডেটাবেস সুরক্ষিত রাখতে এবং 0.4 Mbps দুর্বল নেটওয়ার্কেও কুয়েরি দ্রুত লোড হওয়ার জন্য Firebase Console {' > '} Realtime Database {' > '} Rules-এ নিচের অপ্টিমাইজড কোডটি পেস্ট করে Publish করুন:</p>
+                   <div className="bg-gray-900 dark:bg-black/50 text-green-400 p-3 rounded-xl font-mono text-xs relative group select-all shadow-inner overflow-x-auto max-h-60">
                       <pre>{`{
   "rules": {
-    ".read": true,
-    ".write": true
+    ".read": "auth != null",
+    ".write": "auth != null",
+    "products": { ".read": true, ".write": "auth != null" },
+    "app_settings": { ".read": true, ".write": "auth != null" },
+    "staffList": { ".read": true, ".write": "auth != null", ".indexOn": ["name", "email", "role"] },
+    "expenses": { ".read": "auth != null", ".write": "auth != null", ".indexOn": ["createdAt", "status", "staffId"] },
+    "funds": { ".read": "auth != null", ".write": "auth != null", ".indexOn": ["date", "category"] },
+    "attendanceList": { ".read": "auth != null", ".write": "auth != null", ".indexOn": ["date", "staffId"] },
+    "staff_locations": { ".read": "auth != null", ".write": "auth != null", ".indexOn": ["timestamp"] },
+    "learning": { ".read": true, ".write": "auth != null" }
   }
 }`}</pre>
                    </div>

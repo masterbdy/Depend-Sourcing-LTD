@@ -1,5 +1,10 @@
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
 import { getApp } from "firebase/app";
+import {
+  formatNotificationTitle,
+  buildServiceWorkerNotificationOptions,
+  buildFallbackNotificationOptions,
+} from "./services/notificationDesignService";
 
 // Replace this with your actual VAPID key from Firebase Console -> Project Settings -> Cloud Messaging -> Web configuration
 const VAPID_KEY = "YOUR_VAPID_KEY_HERE";
@@ -44,22 +49,37 @@ export const registerServiceWorkerAndGetToken = async (firebaseConfig: any): Pro
       // Listen for foreground messages
       onMessage(messaging, (payload) => {
         console.log('Foreground message received:', payload);
-        // Show a heads-up notification even when app is open
+        // Show a branded heads-up notification even when app is open
         if (Notification.permission === 'granted') {
-          const title = payload.notification?.title || payload.data?.title || 'New Notification';
-          const options = {
-            body: payload.notification?.body || payload.data?.body,
-            icon: '/pwa-192x192.png',
-            badge: '/pwa-192x192.png',
-          };
+          const rawTitle = payload.notification?.title || payload.data?.title || 'Depend Sourcing Ltd.';
+          const rawBody = payload.notification?.body || payload.data?.body || '';
+          const link = payload.data?.tab || payload.data?.link;
+          const rawType = (payload.data?.type as 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR') || 'INFO';
+          const title = formatNotificationTitle(rawTitle, rawType);
+          const swOptions = buildServiceWorkerNotificationOptions({
+            title,
+            message: rawBody,
+            type: rawType,
+            link,
+            tag: payload.data?.tag,
+            image: payload.notification?.image || payload.data?.image,
+          });
+          const fallbackOptions = buildFallbackNotificationOptions({
+            title,
+            message: rawBody,
+            type: rawType,
+            link,
+            tag: payload.data?.tag,
+          });
+
           try {
             if (registration && registration.showNotification) {
-              registration.showNotification(title, options).catch((e) => {
+              registration.showNotification(title, swOptions).catch((e) => {
                  console.error("SW notification error", e);
-                 try { new Notification(title, options); } catch(ex){}
+                 try { new Notification(title, fallbackOptions); } catch(ex){}
               });
             } else {
-              new Notification(title, options);
+              new Notification(title, fallbackOptions);
             }
           } catch (e) {
             console.error("Notification display error", e);
@@ -82,7 +102,12 @@ export const getUserFCMToken = async (firebaseConfig: any): Promise<string | nul
   return await registerServiceWorkerAndGetToken(firebaseConfig);
 };
 
-export const sendPush = async (token: string, title: string, body: string) => {
+export const sendPush = async (
+  token: string,
+  title: string,
+  body: string,
+  extraData?: { link?: string; image?: string; tag?: string; type?: string }
+) => {
   try {
     // Replace this URL with your actual backend endpoint that sends FCM messages
     const response = await fetch('/api/send-push', {
@@ -93,7 +118,8 @@ export const sendPush = async (token: string, title: string, body: string) => {
       body: JSON.stringify({
         token,
         title,
-        body
+        body,
+        ...(extraData ? { data: extraData } : {}),
       })
     });
     

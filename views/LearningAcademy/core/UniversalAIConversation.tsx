@@ -168,22 +168,16 @@ export const UniversalAIConversation: React.FC<UniversalAIConversationProps> = (
     setIsLoading(true);
 
     try {
-      const endpoint =
-        langConfig.code === 'chinese'
-          ? '/api/chinese-academy/chat'
-          : langConfig.code === 'spanish'
-          ? '/api/spanish-academy/chat'
-          : '/api/english-academy/chat';
-
-      const response = await fetch(endpoint, {
+      const response = await fetch('/api/learning-ai/conversation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: trimmed,
-          history: messages.slice(-4),
-          scenarioTitle: selectedScenario.title,
+          language: langConfig.code,
+          level: userLevel,
+          scenario: selectedScenario.title,
           systemPrompt: selectedScenario.systemPrompt,
-          userLevel,
+          userSpeech: trimmed,
+          history: messages.slice(-4),
         }),
       });
 
@@ -193,8 +187,8 @@ export const UniversalAIConversation: React.FC<UniversalAIConversationProps> = (
       const aiMsg: ChatMessage = {
         id: `ai-${Date.now()}`,
         sender: 'ai',
-        text: data.aiReply || data.reply || '¡Muy bien! Continuemos la conversación.',
-        romanized: data.aiReplyPinyin || data.romanized,
+        text: data.aiReply || data.reply || (langConfig.code === 'serbian' ? 'Одлично! Наставимо наш разговор. (Odlično! Nastavimo naš razgovor.)' : '¡Muy bien! Continuemos la conversación.'),
+        romanized: data.aiReplyRomanized || data.aiReplyPinyin || data.romanized,
         meaningBn: data.aiReplyBn || data.replyBn || 'চমৎকার! কথোপকথন এগিয়ে নেওয়া যাক।',
         timestamp: new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }),
         feedback: {
@@ -216,8 +210,12 @@ export const UniversalAIConversation: React.FC<UniversalAIConversationProps> = (
         id: `ai-err-${Date.now()}`,
         sender: 'ai',
         text:
-          langConfig.code === 'spanish'
+          langConfig.code === 'serbian'
+            ? 'Здраво! Разумео сам ваш одговор. Наставимо да вежбамо српски. (Zdravo! Razumeo sam vaš odgovor. Nastavimo da vežbamo srpski.)'
+            : langConfig.code === 'spanish'
             ? '¡Excelente! Estoy de acuerdo con usted. Continuemos con el siguiente detalle.'
+            : langConfig.code === 'chinese'
+            ? '很好！我们继续用中文对话。(Hěn hǎo! Wǒmen jìxù yòng Zhōngwén duìhuà.)'
             : 'Thank you for your response! That is very clear. Let us continue.',
         meaningBn: 'চমৎকার! আপনার সাথে একমত। চলুন পরবর্তী বিষয়ে আলোচনা করি।',
         timestamp: new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }),

@@ -1,0 +1,70 @@
+{
+  "rules": {
+    ".read": "auth != null",
+    ".write": "auth != null",
+    "products": {
+      ".read": true,
+      ".write": "auth != null && root.child('staffList').child(auth.uid).child('role').val() === 'ADMIN'"
+    },
+    "app_settings": {
+      ".read": true,
+      ".write": "auth != null && root.child('staffList').child(auth.uid).child('role').val() === 'ADMIN'"
+    },
+    "staffList": {
+      ".read": true,
+      ".write": "auth != null && root.child('staffList').child(auth.uid).child('role').val() === 'ADMIN'",
+      ".indexOn": ["name", "email", "role", "active"]
+    },
+    "expenses": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["createdAt", "status", "staffId", "category", "amount"]
+    },
+    "funds": {
+      ".read": "auth != null",
+      ".write": "auth != null && (root.child('staffList').child(auth.uid).child('role').val() === 'ADMIN' || root.child('staffList').child(auth.uid).child('role').val() === 'ACCOUNTS')",
+      ".indexOn": ["date", "category", "type"]
+    },
+    "advances": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["date", "staffId", "status"]
+    },
+    "attendanceList": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["date", "staffId", "status"]
+    },
+    "movements": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["date", "staffId"]
+    },
+    "complaints": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["createdAt", "staffId", "status"]
+    },
+    "staff_locations": {
+      "$staffId": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      },
+      ".indexOn": ["timestamp", "staffId"]
+    },
+    "learning": {
+      ".read": true,
+      ".write": "auth != null",
+      "users": {
+        "$userId": {
+          ".read": true,
+          ".write": true
+        }
+      },
+      "generated_lessons": {
+        ".read": true,
+        ".write": true
+      }
+    }
+  }
+}

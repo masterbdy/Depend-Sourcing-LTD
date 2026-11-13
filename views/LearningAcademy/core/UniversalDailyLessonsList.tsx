@@ -13,7 +13,9 @@ import {
   X,
   BookOpen,
   MessageSquareQuote,
-  Lightbulb
+  Lightbulb,
+  Zap,
+  Loader2,
 } from 'lucide-react';
 import { UniversalDailyLesson, UserLanguageProgress, LanguageConfig } from './types';
 
@@ -24,6 +26,8 @@ interface UniversalDailyLessonsListProps {
   onCompleteDay: (dayNumber: number, xpReward: number) => void;
   speakText: (text: string, langCode: string) => void;
   isSpeaking: boolean;
+  onGenerateNextLesson?: (targetDay: number) => Promise<void>;
+  isGeneratingNext?: boolean;
 }
 
 export const UniversalDailyLessonsList: React.FC<UniversalDailyLessonsListProps> = ({
@@ -33,6 +37,8 @@ export const UniversalDailyLessonsList: React.FC<UniversalDailyLessonsListProps>
   onCompleteDay,
   speakText,
   isSpeaking,
+  onGenerateNextLesson,
+  isGeneratingNext = false,
 }) => {
   const [activeLesson, setActiveLesson] = useState<UniversalDailyLesson | null>(null);
   const [activeTab, setActiveTab] = useState<'vocab' | 'grammar' | 'dialogue' | 'quiz'>('vocab');
@@ -72,43 +78,84 @@ export const UniversalDailyLessonsList: React.FC<UniversalDailyLessonsListProps>
 
   return (
     <div className="space-y-6">
-      {/* Header Banner */}
+      {/* Header Banner with 3D Depth */}
       <div
-        className={`bg-gradient-to-r ${langConfig.bannerGradient} rounded-3xl p-6 md:p-8 text-white shadow-xl relative overflow-hidden`}
+        className={`bg-gradient-to-r ${langConfig.bannerGradient} rounded-[2.5rem] p-6 md:p-8 text-white shadow-2xl border border-white/20 relative overflow-hidden`}
       >
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+        <div className="absolute top-0 right-0 w-80 h-80 bg-white/10 rounded-full blur-3xl pointer-events-none animate-float" />
+        <div className="absolute -bottom-10 -left-10 w-60 h-60 bg-cyan-400/15 rounded-full blur-2xl pointer-events-none animate-float-delayed" />
 
         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-xs font-bold mb-2">
-              <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/15 backdrop-blur-md border border-white/25 text-xs font-black tracking-wide text-white shadow-inner mb-2.5">
+              <Sparkles className="w-3.5 h-3.5 text-yellow-300 animate-spin" style={{ animationDuration: '6s' }} />
               <span>
                 {langConfig.flag} {langConfig.name} লার্নিং পাথ • Beginner to Advanced
               </span>
             </div>
-            <h2 className="text-2xl md:text-3xl font-black">
+            <h2 className="text-2xl md:text-4xl font-black drop-shadow-sm">
               Day-by-Day {langConfig.name} কোর্স
             </h2>
-            <p className="text-xs md:text-sm text-white/90 max-w-xl mt-1 leading-relaxed">
-              প্রতিটি দিন ৯টি স্তম্ভে সাজানো: ভোকাবুলারি, বাংলা উচ্চারণ, লিসেনিং, স্পিকিং, গ্রামার ও কুইজ।
+            <p className="text-xs md:text-sm text-white/90 max-w-xl mt-1.5 leading-relaxed font-medium">
+              প্রতিটি দিন ৪টি মূল স্তম্ভে সাজানো: শব্দভাণ্ডার, বাংলা উচ্চারণ, ব্যাকরণ, কথোপকথন ও কুইজ।
             </p>
           </div>
 
-          <div className="bg-black/25 backdrop-blur-md p-4 rounded-2xl border border-white/20 text-center min-w-[140px]">
-            <span className="text-[10px] uppercase font-bold text-white/80 tracking-wider block">
+          <div className="bg-white/15 backdrop-blur-xl p-4 md:p-5 rounded-3xl border border-white/25 text-center min-w-[150px] shadow-xl hover:scale-105 transition-transform">
+            <span className="text-[10px] uppercase font-black text-cyan-200 tracking-wider block">
               কোর্স অগ্রগতি
             </span>
-            <span className="text-2xl font-black text-white">
+            <span className="text-3xl font-black text-white drop-shadow-sm">
               {completedDays.length} / {lessons.length}
             </span>
-            <span className="text-[10px] text-yellow-300 block font-semibold mt-0.5">
+            <span className="text-[10px] text-yellow-300 block font-black mt-1">
               Day {progress.currentDay || 1} চলমান
             </span>
           </div>
         </div>
       </div>
 
-      {/* Lessons Grid */}
+      {/* Fast-Track Adaptive Acceleration Bar */}
+      <div className="bg-gradient-to-r from-blue-900/40 via-indigo-900/30 to-purple-900/40 backdrop-blur-xl border border-blue-500/30 rounded-3xl p-5 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-400 text-slate-950 flex items-center justify-center font-black shadow-lg shadow-amber-500/20 shrink-0">
+            <Zap className="w-6 h-6 fill-current" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black uppercase text-amber-400 tracking-wider">Fast-Track Learning</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">
+                কোনো দৈনিক সীমা নেই • Unlimited Pacing
+              </span>
+            </div>
+            <p className="text-xs text-slate-300 font-medium mt-0.5">
+              এক দিনে ১, ২, ৫ বা ৭ দিনের পাঠ সম্পূর্ণ করুন। প্রতিটি পাঠে ১০–১৫টি নতুন শব্দ ও প্র্যাকটিক্যাল কথোপকথন।
+            </p>
+          </div>
+        </div>
+
+        {onGenerateNextLesson && (
+          <button
+            onClick={() => onGenerateNextLesson(lessons.length > 0 ? lessons[lessons.length - 1].day + 1 : 13)}
+            disabled={isGeneratingNext}
+            className="w-full md:w-auto px-5 py-3 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/25 active:scale-95 transition-all disabled:opacity-50"
+          >
+            {isGeneratingNext ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>AI পাঠ প্রস্তুত হচ্ছে...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4" />
+                <span>পরবর্তী পাঠ আনলক করুন (Day {lessons.length > 0 ? lessons[lessons.length - 1].day + 1 : 13})</span>
+              </>
+            )}
+          </button>
+        )}
+      </div>
+
+      {/* Lessons Grid with 3D Elevation */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {lessons.map((lesson) => {
           const isCompleted = completedDays.includes(lesson.day);
@@ -117,50 +164,50 @@ export const UniversalDailyLessonsList: React.FC<UniversalDailyLessonsListProps>
           return (
             <div
               key={lesson.day}
-              className={`rounded-3xl p-5 md:p-6 border transition-all shadow-sm flex flex-col justify-between space-y-4 ${
+              className={`rounded-[2rem] p-5 md:p-6 border transition-all duration-300 shadow-sm flex flex-col justify-between space-y-4 hover:-translate-y-1 ${
                 isCompleted
-                  ? 'bg-emerald-50/20 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-800/40'
+                  ? 'bg-emerald-50/30 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-800/60 shadow-emerald-500/5'
                   : isUnlocked
-                  ? 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-amber-400'
-                  : 'bg-gray-50 dark:bg-gray-900/40 border-gray-100 dark:border-gray-800 opacity-60'
+                  ? 'bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-slate-200/80 dark:border-slate-800 hover:border-blue-400 hover:shadow-xl shadow-blue-950/5'
+                  : 'bg-slate-50/70 dark:bg-slate-900/40 border-slate-200/60 dark:border-slate-800/60 opacity-60'
               }`}
             >
               <div>
-                <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="flex items-center justify-between gap-2 mb-2.5">
                   <div className="flex items-center gap-2">
                     <span
-                      className={`text-xs font-black px-2.5 py-0.5 rounded-full ${
+                      className={`text-xs font-black px-3 py-1 rounded-full shadow-xs ${
                         isCompleted
-                          ? 'bg-emerald-500 text-white'
+                          ? 'bg-emerald-500 text-white shadow-emerald-500/30'
                           : isUnlocked
-                          ? 'bg-amber-500 text-white'
-                          : 'bg-gray-200 dark:bg-gray-700 text-gray-500'
+                          ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-blue-500/30'
+                          : 'bg-slate-200 dark:bg-slate-700 text-slate-500'
                       }`}
                     >
                       Day {lesson.day}
                     </span>
-                    <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                    <span className="text-[10px] uppercase font-black px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60">
                       {lesson.level}
                     </span>
                   </div>
 
-                  <span className="text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                    <Award className="w-3.5 h-3.5" /> +{lesson.xpReward} XP
+                  <span className="text-xs font-black text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                    <Award className="w-3.5 h-3.5 text-amber-500" /> +{lesson.xpReward} XP
                   </span>
                 </div>
 
-                <h3 className="font-bold text-base text-gray-900 dark:text-white mt-1">
+                <h3 className="font-black text-base md:text-lg text-slate-900 dark:text-white mt-1">
                   {lesson.titleBn}
                 </h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2 font-medium leading-relaxed">
                   {lesson.objectiveBn}
                 </p>
 
                 {/* Badges Count */}
-                <div className="flex items-center gap-3 mt-3 text-[11px] text-gray-500 font-medium">
-                  <span>📖 {lesson.vocabulary.length} শব্দ</span>
-                  <span>💬 {lesson.conversation.length} সংলাপ</span>
-                  <span>❓ {lesson.quiz.length} কুইজ</span>
+                <div className="flex items-center gap-3 mt-3.5 text-[11px] text-slate-500 dark:text-slate-400 font-bold">
+                  <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">📖 {lesson.vocabulary.length} শব্দ</span>
+                  <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">💬 {lesson.conversation.length} সংলাপ</span>
+                  <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800">❓ {lesson.quiz.length} কুইজ</span>
                 </div>
               </div>
 
@@ -168,10 +215,10 @@ export const UniversalDailyLessonsList: React.FC<UniversalDailyLessonsListProps>
                 {isUnlocked ? (
                   <button
                     onClick={() => handleOpenLesson(lesson)}
-                    className={`w-full py-2.5 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-95 shadow-xs ${
+                    className={`w-full py-3 rounded-2xl font-black text-xs flex items-center justify-center gap-2 transition-all duration-200 active:scale-[0.98] shadow-md hover:brightness-105 ${
                       isCompleted
-                        ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100'
-                        : 'bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:opacity-95'
+                        ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 shadow-emerald-600/10'
+                        : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-blue-600/25 hover:shadow-lg'
                     }`}
                   >
                     {isCompleted ? (
@@ -187,7 +234,7 @@ export const UniversalDailyLessonsList: React.FC<UniversalDailyLessonsListProps>
                     )}
                   </button>
                 ) : (
-                  <div className="py-2.5 rounded-2xl bg-gray-100 dark:bg-gray-800 text-gray-400 text-xs font-bold flex items-center justify-center gap-2">
+                  <div className="py-3 rounded-2xl bg-slate-100 dark:bg-slate-800/80 text-slate-400 text-xs font-bold flex items-center justify-center gap-2 border border-slate-200/50 dark:border-slate-700/50">
                     <Lock className="w-3.5 h-3.5" />
                     <span>Day {lesson.day - 1} সম্পন্ন করে আনলক করুন</span>
                   </div>
@@ -198,70 +245,70 @@ export const UniversalDailyLessonsList: React.FC<UniversalDailyLessonsListProps>
         })}
       </div>
 
-      {/* Lesson Interactive Modal */}
+      {/* Lesson Interactive Modal with 3D Glassmorphism */}
       {activeLesson && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl border border-gray-100 dark:border-gray-700">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl border border-white/20 dark:border-slate-800">
             {/* Modal Header */}
-            <div className="p-5 md:p-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-gradient-to-r from-gray-50 to-amber-50/40 dark:from-gray-900 dark:to-gray-800">
-              <div className="flex items-center gap-3">
-                <span className="w-10 h-10 rounded-2xl bg-amber-500 text-white font-black text-sm flex items-center justify-center shadow-md">
+            <div className="p-5 md:p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 text-white">
+              <div className="flex items-center gap-3.5">
+                <span className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-500 to-cyan-400 text-white font-black text-sm flex items-center justify-center shadow-lg shadow-blue-500/30 animate-float">
                   D{activeLesson.day}
                 </span>
                 <div>
-                  <h3 className="font-black text-base md:text-lg text-gray-900 dark:text-white">
+                  <h3 className="font-black text-base md:text-xl text-white drop-shadow-xs">
                     {activeLesson.titleBn}
                   </h3>
-                  <p className="text-xs text-gray-500">{activeLesson.title}</p>
+                  <p className="text-xs text-cyan-200 font-medium">{activeLesson.title}</p>
                 </div>
               </div>
 
               <button
                 onClick={() => setActiveLesson(null)}
-                className="p-2 rounded-xl text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="p-2.5 rounded-2xl text-slate-300 hover:text-white hover:bg-white/10 transition-colors active:scale-95"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Step Tabs */}
-            <div className="flex border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 p-2 gap-2">
+            <div className="flex border-b border-slate-200/80 dark:border-slate-800 bg-slate-100/80 dark:bg-slate-950/80 backdrop-blur-md p-2 gap-2 overflow-x-auto scrollbar-none">
               <button
                 onClick={() => setActiveTab('vocab')}
-                className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
+                className={`flex-1 min-w-[110px] py-2.5 rounded-xl text-xs font-black transition-all duration-200 active:scale-95 ${
                   activeTab === 'vocab'
-                    ? 'bg-white dark:bg-gray-800 text-amber-600 dark:text-amber-400 shadow-xs'
-                    : 'text-gray-500 hover:text-gray-900'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/30'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 ১. শব্দভাণ্ডার ({activeLesson.vocabulary.length})
               </button>
               <button
                 onClick={() => setActiveTab('grammar')}
-                className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
+                className={`flex-1 min-w-[110px] py-2.5 rounded-xl text-xs font-black transition-all duration-200 active:scale-95 ${
                   activeTab === 'grammar'
-                    ? 'bg-white dark:bg-gray-800 text-amber-600 dark:text-amber-400 shadow-xs'
-                    : 'text-gray-500 hover:text-gray-900'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/30'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 ২. গ্রামার ও নিয়ম
               </button>
               <button
                 onClick={() => setActiveTab('dialogue')}
-                className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
+                className={`flex-1 min-w-[110px] py-2.5 rounded-xl text-xs font-black transition-all duration-200 active:scale-95 ${
                   activeTab === 'dialogue'
-                    ? 'bg-white dark:bg-gray-800 text-amber-600 dark:text-amber-400 shadow-xs'
-                    : 'text-gray-500 hover:text-gray-900'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/30'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 ৩. কথোপকথন
               </button>
               <button
                 onClick={() => setActiveTab('quiz')}
-                className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
+                className={`flex-1 min-w-[110px] py-2.5 rounded-xl text-xs font-black transition-all duration-200 active:scale-95 ${
                   activeTab === 'quiz'
-                    ? 'bg-white dark:bg-gray-800 text-amber-600 dark:text-amber-400 shadow-xs'
-                    : 'text-gray-500 hover:text-gray-900'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/30'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 ৪. কুইজ ও XP
@@ -465,12 +512,27 @@ export const UniversalDailyLessonsList: React.FC<UniversalDailyLessonsListProps>
                       <p className="text-sm font-black text-emerald-800 dark:text-emerald-300">
                         🎉 চমৎকার! কুইজ স্কোর: {quizScore} / {activeLesson.quiz.length}
                       </p>
-                      <button
-                        onClick={handleFinishLesson}
-                        className="px-6 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all shadow-md"
-                      >
-                        লেসন সমাপ্ত করুন ও +{activeLesson.xpReward} XP গ্রহণ করুন
-                      </button>
+                      <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-1">
+                        <button
+                          onClick={handleFinishLesson}
+                          className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all shadow-md active:scale-95"
+                        >
+                          লেসন সমাপ্ত করুন ও +{activeLesson.xpReward} XP গ্রহণ করুন
+                        </button>
+                        {onGenerateNextLesson && (
+                          <button
+                            onClick={async () => {
+                              const nextDay = activeLesson.day + 1;
+                              handleFinishLesson();
+                              await onGenerateNextLesson(nextDay);
+                            }}
+                            className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 text-xs font-black hover:from-amber-400 hover:to-orange-400 transition-all shadow-md flex items-center justify-center gap-1.5 active:scale-95"
+                          >
+                            <Zap className="w-3.5 h-3.5 fill-current" />
+                            <span>পরবর্তী পাঠে যান (Day {activeLesson.day + 1})</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>

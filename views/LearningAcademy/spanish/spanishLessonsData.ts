@@ -504,6 +504,600 @@ export const SPANISH_LESSONS_DATA: UniversalDailyLesson[] = [
       }
     ],
     businessTipBn: 'লাতিন আমেরিকার ক্রেতাদের জন্য ইনভয়েসে ট্যাক্স আইডি (RUT / CIF) উল্লেখ করা জরুরি।'
+  },
+  {
+    day: 5,
+    level: 'elementary',
+    cefrLevel: 'A2',
+    title: 'Numbers, Time & Scheduling',
+    titleBn: 'সংখ্যা, সময় ও কাজের শিডিউল',
+    objectiveBn: 'স্প্যানিশে সময় নির্ধারণ, তারিখ ও জরুরি মিটিং শিডিউল করার নিয়ম শিখুন।',
+    xpReward: 35,
+    vocabulary: [
+      {
+        id: 'es-501',
+        targetWord: 'La fecha',
+        bengaliPronunciation: 'লা ফেচা',
+        bengaliMeaning: '= তারিখ (Date)',
+        category: 'calendar',
+        exampleTarget: '¿Cuál es la fecha de entrega?',
+        exampleBengali: 'ডেলিভারির তারিখ কোনটি?',
+        audioText: 'Cuál es la fecha de entrega',
+      },
+      {
+        id: 'es-502',
+        targetWord: 'Mañana',
+        bengaliPronunciation: 'মানিয়ানা',
+        bengaliMeaning: '= আগামীকাল / সকাল (Tomorrow)',
+        category: 'time',
+        exampleTarget: 'Tenemos reunión mañana a las diez.',
+        exampleBengali: 'আগামীকাল সকাল দশটায় আমাদের মিটিং আছে।',
+        audioText: 'Tenemos reunión mañana a las diez',
+      },
+      {
+        id: 'es-503',
+        targetWord: 'La semana',
+        bengaliPronunciation: 'লা সেমানা',
+        bengaliMeaning: '= সপ্তাহ (Week)',
+        category: 'time',
+        exampleTarget: 'La próxima semana enviaremos el reporte.',
+        exampleBengali: 'পরের সপ্তাহে আমরা রিপোর্ট পাঠাব।',
+        audioText: 'La próxima semana enviaremos el reporte',
+      }
+    ],
+    grammarNotes: [
+      {
+        ruleTitleBn: 'সময় বলার নিয়ম (Decir la hora)',
+        explanationBn: 'একটার সময় "Es la una", আর দুইটা থেকে বারোটা পর্যন্ত "Son las dos, tres, diez" ব্যবহৃত হয়।',
+        correctExample: 'Son las tres de la tarde.',
+        exampleBn: 'এখন বিকেল তিনটা বাজে।',
+      }
+    ],
+    conversation: [
+      {
+        speaker: 'Gerente',
+        speakerRoleBn: 'ম্যানেজার',
+        targetText: '¿A qué hora comienza la reunión?',
+        bengaliPronunciation: 'আ কে ওরা কমিয়েনসা লা রেউনিওন?',
+        bengaliMeaning: 'মিটিং কখন শুরু হবে?'
+      },
+      {
+        speaker: 'Coordinador',
+        speakerRoleBn: 'সমন্বয়ক',
+        targetText: 'A las diez y media de la mañana.',
+        bengaliPronunciation: 'আ লাস দিয়েস ই মেদিয়া দে লা মানিয়ানা।',
+        bengaliMeaning: 'সকাল সাড়ে দশটায়।'
+      }
+    ],
+    practiceSentences: [
+      {
+        target: 'El plazo vence el viernes.',
+        pronunciationBn: 'এল প্লাসো ভেনসে এল ভিয়েরনেস।',
+        meaningBn: 'সময়সীমা শুক্রবার শেষ হবে।'
+      }
+    ],
+    quiz: [
+      {
+        id: 'es-q501',
+        question: 'What does "La fecha" mean?',
+        questionBn: '"La fecha" শব্দের অর্থ কী?',
+        options: ['তারিখ (Date)', 'ঘণ্টা', 'বছর', 'মাস'],
+        correctAnswer: 'তারিখ (Date)',
+        explanationBn: 'La fecha অর্থ তারিখ।'
+      }
+    ],
+    businessTipBn: 'স্প্যানিশ বায়ারদের সাথে মিটিংয়ে সময়সীমা পরিষ্কারভাবে লিখিত রাখা উত্তম।'
+  },
+  {
+    day: 6,
+    level: 'elementary',
+    cefrLevel: 'A2',
+    title: 'Garments & Textile Sourcing',
+    titleBn: 'তৈরি পোশাক ও টেক্সটাইল সোর্সিং',
+    objectiveBn: 'গার্মেন্টস, সুতা, ফ্যাব্রিক ও কাঁচামাল নিয়ে স্প্যানিশে কথা বলার দক্ষতা অর্জন।',
+    xpReward: 35,
+    vocabulary: [
+      {
+        id: 'es-601',
+        targetWord: 'El algodón',
+        bengaliPronunciation: 'এল আলগোদোন',
+        bengaliMeaning: '= তুলা বা কটন (Cotton)',
+        category: 'textile',
+        exampleTarget: 'Camiseta cien por ciento algodón.',
+        exampleBengali: '১০০% সুতি টি-শার্ট।',
+        audioText: 'Camiseta cien por ciento algodón',
+      },
+      {
+        id: 'es-602',
+        targetWord: 'El tejido',
+        bengaliPronunciation: 'এল তেহিদো',
+        bengaliMeaning: '= ফ্যাব্রিক বা কাপড় (Fabric)',
+        category: 'textile',
+        exampleTarget: 'Este tejido tiene excelente elasticidad.',
+        exampleBengali: 'এই কাপড়ের ইলাস্টিসিটি চমৎকার।',
+        audioText: 'Este tejido tiene excelente elasticidad',
+      }
+    ],
+    grammarNotes: [
+      {
+        ruleTitleBn: 'বিশেষ্যের পূর্বে বা পরে বিশেষণ (Adjetivos)',
+        explanationBn: 'স্প্যানিশে বেশিরভাগ বিশেষণ বিশেষ্যের পরে বসে (যেমন: algodón orgánico)।',
+        correctExample: 'Camisa azul de algodón.',
+        exampleBn: 'নীল সুতি শার্ট।',
+      }
+    ],
+    conversation: [
+      {
+        speaker: 'Comprador',
+        speakerRoleBn: 'বায়ার',
+        targetText: '¿Tienen tela denim con lavado suave?',
+        bengaliPronunciation: 'তিয়েনেন তেলা দেনিম কোন লাভাদো সুয়াভে?',
+        bengaliMeaning: 'আপনাদের কি সফট ওয়াশের ডেনিম কাপড় আছে?'
+      },
+      {
+        speaker: 'Vendedor',
+        speakerRoleBn: 'বিক্রেতা',
+        targetText: 'Sí, disponemos de muestras en el almacén.',
+        bengaliPronunciation: 'সি, দিসপোনেমোস দে মুয়েস্ত্রাস এন এল আলমাসেন।',
+        bengaliMeaning: 'হ্যাঁ, গুদামে আমাদের কাছে নমুনা রয়েছে।'
+      }
+    ],
+    practiceSentences: [
+      {
+        target: 'La muestra cumple con los estándares.',
+        pronunciationBn: 'লা মুয়েস্ত্রা কুম্পলে কোন লস এসতান্দারেস।',
+        meaningBn: 'নমুনাটি মানদণ্ড পূরণ করেছে।'
+      }
+    ],
+    quiz: [
+      {
+        id: 'es-q601',
+        question: 'What is "El algodón"?',
+        questionBn: '"El algodón" বলতে কী বোঝায়?',
+        options: ['তুলা / কটন', 'সিল্ক', 'পলেস্টার', 'উল'],
+        correctAnswer: 'তুলা / কটন',
+        explanationBn: 'Algodón অর্থ কটন বা তুলা।'
+      }
+    ],
+    businessTipBn: 'বায়ারদের সাথে সুতার জিএসএম (GSM) ও কাউন্ট পরিষ্কার করে নেওয়া জরুরি।'
+  },
+  {
+    day: 7,
+    level: 'intermediate',
+    cefrLevel: 'B1',
+    title: 'Quality Inspection & Lab Dips',
+    titleBn: 'গুণগত মান পরিদর্শন ও ল্যাব ডিপস',
+    objectiveBn: 'পোশাকের কোয়ালিটি কন্ট্রোল, সেলাই ও ল্যাব টেস্ট রিপোর্ট নিয়ে আলোচনা।',
+    xpReward: 40,
+    vocabulary: [
+      {
+        id: 'es-701',
+        targetWord: 'El defecto',
+        bengaliPronunciation: 'এল দেফেক্তো',
+        bengaliMeaning: '= ত্রুটি (Defect)',
+        category: 'quality',
+        exampleTarget: 'Cero defectos en la inspección final.',
+        exampleBengali: 'চূড়ান্ত পরিদর্শনে কোনো ত্রুটি নেই।',
+        audioText: 'Cero defectos en la inspección final',
+      },
+      {
+        id: 'es-702',
+        targetWord: 'Aprobado',
+        bengaliPronunciation: 'আপ্রোবাদো',
+        bengaliMeaning: '= অনুমোদিত (Approved)',
+        category: 'quality',
+        exampleTarget: 'El lote ha sido aprobado por el cliente.',
+        exampleBengali: 'লটটি ক্লায়েন্ট কর্তৃক অনুমোদিত হয়েছে।',
+        audioText: 'El lote ha sido aprobado por el cliente',
+      }
+    ],
+    grammarNotes: [
+      {
+        ruleTitleBn: 'Pretérito Perfecto (সম্পন্ন অতীত কাল)',
+        explanationBn: 'হালনাগাদ কাজ সম্পন্ন হওয়া বোঝাতে Haber + Participio (Ha sido, Hemos enviado) ব্যবহৃত হয়।',
+        correctExample: 'Hemos revisado la costura.',
+        exampleBn: 'আমরা সেলাই পরীক্ষা করেছি।',
+      }
+    ],
+    conversation: [
+      {
+        speaker: 'Auditor',
+        speakerRoleBn: 'অডিটর',
+        targetText: '¿Cuándo realizan la prueba de lavado?',
+        bengaliPronunciation: 'কুয়ানদো রেয়ালিসান লা প্রুয়েবা দে লাভাদো?',
+        bengaliMeaning: 'ওয়াশ টেস্ট কখন সম্পন্ন করবেন?'
+      },
+      {
+        speaker: 'Gerente',
+        speakerRoleBn: 'ম্যানেজার',
+        targetText: 'La prueba de lavado se realiza mañana.',
+        bengaliPronunciation: 'লা প্রুয়েবা দে লাভাদো সে রেয়ালিসা মানিয়ানা।',
+        bengaliMeaning: 'ওয়াশ টেস্ট আগামীকাল করা হবে।'
+      }
+    ],
+    practiceSentences: [
+      {
+        target: 'La solidez del color es perfecta.',
+        pronunciationBn: 'লা সোলিদেস দেল কলোর এস পেরফেকতা।',
+        meaningBn: 'রঙের স্থায়িত্ব নিখুঁত।'
+      }
+    ],
+    quiz: [
+      {
+        id: 'es-q701',
+        question: 'What does "Aprobado" mean?',
+        questionBn: '"Aprobado" শব্দের অর্থ কী?',
+        options: ['অনুমোদিত (Approved)', 'বাতিল', 'বিলম্বিত', 'অসম্পূর্ণ'],
+        correctAnswer: 'অনুমোদিত (Approved)',
+        explanationBn: 'Aprobado অর্থ পাস বা অনুমোদিত।'
+      }
+    ],
+    businessTipBn: 'পরিদর্শন রিপোর্ট স্প্যানিশ ক্রেতাকে সাথে সাথে ইমেইল করে পাঠানো উচিত।'
+  },
+  {
+    day: 8,
+    level: 'intermediate',
+    cefrLevel: 'B1',
+    title: 'Packaging & Cartons',
+    titleBn: 'প্যাকিং ও কার্টনিং স্পেসিফিকেশন',
+    objectiveBn: 'প্যাকিং লিস্ট, হ্যাংট্যাগ ও কার্টন লেবেলিং সম্পর্কে স্প্যানিশে যোগাযোগ।',
+    xpReward: 40,
+    vocabulary: [
+      {
+        id: 'es-801',
+        targetWord: 'La caja',
+        bengaliPronunciation: 'লা কাহা',
+        bengaliMeaning: '= কার্টন বা বাক্স (Box / Carton)',
+        category: 'packaging',
+        exampleTarget: 'Cincuenta piezas por caja.',
+        exampleBengali: 'প্রতি কার্টনে ৫০ পিস।',
+        audioText: 'Cincuenta piezas por caja',
+      },
+      {
+        id: 'es-802',
+        targetWord: 'La etiqueta',
+        bengaliPronunciation: 'লা এতিকেতা',
+        bengaliMeaning: '= লেবেল বা হ্যাংট্যাগ (Label)',
+        category: 'packaging',
+        exampleTarget: 'Coloque la etiqueta en el cuello.',
+        exampleBengali: 'কলারে লেবেল সংযুক্ত করুন।',
+        audioText: 'Coloque la etiqueta en el cuello',
+      }
+    ],
+    grammarNotes: [
+      {
+        ruleTitleBn: 'Imperativo Formal (সম্মানজনক নির্দেশ)',
+        explanationBn: 'সম্মানজনক নির্দেশে Usted রূপ ব্যবহৃত হয় (যেমন: Coloque, Envíe, Confirme)।',
+        correctExample: 'Envíe las especificaciones por favor.',
+        exampleBn: 'দয়া করে স্পেসিফিকেশন পাঠান।',
+      }
+    ],
+    conversation: [
+      {
+        speaker: 'Cliente',
+        speakerRoleBn: 'ক্রেতা',
+        targetText: '¿Pueden poner el código de barras en la caja?',
+        bengaliPronunciation: 'পুয়েদেন পনের এল কোদিগো দে বার্রাস এন লা কাহা?',
+        bengaliMeaning: 'কার্টনে কি বারকোড লাগাতে পারবেন?'
+      },
+      {
+        speaker: 'Fábrica',
+        speakerRoleBn: 'ফ্যাক্টরি',
+        targetText: 'Sí, etiquetamos cada caja según sus normas.',
+        bengaliPronunciation: 'সি, এতিকেতামোস কাদা কাহা সেগুন সুস নোরমাস।',
+        bengaliMeaning: 'হ্যাঁ, আপনার নির্দেশনানুসারে প্রতিটি কার্টনে লেবেল লাগানো হবে।'
+      }
+    ],
+    practiceSentences: [
+      {
+        target: 'El peso neto está indicado en el bulto.',
+        pronunciationBn: 'এল পেসো নেতো এস্তা ইন্দিকাদো এন এল বুলতো।',
+        meaningBn: 'প্যাকেজে নিট ওজন উল্লেখ করা আছে।'
+      }
+    ],
+    quiz: [
+      {
+        id: 'es-q801',
+        question: 'What does "La caja" mean?',
+        questionBn: '"La caja" অর্থ কী?',
+        options: ['কার্টন / বাক্স', 'সুতা', 'বোতাম', 'কাপড়'],
+        correctAnswer: 'কার্টন / বাক্স',
+        explanationBn: 'La caja অর্থ বাক্স বা কার্টন।'
+      }
+    ],
+    businessTipBn: 'কার্টনে বারকোড যেন স্ক্যানারে সহজে রিড করা যায় তা নিশ্চিত করুন।'
+  },
+  {
+    day: 9,
+    level: 'intermediate',
+    cefrLevel: 'B1',
+    title: 'Shipping & Freight Logistics',
+    titleBn: 'শিপিং ও কার্গো লজিস্টিকস',
+    objectiveBn: 'জাহাজীকরণ, কনটেইনার লোডিং ও বিল অব লেডিং (B/L) সংক্রান্ত পরিভাষা।',
+    xpReward: 40,
+    vocabulary: [
+      {
+        id: 'es-901',
+        targetWord: 'El puerto',
+        bengaliPronunciation: 'এল পুয়ের্তো',
+        bengaliMeaning: '= বন্দর (Port)',
+        category: 'logistics',
+        exampleTarget: 'El contenedor llegará al puerto de Barcelona.',
+        exampleBengali: 'কনটেইনারটি বার্সেলোনা বন্দরে পৌঁছাবে।',
+        audioText: 'El contenedor llegará al puerto de Barcelona',
+      },
+      {
+        id: 'es-902',
+        targetWord: 'El embarque',
+        bengaliPronunciation: 'এল এমবার্কে',
+        bengaliMeaning: '= শিপমেন্ট / জাহাজীকরণ (Shipment)',
+        category: 'logistics',
+        exampleTarget: 'Fecha estimada de embarque: quince de mayo.',
+        exampleBengali: 'আনুমানিক শিপমেন্টের তারিখ: ১৫ মে।',
+        audioText: 'Fecha estimada de embarque quince de mayo',
+      }
+    ],
+    grammarNotes: [
+      {
+        ruleTitleBn: 'Futuro Simple (ভবিষ্যৎ কাল)',
+        explanationBn: 'ভবিষ্যতে ঘটবে এমন কাজের জন্য Llegará, Enviaremos রূপ ব্যবহৃত হয়।',
+        correctExample: 'El barco saldrá mañana.',
+        exampleBn: 'জাহাজটি আগামীকাল রওনা হবে।',
+      }
+    ],
+    conversation: [
+      {
+        speaker: 'Agente',
+        speakerRoleBn: 'শিপিং এজেন্ট',
+        targetText: '¿Cuándo entregan el contenedor en la terminal?',
+        bengaliPronunciation: 'কুয়ানদো এনত্রেগান এল কোনতেনেদোর এন লা তেরমিনাল?',
+        bengaliMeaning: 'টার্মিনালে কনটেইনার কখন হস্তান্তর করবেন?'
+      },
+      {
+        speaker: 'Exportador',
+        speakerRoleBn: 'রপ্তানিকারক',
+        targetText: 'El contenedor entrará al puerto el jueves.',
+        bengaliPronunciation: 'এল কোনতেনেদোর এনত্রারা আল পুয়ের্তো এল হুয়েভেস।',
+        bengaliMeaning: 'কনটেইনারটি বৃহস্পতিবার বন্দরে প্রবেশ করবে।'
+      }
+    ],
+    practiceSentences: [
+      {
+        target: 'Los documentos de embarque están listos.',
+        pronunciationBn: 'লস দোকুমেনতোস দে এমবার্কে এস্তান লিস্তোস।',
+        meaningBn: 'শিপিং ডকুমেন্ট প্রস্তুত রয়েছে।'
+      }
+    ],
+    quiz: [
+      {
+        id: 'es-q901',
+        question: 'What does "El puerto" mean?',
+        questionBn: '"El puerto" অর্থ কী?',
+        options: ['বন্দর (Port)', 'রাস্তা', 'বিমান', 'কারখানা'],
+        correctAnswer: 'বন্দর (Port)',
+        explanationBn: 'Puerto অর্থ বন্দর।'
+      }
+    ],
+    businessTipBn: 'বি/এল ড্রাফটে বায়ারের নাম ও ঠিকানা পুঙ্খানুপুঙ্খ মেলানো প্রয়োজন।'
+  },
+  {
+    day: 10,
+    level: 'advanced',
+    cefrLevel: 'B2',
+    title: 'Trade Contracts & FOB Terms',
+    titleBn: 'বাণিজ্যিক চুক্তি ও ইনকোটার্মস',
+    objectiveBn: 'FOB, CIF, এলসি শর্ত ও ডিসকাউন্ট নিয়ে ব্যবসায়িক দর কষাকষি।',
+    xpReward: 45,
+    vocabulary: [
+      {
+        id: 'es-1001',
+        targetWord: 'El contrato',
+        bengaliPronunciation: 'এল কোনত্রাতো',
+        bengaliMeaning: '= চুক্তিপত্র (Contract)',
+        category: 'legal',
+        exampleTarget: 'Firmaremos el contrato la próxima semana.',
+        exampleBengali: 'আমরা আগামী সপ্তাহে চুক্তি সই করব।',
+        audioText: 'Firmaremos el contrato la próxima semana',
+      },
+      {
+        id: 'es-1002',
+        targetWord: 'El descuento',
+        bengaliPronunciation: 'এল দেসকুয়েনতো',
+        bengaliMeaning: '= মূল্যছাড় / ডিসকাউন্ট (Discount)',
+        category: 'finance',
+        exampleTarget: 'Ofrecemos un cinco por ciento de descuento.',
+        exampleBengali: 'আমরা পাঁচ শতাংশ মূল্যছাড় প্রস্তাব করছি।',
+        audioText: 'Ofrecemos un cinco por ciento de descuento',
+      }
+    ],
+    grammarNotes: [
+      {
+        ruleTitleBn: 'শর্তসূচক বাক্য (Condicional)',
+        explanationBn: 'বিনম্র প্রস্তাব দিতে Podríamos (আমরা পারতাম) বা Sería (হতো) ব্যবহৃত হয়।',
+        correctExample: 'Podríamos ofrecer un mejor precio.',
+        exampleBn: 'আমরা আরও ভালো মূল্য দিতে পারতাম।',
+      }
+    ],
+    conversation: [
+      {
+        speaker: 'Comprador',
+        speakerRoleBn: 'ক্রেতা',
+        targetText: 'Si duplicamos el pedido, ¿nos darían un descuento?',
+        bengaliPronunciation: 'সি দুপ্লিকামোস এল পেদিদো, নস দারিয়ান উন দেসকুয়েনতো?',
+        bengaliMeaning: 'অর্ডারের পরিমাণ দ্বিগুণ করলে কি আমাদের ডিসকাউন্ট দেবেন?'
+      },
+      {
+        speaker: 'Vendedor',
+        speakerRoleBn: 'বিক্রেতা',
+        targetText: 'Con mucho gusto, un siete por ciento adicional.',
+        bengaliPronunciation: 'কোন মুচো গুস্তো, উন সিয়েতে পোর সিয়েন্তো আদিসিওনাল।',
+        bengaliMeaning: 'আনন্দের সাথে, অতিরিক্ত ৭ শতাংশ ছাড় দেওয়া হবে।'
+      }
+    ],
+    practiceSentences: [
+      {
+        target: 'Aceptamos las condiciones comerciales.',
+        pronunciationBn: 'আসেপতামোস লাস কোনদিসিওনেস কোমেরসিয়ালেস।',
+        meaningBn: 'আমরা বাণিজ্যিক শর্তাবলি গ্রহণ করছি।'
+      }
+    ],
+    quiz: [
+      {
+        id: 'es-q1001',
+        question: 'What is "El descuento"?',
+        questionBn: '"El descuento" অর্থ কী?',
+        options: ['মূল্যছাড় (Discount)', 'চুক্তি', 'পেমেন্ট', 'জরিমানা'],
+        correctAnswer: 'মূল্যছাড় (Discount)',
+        explanationBn: 'Descuento অর্থ মূল্যছাড়।'
+      }
+    ],
+    businessTipBn: 'ডিসকাউন্টের ক্ষেত্রে অর্ডারের ভলিউম ও পেমেন্টের তারিখ পরিষ্কার রাখুন।'
+  },
+  {
+    day: 11,
+    level: 'advanced',
+    cefrLevel: 'B2',
+    title: 'Dispute Handling & Problem Solving',
+    titleBn: 'সমস্যা সমাধান ও জরুরি আলোচনা',
+    objectiveBn: 'শিপমেন্টে বিলম্ব বা ত্রুটি হলে সমাধান ও বিনম্র কূটনৈতিক যোগাযোগ।',
+    xpReward: 45,
+    vocabulary: [
+      {
+        id: 'es-1101',
+        targetWord: 'El retraso',
+        bengaliPronunciation: 'এল রেত্রাসো',
+        bengaliMeaning: '= বিলম্ব বা দেরি (Delay)',
+        category: 'management',
+        exampleTarget: 'Lamentamos el retraso por fuerza mayor.',
+        exampleBengali: 'অনিবার্য কারণে বিলম্ব হওয়ায় আমরা দুঃখিত।',
+        audioText: 'Lamentamos el retraso por fuerza mayor',
+      },
+      {
+        id: 'es-1102',
+        targetWord: 'La solución',
+        bengaliPronunciation: 'লা সোলুসিওন',
+        bengaliMeaning: '= সমাধান (Solution)',
+        category: 'management',
+        exampleTarget: 'Proponemos una solución inmediata.',
+        exampleBengali: 'আমরা তাৎক্ষণিক সমাধানের প্রস্তাব করছি।',
+        audioText: 'Proponemos una solución inmediata',
+      }
+    ],
+    grammarNotes: [
+      {
+        ruleTitleBn: 'Subjuntivo de Cortesía (বিনম্র আকুতি)',
+        explanationBn: 'দুঃখ প্রকাশ ও অনুরোধে "Esperamos que entienda" জাতীয় গঠন ব্যবহৃত হয়।',
+        correctExample: 'Esperamos que puedan comprender la situación.',
+        exampleBn: 'আশা করি পরিস্থিতিটি বুঝতে পারবেন।',
+      }
+    ],
+    conversation: [
+      {
+        speaker: 'Cliente',
+        speakerRoleBn: 'ক্লায়েন্ট',
+        targetText: 'El barco tiene tres días de retraso.',
+        bengaliPronunciation: 'এল বার্কো তিয়েনে ত্রেস দিয়াস দে রেত্রাসো।',
+        bengaliMeaning: 'জাহাজটিতে তিন দিন বিলম্ব হয়েছে।'
+      },
+      {
+        speaker: 'Logística',
+        speakerRoleBn: 'লজিস্টিকস',
+        targetText: 'Asumimos los gastos del flete adicional.',
+        bengaliPronunciation: 'আসুমিমোস লস গাস্তোস দেল ফ্লেতে আদিসিওনাল।',
+        bengaliMeaning: 'আমরা অতিরিক্ত ফ্রেইটের খরচ বহন করব।'
+      }
+    ],
+    practiceSentences: [
+      {
+        target: 'Solucionaremos el problema hoy mismo.',
+        pronunciationBn: 'সোলুসিওনারেমোস এল প্রবলেমা ওই মিসমো।',
+        meaningBn: 'আমরা আজই সমস্যার সমাধান করব।'
+      }
+    ],
+    quiz: [
+      {
+        id: 'es-q1101',
+        question: 'What does "El retraso" mean?',
+        questionBn: '"El retraso" অর্থ কী?',
+        options: ['বিলম্ব / দেরি', 'আগমন', 'মুনাফা', 'ডেলিভারি'],
+        correctAnswer: 'বিলম্ব / দেরি',
+        explanationBn: 'Retraso অর্থ বিলম্ব বা দেরি।'
+      }
+    ],
+    businessTipBn: 'সমস্যা দ্রুত স্বীকার করে বাস্তবসম্মত ক্ষতিপূরণ বা বিকল্প উপস্থাপন করুন।'
+  },
+  {
+    day: 12,
+    level: 'advanced',
+    cefrLevel: 'C1',
+    title: 'International Business Presentation',
+    titleBn: 'আন্তর্জাতিক ব্যবসায়িক উপস্থাপন ও লিডারশিপ',
+    objectiveBn: 'স্প্যানিশ বায়ারদের সামনে কোম্পানির সক্ষমতা ও দীর্ঘমেয়াদী পার্টনারশিপ তুলে ধরা।',
+    xpReward: 50,
+    vocabulary: [
+      {
+        id: 'es-1201',
+        targetWord: 'La capacidad',
+        bengaliPronunciation: 'লা কাপাসিদাদ',
+        bengaliMeaning: '= উৎপাদন সক্ষমতা (Capacity)',
+        category: 'corporate',
+        exampleTarget: 'Nuestra capacidad mensual es de un millón de prendas.',
+        exampleBengali: 'আমাদের মাসিক সক্ষমতা দশ লাখ পোশাক।',
+        audioText: 'Nuestra capacidad mensual es de un millón de prendas',
+      },
+      {
+        id: 'es-1202',
+        targetWord: 'La sostenibilidad',
+        bengaliPronunciation: 'লা সোস্তেনিবেলিদাদ',
+        bengaliMeaning: '= টেকসই উন্নয়ন (Sustainability)',
+        category: 'corporate',
+        exampleTarget: 'Compromiso firme con la sostenibilidad ambiental.',
+        exampleBengali: 'পরিবেশবান্ধব টেকসই উন্নয়নে আমাদের দৃঢ় অঙ্গীকার।',
+        audioText: 'Compromiso firme con la sostenibilidad ambiental',
+      }
+    ],
+    grammarNotes: [
+      {
+        ruleTitleBn: 'উচ্চমানের কর্পোরেট ভাষা ও অলঙ্কার',
+        explanationBn: 'উপস্থাপনায় Es un honor (সম্মানের বিষয়), Destacamos (আমরা তুলে ধরছি) ব্যবহৃত হয়।',
+        correctExample: 'Es un honor presentarles a Depend Sourcing Ltd.',
+        exampleBn: 'ডিপেন্ড সোর্সিং লিমিটেডকে উপস্থাপন করা আমাদের জন্য অত্যন্ত সম্মানের।',
+      }
+    ],
+    conversation: [
+      {
+        speaker: 'Director',
+        speakerRoleBn: 'পরিচালক',
+        targetText: 'Sean bienvenidos a nuestra sede corporativa.',
+        bengaliPronunciation: 'সেয়ান বিয়েনভেনিদ্দোস আ নুয়েস্ত্রা সেদে কোরপোরাতিভা।',
+        bengaliMeaning: 'আমাদের করপোরেট হেডকোয়ার্টারে আপনাদের স্বাগতম।'
+      },
+      {
+        speaker: 'Delegación',
+        speakerRoleBn: 'প্রতিনিধিদল',
+        targetText: 'Gracias por su cálida bienvenida y profesionalismo.',
+        bengaliPronunciation: 'গ্রাসিয়াস পোর সু কালিদা বিয়েনভেনিদা ই প্রফেসিওনালিসমো।',
+        bengaliMeaning: 'আপনাদের উষ্ণ অভ্যর্থনা ও পেশাদারিত্বের জন্য ধন্যবাদ।'
+      }
+    ],
+    practiceSentences: [
+      {
+        target: 'Esperamos forjar una alianza duradera.',
+        pronunciationBn: 'এসপেরামোস ফোরহার উনা আলিয়ানসা দুরাদেরা।',
+        meaningBn: 'আমরা একটি দীর্ঘমেয়াদী অংশীদারিত্ব গড়ে তোলার আশা করছি।'
+      }
+    ],
+    quiz: [
+      {
+        id: 'es-q1201',
+        question: 'What does "La sostenibilidad" mean?',
+        questionBn: '"La sostenibilidad" শব্দের অর্থ কী?',
+        options: ['টেকসই উন্নয়ন (Sustainability)', 'দাম বৃদ্ধি', 'দ্রুত শিপমেন্ট', 'লাভ্যাংশ'],
+        correctAnswer: 'টেকসই উন্নয়ন (Sustainability)',
+        explanationBn: 'Sostenibilidad অর্থ টেকসই বা পরিবেশবান্ধব উন্নয়ন।'
+      }
+    ],
+    businessTipBn: 'আন্তর্জাতিক মিটিংয়ে পরিবেশবান্ধব সার্টিফিকেশন (OEKO-TEX, GOTS) তুলে ধরুন।'
   }
 ];
 
