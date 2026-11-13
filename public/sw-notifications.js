@@ -1,12 +1,15 @@
 /**
  * Shared Notification Presentation & Click Navigation Handler
  * Used by both Workbox SW (vite-plugin-pwa) and firebase-messaging-sw.js
- * Ensures consistent Depend Sourcing Ltd. branding and Android Web Push behavior.
+ * Ensures Depend Sourcing Ltd. official branding, clean Bangla hierarchy,
+ * unmodified /logo.png Large Icon, monochrome /notification-badge.png Small Icon,
+ * and Android Web Push click routing.
  */
 
 self.DEPEND_NOTIF_ASSETS = {
   LARGE_ICON: '/logo.png',
   BADGE_ICON: '/notification-badge.png',
+  COMPANY_NAME: 'Depend Sourcing Ltd.',
 };
 
 self.resolveDependAssetUrl = function (assetPath) {
@@ -18,15 +21,31 @@ self.resolveDependAssetUrl = function (assetPath) {
   return assetPath;
 };
 
+self.stripDependNotificationEmojis = function (text) {
+  return String(text || '')
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\uFE0F]/gu, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+};
+
 self.buildDependNotificationPayload = function (rawPayload) {
   var payload = rawPayload || {};
   var notif = payload.notification || {};
   var data = payload.data || {};
 
-  var rawTitle = notif.title || data.title || 'Depend Sourcing Ltd.';
-  var cleanTitle = String(rawTitle).replace(/^[\u26A0\uFE0F\u2705\u274C\s]+/, '').trim() || 'Depend Sourcing Ltd.';
+  var rawTitle = notif.title || data.title || self.DEPEND_NOTIF_ASSETS.COMPANY_NAME;
+  var cleanTitle =
+    self.stripDependNotificationEmojis(rawTitle) || self.DEPEND_NOTIF_ASSETS.COMPANY_NAME;
 
   var rawBody = notif.body || data.body || data.message || '';
+  var cleanBody = String(rawBody || '')
+    .split('\n')
+    .map(function (line) {
+      return self.stripDependNotificationEmojis(line);
+    })
+    .filter(Boolean)
+    .join('\n');
+
   var timestampMs = Date.now();
   if (data.timestamp) {
     var parsedTs = Date.parse(data.timestamp);
@@ -42,6 +61,41 @@ self.buildDependNotificationPayload = function (rawPayload) {
     targetUrl = '/?tab=' + encodeURIComponent(targetTab);
   }
 
+  var tabLabels = {
+    expenses: 'বিল ও খরচ',
+    attendance: 'হাজিরা',
+    movements: 'মুভমেন্ট',
+    chat: 'টিম চ্যাট',
+    staff: 'স্টাফ মনিটর',
+    funds: 'ফান্ড লেজার',
+    notices: 'অফিস নোটিশ',
+    complaints: 'অভিযোগ বক্স',
+    'bulk-advance': 'বাল্ক অগ্রিম',
+    dashboard: 'ড্যাশবোর্ড',
+  };
+  var sectionLabel = targetTab && tabLabels[targetTab] ? tabLabels[targetTab] : '';
+
+  var timeText = '';
+  try {
+    timeText = new Date(timestampMs).toLocaleTimeString('bn-BD', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch (e) {
+    timeText = '';
+  }
+
+  var footerParts = [self.DEPEND_NOTIF_ASSETS.COMPANY_NAME];
+  if (sectionLabel) footerParts.push('বিভাগ: ' + sectionLabel);
+  if (timeText) footerParts.push('সময়: ' + timeText);
+  var compactFooter = footerParts.join(' • ');
+
+  var finalBody = cleanBody
+    ? cleanBody.indexOf(self.DEPEND_NOTIF_ASSETS.COMPANY_NAME) !== -1
+      ? cleanBody
+      : cleanBody + '\n' + compactFooter
+    : 'নতুন অফিস আপডেট দেখতে ট্যাপ করুন।\n' + compactFooter;
+
   var category = String(data.category || data.type || targetTab || 'general').toLowerCase();
   var isActionable =
     category === 'warning' ||
@@ -54,20 +108,31 @@ self.buildDependNotificationPayload = function (rawPayload) {
   var officialBadgeIcon = self.resolveDependAssetUrl(self.DEPEND_NOTIF_ASSETS.BADGE_ICON);
   var optionalPayloadImage = notif.image || data.image;
 
+  var actionLabels = {
+    attendance: 'Check-in করুন',
+    expenses: 'বিল দেখুন',
+    chat: 'মেসেজ দেখুন',
+    movements: 'মুভমেন্ট দেখুন',
+    staff: 'স্টাফ দেখুন',
+    funds: 'লেজার দেখুন',
+    notices: 'নোটিশ পড়ুন',
+  };
+  var actionTitle = (targetTab && actionLabels[targetTab]) || 'অ্যাপে দেখুন';
+
   var options = {
-    body: String(rawBody || 'নতুন অফিস আপডেট দেখতে ট্যাপ করুন।'),
+    body: finalBody,
     icon: officialLargeIcon,
     badge: officialBadgeIcon,
     tag: data.tag || ('depend-sourcing-' + category.replace(/[^a-z0-9_-]/g, '')),
-    renotify: true,
+    renotify: false,
     timestamp: timestampMs,
-    vibrate: isActionable ? [220, 90, 220] : [140, 60, 140],
+    vibrate: isActionable ? [180, 70, 180] : [120, 50, 120],
     requireInteraction: isActionable,
     silent: false,
     actions: [
       {
         action: 'open',
-        title: 'অ্যাপে দেখুন',
+        title: actionTitle,
       },
     ],
     data: Object.assign({}, data, {

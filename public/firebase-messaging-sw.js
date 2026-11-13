@@ -39,15 +39,19 @@ if (apiKey && projectId) {
         return self.registration.showNotification(built.title, built.options);
       }
 
-      const notificationTitle = payload.notification?.title || payload.data?.title || 'Depend Sourcing Ltd.';
+      const rawTitle = String(payload.notification?.title || payload.data?.title || 'Depend Sourcing Ltd.').trim();
+      const rawBody = String(payload.notification?.body || payload.data?.body || '').trim();
+      const bodyWithFooter = rawBody
+        ? (rawBody.includes('Depend Sourcing Ltd.') ? rawBody : `${rawBody}\nDepend Sourcing Ltd.`)
+        : 'Depend Sourcing Ltd.';
       const notificationOptions = {
-        body: payload.notification?.body || payload.data?.body || '',
+        body: bodyWithFooter,
         icon: new URL('/logo.png', self.location.origin).href,
         badge: new URL('/notification-badge.png', self.location.origin).href,
         tag: payload.data?.tag || 'depend-sourcing-push',
-        renotify: true,
+        renotify: false,
         timestamp: Date.now(),
-        vibrate: [180, 80, 180],
+        vibrate: [140, 60, 140],
         requireInteraction: true,
         data: {
           ...(payload.data || {}),
@@ -59,7 +63,7 @@ if (apiKey && projectId) {
         notificationOptions.image = payload.notification?.image || payload.data?.image;
       }
 
-      return self.registration.showNotification(notificationTitle, notificationOptions);
+      return self.registration.showNotification(rawTitle, notificationOptions);
     });
   } catch (error) {
     console.error('Error initializing Firebase in SW:', error);

@@ -162,7 +162,11 @@ localforage.config({
 });
 import { getUserFCMToken } from "./notifications";
 import {
+  resolveAuthenticatedStaffName,
+  composeHumanNotification,
+  NotificationDeduplicator,
   formatNotificationTitle,
+  stripNotificationEmojis,
   buildServiceWorkerNotificationOptions,
   buildFallbackNotificationOptions,
   resolveNotificationTab,
@@ -361,6 +365,13 @@ const App: React.FC = () => {
     const cached = getSynchronousCachedProfile();
     return cached?.name || null;
   });
+  const recipientNameRef = useRef<string | null>(
+    resolveAuthenticatedStaffName({
+      currentUser,
+      cachedProfileName: cachedUserProfile?.name,
+      preferredFirstNameOnly: true,
+    }),
+  );
   const [activeTab, setActiveTab] = useState(() => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
@@ -761,10 +772,19 @@ const App: React.FC = () => {
           }
 
           if (processedAny) {
+            const offlineSynced = composeHumanNotification({
+              kind: "OFFLINE_SYNCED",
+              recipientName: recipientNameRef.current,
+            });
             handleAddNotification(
-              "সিঙ্ক সম্পন্ন",
-              "আপনার অফলাইনে সেভ করা ডাটা সফলভাবে সার্ভারে পাঠানো হয়েছে!",
-              "SUCCESS",
+              offlineSynced.title,
+              offlineSynced.message,
+              offlineSynced.type,
+              offlineSynced.link,
+              {
+                dedupeKey: offlineSynced.dedupeKey,
+                cooldownMs: offlineSynced.cooldownMs,
+              },
             );
           }
         } catch (err) {
@@ -774,10 +794,19 @@ const App: React.FC = () => {
     };
 
     const handleOfflineWarning = () => {
+      const offlineSaved = composeHumanNotification({
+        kind: "OFFLINE_SAVED",
+        recipientName: recipientNameRef.current,
+      });
       handleAddNotification(
-        "ইন্টারনেট সংযোগ নেই!",
-        "আপনার ডাটা অফলাইনে সেভ হয়েছে। পরবর্তীতে নেটওয়ার্ক পেলে এটি স্বয়ংক্রিয়ভাবে এডমিনের কাছে পাঠানো হবে।",
-        "WARNING",
+        offlineSaved.title,
+        offlineSaved.message,
+        offlineSaved.type,
+        offlineSaved.link,
+        {
+          dedupeKey: offlineSaved.dedupeKey,
+          cooldownMs: offlineSaved.cooldownMs,
+        },
       );
     };
 
@@ -933,10 +962,19 @@ const App: React.FC = () => {
     } else {
       try {
         await navigator.clipboard.writeText(shareData.url);
+        const shareNotif = composeHumanNotification({
+          kind: "SHARE_COPIED",
+          recipientName: recipientNameRef.current,
+        });
         handleAddNotification(
-          "লিংক কপি হয়েছে",
-          "অ্যাপ লিংক ক্লিপবোর্ডে কপি করা হয়েছে।",
-          "SUCCESS",
+          shareNotif.title,
+          shareNotif.message,
+          shareNotif.type,
+          shareNotif.link,
+          {
+            dedupeKey: shareNotif.dedupeKey,
+            cooldownMs: shareNotif.cooldownMs,
+          },
         );
       } catch (err) {
         console.error("Copy failed", err);
@@ -978,19 +1016,44 @@ const App: React.FC = () => {
 
   const [toasts, setToasts] = useState<AppNotification[]>([]);
 
+  const notifDeduplicatorRef = useRef<NotificationDeduplicator | null>(null);
+  if (!notifDeduplicatorRef.current) {
+    notifDeduplicatorRef.current = new NotificationDeduplicator();
+  }
+
   const handleAddNotification = useCallback(
     (
       title: string,
       message: string,
       type: AppNotification["type"] = "INFO",
       link?: string,
+      dedupeOpts?: { dedupeKey?: string; cooldownMs?: number },
     ) => {
-      const cleanTitle = formatNotificationTitle(title, type);
+      const cleanMessage = stripNotificationEmojis(message) || message;
+      const cleanTitle = formatNotificationTitle(
+        title,
+        type,
+        recipientNameRef.current,
+      );
+      const effectiveKey =
+        dedupeOpts?.dedupeKey ||
+        `${type}:${link || "general"}:${stripNotificationEmojis(title)}:${cleanMessage.slice(0, 48)}`;
+      const effectiveCooldown =
+        dedupeOpts?.cooldownMs !== undefined ? dedupeOpts.cooldownMs : 60 * 1000;
+
+      if (
+        notifDeduplicatorRef.current &&
+        notifDeduplicatorRef.current.shouldSuppress(effectiveKey, effectiveCooldown)
+      ) {
+        return;
+      }
+      notifDeduplicatorRef.current?.recordSent(effectiveKey);
+
       const timestampIso = new Date().toISOString();
       const newNotif: AppNotification = {
         id: Math.random().toString(36).substr(2, 9),
         title: cleanTitle,
-        message,
+        message: cleanMessage,
         type,
         timestamp: timestampIso,
         isRead: false,
@@ -1015,13 +1078,13 @@ const App: React.FC = () => {
 
         const swOptions = buildServiceWorkerNotificationOptions({
           title: cleanTitle,
-          message,
+          message: cleanMessage,
           type,
           link,
         });
         const fallbackOptions = buildFallbackNotificationOptions({
           title: cleanTitle,
-          message,
+          message: cleanMessage,
           type,
           link,
         });
@@ -1157,11 +1220,20 @@ const App: React.FC = () => {
                if (!initialLoad && (role === UserRole.ADMIN || role === UserRole.MD)) {
                   Object.keys(users).forEach(u => {
                      if (u !== currentUser && !prevOnlineUsers.current.has(u)) {
+                        const onlineNotif = composeHumanNotification({
+                          kind: "STAFF_ONLINE",
+                          recipientName: recipientNameRef.current,
+                          staffName: u,
+                        });
                         handleAddNotification(
-                           "ইউজার অনলাইনে",
-                           `${u} এখন অনলাইনে এসেছেন।`,
-                           "INFO",
-                           "staff"
+                           onlineNotif.title,
+                           onlineNotif.message,
+                           onlineNotif.type,
+                           onlineNotif.link,
+                           {
+                             dedupeKey: onlineNotif.dedupeKey,
+                             cooldownMs: onlineNotif.cooldownMs,
+                           },
                         );
                      }
                   });
@@ -1231,6 +1303,14 @@ const App: React.FC = () => {
       } as Staff));
     }
     return getLocalData("staffList", INITIAL_STAFF);
+  });
+
+  // Synchronize strictly verified authenticated recipient display name
+  recipientNameRef.current = resolveAuthenticatedStaffName({
+    currentUser,
+    staffList,
+    cachedProfileName: cachedUserProfile?.name,
+    preferredFirstNameOnly: true,
   });
 
   useEffect(() => {
@@ -1541,17 +1621,25 @@ const App: React.FC = () => {
         unsub = onChildAdded(notifsRef, (snapshot) => {
           const notif = snapshot.val();
           if (notif && notif.timestamp >= now && !notif.read) {
+            const adminDedupeKey = `admin-login:${snapshot.key || notif.timestamp}`;
+            if (notifDeduplicatorRef.current?.shouldSuppress(adminDedupeKey, 5 * 60 * 1000)) {
+              return;
+            }
+            notifDeduplicatorRef.current?.recordSent(adminDedupeKey);
+
             if ("Notification" in window && Notification.permission === "granted") {
               const targetLink = notif.link || "staff";
               const cleanTitle = formatNotificationTitle(
-                notif.title || "নতুন স্টাফ লগইন অ্যালার্ট",
+                notif.title || "নতুন স্টাফ লগইন তথ্য",
                 "WARNING",
+                recipientNameRef.current,
               );
+              const cleanMessage = stripNotificationEmojis(notif.message || "");
               const parsedTs = Date.parse(notif.timestamp);
               const timestampMs = !Number.isNaN(parsedTs) ? parsedTs : Date.now();
               const swOptions = buildServiceWorkerNotificationOptions({
                 title: cleanTitle,
-                message: notif.message || "",
+                message: cleanMessage,
                 type: "WARNING",
                 link: targetLink,
                 tag: "admin-login-notify",
@@ -1559,7 +1647,7 @@ const App: React.FC = () => {
               });
               const fallbackOptions = buildFallbackNotificationOptions({
                 title: cleanTitle,
-                message: notif.message || "",
+                message: cleanMessage,
                 type: "WARNING",
                 link: targetLink,
                 tag: "admin-login-notify",
@@ -2290,6 +2378,9 @@ const App: React.FC = () => {
     };
   }, [currentUser, role, isCloudEnabled, myStaffId]);
 
+  const attendanceListRef = useRef<Attendance[]>(attendanceList);
+  attendanceListRef.current = attendanceList;
+
   useEffect(() => {
     if (
       !currentUser ||
@@ -2301,16 +2392,24 @@ const App: React.FC = () => {
 
     const checkAttendance = () => {
       const today = new Date().toISOString().split("T")[0];
-      const amICheckedIn = attendanceList.some(
+      const amICheckedIn = attendanceListRef.current.some(
         (a) => a.date === today && a.staffName === currentUser,
       );
 
       if (!amICheckedIn) {
+        const reminder = composeHumanNotification({
+          kind: "ATTENDANCE_REMINDER",
+          recipientName: recipientNameRef.current,
+        });
         handleAddNotification(
-          "হাজিরা রিমাইন্ডার",
-          "আপনি আজ এখনো হাজিরা (Check-In) দেননি। দ্রুত হাজিরা নিশ্চিত করুন।",
-          "WARNING",
-          "attendance",
+          reminder.title,
+          reminder.message,
+          reminder.type,
+          reminder.link,
+          {
+            dedupeKey: reminder.dedupeKey,
+            cooldownMs: reminder.cooldownMs,
+          },
         );
       }
     };
@@ -2322,7 +2421,7 @@ const App: React.FC = () => {
       clearTimeout(initialTimeout);
       clearInterval(interval);
     };
-  }, [currentUser, role, attendanceList]);
+  }, [currentUser, role, handleAddNotification]);
 
   const requestNotificationPermission = () => {
     if ("Notification" in window && Notification.permission === "default") {
@@ -2419,25 +2518,44 @@ const App: React.FC = () => {
         const msgTime = new Date(lastMsg.timestamp).getTime();
         if (Date.now() - msgTime < 30000) {
           if (lastMsg.type === "SYSTEM_MOVEMENT") {
+            const movNotif = composeHumanNotification({
+              kind: "MOVEMENT_UPDATE",
+              recipientName: recipientNameRef.current,
+              text: lastMsg.text,
+            });
             handleAddNotification(
-              "স্টাফ মুভমেন্ট আপডেট",
-              lastMsg.text,
-              "INFO",
-              "movements",
+              movNotif.title,
+              movNotif.message,
+              movNotif.type,
+              movNotif.link,
+              {
+                dedupeKey: movNotif.dedupeKey,
+                cooldownMs: movNotif.cooldownMs,
+              },
             );
           } else {
+            const chatNotif = composeHumanNotification({
+              kind: "CHAT_MESSAGE",
+              recipientName: recipientNameRef.current,
+              senderName: lastMsg.sender,
+              text: lastMsg.text,
+            });
             handleAddNotification(
-              `মেসেজ: ${lastMsg.sender}`,
-              lastMsg.text,
-              "INFO",
-              "chat",
+              chatNotif.title,
+              chatNotif.message,
+              chatNotif.type,
+              chatNotif.link,
+              {
+                dedupeKey: chatNotif.dedupeKey,
+                cooldownMs: chatNotif.cooldownMs,
+              },
             );
           }
         }
       }
     }
     prevMessagesLength.current = messages.length;
-  }, [messages, currentUser, role]);
+  }, [messages, currentUser, role, handleAddNotification]);
 
   const [latestAdvanceNotif, setLatestAdvanceNotif] =
     useState<AdvanceLog | null>(null);
@@ -2519,11 +2637,21 @@ const App: React.FC = () => {
     const newExpenses = expenses.filter((e) => !prevMap.has(e.id));
     newExpenses.forEach((e) => {
       if (role === UserRole.ADMIN || role === UserRole.MD) {
+        const submittedNotif = composeHumanNotification({
+          kind: "EXPENSE_NEW_SUBMITTED",
+          recipientName: recipientNameRef.current,
+          staffName: e.staffName,
+          amount: Number(e.amount || 0),
+        });
         handleAddNotification(
-          "নতুন বিল সাবমিট",
-          `${e.staffName} ৳${e.amount} টাকার বিল সাবমিট করেছেন।`,
-          "INFO",
-          "expenses",
+          submittedNotif.title,
+          submittedNotif.message,
+          submittedNotif.type,
+          submittedNotif.link,
+          {
+            dedupeKey: `expense-new:${e.id}`,
+            cooldownMs: submittedNotif.cooldownMs,
+          },
         );
       }
     });
@@ -2535,25 +2663,43 @@ const App: React.FC = () => {
 
     updatedExpenses.forEach((e) => {
       if (currentUser && e.staffName === currentUser) {
-        let msg = "";
-        let type: AppNotification["type"] = "INFO";
+        const amt = Number(e.amount || 0);
         if (e.status === "APPROVED") {
-          msg = `আপনার ৳${e.amount} টাকার বিলটি অনুমোদিত হয়েছে!`;
-          type = "SUCCESS";
+          const notif = composeHumanNotification({
+            kind: "EXPENSE_APPROVED",
+            recipientName: recipientNameRef.current,
+            amount: amt,
+          });
+          handleAddNotification(notif.title, notif.message, notif.type, notif.link, {
+            dedupeKey: `expense-status:${e.id}:APPROVED`,
+            cooldownMs: notif.cooldownMs,
+          });
         } else if (e.status === "REJECTED") {
-          msg = `আপনার ৳${e.amount} টাকার বিলটি বাতিল করা হয়েছে।`;
-          type = "ERROR";
+          const notif = composeHumanNotification({
+            kind: "EXPENSE_REJECTED",
+            recipientName: recipientNameRef.current,
+            amount: amt,
+          });
+          handleAddNotification(notif.title, notif.message, notif.type, notif.link, {
+            dedupeKey: `expense-status:${e.id}:REJECTED`,
+            cooldownMs: notif.cooldownMs,
+          });
         } else if (e.status === "VERIFIED") {
-          msg = `আপনার ৳${e.amount} টাকার বিলটি ভেরিফাইড হয়েছে।`;
-          type = "INFO";
+          const notif = composeHumanNotification({
+            kind: "EXPENSE_VERIFIED",
+            recipientName: recipientNameRef.current,
+            amount: amt,
+          });
+          handleAddNotification(notif.title, notif.message, notif.type, notif.link, {
+            dedupeKey: `expense-status:${e.id}:VERIFIED`,
+            cooldownMs: notif.cooldownMs,
+          });
         }
-
-        handleAddNotification("বিল আপডেট", msg, type, "expenses");
       }
     });
 
     prevExpensesRef.current = expenses;
-  }, [expenses, role, currentUser]);
+  }, [expenses, role, currentUser, handleAddNotification]);
 
   useEffect(() => {
     if (role) {
@@ -2728,8 +2874,8 @@ const App: React.FC = () => {
           const db = getDatabase(app, dbUrl);
           const notifRef = push(ref(db, 'adminNotifications'));
           await set(notifRef, {
-            title: 'নতুন স্টাফ লগইন অ্যালার্ট',
-            message: `${username} সিস্টেমে লগইন করেছেন।\nডিভাইস: ${deviceInfo}\nব্যাটারি: ${batteryLevel}\nলোকেশন: ${loc}`,
+            title: `${username} সিস্টেমে লগইন করেছেন`,
+            message: `${username} এইমাত্র অ্যাপে প্রবেশ করেছেন।\nডিভাইস: ${deviceInfo} • ব্যাটারি: ${batteryLevel}\nলোকেশন: ${loc}`,
             link: 'staff',
             timestamp: new Date().toISOString(),
             read: false
@@ -2800,6 +2946,12 @@ const App: React.FC = () => {
 
     if (authenticatedUser) {
       const proceedLogin = () => {
+        const verifiedLoginName = resolveAuthenticatedStaffName({
+          currentUser: authenticatedUser!.name,
+          staffList,
+          preferredFirstNameOnly: true,
+        });
+        recipientNameRef.current = verifiedLoginName;
         setRole(authenticatedUser!.role);
         setCurrentUser(authenticatedUser!.name);
         setIsLoggingIn(false);
@@ -2895,11 +3047,20 @@ const App: React.FC = () => {
             (e) => !e.isDeleted && e.status === "PENDING",
           ).length;
           if (pending > 0) {
+            const pendingNotif = composeHumanNotification({
+              kind: "EXPENSE_PENDING_SUMMARY",
+              recipientName: recipientNameRef.current,
+              pendingCount: pending,
+            });
             handleAddNotification(
-              "পেন্ডিং বিল",
-              `${pending} টি বিল অনুমোদনের অপেক্ষায় আছে।`,
-              "WARNING",
-              "expenses",
+              pendingNotif.title,
+              pendingNotif.message,
+              pendingNotif.type,
+              pendingNotif.link,
+              {
+                dedupeKey: pendingNotif.dedupeKey,
+                cooldownMs: pendingNotif.cooldownMs,
+              },
             );
           }
         }
@@ -2992,6 +3153,7 @@ const App: React.FC = () => {
   }, [staffList, currentUser, role]);
 
   const handleLogout = () => {
+    recipientNameRef.current = null;
     setRole(null);
     setCurrentUser(null);
     setCachedUserProfile(null);
@@ -3107,18 +3269,33 @@ const App: React.FC = () => {
          }
          return s;
       }));
-      handleAddNotification("Biometrics Enabled", "Biometric unlock activated successfully.", "SUCCESS", "staff");
+      const bioOk = composeHumanNotification({
+        kind: "BIOMETRICS_ENABLED",
+        recipientName: recipientNameRef.current,
+      });
+      handleAddNotification(bioOk.title, bioOk.message, bioOk.type, bioOk.link, {
+        dedupeKey: bioOk.dedupeKey,
+        cooldownMs: bioOk.cooldownMs,
+      });
       setShowBiometricPrompt(false);
     } catch (e: any) {
       console.warn("Biometric setup error:", e);
-      let errorMsg = e.message || "Could not enable biometrics.";
+      let errorMsg = e.message || "এই মুহূর্তে বায়োমেট্রিক লগইন চালু করা যায়নি।";
       if (e.message && e.message.includes("publickey-credentials-create")) {
         errorMsg = "Biometrics cannot be configured inside this preview window.\n\nPlease click the 'Open in new tab' button (icon with an arrow pointing out of a square) at the top right of this preview, or copy the app URL and paste it in a new tab to setup Biometrics.";
       } else if (e.name === "NotAllowedError") {
-        errorMsg = "Biometric setup was cancelled or not allowed.";
+        errorMsg = "বায়োমেট্রিক সেটআপ বাতিল করা হয়েছে।";
       }
       alert(errorMsg);
-      handleAddNotification("Biometrics Error", errorMsg, "ERROR", "staff");
+      const bioErr = composeHumanNotification({
+        kind: "BIOMETRICS_ERROR",
+        recipientName: recipientNameRef.current,
+        errorDetail: e.name === "NotAllowedError" ? errorMsg : undefined,
+      });
+      handleAddNotification(bioErr.title, bioErr.message, bioErr.type, bioErr.link, {
+        dedupeKey: bioErr.dedupeKey,
+        cooldownMs: bioErr.cooldownMs,
+      });
     }
   };
 

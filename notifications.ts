@@ -2,9 +2,13 @@ import { getMessaging, getToken, onMessage } from "firebase/messaging";
 import { getApp } from "firebase/app";
 import {
   formatNotificationTitle,
+  stripNotificationEmojis,
   buildServiceWorkerNotificationOptions,
   buildFallbackNotificationOptions,
+  NotificationDeduplicator,
 } from "./services/notificationDesignService";
+
+const fcmForegroundDedupe = new NotificationDeduplicator("depend_fcm_fg_dedupe_v1");
 
 // Replace this with your actual VAPID key from Firebase Console -> Project Settings -> Cloud Messaging -> Web configuration
 const VAPID_KEY = "YOUR_VAPID_KEY_HERE";
@@ -52,10 +56,16 @@ export const registerServiceWorkerAndGetToken = async (firebaseConfig: any): Pro
         // Show a branded heads-up notification even when app is open
         if (Notification.permission === 'granted') {
           const rawTitle = payload.notification?.title || payload.data?.title || 'Depend Sourcing Ltd.';
-          const rawBody = payload.notification?.body || payload.data?.body || '';
+          const rawBody = stripNotificationEmojis(payload.notification?.body || payload.data?.body || '');
           const link = payload.data?.tab || payload.data?.link;
           const rawType = (payload.data?.type as 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR') || 'INFO';
           const title = formatNotificationTitle(rawTitle, rawType);
+          const dedupeKey = payload.messageId || `fcm:${title}:${rawBody.slice(0, 48)}`;
+          if (fcmForegroundDedupe.shouldSuppress(dedupeKey, 60 * 1000)) {
+            return;
+          }
+          fcmForegroundDedupe.recordSent(dedupeKey);
+
           const swOptions = buildServiceWorkerNotificationOptions({
             title,
             message: rawBody,
