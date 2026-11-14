@@ -261,34 +261,193 @@ export async function persistStaffData(staffList: Staff[]): Promise<StaffSummary
   return summaries;
 }
 
+export interface FetchSingleStaffProfileOptions {
+  cachedProfile?: Partial<Staff> | CachedUserProfile | null;
+  forceRefresh?: boolean;
+  timeoutMs?: number;
+  fetchImpl?: typeof fetch;
+  sdkFallback?: (userId: string, firebaseConfig: any) => Promise<Staff | null>;
+}
+
+const inFlightProfileFetches = new Map<string, Promise<Staff | null>>();
+const profileEtagCache = new Map<string, { etag: string; staff: Staff; checkedAt: number }>();
+const recentProfileFetchTimestamp = new Map<string, number>();
+
+let liveStaffListSynced = false;
+const STRICT_MOUNT_DEDUPE_MS = 1500;
+
+export function markLiveStaffListSynced(synced: boolean = true): void {
+  liveStaffListSynced = synced;
+}
+
+export function hasLiveStaffListSynced(): boolean {
+  return liveStaffListSynced;
+}
+
+export function resetProfileFetchState(): void {
+  liveStaffListSynced = false;
+  inFlightProfileFetches.clear();
+  profileEtagCache.clear();
+  recentProfileFetchTimestamp.clear();
+}
+
+async function defaultSdkProfileFallback(userId: string, firebaseConfig: any, timeoutMs: number): Promise<Staff | null> {
+  const { getApp } = await import('firebase/app');
+  const { getDatabase, ref, get } = await import('firebase/database');
+  const app = getApp();
+  const db = getDatabase(app, firebaseConfig.databaseURL);
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('FETCH_TIMEOUT')), timeoutMs)
+  );
+  const snap: any = await Promise.race([get(ref(db, `staffList/${userId}`)), timeoutPromise]);
+  if (snap && snap.exists && snap.exists()) {
+    const val = snap.val();
+    return { ...val, id: userId };
+  }
+  return null;
+}
+
 /**
  * Fetches a single staff profile directly from Firebase RTDB by ID.
- * This avoids needing to download the entire staffList tree if only one profile is needed!
+ * Uses deduplication, live-listener coordination, and ETag-validated HTTP REST
+ * (avoiding WebSocket head-of-line blocking behind full-node startup listeners),
+ * with automatic fallback to Firebase SDK `get()`.
  */
 export async function fetchSingleStaffProfile(
   userId: string,
-  firebaseConfig: any
+  firebaseConfig: any,
+  options?: FetchSingleStaffProfileOptions
 ): Promise<Staff | null> {
-  if (!userId || !firebaseConfig || !firebaseConfig.databaseURL) return null;
-  if (typeof navigator !== 'undefined' && !navigator.onLine) return null;
+  if (!userId || !firebaseConfig) return null;
+  const dbUrlRaw =
+    firebaseConfig.databaseURL ||
+    (firebaseConfig.projectId ? `https://${firebaseConfig.projectId}-default-rtdb.firebaseio.com` : '');
+  if (!dbUrlRaw) return null;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return null;
 
-  return perf.measure('Staff profile loading', 'staff', async () => {
-    try {
-      const { getApp } = await import('firebase/app');
-      const { getDatabase, ref, get } = await import('firebase/database');
-      const app = getApp();
-      const db = getDatabase(app, firebaseConfig.databaseURL);
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('FETCH_TIMEOUT')), 2500)
-      );
-      const snap: any = await Promise.race([get(ref(db, `staffList/${userId}`)), timeoutPromise]);
-      if (snap && snap.exists && snap.exists()) {
-        const val = snap.val();
-        return { ...val, id: userId };
-      }
-    } catch (err) {
-      console.warn(`Failed direct fetch for staff member ${userId}`, err);
-    }
+  // Live onValue('staffList') listener already synced fresh data — avoid redundant read
+  if (!options?.forceRefresh && liveStaffListSynced) {
     return null;
-  });
+  }
+
+  const baseUrl = String(dbUrlRaw).replace(/\/+$/, '');
+  const cacheKey = `${baseUrl}::${userId}`;
+
+  // Absorb immediate StrictMode / effect double-mount without losing cross-device freshness
+  const lastFetchedAt = recentProfileFetchTimestamp.get(cacheKey);
+  if (!options?.forceRefresh && lastFetchedAt && Date.now() - lastFetchedAt < STRICT_MOUNT_DEDUPE_MS) {
+    const cachedEntry = profileEtagCache.get(cacheKey);
+    return cachedEntry ? cachedEntry.staff : null;
+  }
+
+  const existingInFlight = inFlightProfileFetches.get(cacheKey);
+  if (existingInFlight) {
+    return existingInFlight;
+  }
+
+  const timeoutMs = Math.max(500, options?.timeoutMs ?? 2000);
+  const activeFetch: typeof fetch | undefined =
+    options?.fetchImpl || (typeof fetch === 'function' ? fetch.bind(globalThis) : undefined);
+
+  const requestPromise = perf
+    .measure('Staff profile loading', 'staff', async () => {
+      try {
+        // Check again inside lock in case live listener resolved while awaiting microtask
+        if (!options?.forceRefresh && liveStaffListSynced) {
+          return null;
+        }
+
+        if (activeFetch) {
+          let authQuery = '';
+          try {
+            const { getApps, getApp } = await import('firebase/app');
+            if (getApps().length > 0) {
+              const { getAuth } = await import('firebase/auth');
+              const auth = getAuth(getApp());
+              if (auth.currentUser) {
+                const token = await auth.currentUser.getIdToken();
+                if (token) authQuery = `?auth=${encodeURIComponent(token)}`;
+              }
+            }
+          } catch {
+            // Public/session-auth read continues cleanly
+          }
+
+          const cachedMeta = profileEtagCache.get(cacheKey);
+          const headers: Record<string, string> = {
+            'X-Firebase-ETag': 'true',
+          };
+          if (cachedMeta?.etag && !options?.forceRefresh) {
+            headers['If-None-Match'] = cachedMeta.etag;
+          }
+
+          const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+          const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+
+          try {
+            const resp = await activeFetch(
+              `${baseUrl}/staffList/${encodeURIComponent(userId)}.json${authQuery}`,
+              {
+                method: 'GET',
+                headers,
+                signal: controller?.signal,
+              }
+            );
+            if (timer) clearTimeout(timer);
+
+            const responseEtag = resp.headers?.get?.('ETag') || resp.headers?.get?.('etag') || undefined;
+
+            if (resp.status === 304 && cachedMeta?.staff) {
+              recentProfileFetchTimestamp.set(cacheKey, Date.now());
+              return cachedMeta.staff;
+            }
+
+            if (resp.ok) {
+              const val = await resp.json();
+              recentProfileFetchTimestamp.set(cacheKey, Date.now());
+              if (val && typeof val === 'object') {
+                const staffObj: Staff = { ...val, id: val.id || userId };
+                if (responseEtag) {
+                  profileEtagCache.set(cacheKey, {
+                    etag: responseEtag,
+                    staff: staffObj,
+                    checkedAt: Date.now(),
+                  });
+                }
+                return staffObj;
+              }
+              return null;
+            }
+
+            // On 401/403 fall through to SDK fallback
+            if (resp.status !== 401 && resp.status !== 403) {
+              throw new Error(`HTTP_${resp.status}`);
+            }
+          } catch (restErr: any) {
+            if (timer) clearTimeout(timer);
+            // Fall through to Firebase RTDB SDK fallback when REST is blocked or aborted
+            if (restErr?.name === 'AbortError' && !options?.sdkFallback) {
+              console.warn(`REST direct fetch timed out for staff member ${userId}`);
+              return null;
+            }
+          }
+        }
+
+        // Fallback to Firebase RTDB SDK get()
+        const sdkResult = options?.sdkFallback
+          ? await options.sdkFallback(userId, { ...firebaseConfig, databaseURL: baseUrl })
+          : await defaultSdkProfileFallback(userId, { ...firebaseConfig, databaseURL: baseUrl }, timeoutMs);
+        recentProfileFetchTimestamp.set(cacheKey, Date.now());
+        return sdkResult;
+      } catch (err) {
+        console.warn(`Failed direct fetch for staff member ${userId}`, err);
+        return null;
+      }
+    })
+    .finally(() => {
+      inFlightProfileFetches.delete(cacheKey);
+    });
+
+  inFlightProfileFetches.set(cacheKey, requestPromise);
+  return requestPromise;
 }

@@ -1,6 +1,6 @@
 import localforage from 'localforage';
 import { getApp, getApps } from 'firebase/app';
-import { getDatabase, ref, get, onValue, set, serverTimestamp } from 'firebase/database';
+import { getDatabase, ref, onValue, set, serverTimestamp } from 'firebase/database';
 import { getAuth } from 'firebase/auth';
 import { getUnsyncedBillCount } from './billSyncService';
 import {
@@ -69,6 +69,32 @@ export interface AppCheckDiagnosticInfo {
   isSafe: boolean;
   recommendation: string;
   roadmap: string[];
+}
+
+export interface DiagnosticProbeTrace {
+  probe: 'storage' | 'backendApi' | 'firebaseConnect' | 'firebaseRead' | 'firebaseAuth' | 'syncQueue';
+  label: string;
+  startTimeIso: string;
+  endTimeIso: string;
+  durationMs: number;
+  timeoutMs: number | null;
+  timedOut: boolean;
+  skipped?: boolean;
+  status: HealthStatus;
+  error?: string;
+}
+
+export interface DiagnosticExecutionMeta {
+  runId: string;
+  startedAt: string;
+  completedAt: string;
+  totalDurationMs: number;
+  parallelized: boolean;
+  deduplicatedInFlight: boolean;
+  timedOutProbesCount: number;
+  failedProbesCount: number;
+  failureSummary?: string;
+  probes: DiagnosticProbeTrace[];
 }
 
 export interface SystemHealthSnapshot {
@@ -176,6 +202,7 @@ export interface SystemHealthSnapshot {
     canonicalOperations: CanonicalOperationReport[];
     recentMetrics: PerfMetric[];
   };
+  diagnostics?: DiagnosticExecutionMeta;
 }
 
 const STORAGE_KEYS = {
@@ -204,6 +231,8 @@ class SystemHealthService {
   private lastSnapshot: SystemHealthSnapshot | null = null;
   private listeners: Set<(snapshot: SystemHealthSnapshot) => void> = new Set();
   private isChecking: boolean = false;
+  private inFlightDiagnosticPromise: Promise<SystemHealthSnapshot> | null = null;
+  private inFlightCallerCount: number = 0;
   private lastSyncConfirmedAt: string | null = null;
   private lastSyncFailedAt: string | null = null;
   private lastFbCheckAt: string | null = null;
@@ -603,6 +632,117 @@ class SystemHealthService {
   }
 
   /**
+   * Reads a Firebase RTDB diagnostic node (e.g. '.info/serverTimeOffset') safely via onValue({ onlyOnce: true }).
+   * Note: Firebase Modular SDK get() bypasses repo.infoSyncTree_ and sends a wire GET request to RTDB servers,
+   * which rejects '.info/*' paths with "Invalid token in path". onValue() correctly reads repo.infoSyncTree_.
+   */
+  public async probeFirebaseInfoRead(
+    db: any,
+    targetPath: string = '.info/serverTimeOffset',
+    timeoutMs: number = 2000
+  ): Promise<{
+    ok: boolean;
+    value: any;
+    durationMs: number;
+    timedOut: boolean;
+    permissionDenied: boolean;
+    error?: string;
+  }> {
+    const queryStart = performance.now();
+    try {
+      const targetRef = ref(db, targetPath);
+
+      const snap = await new Promise<any>((resolve, reject) => {
+        let settled = false;
+        let readUnsub: (() => void) | null = null;
+
+        const timerId = setTimeout(() => {
+          if (settled) return;
+          settled = true;
+          if (readUnsub) readUnsub();
+          const timeoutErr: any = new Error(`OFFSET_TIMEOUT (${timeoutMs}ms)`);
+          timeoutErr.isTimeout = true;
+          reject(timeoutErr);
+        }, timeoutMs);
+
+        const unsubFn = onValue(
+          targetRef,
+          (snapshot) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timerId);
+            resolve(snapshot);
+          },
+          (err) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timerId);
+            reject(err);
+          },
+          { onlyOnce: true }
+        );
+
+        if (settled) {
+          unsubFn();
+        } else {
+          readUnsub = unsubFn;
+        }
+      });
+
+      const durationMs = Number((performance.now() - queryStart).toFixed(1));
+      if (!snap || !snap.exists()) {
+        return {
+          ok: false,
+          value: null,
+          durationMs,
+          timedOut: false,
+          permissionDenied: false,
+          error: `${targetPath} snapshot empty`,
+        };
+      }
+
+      return {
+        ok: true,
+        value: snap.val(),
+        durationMs,
+        timedOut: false,
+        permissionDenied: false,
+      };
+    } catch (readErr: any) {
+      const durationMs = Number((performance.now() - queryStart).toFixed(1));
+      const errMsg = readErr?.message || 'Firebase read probe failed';
+      return {
+        ok: false,
+        value: null,
+        durationMs,
+        timedOut: Boolean(readErr?.isTimeout || String(errMsg).includes('TIMEOUT')),
+        permissionDenied: String(errMsg).includes('Permission denied') || String(errMsg).includes('permission_denied'),
+        error: errMsg,
+      };
+    }
+  }
+
+  private async withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutCode: string): Promise<T> {
+    let timerId: ReturnType<typeof setTimeout> | null = null;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<never>((_, reject) => {
+          timerId = setTimeout(() => {
+            const err: any = new Error(`${timeoutCode} (${timeoutMs}ms)`);
+            err.isTimeout = true;
+            reject(err);
+          }, timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timerId !== null) {
+        clearTimeout(timerId);
+      }
+    }
+  }
+
+  /**
    * Diagnostic probe for Express / Vercel Serverless Backend.
    * Tests multiple endpoints, accurately categorizes HTTP status / CORS / timeout,
    * detects server environment (Vercel Serverless vs Express Container),
@@ -617,6 +757,7 @@ class SystemHealthService {
     latencyMs: number;
     uptime?: number;
     version?: string;
+    timedOut: boolean;
     failureCategory: SystemHealthSnapshot['server']['failureCategory'];
     failureReason?: string;
     error?: string;
@@ -631,18 +772,19 @@ class SystemHealthService {
     const probeStart = performance.now();
 
     for (const ep of candidateEndpoints) {
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
       try {
         const epStart = performance.now();
         const PROBE_TIMEOUT_MS = 2500;
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
+        timeoutId = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
 
         const res = await fetch(ep, {
           method: 'GET',
           headers: { 'Accept': 'application/json' },
           signal: controller.signal,
         });
-        clearTimeout(timeoutId);
+        if (timeoutId !== null) clearTimeout(timeoutId);
 
         const latency = Number((performance.now() - epStart).toFixed(1));
 
@@ -668,12 +810,13 @@ class SystemHealthService {
             latencyMs: latency,
             uptime: data?.uptime,
             version: data?.nodeVersion || data?.version,
+            timedOut: false,
             failureCategory: 'NONE',
             failureReason: undefined,
           };
         } else if (res.status === 404) {
           // Endpoint missing on this route - continue to next candidate
-          lastError = { category: 'ENDPOINT_MISSING', status: 404, ep, latency };
+          lastError = { category: 'ENDPOINT_MISSING', status: 404, ep, latency, msg: 'HTTP 404' };
         } else if (res.status === 401 || res.status === 403) {
           return {
             available: true,
@@ -682,14 +825,28 @@ class SystemHealthService {
             endpointUsed: ep,
             httpStatus: res.status,
             latencyMs: latency,
+            timedOut: false,
             failureCategory: 'AUTH_FAILURE',
             failureReason: `API অথেনটিকেশন প্রত্যাখ্যান (HTTP ${res.status})`,
             error: `HTTP ${res.status}`,
           };
+        } else {
+          // 5xx or unexpected HTTP error status
+          lastError = {
+            category: 'SERVER_UNAVAILABLE',
+            status: res.status,
+            ep,
+            latency,
+            msg: `HTTP ${res.status} from ${ep}`,
+          };
+          if (res.status >= 500) {
+            break; // Fast-fail when backend itself returned HTTP 5xx
+          }
         }
       } catch (err: any) {
-        if (err.name === 'AbortError') {
-          lastError = { category: 'TIMEOUT', ep, msg: 'API রিকোয়েস্ট ২.৫ সেকেন্ডে টাইমআউট হয়েছে' };
+        if (timeoutId !== null) clearTimeout(timeoutId);
+        if (err?.name === 'AbortError') {
+          lastError = { category: 'TIMEOUT', ep, msg: 'API রিকোয়েস্ট ২.৫ সেকেন্ডে টাইমআউট হয়েছে', timedOut: true };
           break; // Do not waste extra timeout cycles on secondary candidates when primary endpoint timed out
         } else if (err?.message?.includes('Failed to fetch') || err?.message?.includes('NetworkError')) {
           lastError = { category: 'SERVER_UNAVAILABLE', ep, msg: 'সার্ভার সংযোগ বিচ্ছিন্ন বা CORS কনফিগারেশন অনুপস্থিত' };
@@ -700,41 +857,68 @@ class SystemHealthService {
       }
     }
 
-    // Secondary fallback: probe email endpoint via OPTIONS
-    try {
-      const optStart = performance.now();
-      const optRes = await fetch('/api/send-email', { method: 'OPTIONS' }).catch(() => null);
-      if (optRes && (optRes.ok || optRes.status === 200 || optRes.status === 204)) {
-        const latency = Number((performance.now() - optStart).toFixed(1));
-        return {
-          available: true,
-          status: 'DEGRADED',
-          serverType: 'Vercel Serverless',
-          endpointUsed: '/api/send-email (OPTIONS probe)',
-          httpStatus: optRes.status,
-          latencyMs: latency,
-          failureCategory: 'ENDPOINT_MISSING',
-          failureReason: 'ইমেইল API কার্যকর, তবে ডেডিকেটেড হেলথ চেক রাউট ৪MD রেসপন্স করেনি।',
-        };
+    // Secondary fallback: probe email endpoint via OPTIONS ONLY if not already timed out/5xx, guarded by 1.5s AbortController
+    if (lastError?.category !== 'TIMEOUT' && !(typeof lastError?.status === 'number' && lastError.status >= 500)) {
+      let optTimeoutId: ReturnType<typeof setTimeout> | null = null;
+      try {
+        const optStart = performance.now();
+        const optController = new AbortController();
+        const OPT_TIMEOUT_MS = 1500;
+        optTimeoutId = setTimeout(() => optController.abort(), OPT_TIMEOUT_MS);
+
+        const optRes = await fetch('/api/send-email', {
+          method: 'OPTIONS',
+          signal: optController.signal,
+        });
+        if (optTimeoutId !== null) clearTimeout(optTimeoutId);
+
+        if (optRes && (optRes.ok || optRes.status === 200 || optRes.status === 204)) {
+          const latency = Number((performance.now() - optStart).toFixed(1));
+          return {
+            available: true,
+            status: 'DEGRADED',
+            serverType: 'Vercel Serverless',
+            endpointUsed: '/api/send-email (OPTIONS probe)',
+            httpStatus: optRes.status,
+            latencyMs: latency,
+            timedOut: false,
+            failureCategory: 'ENDPOINT_MISSING',
+            failureReason: 'ইমেইল API কার্যকর, তবে ডেডিকেটেড হেলথ চেক রাউট ৪MD রেসপন্স করেনি।',
+          };
+        }
+      } catch (optErr: any) {
+        if (optTimeoutId !== null) clearTimeout(optTimeoutId);
+        if (optErr?.name === 'AbortError') {
+          lastError = {
+            category: 'TIMEOUT',
+            ep: '/api/send-email (OPTIONS)',
+            msg: 'OPTIONS রিকোয়েস্ট ১.৫ সেকেন্ডে টাইমআউট হয়েছে',
+            timedOut: true,
+          };
+        }
       }
-    } catch {}
+    }
 
     const totalLatency = Number((performance.now() - probeStart).toFixed(1));
     const failureCategory = lastError?.category || 'SERVER_UNAVAILABLE';
+    const isTimedOut = Boolean(lastError?.timedOut || failureCategory === 'TIMEOUT');
     const failureReason =
       failureCategory === 'ENDPOINT_MISSING'
         ? 'হেলথ ডায়াগনস্টিক এন্ডপয়েন্ট অনুপস্থিত (HTTP 404)'
         : failureCategory === 'TIMEOUT'
         ? 'সার্ভার রেসপন্স টাইমআউট (>২.৫ সেকেন্ড)'
+        : typeof lastError?.status === 'number' && lastError.status >= 500
+        ? `ব্যাকএন্ড সার্ভার ত্রুটি (HTTP ${lastError.status})`
         : 'সার্ভার কানেকশন পাওয়া যায়নি (অফলাইন বা পোর্ট অমিল)';
 
     return {
       available: false,
       status: 'DEGRADED', // Non-critical: core offline billing & vouchers are independent!
       serverType: 'Unknown',
-      endpointUsed: '/api/system-health/status',
+      endpointUsed: lastError?.ep || '/api/health',
       httpStatus: lastError?.status,
       latencyMs: totalLatency,
+      timedOut: isTimedOut,
       failureCategory,
       failureReason,
       error: lastError?.msg || failureReason,
@@ -743,20 +927,43 @@ class SystemHealthService {
 
   /**
    * Safe, strictly read-only diagnostics execution.
+   * Deduplicates concurrent in-flight invocations and runs independent probes in parallel.
    * Does NOT alter business data, does NOT write test bills, does NOT scan entire tables.
    */
   public async runSafeDiagnostics(
     firebaseConfig?: any,
     userContext?: { currentUser?: string | null; role?: string | null; email?: string | null }
   ): Promise<SystemHealthSnapshot> {
-    if (this.isChecking && this.lastSnapshot) {
-      return this.lastSnapshot;
+    if (this.inFlightDiagnosticPromise) {
+      this.inFlightCallerCount += 1;
+      return this.inFlightDiagnosticPromise;
     }
+
     this.isChecking = true;
+    this.inFlightCallerCount = 1;
+
+    const promise = this.executeSafeDiagnostics(firebaseConfig, userContext).finally(() => {
+      this.isChecking = false;
+      this.inFlightDiagnosticPromise = null;
+      this.inFlightCallerCount = 0;
+    });
+
+    this.inFlightDiagnosticPromise = promise;
+    return promise;
+  }
+
+  private async executeSafeDiagnostics(
+    firebaseConfig?: any,
+    userContext?: { currentUser?: string | null; role?: string | null; email?: string | null }
+  ): Promise<SystemHealthSnapshot> {
+    const runId = `diag_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+    const runStartPerf = performance.now();
+    const runStartedAt = new Date().toISOString();
+    const probes: DiagnosticProbeTrace[] = [];
 
     try {
-      const timestamp = new Date().toISOString();
-      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      const timestamp = runStartedAt;
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine !== false : true;
 
       // 1. Network Quality Diagnostics
       const navConn = (navigator as any)?.connection;
@@ -768,55 +975,11 @@ class SystemHealthService {
         latencyMs: navConn?.rtt ? Number(navConn.rtt) : undefined,
       };
 
-      // 2. Storage Check (Safe read/write test to isolated temp probe key)
-      let localStorageAvailable = false;
-      let indexedDbAvailable = false;
-      let storageLatencyMs = 0;
-      let storageError: string | undefined;
-
-      const storageStart = performance.now();
-      try {
-        const testKey = '__ais_safe_health_probe__';
-        localStorage.setItem(testKey, '1');
-        localStorage.removeItem(testKey);
-        localStorageAvailable = true;
-
-        await localforage.setItem(testKey, { ping: true });
-        await localforage.removeItem(testKey);
-        indexedDbAvailable = true;
-        storageLatencyMs = Number((performance.now() - storageStart).toFixed(1));
-      } catch (err: any) {
-        storageError = err?.message || 'Storage unavailable';
-        this.recordIncident({
-          type: 'STORAGE_FAILURE',
-          title: 'লোকাল স্টোরেজ ব্যর্থতা (Storage Failure)',
-          severity: 'CRITICAL',
-          affectedService: 'IndexedDB',
-          message: `লোকাল IndexedDB/LocalStorage রিড-রাইট ব্যর্থ হয়েছে: ${storageError}`,
-          recommendedAction: 'ব্রাউজার প্রাইভেট মোড অথবা স্টোরেজ পারমিশন পরীক্ষা করুন।',
-          isPeriodicScan: true,
-        });
-      }
-
-      // 3. Express / Vercel Serverless Backend Diagnostics
-      const serverDiag = await this.probeBackendServer();
-
-      // 4. Firebase Real Connectivity & Dedicated Diagnostic Node
-      let fbStatus: HealthStatus = 'UNKNOWN';
-      let fbConnected = false;
-      let fbReadLatencyMs = 0;
-      let fbRoundTripLatencyMs = 0;
-      let fbError: string | undefined;
-      let authStatus: AuthDiagnosticStatus = 'UNKNOWN';
-      let authEmail: string | undefined;
-      let authUid: string | undefined;
-      let authExpiresAt: string | undefined;
-      let permissionDeniedCount = 0;
       const appCheckSiteKey =
         firebaseConfig?.appCheckSiteKey ||
         (typeof import.meta !== 'undefined' ? (import.meta as any).env?.VITE_FIREBASE_APP_CHECK_SITE_KEY : undefined);
       const isAppCheckConfigured = Boolean(appCheckSiteKey && String(appCheckSiteKey).trim().length > 0);
-      let appCheckStatus: SystemHealthSnapshot['firebase']['appCheckStatus'] = isAppCheckConfigured ? 'ACTIVE' : 'NOT_CONFIGURED';
+      const appCheckStatus: SystemHealthSnapshot['firebase']['appCheckStatus'] = isAppCheckConfigured ? 'ACTIVE' : 'NOT_CONFIGURED';
       const diagnosticLocation = '.info/serverTimeOffset & .info/connected';
 
       const appCheckInfo: AppCheckDiagnosticInfo = {
@@ -841,143 +1004,495 @@ class SystemHealthService {
         firebaseConfig?.databaseURL ||
         (firebaseConfig?.projectId ? `https://${firebaseConfig.projectId}-default-rtdb.firebaseio.com` : undefined);
 
-      if (!isOnline) {
-        fbStatus = 'OFFLINE';
-        fbError = 'ডিভাইস নেটওয়ার্ক অফলাইন';
-      } else if (!dbUrl) {
-        fbStatus = 'UNAVAILABLE';
-        fbError = 'Firebase Database URL কনফিগার করা নেই';
-      } else {
-        const fbStart = performance.now();
+      // Parallel Branch A: Storage & IndexedDB Probe (1500ms timeout guard)
+      const storagePromise = (async () => {
+        const STORAGE_TIMEOUT_MS = 1500;
+        const probeStartIso = new Date().toISOString();
+        const probeStart = performance.now();
+        let localStorageAvailable = false;
+        let indexedDbAvailable = false;
+        let storageError: string | undefined;
+        let storageTimedOut = false;
+
+        try {
+          const testKey = '__ais_safe_health_probe__';
+          localStorage.setItem(testKey, '1');
+          localStorage.removeItem(testKey);
+          localStorageAvailable = true;
+
+          await this.withTimeout(
+            (async () => {
+              await localforage.setItem(testKey, { ping: true });
+              await localforage.removeItem(testKey);
+            })(),
+            STORAGE_TIMEOUT_MS,
+            'INDEXEDDB_PROBE_TIMEOUT'
+          );
+          indexedDbAvailable = true;
+
+          if (localStorageAvailable && indexedDbAvailable) {
+            const openStorageIncidents = this.incidents.filter(
+              (i) => i.type === 'STORAGE_FAILURE' && i.status !== 'RESOLVED'
+            );
+            for (const storageInc of openStorageIncidents) {
+              this.resolveIncident(
+                storageInc.id,
+                'লোকাল IndexedDB ও LocalStorage রিড-রাইট সফলভাবে পুনরুদ্ধার হয়েছে এবং স্বাভাবিক রয়েছে।',
+                'System Auto-Recovery'
+              );
+            }
+          }
+        } catch (err: any) {
+          storageTimedOut = Boolean(err?.isTimeout || String(err?.message || '').includes('TIMEOUT'));
+          storageError = err?.message || 'Storage unavailable';
+          this.recordIncident({
+            type: 'STORAGE_FAILURE',
+            title: 'লোকাল স্টোরেজ ব্যর্থতা (Storage Failure)',
+            severity: 'CRITICAL',
+            affectedService: 'IndexedDB',
+            message: `লোকাল IndexedDB/LocalStorage রিড-রাইট ব্যর্থ হয়েছে: ${storageError}`,
+            recommendedAction: 'ব্রাউজার প্রাইভেট মোড অথবা স্টোরেজ পারমিশন পরীক্ষা করুন।',
+            isPeriodicScan: true,
+          });
+        }
+
+        const durationMs = Number((performance.now() - probeStart).toFixed(1));
+        probes.push({
+          probe: 'storage',
+          label: 'LocalStorage & IndexedDB',
+          startTimeIso: probeStartIso,
+          endTimeIso: new Date().toISOString(),
+          durationMs,
+          timeoutMs: STORAGE_TIMEOUT_MS,
+          timedOut: storageTimedOut,
+          status: indexedDbAvailable && localStorageAvailable ? 'HEALTHY' : 'CRITICAL',
+          error: storageError,
+        });
+
+        return {
+          localStorageAvailable,
+          indexedDbAvailable,
+          storageLatencyMs: durationMs,
+          storageError,
+          storageTimedOut,
+        };
+      })();
+
+      // Parallel Branch B: Express / Vercel Serverless Backend Probe (fast-skip if offline)
+      const serverPromise = (async () => {
+        const probeStartIso = new Date().toISOString();
+        const probeStart = performance.now();
+
+        if (!isOnline) {
+          const offlineResult = {
+            available: false,
+            status: 'OFFLINE' as HealthStatus,
+            serverType: 'Unknown' as SystemHealthSnapshot['server']['serverType'],
+            endpointUsed: '/api/health',
+            httpStatus: undefined,
+            latencyMs: 0,
+            uptime: undefined,
+            version: undefined,
+            timedOut: false,
+            failureCategory: 'SERVER_UNAVAILABLE' as SystemHealthSnapshot['server']['failureCategory'],
+            failureReason: 'ডিভাইস নেটওয়ার্ক অফলাইন',
+            error: 'Device offline',
+          };
+          probes.push({
+            probe: 'backendApi',
+            label: 'Express / API Backend',
+            startTimeIso: probeStartIso,
+            endTimeIso: new Date().toISOString(),
+            durationMs: Number((performance.now() - probeStart).toFixed(1)),
+            timeoutMs: 2500,
+            timedOut: false,
+            skipped: true,
+            status: 'OFFLINE',
+            error: 'Skipped: Device offline',
+          });
+          return offlineResult;
+        }
+
+        const res = await this.probeBackendServer();
+        const durationMs = Number((performance.now() - probeStart).toFixed(1));
+        probes.push({
+          probe: 'backendApi',
+          label: `Backend API (${res.endpointUsed})`,
+          startTimeIso: probeStartIso,
+          endTimeIso: new Date().toISOString(),
+          durationMs,
+          timeoutMs: 2500,
+          timedOut: res.timedOut,
+          status: res.status,
+          error: res.available ? undefined : res.error || res.failureReason,
+        });
+        return res;
+      })();
+
+      // Parallel Branch C: Firebase Auth Session / Token Probe (1500ms timeout guard)
+      const authPromise = (async () => {
+        const AUTH_TIMEOUT_MS = 1500;
+        const probeStartIso = new Date().toISOString();
+        const probeStart = performance.now();
+        let authStatus: AuthDiagnosticStatus = 'UNKNOWN';
+        let authEmail: string | undefined;
+        let authUid: string | undefined;
+        let authExpiresAt: string | undefined;
+        let authTimedOut = false;
+        let authError: string | undefined;
+
         try {
           const apps = getApps();
           const app = apps.length > 0 ? getApp() : null;
           if (app) {
-            const db = getDatabase(app, dbUrl);
-
-            // Dedicated read-only probe using Firebase RTDB built-in metadata node
-            const connectedRef = ref(db, '.info/connected');
-            const serverTimeOffsetRef = ref(db, '.info/serverTimeOffset');
-
-            let unsub: (() => void) | null = null;
-            const isConnected = await new Promise<boolean>((resolve) => {
-              const timeoutId = setTimeout(() => {
-                if (unsub) unsub();
-                resolve(false);
-              }, 3500);
-
-              unsub = onValue(
-                connectedRef,
-                (snap) => {
-                  if (snap.val() === true) {
-                    clearTimeout(timeoutId);
-                    if (unsub) unsub();
-                    resolve(true);
-                  }
-                },
-                (err) => {
-                  clearTimeout(timeoutId);
-                  if (unsub) unsub();
-                  if (err?.message?.includes('Permission denied')) {
-                    permissionDeniedCount++;
-                  }
-                  resolve(false);
-                }
-              );
-            });
-
-            // Read clock offset as true round-trip ping without touching user tables
-            let queryStart = performance.now();
-            try {
-              queryStart = performance.now();
-              const offsetSnap = await Promise.race([
-                get(serverTimeOffsetRef),
-                new Promise<never>((_, reject) => setTimeout(() => reject(new Error('OFFSET_TIMEOUT')), 2000)),
-              ]);
-              const queryDuration = Number((performance.now() - queryStart).toFixed(1));
-              if (offsetSnap.exists()) {
-                fbRoundTripLatencyMs = queryDuration;
-                fbReadLatencyMs = queryDuration;
+            const auth = getAuth(app);
+            const user = auth.currentUser;
+            if (user) {
+              authStatus = user.isAnonymous ? 'ANONYMOUS' : 'FIREBASE_AUTH_ACTIVE';
+              authEmail = user.email || (user.isAnonymous ? 'Anonymous Kiosk' : undefined);
+              authUid = user.uid;
+              try {
+                const tokenRes = await this.withTimeout(
+                  user.getIdTokenResult(),
+                  AUTH_TIMEOUT_MS,
+                  'FIREBASE_AUTH_TOKEN_TIMEOUT'
+                );
+                authExpiresAt = tokenRes.expirationTime;
+              } catch (tokenErr: any) {
+                authTimedOut = Boolean(tokenErr?.isTimeout || String(tokenErr?.message || '').includes('TIMEOUT'));
+                authError = tokenErr?.message || 'Token verification failed';
               }
-            } catch {
-              fbReadLatencyMs = Number((performance.now() - queryStart).toFixed(1));
             }
+          }
 
-            // Independent Firebase Auth check
-            try {
-              const auth = getAuth(app);
-              const user = auth.currentUser;
-              if (user) {
-                authStatus = user.isAnonymous ? 'ANONYMOUS' : 'FIREBASE_AUTH_ACTIVE';
-                authEmail = user.email || (user.isAnonymous ? 'Anonymous Kiosk' : undefined);
-                authUid = user.uid;
-                try {
-                  const tokenRes = await user.getIdTokenResult();
-                  authExpiresAt = tokenRes.expirationTime;
-                } catch {}
-              } else {
-                // Independent verification: Check active application session
-                let sessionObj: any = null;
-                if (typeof localStorage !== 'undefined') {
-                  try {
-                    const s = localStorage.getItem('active_session');
-                    if (s) sessionObj = JSON.parse(s);
-                  } catch {}
-                }
-                const activeUser = userContext?.currentUser || sessionObj?.username || sessionObj?.email;
-
-                if (activeUser) {
-                  authStatus = 'SESSION_AUTHENTICATED';
-                  authEmail = activeUser;
-                } else {
-                  authStatus = 'NOT_LOGGED_IN';
-                }
-              }
-            } catch {
-              authStatus = 'UNKNOWN';
+          if (authStatus === 'UNKNOWN') {
+            let sessionObj: any = null;
+            if (typeof localStorage !== 'undefined') {
+              try {
+                const s = localStorage.getItem('active_session');
+                if (s) sessionObj = JSON.parse(s);
+              } catch {}
             }
-
-            if (isConnected) {
-              fbConnected = true;
-              fbStatus = 'HEALTHY';
-              this.lastFbCheckAt = new Date().toISOString();
-              localStorage.setItem(STORAGE_KEYS.LAST_SUCCESSFUL_FB, this.lastFbCheckAt);
-
-              const fbInc = this.incidents.find((i) => i.type === 'FIREBASE_DISCONNECTED' && i.status !== 'RESOLVED');
-              if (fbInc) {
-                this.resolveIncident(fbInc.id, 'Firebase Realtime Database সংযোগ সফলভাবে নিশ্চিত ও সক্রিয় রয়েছে।', 'System Auto-Recovery');
-              }
+            const activeUser = userContext?.currentUser || sessionObj?.username || sessionObj?.email;
+            if (activeUser) {
+              authStatus = 'SESSION_AUTHENTICATED';
+              authEmail = activeUser;
             } else {
-              fbConnected = false;
-              fbStatus = isOnline ? 'DEGRADED' : 'OFFLINE';
-              fbError = isOnline ? 'Firebase সংযোগ নিশ্চিত হতে বিলম্ব হচ্ছে (টাইমআউট ৩.৫ সেকেন্ড)' : 'ডিভাইস নেটওয়ার্ক অফলাইন';
-
-              this.recordIncident({
-                type: 'FIREBASE_DISCONNECTED',
-                title: 'ফায়ারবেস সংযোগে সমস্যা (Firebase Unreachable)',
-                severity: 'WARNING',
-                affectedService: 'Firebase',
-                message: `Firebase Realtime Database রেসপন্স দেয়নি: ${fbError}`,
-                recommendedAction: 'ইন্টারনেট প্রক্সি, ফায়ারওয়াল অথবা ফায়ারবেস কনফিগারেশন চেক করুন। অফলাইন কিউতে ডাটা নিরাপদ থাকবে।',
-                isPeriodicScan: true,
-              });
+              authStatus = 'NOT_LOGGED_IN';
             }
-          } else {
-            fbStatus = 'UNAVAILABLE';
-            fbError = 'Firebase App ইনিশিয়ালাইজ হয়নি';
           }
         } catch (err: any) {
-          fbReadLatencyMs = Number((performance.now() - fbStart).toFixed(1));
-          fbConnected = false;
-          fbStatus = isOnline ? 'DEGRADED' : 'OFFLINE';
-          fbError = err?.message || 'সংযোগ ব্যর্থ';
-          if (err?.message?.includes('Permission denied')) {
-            permissionDeniedCount++;
+          authStatus = 'UNKNOWN';
+          authError = err?.message || 'Auth diagnostic check failed';
+        }
+
+        const durationMs = Number((performance.now() - probeStart).toFixed(1));
+        probes.push({
+          probe: 'firebaseAuth',
+          label: 'Authentication Check',
+          startTimeIso: probeStartIso,
+          endTimeIso: new Date().toISOString(),
+          durationMs,
+          timeoutMs: AUTH_TIMEOUT_MS,
+          timedOut: authTimedOut,
+          status: authTimedOut || authError ? 'DEGRADED' : 'HEALTHY',
+          error: authError,
+        });
+
+        return { authStatus, authEmail, authUid, authExpiresAt, authTimedOut, authError };
+      })();
+
+      // Parallel Branch D: Firebase RTDB Connectivity (.info/connected) + Read Latency (.info/serverTimeOffset)
+      const firebasePromise = (async () => {
+        const CONNECT_TIMEOUT_MS = 3000;
+        const READ_TIMEOUT_MS = 2000;
+        let fbStatus: HealthStatus = 'UNKNOWN';
+        let fbConnected = false;
+        let fbReadLatencyMs = 0;
+        let fbRoundTripLatencyMs = 0;
+        let fbError: string | undefined;
+        let permissionDeniedCount = 0;
+        let fbConnectTimedOut = false;
+        let fbReadTimedOut = false;
+        let fbReadError: string | undefined;
+
+        const connStartIso = new Date().toISOString();
+        const connStartPerf = performance.now();
+
+        if (!isOnline) {
+          fbStatus = 'OFFLINE';
+          fbError = 'ডিভাইস নেটওয়ার্ক অফলাইন';
+          const endIso = new Date().toISOString();
+          probes.push({
+            probe: 'firebaseConnect',
+            label: 'Firebase RTDB (.info/connected)',
+            startTimeIso: connStartIso,
+            endTimeIso: endIso,
+            durationMs: 0,
+            timeoutMs: CONNECT_TIMEOUT_MS,
+            timedOut: false,
+            skipped: true,
+            status: 'OFFLINE',
+            error: 'Skipped: Device offline',
+          });
+          probes.push({
+            probe: 'firebaseRead',
+            label: 'Firebase Read (.info/serverTimeOffset)',
+            startTimeIso: connStartIso,
+            endTimeIso: endIso,
+            durationMs: 0,
+            timeoutMs: READ_TIMEOUT_MS,
+            timedOut: false,
+            skipped: true,
+            status: 'OFFLINE',
+            error: 'Skipped: Device offline',
+          });
+        } else if (!dbUrl) {
+          fbStatus = 'UNAVAILABLE';
+          fbError = 'Firebase Database URL কনফিগার করা নেই';
+          const endIso = new Date().toISOString();
+          probes.push({
+            probe: 'firebaseConnect',
+            label: 'Firebase RTDB (.info/connected)',
+            startTimeIso: connStartIso,
+            endTimeIso: endIso,
+            durationMs: 0,
+            timeoutMs: CONNECT_TIMEOUT_MS,
+            timedOut: false,
+            skipped: true,
+            status: 'UNAVAILABLE',
+            error: fbError,
+          });
+          probes.push({
+            probe: 'firebaseRead',
+            label: 'Firebase Read (.info/serverTimeOffset)',
+            startTimeIso: connStartIso,
+            endTimeIso: endIso,
+            durationMs: 0,
+            timeoutMs: READ_TIMEOUT_MS,
+            timedOut: false,
+            skipped: true,
+            status: 'UNAVAILABLE',
+            error: fbError,
+          });
+        } else {
+          try {
+            const apps = getApps();
+            const app = apps.length > 0 ? getApp() : null;
+            if (app) {
+              const db = getDatabase(app, dbUrl);
+              const connectedRef = ref(db, '.info/connected');
+
+              let unsub: (() => void) | null = null;
+              let connErrMsg: string | undefined;
+              const isConnected = await new Promise<boolean>((resolve) => {
+                const timeoutId = setTimeout(() => {
+                  fbConnectTimedOut = true;
+                  connErrMsg = `RTDB connection probe timed out (${CONNECT_TIMEOUT_MS}ms)`;
+                  if (unsub) unsub();
+                  resolve(false);
+                }, CONNECT_TIMEOUT_MS);
+
+                unsub = onValue(
+                  connectedRef,
+                  (snap) => {
+                    if (snap.val() === true) {
+                      clearTimeout(timeoutId);
+                      if (unsub) unsub();
+                      resolve(true);
+                    }
+                  },
+                  (err) => {
+                    clearTimeout(timeoutId);
+                    if (unsub) unsub();
+                    connErrMsg = err?.message || 'RTDB listener error';
+                    if (err?.message?.includes('Permission denied')) {
+                      permissionDeniedCount++;
+                    }
+                    resolve(false);
+                  }
+                );
+              });
+
+              const connDuration = Number((performance.now() - connStartPerf).toFixed(1));
+              probes.push({
+                probe: 'firebaseConnect',
+                label: 'Firebase RTDB (.info/connected)',
+                startTimeIso: connStartIso,
+                endTimeIso: new Date().toISOString(),
+                durationMs: connDuration,
+                timeoutMs: CONNECT_TIMEOUT_MS,
+                timedOut: fbConnectTimedOut,
+                status: isConnected ? 'HEALTHY' : isOnline ? 'DEGRADED' : 'OFFLINE',
+                error: isConnected ? undefined : connErrMsg,
+              });
+
+              // Read .info/serverTimeOffset ONLY when connected using onValue({ onlyOnce: true })
+              // (avoids wire get() sending '/.info/serverTimeOffset' which RTDB rejects as 'Invalid token in path')
+              const readStartIso = new Date().toISOString();
+              const probeReadPath = (firebaseConfig as any)?.__probeReadPath || '.info/serverTimeOffset';
+              if (isConnected) {
+                const readOutcome = await this.probeFirebaseInfoRead(db, probeReadPath, READ_TIMEOUT_MS);
+                fbReadLatencyMs = readOutcome.durationMs;
+                if (readOutcome.permissionDenied) {
+                  permissionDeniedCount++;
+                }
+                if (readOutcome.ok) {
+                  fbRoundTripLatencyMs = readOutcome.durationMs;
+                } else {
+                  fbReadTimedOut = readOutcome.timedOut;
+                  fbReadError = readOutcome.error || 'Firebase read probe failed';
+                }
+
+                probes.push({
+                  probe: 'firebaseRead',
+                  label: `Firebase Read (${probeReadPath})`,
+                  startTimeIso: readStartIso,
+                  endTimeIso: new Date().toISOString(),
+                  durationMs: fbReadLatencyMs,
+                  timeoutMs: READ_TIMEOUT_MS,
+                  timedOut: fbReadTimedOut,
+                  status: fbReadTimedOut || fbReadError ? 'DEGRADED' : 'HEALTHY',
+                  error: fbReadError,
+                });
+              } else {
+                probes.push({
+                  probe: 'firebaseRead',
+                  label: 'Firebase Read (.info/serverTimeOffset)',
+                  startTimeIso: readStartIso,
+                  endTimeIso: new Date().toISOString(),
+                  durationMs: 0,
+                  timeoutMs: READ_TIMEOUT_MS,
+                  timedOut: false,
+                  skipped: true,
+                  status: isOnline ? 'DEGRADED' : 'OFFLINE',
+                  error: 'Skipped: RTDB connection not active',
+                });
+              }
+
+              if (isConnected && !fbReadTimedOut && !fbReadError) {
+                fbConnected = true;
+                fbStatus = 'HEALTHY';
+                this.lastFbCheckAt = new Date().toISOString();
+                if (typeof localStorage !== 'undefined') {
+                  localStorage.setItem(STORAGE_KEYS.LAST_SUCCESSFUL_FB, this.lastFbCheckAt);
+                }
+
+                const fbInc = this.incidents.find((i) => i.type === 'FIREBASE_DISCONNECTED' && i.status !== 'RESOLVED');
+                if (fbInc) {
+                  this.resolveIncident(fbInc.id, 'Firebase Realtime Database সংযোগ সফলভাবে নিশ্চিত ও সক্রিয় রয়েছে।', 'System Auto-Recovery');
+                }
+              } else if (isConnected && (fbReadTimedOut || fbReadError)) {
+                fbConnected = true;
+                fbStatus = 'DEGRADED';
+                fbError = fbReadTimedOut
+                  ? 'Firebase রিড প্রোব ২ সেকেন্ডে টাইমআউট হয়েছে (.info/serverTimeOffset)'
+                  : `Firebase রিড প্রোব ত্রুটি: ${fbReadError}`;
+              } else {
+                fbConnected = false;
+                fbStatus = isOnline ? 'DEGRADED' : 'OFFLINE';
+                fbError = isOnline ? 'Firebase সংযোগ নিশ্চিত হতে বিলম্ব হচ্ছে (টাইমআউট ৩ সেকেন্ড)' : 'ডিভাইস নেটওয়ার্ক অফলাইন';
+
+                this.recordIncident({
+                  type: 'FIREBASE_DISCONNECTED',
+                  title: 'ফায়ারবেস সংযোগে সমস্যা (Firebase Unreachable)',
+                  severity: 'WARNING',
+                  affectedService: 'Firebase',
+                  message: `Firebase Realtime Database রেসপন্স দেয়নি: ${fbError}`,
+                  recommendedAction: 'ইন্টারনেট প্রক্সি, ফায়ারওয়াল অথবা ফায়ারবেস কনফিগারেশন চেক করুন। অফলাইন কিউতে ডাটা নিরাপদ থাকবে।',
+                  isPeriodicScan: true,
+                });
+              }
+            } else {
+              fbStatus = 'UNAVAILABLE';
+              fbError = 'Firebase App ইনিশিয়ালাইজ হয়নি';
+              const endIso = new Date().toISOString();
+              probes.push({
+                probe: 'firebaseConnect',
+                label: 'Firebase RTDB (.info/connected)',
+                startTimeIso: connStartIso,
+                endTimeIso: endIso,
+                durationMs: 0,
+                timeoutMs: CONNECT_TIMEOUT_MS,
+                timedOut: false,
+                skipped: true,
+                status: 'UNAVAILABLE',
+                error: fbError,
+              });
+              probes.push({
+                probe: 'firebaseRead',
+                label: 'Firebase Read (.info/serverTimeOffset)',
+                startTimeIso: connStartIso,
+                endTimeIso: endIso,
+                durationMs: 0,
+                timeoutMs: READ_TIMEOUT_MS,
+                timedOut: false,
+                skipped: true,
+                status: 'UNAVAILABLE',
+                error: fbError,
+              });
+            }
+          } catch (err: any) {
+            fbReadLatencyMs = Number((performance.now() - connStartPerf).toFixed(1));
+            fbConnected = false;
+            fbStatus = isOnline ? 'DEGRADED' : 'OFFLINE';
+            fbError = err?.message || 'সংযোগ ব্যর্থ';
+            if (err?.message?.includes('Permission denied')) {
+              permissionDeniedCount++;
+            }
+            probes.push({
+              probe: 'firebaseConnect',
+              label: 'Firebase RTDB (.info/connected)',
+              startTimeIso: connStartIso,
+              endTimeIso: new Date().toISOString(),
+              durationMs: fbReadLatencyMs,
+              timeoutMs: CONNECT_TIMEOUT_MS,
+              timedOut: false,
+              status: fbStatus,
+              error: fbError,
+            });
           }
         }
-      }
+
+        return {
+          fbStatus,
+          fbConnected,
+          fbReadLatencyMs,
+          fbRoundTripLatencyMs,
+          fbError,
+          permissionDeniedCount,
+          fbConnectTimedOut,
+          fbReadTimedOut,
+          fbReadError,
+        };
+      })();
+
+      // Execute independent diagnostic probes in parallel
+      const [storageRes, serverDiag, authRes, fbRes] = await Promise.all([
+        storagePromise,
+        serverPromise,
+        authPromise,
+        firebasePromise,
+      ]);
+
+      const { localStorageAvailable, indexedDbAvailable, storageLatencyMs, storageError } = storageRes;
+      let { authStatus, authEmail } = authRes;
+      const { authUid, authExpiresAt, authTimedOut, authError } = authRes;
+      const {
+        fbStatus,
+        fbConnected,
+        fbReadLatencyMs,
+        fbRoundTripLatencyMs,
+        fbError,
+        permissionDeniedCount,
+        fbConnectTimedOut,
+        fbReadTimedOut,
+        fbReadError,
+      } = fbRes;
 
       // 5. Cloud Sync Verification & Duplicate-Write Detection
+      const syncStartIso = new Date().toISOString();
+      const syncStartPerf = performance.now();
       const pendingCount = getUnsyncedBillCount();
       let syncStatus: HealthStatus = 'UNKNOWN';
       let longestPendingMinutes: number | undefined;
@@ -1029,6 +1544,75 @@ class SystemHealthService {
         consistencyStatus = 'UNVERIFIED';
         consistencyDetail = 'ক্লাউড সিঙ্ক এখনো যাচাই করা হয়নি (Unverified)';
       }
+
+      probes.push({
+        probe: 'syncQueue',
+        label: 'Offline Sync Queue Inspect',
+        startTimeIso: syncStartIso,
+        endTimeIso: new Date().toISOString(),
+        durationMs: Number((performance.now() - syncStartPerf).toFixed(1)),
+        timeoutMs: null,
+        timedOut: false,
+        status: syncStatus,
+        error: duplicateWriteDetected ? 'Duplicate clientSubmissionId detected in queue' : undefined,
+      });
+
+      // Record this real diagnostic run in perf BEFORE taking overall perf summary
+      const runTotalDurationMs = Number(Math.max(0, performance.now() - runStartPerf).toFixed(1));
+      const timedOutProbesCount = probes.filter((p) => p.timedOut).length;
+      const failedProbesCount = probes.filter(
+        (p) => !p.skipped && (p.timedOut || Boolean(p.error) || p.status === 'CRITICAL' || p.status === 'UNAVAILABLE')
+      ).length;
+
+      const hasDiagnosticFailure =
+        timedOutProbesCount > 0 ||
+        authTimedOut ||
+        Boolean(authError) ||
+        !indexedDbAvailable ||
+        !localStorageAvailable ||
+        (Boolean(dbUrl) && isOnline && (!fbConnected || fbConnectTimedOut || fbReadTimedOut || Boolean(fbReadError))) ||
+        serverDiag.failureCategory === 'TIMEOUT' ||
+        (typeof serverDiag.httpStatus === 'number' && serverDiag.httpStatus >= 500);
+
+      const maxNetDurationMs = Math.max(
+        0,
+        ...probes
+          .filter((p) => !p.skipped && (p.probe === 'backendApi' || p.probe === 'firebaseConnect' || p.probe === 'firebaseRead' || p.probe === 'firebaseAuth'))
+          .map((p) => p.durationMs)
+      );
+
+      const failedProbeDetails = probes
+        .filter((p) => !p.skipped && (p.timedOut || Boolean(p.error) || p.status === 'CRITICAL' || p.status === 'UNAVAILABLE'))
+        .map((p) => `${p.label} [${p.probe}]: ${p.error || (p.timedOut ? 'TIMEOUT' : p.status)}`);
+      const failureSummary = failedProbeDetails.length > 0 ? failedProbeDetails.join(' | ') : undefined;
+
+      perf.recordDirectMetric({
+        action: 'System Health Diagnostic Run',
+        category: 'dashboard',
+        durationMs: runTotalDurationMs,
+        networkDurationMs: Number(maxNetDurationMs.toFixed(1)),
+        success: !hasDiagnosticFailure,
+        error: hasDiagnosticFailure
+          ? failureSummary ||
+            probes
+              .filter((p) => p.timedOut || (!p.skipped && p.error))
+              .map((p) => `${p.probe}: ${p.error || 'TIMEOUT'}`)
+              .join('; ')
+          : undefined,
+      });
+
+      const diagnosticsMeta: DiagnosticExecutionMeta = {
+        runId,
+        startedAt: runStartedAt,
+        completedAt: new Date().toISOString(),
+        totalDurationMs: runTotalDurationMs,
+        parallelized: true,
+        deduplicatedInFlight: this.inFlightCallerCount > 1,
+        timedOutProbesCount,
+        failedProbesCount,
+        failureSummary,
+        probes,
+      };
 
       // 6. Performance Summary & P95
       const perfSummary: OverallPerfSummary = perf.getOverallSummary();
@@ -1229,6 +1813,7 @@ class SystemHealthService {
           canonicalOperations: perfSummary.canonicalOperations,
           recentMetrics: perf.getMetrics().slice(-15).reverse(),
         },
+        diagnostics: diagnosticsMeta,
       };
 
       this.lastSnapshot = snapshot;
@@ -1237,7 +1822,7 @@ class SystemHealthService {
         type: 'HEALTH_CHECK',
         severity: overallStatus === 'HEALTHY' ? 'INFO' : 'WARNING',
         service: 'System',
-        summary: `Health check: ${overallStatus} (Firebase: ${fbStatus}, Backend: ${serverDiag.serverType} ${serverDiag.available ? 'OK' : 'DEGRADED'}, IDB: ${indexedDbAvailable ? 'OK' : 'FAIL'}, Queue: ${pendingCount})`,
+        summary: `Health check (${runTotalDurationMs}ms, parallel): ${overallStatus} (Firebase: ${fbStatus}, Backend: ${serverDiag.serverType} ${serverDiag.available ? 'OK' : 'DEGRADED'}, IDB: ${indexedDbAvailable ? 'OK' : 'FAIL'}, Queue: ${pendingCount}, Timeouts: ${timedOutProbesCount})`,
       });
 
       this.notifySubscribers();
@@ -1336,7 +1921,7 @@ Overall Status: ${s ? s.overallStatus : 'UNKNOWN'}
 - Firebase Connected: ${s?.firebase.connected ? 'YES' : 'NO'} (${s?.firebase.status || 'UNKNOWN'})
 - Firebase Read Latency: ${s?.firebase.readLatencyMs || 0}ms
 - Firebase RTDB Probe: ${s?.firebase.diagnosticLocation || '.info/serverTimeOffset'}
-- Auth Diagnostic State: ${s?.firebase.authStatus || 'UNKNOWN'}
+${s?.firebase.error ? `- Firebase Diagnosis: ${s.firebase.error}\n` : ''}- Auth Diagnostic State: ${s?.firebase.authStatus || 'UNKNOWN'}
 - Session Access Level: [ROLE_CLASSIFIED: ${s?.security.currentUserRole || 'STANDARD'}]
 - Backend API Server: ${s?.server.available ? 'OK' : 'DEGRADED'} (${s?.server.latencyMs || 0}ms)
 - Backend Architecture: ${s?.server.serverType || 'Unknown'} (Role: Optional Supporting Service)
@@ -1353,6 +1938,20 @@ ${s?.server.failureReason ? `- Backend Diagnosis: ${s.server.failureReason}\n` :
 - Session Syncs: ${s?.sync.sessionSyncSuccessCount || 0} successful / ${s?.sync.sessionSyncFailCount || 0} failed
 - Lifetime Syncs: ${s?.sync.lifetimeSyncSuccessCount || s?.sync.successfulSyncCount || 0} successful / ${s?.sync.lifetimeSyncFailCount || s?.sync.failedSyncCount || 0} failed
 - Duplicate Writes Detected: ${s?.sync.duplicateWriteDetected ? 'YES' : 'NO'}
+
+### Last Diagnostic Run & Probe Breakdown
+- Total Diagnostic Duration: ${s?.diagnostics?.totalDurationMs ?? 0}ms (Parallel: ${s?.diagnostics?.parallelized ? 'YES' : 'NO'}, Deduplicated: ${s?.diagnostics?.deduplicatedInFlight ? 'YES' : 'NO'})
+- Timed Out Probes: ${s?.diagnostics?.timedOutProbesCount ?? 0} | Failed Probes: ${s?.diagnostics?.failedProbesCount ?? 0}
+${s?.diagnostics?.failureSummary ? `- Failed Probe Cause: ${scrub(s.diagnostics.failureSummary)}\n` : ''}${
+  s?.diagnostics?.probes?.length
+    ? s.diagnostics.probes
+        .map(
+          (p) =>
+            `- ${scrub(p.label)} [${p.probe}]: ${p.durationMs}ms (Timeout=${p.timeoutMs !== null ? `${p.timeoutMs}ms` : 'None'}, TimedOut=${p.timedOut ? 'YES' : 'NO'}, Skipped=${p.skipped ? 'YES' : 'NO'}, Status=${p.status})${p.error ? ` | Note: ${scrub(p.error)}` : ''}`
+        )
+        .join('\n')
+    : '- No per-probe telemetry captured yet.'
+}
 
 ## 3. Performance Metrics
 ### Overall Performance Summary

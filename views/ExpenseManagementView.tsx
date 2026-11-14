@@ -2200,7 +2200,9 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({
         if (staff) {
           import('../services/emailService').then(({ sendBillStatusEmailToStaff }) => {
             const targetEmail = staff.email || `${staff.name.replace(/\s+/g, '').toLowerCase()}@depend.com`;
-            sendBillStatusEmailToStaff(targetEmail, staff.name, expense.amount, expense.reason, status);
+            void sendBillStatusEmailToStaff(targetEmail, staff.name, expense.amount, expense.reason, status, '', {
+              entityId: expense.id,
+            });
           });
         }
       }
@@ -2238,7 +2240,9 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({
           const staff = staffMap.get(expense.staffId);
           if (staff) {
             const targetEmail = staff.email || `${staff.name.replace(/\s+/g, '').toLowerCase()}@depend.com`;
-            sendBillStatusEmailToStaff(targetEmail, staff.name, expense.amount, expense.reason, 'APPROVED');
+            void sendBillStatusEmailToStaff(targetEmail, staff.name, expense.amount, expense.reason, 'APPROVED', '', {
+              entityId: expense.id,
+            });
           }
         });
     }

@@ -150,10 +150,12 @@ const FundLedgerView: React.FC<FundProps> = ({ funds = [], setFunds, expenses = 
     };
     setFunds(prev => [...prev, newEntry]);
     
-    // Notify MD
+    // Notify MD asynchronously so Fund modal/operation never blocks on Email SMTP latency
     const md = staffList.find(s => s.role === UserRole.MD);
     const mdEmail = md?.email || 'dependsource@gmail.com';
-    await sendFundAddedEmailToMD(newEntry.amount, 'Office Funds App', 'Admin', mdEmail);
+    void sendFundAddedEmailToMD(newEntry.amount, 'Office Funds App', 'Admin', mdEmail, {
+      entityId: newEntry.id,
+    });
 
     setIsModalOpen(false);
     setFormData({ amount: 0, note: '', date: new Date().toISOString().split('T')[0] });

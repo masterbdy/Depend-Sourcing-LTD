@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Activity,
   CheckCircle2,
@@ -92,11 +92,14 @@ export const SystemHealthView: React.FC<SystemHealthViewProps> = ({
   // Active Tab inside Health Monitor
   const [activeSubTab, setActiveSubTab] = useState<'overview' | 'firebase_sync' | 'server_api' | 'performance' | 'security' | 'incidents' | 'events'>('overview');
 
+  const lastDiagRunAtRef = useRef<number>(0);
+
   // Trigger diagnostics check
   const handleRunDiagnostics = useCallback(async () => {
     setIsRefreshing(true);
     try {
       const result = await systemHealth.runSafeDiagnostics(firebaseConfig, { currentUser, role });
+      lastDiagRunAtRef.current = Date.now();
       setSnapshot(result);
     } catch (err) {
       console.error('[SystemHealthView] Failed to run diagnostics', err);
@@ -120,7 +123,10 @@ export const SystemHealthView: React.FC<SystemHealthViewProps> = ({
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        handleRunDiagnostics();
+        // Cooldown prevents duplicate burst runs when switching tabs/windows rapidly
+        if (Date.now() - lastDiagRunAtRef.current >= 3000) {
+          handleRunDiagnostics();
+        }
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -747,6 +753,95 @@ export const SystemHealthView: React.FC<SystemHealthViewProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Diagnostic Probe Timing Breakdown */}
+          {snapshot?.diagnostics && snapshot.diagnostics.probes.length > 0 && (
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-xs">
+              <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-blue-600" />
+                  <span className="text-xs font-black text-slate-800 dark:text-white">
+                    ডায়াগনস্টিক প্রোব টাইমিং ব্রেকডাউন (Per-Probe Execution Trace)
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono">
+                  <span className="px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 font-bold">
+                    Total: {snapshot.diagnostics.totalDurationMs} ms
+                  </span>
+                  <span className="px-2 py-0.5 rounded-lg bg-slate-100 text-slate-700 dark:bg-slate-900 dark:text-slate-300 font-bold">
+                    {snapshot.diagnostics.parallelized ? 'Parallel Probes' : 'Sequential'}
+                  </span>
+                  {snapshot.diagnostics.failedProbesCount > 0 && (
+                    <span className="px-2 py-0.5 rounded-lg bg-rose-100 text-rose-800 font-bold">
+                      Failed: {snapshot.diagnostics.failedProbesCount}
+                    </span>
+                  )}
+                  {snapshot.diagnostics.timedOutProbesCount > 0 && (
+                    <span className="px-2 py-0.5 rounded-lg bg-rose-100 text-rose-800 font-bold">
+                      Timeouts: {snapshot.diagnostics.timedOutProbesCount}
+                    </span>
+                  )}
+                </div>
+              </div>
+              {snapshot.diagnostics.failureSummary && (
+                <div className="px-4 py-2 bg-rose-50 dark:bg-rose-950/30 border-b border-rose-200 dark:border-rose-800 text-[11px] font-bold text-rose-700 dark:text-rose-300">
+                  ব্যর্থ প্রোব: {snapshot.diagnostics.failureSummary}
+                </div>
+              )}
+              <div className="overflow-x-auto custom-scrollbar">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 dark:bg-slate-900/60 text-slate-500 uppercase tracking-wider font-bold text-[10px]">
+                    <tr>
+                      <th className="py-2 px-3">Probe</th>
+                      <th className="py-2 px-3">Start</th>
+                      <th className="py-2 px-3">End</th>
+                      <th className="py-2 px-3">Duration</th>
+                      <th className="py-2 px-3">Timeout Limit</th>
+                      <th className="py-2 px-3">Status</th>
+                      <th className="py-2 px-3">Detail</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 font-medium text-[11px]">
+                    {snapshot.diagnostics.probes.map((p) => (
+                      <tr key={p.probe} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/30">
+                        <td className="py-2 px-3 font-bold text-slate-900 dark:text-white">{p.label}</td>
+                        <td className="py-2 px-3 font-mono text-slate-500">
+                          {new Date(p.startTimeIso).toLocaleTimeString('en-GB')}
+                        </td>
+                        <td className="py-2 px-3 font-mono text-slate-500">
+                          {new Date(p.endTimeIso).toLocaleTimeString('en-GB')}
+                        </td>
+                        <td className="py-2 px-3 font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                          {p.durationMs} ms
+                        </td>
+                        <td className="py-2 px-3 font-mono text-slate-500">
+                          {p.timeoutMs !== null ? `${p.timeoutMs} ms` : '—'}
+                        </td>
+                        <td className="py-2 px-3">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                              p.timedOut
+                                ? 'bg-rose-100 text-rose-800'
+                                : p.status === 'HEALTHY'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : p.status === 'CRITICAL' || p.status === 'UNAVAILABLE'
+                                ? 'bg-rose-100 text-rose-800'
+                                : 'bg-amber-100 text-amber-800'
+                            }`}
+                          >
+                            {p.timedOut ? 'TIMED OUT' : p.skipped ? `${p.status} (SKIPPED)` : p.status}
+                          </span>
+                        </td>
+                        <td className="py-2 px-3 text-slate-500 max-w-[240px] truncate" title={p.error || ''}>
+                          {p.error || 'OK'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* Quick Notice Banner */}
           <div className="p-4 bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-800/80 rounded-2xl text-xs space-y-1">

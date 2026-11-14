@@ -1,8 +1,13 @@
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
-import nodemailer from 'nodemailer';
 import { GoogleGenAI } from '@google/genai';
+import {
+  getEmailJobStatus,
+  getEmailTransportSummary,
+  handleEmailDispatch,
+  probeSmtpNetworkStages,
+} from './services/emailTransportService';
 import { validateLunchPolicy } from './services/lunchPolicyService';
 import { buildLessonPrompt, validateLessonQuality, generateCuratedFallbackLesson } from './services/lessonGeneratorService';
 import {
@@ -929,51 +934,39 @@ Return ONLY valid JSON:
     }
   });
 
-  // Email sending API endpoint
-  app.post('/api/send-email', async (req, res) => {
-    const { to, subject, html, text, smtpConfig } = req.body;
-
-    if (!to || !subject) {
-      return res.status(400).json({ error: 'Missing required fields: to, subject' });
+  // Email sending API endpoint (Pooled SMTP reuse, timeouts, deduplication, async background delivery)
+  app.get('/api/send-email', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    const jobId = typeof req.query?.jobId === 'string' ? req.query.jobId.trim() : '';
+    if (jobId) {
+      const job = getEmailJobStatus(jobId);
+      if (!job) {
+        return res.status(404).json({ ok: false, error: 'Email job not found' });
+      }
+      return res.status(200).json({ ok: true, job });
     }
 
+    if (req.query?.probe === 'true') {
+      const host = typeof req.query?.host === 'string' ? req.query.host : 'smtp.gmail.com';
+      const port = parseInt(String(req.query?.port || '587'), 10) || 587;
+      const stages = await probeSmtpNetworkStages(host, port);
+      return res.status(200).json({ ok: true, summary: getEmailTransportSummary(), stages });
+    }
+
+    return res.status(200).json({ ok: true, summary: getEmailTransportSummary() });
+  });
+
+  app.post('/api/send-email', async (req, res) => {
     try {
-      // Use client-provided config or fallback to env variables
-      const host = smtpConfig?.host || process.env.SMTP_HOST || 'smtp.gmail.com';
-      const port = parseInt(smtpConfig?.port || process.env.SMTP_PORT || '587');
-      const secure = smtpConfig?.secure !== undefined ? smtpConfig.secure : (process.env.SMTP_SECURE === 'true');
-      const user = smtpConfig?.user || process.env.SMTP_USER || process.env.EMAIL_USER;
-      const pass = smtpConfig?.pass || process.env.SMTP_PASS || process.env.EMAIL_PASS;
-      const from = smtpConfig?.from || smtpConfig?.user || process.env.SMTP_FROM || process.env.SMTP_USER || process.env.EMAIL_USER;
-
-      if (!user || !pass) {
-         return res.status(500).json({ error: 'SMTP credentials are not configured.' });
-      }
-
-      const transporter = nodemailer.createTransport({
-        host,
-        port,
-        secure,
-        auth: {
-          user,
-          pass,
-        },
-      });
-
-      const mailOptions = {
-        from,
-        to,
-        subject,
-        text,
-        html,
-      };
-
-      const info = await transporter.sendMail(mailOptions);
-      console.log('Message sent: %s', info.messageId);
-      res.status(200).json({ success: true, messageId: info.messageId });
+      const result = await handleEmailDispatch(req.body || {});
+      return res.status(result.httpStatus).json(result.body);
     } catch (error) {
-      console.error('Error sending email:', error);
-      res.status(500).json({ error: 'Failed to send email', details: error instanceof Error ? error.message : String(error) });
+      console.error('Error in /api/send-email:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to send email',
+        details: error instanceof Error ? error.message : String(error),
+      });
     }
   });
 

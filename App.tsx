@@ -154,9 +154,16 @@ import {
   getSynchronousStaffSummaries,
   persistStaffData,
   fetchSingleStaffProfile,
+  markLiveStaffListSynced,
   ACTIVE_PROFILE_KEY,
   STAFF_SUMMARIES_KEY,
 } from "./services/profileCacheService";
+import {
+  buildStaffDiffPatch,
+  sanitizeOversizedMediaInPatch,
+  isSyntheticFallbackStaffId,
+  DuplicateSyncGuard,
+} from "./services/staffSyncOptimizer";
 
 localforage.config({
   name: 'AIS_App_DB',
@@ -250,7 +257,10 @@ Storage.prototype.setItem = function (key: string, value: string) {
              for (const node of Object.keys(queue)) {
                for (const id of Object.keys(queue[node])) {
                   const item = queue[node][id];
-                  if (item && typeof item === 'object') {
+                  if (typeof item === 'string' && (id.endsWith('/photo') || id.endsWith('/imageUrl'))) {
+                    queue[node][id] = null;
+                    strippedAny = true;
+                  } else if (item && typeof item === 'object') {
                     if (item.imageUrl) { item.imageUrl = null; strippedAny = true; }
                     if (item.voucherImage) { item.voucherImage = null; strippedAny = true; }
                     if (item.photo) { item.photo = null; strippedAny = true; }
@@ -393,6 +403,12 @@ const App: React.FC = () => {
       preferredFirstNameOnly: true,
     }),
   );
+  const currentUserRef = useRef<string | null>(currentUser);
+  currentUserRef.current = currentUser;
+  const cachedUserProfileRef = useRef<CachedUserProfile | null>(cachedUserProfile);
+  cachedUserProfileRef.current = cachedUserProfile;
+  const duplicateSyncGuardRef = useRef<DuplicateSyncGuard>(new DuplicateSyncGuard(1500));
+  const lastVisitPointDispatchRef = useRef<number>(0);
   const [billEntryOpenTrigger, setBillEntryOpenTrigger] = useState<number>(() => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
@@ -566,16 +582,39 @@ const App: React.FC = () => {
       expenses: { name: 'Bills & Expenses View', category: 'bills' },
       products: { name: 'Product Catalog View', category: 'catalog' },
       'bulk-advance': { name: 'Bulk Advance View', category: 'ledger' },
-      'system-health': { name: 'System Health Diagnostic', category: 'dashboard' },
+      'system-health': { name: 'System Health View', category: 'dashboard' },
     };
 
     const target = tabCategoryMap[activeTab];
     if (!target) return;
 
+    // Never measure UI frame render timing while the tab/window is backgrounded
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+      return;
+    }
+
     const startTime = performance.now();
     let rafId: number | null = null;
+    let aborted = false;
+
+    const handleVisibilityAbort = () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+        aborted = true;
+        if (rafId !== null && typeof cancelAnimationFrame === 'function') {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
+      }
+    };
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityAbort);
+    }
+
     if (typeof requestAnimationFrame === 'function') {
       rafId = requestAnimationFrame(() => {
+        if (aborted) return;
+        if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
         const measuredMs = Math.max(0, performance.now() - startTime);
         perf.recordDirectMetric({
           action: target.name,
@@ -596,12 +635,18 @@ const App: React.FC = () => {
     }
 
     return () => {
+      aborted = true;
       if (rafId !== null && typeof cancelAnimationFrame === 'function') {
         cancelAnimationFrame(rafId);
+      }
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityAbort);
       }
     };
   }, [activeTab]);
   const [isFirebaseLoaded, setIsFirebaseLoaded] = useState(false);
+  const isFirebaseLoadedRef = useRef<boolean>(false);
+  isFirebaseLoadedRef.current = isFirebaseLoaded;
   const [isFinancialLive, setIsFinancialLive] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isWhatsappSummaryModalOpen, setIsWhatsappSummaryModalOpen] = useState(false);
@@ -738,9 +783,11 @@ const App: React.FC = () => {
           setCachedUserProfile((prev) => prev || idbProfile);
         }
 
-        if (staffData) {
+        if (staffData && !isFirebaseLoadedRef.current) {
           const parsed = typeof staffData === "string" ? JSON.parse(staffData) : staffData;
-          if (Array.isArray(parsed) && parsed.length > 0) setStaffList(parsed);
+          if (Array.isArray(parsed) && parsed.length > 0 && !isFirebaseLoadedRef.current) {
+            setStaffList(parsed);
+          }
         }
         if (expData && typeof expData === "string") {
           const parsed = JSON.parse(expData);
@@ -1554,13 +1601,15 @@ const App: React.FC = () => {
           )
         );
 
-        // Staff List (Needed for Login)
+        // Staff List (Single shared real-time listener)
         publicUnsubs.push(
           onValue(
             ref(dbInstance, "staffList"),
             (snapshot) => {
               if (snapshot.exists()) {
                 const data = cleanArray(snapshot.val()) as Staff[];
+                markLiveStaffListSynced(true);
+                isFirebaseLoadedRef.current = true;
                 setStaffList(data);
                 setIsFirebaseLoaded(true);
 
@@ -1569,12 +1618,14 @@ const App: React.FC = () => {
                   console.warn("Failed to persist staff cache", err)
                 );
 
-                // If current user is logged in, find and persist their active profile
-                if (currentUser) {
+                // Use live refs so profile stays fresh even after mid-session login
+                const activeUser = currentUserRef.current;
+                const activeCachedProfile = cachedUserProfileRef.current;
+                if (activeUser) {
                   const match = data.find(
                     (s) =>
-                      s.name === currentUser ||
-                      (cachedUserProfile && s.id === cachedUserProfile.id)
+                      s.name === activeUser ||
+                      (activeCachedProfile && s.id === activeCachedProfile.id)
                   );
                   if (match) {
                     persistUserProfile(match, "UP_TO_DATE")
@@ -1644,22 +1695,37 @@ const App: React.FC = () => {
   }, [firebaseConfig]);
 
   // --- EFFECT: Priority Background Direct Profile Fetch ---
-  // When an active profile is known, fetch it directly in the background
-  // without waiting for the entire staff collection to finish loading.
+  // Runs only if full staffList listener hasn't resolved yet, using non-blocking ETag REST
+  // + in-flight deduplication so it never times out behind WebSocket startup congestion.
   useEffect(() => {
-    if (!firebaseConfig || !firebaseConfig.databaseURL || !currentUser) return;
+    if (!firebaseConfig || !currentUser || isFirebaseLoaded || isFirebaseLoadedRef.current) return;
     const targetId = cachedUserProfile?.id;
-    if (!targetId || isFirebaseLoaded) return;
+    if (!targetId || isSyntheticFallbackStaffId(targetId, staffList)) return;
 
     let isMounted = true;
     setCachedUserProfile((prev) => (prev ? { ...prev, syncStatus: "UPDATING" } : null));
 
-    fetchSingleStaffProfile(targetId, firebaseConfig)
+    fetchSingleStaffProfile(targetId, firebaseConfig, { cachedProfile: cachedUserProfile })
       .then((directStaff) => {
-        if (directStaff && isMounted) {
+        if (!isMounted) return;
+        if (directStaff) {
+          if (!isFirebaseLoadedRef.current) {
+            setStaffList((prev) => {
+              if (!Array.isArray(prev) || prev.length === 0) return [directStaff];
+              const idx = prev.findIndex((s) => s && s.id === directStaff.id);
+              if (idx >= 0) {
+                const updated = [...prev];
+                updated[idx] = { ...prev[idx], ...directStaff };
+                return updated;
+              }
+              return [...prev, directStaff];
+            });
+          }
           persistUserProfile(directStaff, "UP_TO_DATE").then((updated) => {
             if (isMounted) setCachedUserProfile(updated);
           });
+        } else if (isFirebaseLoadedRef.current) {
+          setCachedUserProfile((prev) => (prev ? { ...prev, syncStatus: "UP_TO_DATE" } : null));
         }
       })
       .catch((err) => {
@@ -1960,6 +2026,7 @@ const App: React.FC = () => {
       storageData = cleaned.map((item: any) => { const { image, ...rest } = item; return rest; });
     } else if (node === "staffList") {
       storageData = cleaned.map((item: any) => { const { photo, ...rest } = item; return rest; });
+      persistStaffData(cleaned as Staff[]).catch(() => {});
     } else if (node === "app_notes") {
       storageData = cleaned.map((item: any) => { const { imageUrl, imageUrls, ...rest } = item; return rest; });
     }
@@ -1996,61 +2063,45 @@ const App: React.FC = () => {
             ? JSON.parse(JSON.stringify(cleanArray(prevData)))
             : [];
 
-          const dataToSave: any = {};
+          let dataToSave: any = {};
 
-          // Create a map for O(1) lookups
-          const prevDataMap = new Map(safePrevData.map((p: any) => [p.id, p]));
-          const newDataMap = new Map(safeData.map((c: any) => [c.id, c]));
+          if (node === "staffList") {
+            // Minimal field-level diff patch avoids re-uploading unchanged 40KB base64 photos
+            dataToSave = buildStaffDiffPatch(safeData, safePrevData).patch;
+          } else {
+            // Create a map for O(1) lookups
+            const prevDataMap = new Map(safePrevData.map((p: any) => [p.id, p]));
 
-          // Find items that were added or modified
-          safeData.forEach((curr: any) => {
-            const prevItem = prevDataMap.get(curr.id);
-            if (
-              !prevItem ||
-              (prevItem !== curr && JSON.stringify(prevItem) !== JSON.stringify(curr))
-            ) {
-              const id = curr.id || Math.random().toString(36).substr(2, 9);
-              curr.id = id;
-              if (curr.isHardDeleted) {
-                dataToSave[id] = null;
-              } else {
-                dataToSave[id] = curr;
+            // Find items that were added or modified
+            safeData.forEach((curr: any) => {
+              const prevItem = prevDataMap.get(curr.id);
+              if (
+                !prevItem ||
+                (prevItem !== curr && JSON.stringify(prevItem) !== JSON.stringify(curr))
+              ) {
+                const id = curr.id || Math.random().toString(36).substr(2, 9);
+                curr.id = id;
+                if (curr.isHardDeleted) {
+                  dataToSave[id] = null;
+                } else {
+                  dataToSave[id] = curr;
+                }
               }
-            }
-          });
+            });
+          }
 
           // Disable dangerous array-difference deletion! 
           // If a React closure accidentally drops an item, we should NOT delete it from the cloud.
           // Deletions MUST be explicit via 'isHardDeleted: true'.
 
           if (Object.keys(dataToSave).length > 0) {
+            // Prevent duplicate identical StrictMode / rapid double-trigger writes
+            if (duplicateSyncGuardRef.current.shouldSkip(node, dataToSave)) {
+              return;
+            }
+
             // Safety check: Prevent sync of massive base64 strings
-            Object.keys(dataToSave).forEach((key) => {
-              const item = dataToSave[key];
-              if (item) {
-                if (
-                  item.imageUrl &&
-                  typeof item.imageUrl === "string" &&
-                  item.imageUrl.length > 8 * 1024 * 1024
-                ) {
-                  item.imageUrl = null; // Drop the oversized image
-                }
-                if (
-                  item.photo &&
-                  typeof item.photo === "string" &&
-                  item.photo.length > 8 * 1024 * 1024
-                ) {
-                  item.photo = null;
-                }
-                if (item.imageUrls && Array.isArray(item.imageUrls)) {
-                  item.imageUrls = item.imageUrls
-                    .map((url: string) =>
-                      url && url.length > 8 * 1024 * 1024 ? null : url,
-                    )
-                    .filter(Boolean);
-                }
-              }
-            });
+            sanitizeOversizedMediaInPatch(dataToSave);
 
             // ALWAYS add to offline queue FIRST
             const queue = JSON.parse(safeGetItem("offline_sync_queue") || "{}");
@@ -2082,6 +2133,7 @@ const App: React.FC = () => {
                 safeSetItem("offline_sync_queue", JSON.stringify(currentQueue));
               }
             } catch (err: any) {
+              duplicateSyncGuardRef.current.clear(node, dataToSave);
               console.error(`Sync failed for ${node}:`, err);
               systemHealth.markSyncFailed(err?.message || `Sync failed for ${node}`);
               setCloudError("Sync Failed");
@@ -2293,7 +2345,11 @@ const App: React.FC = () => {
         ? new Date(staff.lastVisitTime).getTime()
         : 0;
 
-      if (nowTs - lastVisit > 600000) {
+      if (
+        nowTs - lastVisit > 600000 &&
+        nowTs - lastVisitPointDispatchRef.current > 600000
+      ) {
+        lastVisitPointDispatchRef.current = nowTs;
         const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
         setStaffList((prevList) => {
@@ -2463,7 +2519,8 @@ const App: React.FC = () => {
     return staffList.find((s) => s.name === currentUser && !s.isHardDeleted && !s.deletedAt) || null;
   }, [currentUser, staffList]);
 
-  // Sync FCM token on session restore as well as manual login when Notification permission is already granted
+  // Sync FCM token ONLY after live Firebase staffList is loaded so stripped boot summaries
+  // (where fcmToken is undefined) never trigger spurious staffList sync writes.
   const fcmSyncAttemptedRef = useRef<string | null>(null);
   useEffect(() => {
     if (
@@ -2472,6 +2529,7 @@ const App: React.FC = () => {
       role === UserRole.GUEST ||
       role === UserRole.KIOSK ||
       !isCloudEnabled ||
+      !isFirebaseLoaded ||
       !firebaseConfig?.apiKey ||
       !myStaffProfile
     ) {
@@ -2498,7 +2556,7 @@ const App: React.FC = () => {
         }
       })
       .catch(() => {});
-  }, [currentUser, role, isCloudEnabled, firebaseConfig, myStaffProfile]);
+  }, [currentUser, role, isCloudEnabled, isFirebaseLoaded, firebaseConfig, myStaffProfile]);
 
   const sendReminderActionToServer = useCallback(
     async (action: ReminderActionType) => {
@@ -3214,23 +3272,11 @@ const App: React.FC = () => {
         s.email.toLowerCase() === forgotEmail.trim().toLowerCase(),
     );
     if (staffMember) {
+      const nowIso = new Date().toISOString();
       const updatedStaffList = staffList.map((s) =>
-        s.id === staffMember.id ? { ...s, password: pwd } : s,
+        s.id === staffMember.id ? { ...s, password: pwd, updatedAt: nowIso } : s,
       );
       updateStaffList(updatedStaffList);
-
-      // Attempt to save to cloud directly just in case normal sync takes time
-      if (firebaseConfig && firebaseConfig.databaseURL) {
-        try {
-          const { getApp } = await import("firebase/app");
-          const { getDatabase, ref, set } = await import("firebase/database");
-          const app = getApp();
-          const db = getDatabase(app, firebaseConfig.databaseURL);
-          await set(ref(db, `staffList`), updatedStaffList);
-        } catch (err) {
-          console.error("Failed to sync password reset to cloud inline", err);
-        }
-      }
 
       alert(
         "পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে। এখন নতুন পাসওয়ার্ড দিয়ে লগইন করুন।",
@@ -3455,8 +3501,9 @@ const App: React.FC = () => {
           }
         }
 
-        // Request FCM Token for push notifications (Staff & Admin)
+        // Request FCM Token for push notifications once live staffList is loaded
         if (
+          isFirebaseLoadedRef.current &&
           firebaseConfig &&
           firebaseConfig.apiKey &&
           authenticatedUser!.role !== UserRole.KIOSK &&
