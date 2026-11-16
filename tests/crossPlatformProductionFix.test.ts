@@ -19,6 +19,7 @@ import {
   setTransporterFactoryForTest,
 } from '../services/emailTransportService';
 import {
+  prewarmEmailTransport,
   sendBillStatusEmailToStaff,
   sendFundAddedEmailToMD,
   sendOTPEmail,
@@ -555,6 +556,188 @@ async function runTests() {
   assert(avg(verSamples) < 25, '/api/app-version 10-sample average latency < 25ms');
   assert(avg(emailGetSamples) < 25, '/api/send-email GET 10-sample average latency < 25ms');
   assert(avg(storageProbeSamples) < 50, 'Isolated storage probe 10-sample average latency < 50ms');
+
+  // ---------------------------------------------------------------------------
+  // ISSUE 1 & 4: Sync Verification Restoration, Listener Tracking & Full Report
+  // ---------------------------------------------------------------------------
+  console.log('\n[Issue 1 & 4] Sync Verification, Listener Tracking & Final Health Report');
+
+  // Verify App.tsx offline queue & listener tracking integration
+  assert(
+    appTsxSrc.includes('systemHealth.markListenerSnapshot(') &&
+      appTsxSrc.includes('systemHealth.markListenerError(') &&
+      appTsxSrc.includes('forgotOtpExpiresAtRef') &&
+      appTsxSrc.includes('forgotOtpVerified') &&
+      appTsxSrc.includes('prewarmEmailTransport'),
+    'App.tsx tracks RTDB listener snapshots/errors, enforces OTP expiry & verification, and prewarms email transport',
+  );
+
+  // Verify listener error switches sync status to CRITICAL/DESYNCHRONIZED (distinct from UNKNOWN)
+  systemHealth.markListenerError('expenses', 'permission_denied test error');
+  const errSnap = await systemHealth.runSafeDiagnostics(undefined, { currentUser: 'TestAdmin', role: 'ADMIN' });
+  assert(
+    errSnap.sync.status === 'CRITICAL' &&
+      errSnap.sync.consistencyStatus === 'DESYNCHRONIZED' &&
+      errSnap.sync.verificationEvidence === 'FAILED' &&
+      errSnap.sync.listenerErrorCount >= 1,
+    'Listener error reports CRITICAL/DESYNCHRONIZED/FAILED (distinguished from UNKNOWN)',
+  );
+
+  // Clear listener error via fresh snapshot & record write ack
+  systemHealth.markListenerSnapshot('expenses', 12, 'sig_expenses_ok');
+  systemHealth.markSyncConfirmed('expenses');
+  const postAckSnap = await systemHealth.runSafeDiagnostics(undefined, { currentUser: 'TestAdmin', role: 'ADMIN' });
+  assert(
+    postAckSnap.sync.listenerErrorCount === 0 &&
+      postAckSnap.sync.activeListenerCount >= 1 &&
+      postAckSnap.sync.writeAckHealth === 'HEALTHY' &&
+      postAckSnap.sync.lifetimeSyncSuccessCount >= 1,
+    'Fresh listener snapshot clears listener error and tracks writeAckHealth + lifetimeSyncSuccessCount',
+  );
+
+  // Verify ZERO pending queue alone WITHOUT Firebase connection/verification remains UNVERIFIED / never CONSISTENT
+  assert(
+    postAckSnap.sync.consistencyStatus !== 'CONSISTENT',
+    'Offline/unconnected Firebase never falsely marks consistencyStatus as CONSISTENT even with 0 pending bills',
+  );
+
+  // Validate sanitized diagnostic report sections
+  const sanitizedReport = systemHealth.generateSanitizedReport();
+  assert(
+    sanitizedReport.includes('Real-Time Listener Health:') &&
+      sanitizedReport.includes('Cloud Write Acknowledgement Health:') &&
+      sanitizedReport.includes('Email & OTP Delivery Health') &&
+      sanitizedReport.includes('IndexedDB:') &&
+      sanitizedReport.includes('Active Incidents'),
+    'generateSanitizedReport includes all required Issue 4 sections (Firebase, Auth, Listeners, Write Ack, Queue, Sync, Email/OTP, API, IDB, Incidents)',
+  );
+
+  // ---------------------------------------------------------------------------
+  // ISSUE 2: OTP Stage Optimization, Cold vs Warm Pool Reuse, Rate Limit & Strict Accept
+  // ---------------------------------------------------------------------------
+  console.log('\n[Issue 2] Email OTP Stage Optimization, Pool Reuse, Rate Limit & True SMTP Check');
+
+  resetEmailTransportStateForTest();
+  const warmReqRes = createMockReqRes({ method: 'GET', query: { warm: 'true', host: '127.0.0.1' } });
+  await sendEmailHandler(warmReqRes.req, warmReqRes.res);
+  const warmOut = warmReqRes.result();
+  assert(
+    warmOut.statusCode === 200 && warmOut.body?.warm?.warmed === true && !JSON.stringify(warmOut.body).includes('pass'),
+    'GET /api/send-email?warm=true prewarms container safely without exposing credentials',
+  );
+
+  const otpSmtpServer = await startLocalSmtpMock();
+  try {
+    // Send 1st OTP (cold pool) then 2nd OTP (warm reused pool) through real local SMTP mock
+    const otp1Req = createMockReqRes({
+      method: 'POST',
+      body: {
+        to: 'otpuser@dependsourcing.com',
+        subject: 'OTP 1',
+        html: '<p>111111</p>',
+        kind: 'OTP',
+        deliveryMode: 'sync',
+        idempotencyKey: 'otp_bench_1',
+        smtpConfig: { host: '127.0.0.1', port: otpSmtpServer.port, secure: false, user: 'noreply@dependsourcing.com', pass: 'secret' },
+      },
+    });
+    await sendEmailHandler(otp1Req.req, otp1Req.res);
+    const r1 = otp1Req.result();
+
+    const otp2Req = createMockReqRes({
+      method: 'POST',
+      body: {
+        to: 'otpuser@dependsourcing.com',
+        subject: 'OTP 2',
+        html: '<p>222222</p>',
+        kind: 'OTP',
+        deliveryMode: 'sync',
+        idempotencyKey: 'otp_bench_2',
+        smtpConfig: { host: '127.0.0.1', port: otpSmtpServer.port, secure: false, user: 'noreply@dependsourcing.com', pass: 'secret' },
+      },
+    });
+    await sendEmailHandler(otp2Req.req, otp2Req.res);
+    const r2 = otp2Req.result();
+
+    assert(
+      r1.statusCode === 200 &&
+        r1.body?.smtpAccepted === true &&
+        typeof r1.body?.timings?.smtpConnectMs === 'number' &&
+        typeof r1.body?.timings?.smtpAcceptMs === 'number',
+      '1st OTP confirms real SMTP acceptance with granular coldStart/authVerify/smtpConnect/smtpAccept timings',
+    );
+    assert(
+      r2.statusCode === 200 &&
+        r2.body?.timings?.poolReused === true &&
+        r2.body?.timings?.coldStartMs === 0 &&
+        r2.body?.timings?.smtpConnectMs === 0,
+      '2nd OTP reuses warm pooled SMTP connection (poolReused=true, coldStartMs=0, smtpConnectMs=0)',
+    );
+
+    // Rate limit enforcement after 5 OTP sends in window
+    for (let k = 3; k <= 5; k++) {
+      const rx = createMockReqRes({
+        method: 'POST',
+        body: {
+          to: 'otpuser@dependsourcing.com',
+          subject: `OTP ${k}`,
+          html: `<p>${k}</p>`,
+          kind: 'OTP',
+          deliveryMode: 'sync',
+          idempotencyKey: `otp_bench_${k}`,
+          smtpConfig: { host: '127.0.0.1', port: otpSmtpServer.port, secure: false, user: 'noreply@dependsourcing.com', pass: 'secret' },
+        },
+      });
+      await sendEmailHandler(rx.req, rx.res);
+    }
+    const r6 = createMockReqRes({
+      method: 'POST',
+      body: {
+        to: 'otpuser@dependsourcing.com',
+        subject: 'OTP 6',
+        html: '<p>666666</p>',
+        kind: 'OTP',
+        deliveryMode: 'sync',
+        idempotencyKey: 'otp_bench_6',
+        smtpConfig: { host: '127.0.0.1', port: otpSmtpServer.port, secure: false, user: 'noreply@dependsourcing.com', pass: 'secret' },
+      },
+    });
+    await sendEmailHandler(r6.req, r6.res);
+    assert(
+      r6.result().statusCode === 429 && r6.result().body?.rateLimited === true,
+      'Server enforces per-recipient OTP rate limit (HTTP 429) beyond 5 sends in 15m window',
+    );
+  } finally {
+    await otpSmtpServer.close();
+  }
+
+  // Client sendOTPEmail MUST reject HTTP 200 if smtpAccepted / messageId / deduplicated are missing
+  const fake200Fetch = globalThis.fetch;
+  globalThis.fetch = (async (url: string) => {
+    if (String(url).includes('warm=true')) {
+      return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true }) } as any;
+    }
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ success: true, smtpAccepted: false }),
+    } as any;
+  }) as any;
+
+  const warmClientRes = await prewarmEmailTransport();
+  assert(warmClientRes.warmed === true, 'prewarmEmailTransport invokes GET /api/send-email?warm=true safely');
+
+  let rejectedUnverified200 = false;
+  try {
+    await sendOTPEmail('user@dependsourcing.com', '789012', 'TestUser');
+  } catch {
+    rejectedUnverified200 = true;
+  }
+  assert(
+    rejectedUnverified200 === true,
+    'sendOTPEmail rejects HTTP 200 responses that lack real SMTP acceptance / messageId confirmation',
+  );
+  globalThis.fetch = fake200Fetch;
 
   resetEmailTransportStateForTest();
   console.log('\n================================================');

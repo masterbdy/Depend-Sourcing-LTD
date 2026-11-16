@@ -141,6 +141,7 @@ export interface SystemHealthSnapshot {
     pendingCount: number;
     lastSuccessfulSync?: string;
     lastFailedSync?: string;
+    lastSyncError?: string;
     longestPendingMinutes?: number;
     successfulSyncCount: number;
     sessionSyncSuccessCount: number;
@@ -151,6 +152,24 @@ export interface SystemHealthSnapshot {
     duplicateWriteDetected: boolean;
     consistencyStatus: 'CONSISTENT' | 'PENDING_QUEUE' | 'DESYNCHRONIZED' | 'UNVERIFIED';
     consistencyDetail?: string;
+    counterScope: 'DEVICE_LOCAL' | 'CENTRALIZED';
+    verificationEvidence: 'WRITE_ACK' | 'READ_ONLY_VERIFICATION' | 'WRITE_AND_READ_VERIFIED' | 'FAILED' | 'NONE';
+    readOnlyVerifiedAt?: string;
+    activeListenerCount: number;
+    activeListenerNodes: string[];
+    lastListenerSnapshotAt?: string;
+    listenerErrorCount: number;
+    writeAckHealth: HealthStatus;
+  };
+  email: {
+    status: HealthStatus;
+    otpSamples: number;
+    otpAvgMs: number | null;
+    otpMinMs: number | null;
+    otpMaxMs: number | null;
+    slowOtpDetected: boolean;
+    emailFailedCount: number;
+    openIncidentCount: number;
   };
   server: {
     status: HealthStatus;
@@ -240,6 +259,8 @@ class SystemHealthService {
   private inFlightCallerCount: number = 0;
   private lastSyncConfirmedAt: string | null = null;
   private lastSyncFailedAt: string | null = null;
+  private lastSyncErrorMessage: string | null = null;
+  private lastReadOnlyVerifiedAt: string | null = null;
   private lastFbCheckAt: string | null = null;
   private sessionSyncSuccessCount: number = 0;
   private sessionSyncFailCount: number = 0;
@@ -248,6 +269,9 @@ class SystemHealthService {
   private syncSuccessCount: number = 0; // backward compatibility
   private syncFailCount: number = 0;    // backward compatibility
   private securityViolationsCount: number = 0;
+  private activeListenerSnapshots: Map<string, { lastSnapshotAt: string; itemCount: number; signature?: string }> = new Map();
+  private listenerErrors: Map<string, { at: string; message: string }> = new Map();
+  private lastListenerSnapshotAt: string | null = null;
 
   constructor() {
     this.loadPersistedState();
@@ -256,6 +280,7 @@ class SystemHealthService {
       window.addEventListener('offline', () => this.handleNetworkChange(false));
       window.addEventListener('bill-sync-updated', () => this.handleSyncUpdated());
       window.addEventListener('offline-sync-warning', () => this.handleSyncWarning());
+      void this.recoverSyncMetaFromIdb();
 
       (window as any).__SYSTEM_HEALTH__ = this;
     }
@@ -352,9 +377,61 @@ class SystemHealthService {
       if (this.lastFbCheckAt) {
         localStorage.setItem(STORAGE_KEYS.LAST_SUCCESSFUL_FB, this.lastFbCheckAt);
       }
+      // Async mirror of sync counters to isolated IDB store so counters survive storage pressure without overwriting non-zero history
+      void this.mirrorSyncMetaToIdb();
     } catch (e) {
       console.warn('[SystemHealth] Storage save warning', e);
     }
+  }
+
+  private async mirrorSyncMetaToIdb(): Promise<void> {
+    if (typeof window === 'undefined' || typeof indexedDB === 'undefined') return;
+    try {
+      await healthProbeIdb.setItem('__ais_sync_meta_backup_v1__', {
+        lifetimeSyncSuccessCount: this.lifetimeSyncSuccessCount,
+        lifetimeSyncFailCount: this.lifetimeSyncFailCount,
+        lastSyncConfirmedAt: this.lastSyncConfirmedAt,
+        lastSyncFailedAt: this.lastSyncFailedAt,
+        updatedAt: Date.now(),
+      });
+    } catch {}
+  }
+
+  private async recoverSyncMetaFromIdb(): Promise<void> {
+    if (typeof window === 'undefined' || typeof indexedDB === 'undefined') return;
+    try {
+      const backup: any = await healthProbeIdb.getItem('__ais_sync_meta_backup_v1__');
+      if (!backup || typeof backup !== 'object') return;
+      let changed = false;
+      if (Number(backup.lifetimeSyncSuccessCount || 0) > this.lifetimeSyncSuccessCount) {
+        this.lifetimeSyncSuccessCount = Number(backup.lifetimeSyncSuccessCount);
+        this.syncSuccessCount = this.lifetimeSyncSuccessCount;
+        changed = true;
+      }
+      if (Number(backup.lifetimeSyncFailCount || 0) > this.lifetimeSyncFailCount) {
+        this.lifetimeSyncFailCount = Number(backup.lifetimeSyncFailCount);
+        this.syncFailCount = this.lifetimeSyncFailCount;
+        changed = true;
+      }
+      if (!this.lastSyncConfirmedAt && typeof backup.lastSyncConfirmedAt === 'string') {
+        this.lastSyncConfirmedAt = backup.lastSyncConfirmedAt;
+        changed = true;
+      }
+      if (!this.lastSyncFailedAt && typeof backup.lastSyncFailedAt === 'string') {
+        this.lastSyncFailedAt = backup.lastSyncFailedAt;
+        changed = true;
+      }
+      if (changed) {
+        try {
+          localStorage.setItem(STORAGE_KEYS.LIFETIME_SYNC_SUCCESS, String(this.lifetimeSyncSuccessCount));
+          localStorage.setItem(STORAGE_KEYS.LIFETIME_SYNC_FAIL, String(this.lifetimeSyncFailCount));
+          localStorage.setItem(STORAGE_KEYS.SYNC_SUCCESS_COUNT, String(this.lifetimeSyncSuccessCount));
+          localStorage.setItem(STORAGE_KEYS.SYNC_FAIL_COUNT, String(this.lifetimeSyncFailCount));
+          if (this.lastSyncConfirmedAt) localStorage.setItem(STORAGE_KEYS.LAST_SUCCESSFUL_SYNC, this.lastSyncConfirmedAt);
+          if (this.lastSyncFailedAt) localStorage.setItem(STORAGE_KEYS.LAST_FAILED_SYNC, this.lastSyncFailedAt);
+        } catch {}
+      }
+    } catch {}
   }
 
   public getThresholds(): PerfThresholds {
@@ -561,6 +638,7 @@ class SystemHealthService {
   public markSyncConfirmed(nodeOrBillId?: string) {
     const now = new Date().toISOString();
     this.lastSyncConfirmedAt = now;
+    this.lastSyncErrorMessage = null;
     this.sessionSyncSuccessCount += 1;
     this.lifetimeSyncSuccessCount += 1;
     this.syncSuccessCount = this.lifetimeSyncSuccessCount;
@@ -579,10 +657,36 @@ class SystemHealthService {
 
   public markSyncFailed(errorMsg: string) {
     this.lastSyncFailedAt = new Date().toISOString();
+    this.lastSyncErrorMessage = String(errorMsg || 'Sync failed').slice(0, 240);
     this.sessionSyncFailCount += 1;
     this.lifetimeSyncFailCount += 1;
     this.syncFailCount = this.lifetimeSyncFailCount;
     this.persistState();
+  }
+
+  public markListenerSnapshot(node: string, itemCount: number, signature?: string) {
+    const now = new Date().toISOString();
+    this.activeListenerSnapshots.set(node, {
+      lastSnapshotAt: now,
+      itemCount,
+      signature,
+    });
+    this.listenerErrors.delete(node);
+    this.lastListenerSnapshotAt = now;
+  }
+
+  public markListenerError(node: string, errorMsg: string) {
+    const now = new Date().toISOString();
+    this.listenerErrors.set(node, {
+      at: now,
+      message: String(errorMsg || `Listener failed for ${node}`).slice(0, 200),
+    });
+    this.logEvent({
+      type: 'SYNC_STATUS',
+      severity: 'WARNING',
+      service: 'Firebase',
+      summary: `Listener error on ${node}: ${String(errorMsg || 'unknown').slice(0, 120)}`,
+    });
   }
 
   public recordSecurityViolation(reason: string) {
@@ -1534,13 +1638,14 @@ class SystemHealthService {
         fbReadError,
       } = fbRes;
 
-      // 5. Cloud Sync Verification & Duplicate-Write Detection
+      // 5. Cloud Sync Verification & Duplicate-Write Detection (strictly read-only, zero financial writes)
       const syncStartIso = new Date().toISOString();
       const syncStartPerf = performance.now();
       const pendingCount = getUnsyncedBillCount();
       let syncStatus: HealthStatus = 'UNKNOWN';
       let longestPendingMinutes: number | undefined;
       let duplicateWriteDetected = false;
+      let hasFailedBillsInQueue = false;
       let consistencyStatus: SystemHealthSnapshot['sync']['consistencyStatus'] = 'UNVERIFIED';
       let consistencyDetail = '';
 
@@ -1558,6 +1663,8 @@ class SystemHealthService {
               longestPendingMinutes = Math.max(0, Math.round((Date.now() - oldest) / (1000 * 60)));
             }
 
+            hasFailedBillsInQueue = bills.some((b) => b?.syncStatus === 'FAILED');
+
             // Check for duplicate clientSubmissionId in queue
             const ids = new Set<string>();
             for (const b of bills) {
@@ -1573,32 +1680,114 @@ class SystemHealthService {
         }
       } catch {}
 
-      if (this.lastSyncConfirmedAt) {
-        if (pendingCount === 0) {
-          syncStatus = 'HEALTHY';
-          consistencyStatus = 'CONSISTENT';
-          consistencyDetail = 'সকল অফলাইন রেকর্ড সফলভাবে ক্লাউডের সাথে সমন্বিত (০ কিউ)';
-        } else {
-          syncStatus = pendingCount > 15 ? 'DEGRADED' : 'WARNING';
-          consistencyStatus = 'PENDING_QUEUE';
-          consistencyDetail = `${pendingCount} টি এন্ট্রি সার্ভারে সিঙ্ক হওয়ার অপেক্ষায়`;
-        }
+      // Safe read-only cloud verification check:
+      // 1. Live RTDB listeners received fresh snapshots OR
+      // 2. If connected to RTDB without listener snapshots yet, verify read-only snapshot on safe node ('staffList')
+      let readOnlyVerified = this.activeListenerSnapshots.size > 0 && this.listenerErrors.size === 0 && fbConnected;
+      if (!readOnlyVerified && isOnline && fbConnected && dbUrl && !fbReadTimedOut && !fbReadError) {
+        try {
+          const apps = getApps();
+          const app = apps.length > 0 ? getApp() : null;
+          if (app) {
+            const db = getDatabase(app, dbUrl);
+            const roCheck = await this.probeFirebaseInfoRead(db, 'staffList', 1500);
+            if (roCheck.ok) {
+              readOnlyVerified = true;
+              const valArr = Array.isArray(roCheck.value)
+                ? roCheck.value.filter(Boolean)
+                : roCheck.value && typeof roCheck.value === 'object'
+                ? Object.values(roCheck.value).filter(Boolean)
+                : [];
+              this.markListenerSnapshot('staffList', valArr.length);
+            }
+          }
+        } catch {}
+      }
+
+      if (readOnlyVerified) {
+        this.lastReadOnlyVerifiedAt = new Date().toISOString();
+      }
+
+      const lastWriteFailNewerThanSuccess =
+        Boolean(this.lastSyncFailedAt) &&
+        (!this.lastSyncConfirmedAt ||
+          new Date(this.lastSyncFailedAt!).getTime() > new Date(this.lastSyncConfirmedAt).getTime());
+
+      const hasExplicitSyncFailure =
+        duplicateWriteDetected ||
+        hasFailedBillsInQueue ||
+        this.listenerErrors.size > 0 ||
+        (lastWriteFailNewerThanSuccess && !readOnlyVerified);
+
+      const hasWriteAck = Boolean(this.lastSyncConfirmedAt);
+      const verificationEvidence: SystemHealthSnapshot['sync']['verificationEvidence'] =
+        hasExplicitSyncFailure
+          ? 'FAILED'
+          : hasWriteAck && readOnlyVerified
+          ? 'WRITE_AND_READ_VERIFIED'
+          : hasWriteAck
+          ? 'WRITE_ACK'
+          : readOnlyVerified
+          ? 'READ_ONLY_VERIFICATION'
+          : 'NONE';
+
+      const writeAckHealth: HealthStatus = lastWriteFailNewerThanSuccess
+        ? 'DEGRADED'
+        : hasWriteAck
+        ? 'HEALTHY'
+        : isOnline
+        ? 'UNKNOWN'
+        : 'OFFLINE';
+
+      if (hasExplicitSyncFailure) {
+        syncStatus = duplicateWriteDetected || this.listenerErrors.size > 0 ? 'CRITICAL' : 'DEGRADED';
+        consistencyStatus = 'DESYNCHRONIZED';
+        const reason = duplicateWriteDetected
+          ? 'ডুপ্লিকেট সিঙ্ক আইডি শনাক্ত হয়েছে'
+          : this.listenerErrors.size > 0
+          ? `রিয়েল-টাইম লিসেনার ত্রুটি (${this.listenerErrors.size} নোড)`
+          : hasFailedBillsInQueue
+          ? 'অফলাইন কিউতে ব্যর্থ বিল রয়েছে'
+          : this.lastSyncErrorMessage || 'সর্বশেষ ক্লাউড রাইট ব্যর্থ হয়েছে';
+        consistencyDetail = `সিঙ্ক ব্যর্থ/অসামঞ্জস্যপূর্ণ: ${reason}`;
+      } else if (pendingCount > 0) {
+        syncStatus = pendingCount > 15 ? 'DEGRADED' : 'WARNING';
+        consistencyStatus = 'PENDING_QUEUE';
+        consistencyDetail = `${pendingCount} টি এন্ট্রি সার্ভারে সিঙ্ক হওয়ার অপেক্ষায়`;
+      } else if (
+        isOnline &&
+        fbConnected &&
+        !fbReadTimedOut &&
+        !fbReadError &&
+        (hasWriteAck || readOnlyVerified)
+      ) {
+        syncStatus = 'HEALTHY';
+        consistencyStatus = 'CONSISTENT';
+        consistencyDetail = hasWriteAck
+          ? 'ক্লাউড রাইট অ্যাকনলেজমেন্ট ও ০ পেন্ডিং কিউ দ্বারা সমন্বয় যাচাইকৃত'
+          : 'রিড-ওনলি লাইভ স্ন্যাপশট ও ০ পেন্ডিং কিউ দ্বারা ক্লাউড সামঞ্জস্যতা যাচাইকৃত';
       } else {
-        syncStatus = pendingCount > 0 ? 'WARNING' : 'UNKNOWN';
+        syncStatus = !isOnline ? 'OFFLINE' : 'UNKNOWN';
         consistencyStatus = 'UNVERIFIED';
-        consistencyDetail = 'ক্লাউড সিঙ্ক এখনো যাচাই করা হয়নি (Unverified)';
+        consistencyDetail = !isOnline
+          ? 'ডিভাইস অফলাইন থাকায় ক্লাউড সামঞ্জস্যতা যাচাই সম্ভব হয়নি'
+          : 'কোনো রাইট অ্যাকনলেজমেন্ট বা সক্রিয় স্ন্যাপশট প্রমাণ না থাকায় ক্লাউড সিঙ্ক আনভেরিফাইড (Unknown)';
       }
 
       probes.push({
         probe: 'syncQueue',
-        label: 'Offline Sync Queue Inspect',
+        label: 'Offline Sync Queue & Cloud Verification',
         startTimeIso: syncStartIso,
         endTimeIso: new Date().toISOString(),
         durationMs: Number((performance.now() - syncStartPerf).toFixed(1)),
         timeoutMs: null,
         timedOut: false,
         status: syncStatus,
-        error: duplicateWriteDetected ? 'Duplicate clientSubmissionId detected in queue' : undefined,
+        error: duplicateWriteDetected
+          ? 'Duplicate clientSubmissionId detected in queue'
+          : this.listenerErrors.size > 0
+          ? `Listener error on ${Array.from(this.listenerErrors.keys()).join(', ')}`
+          : undefined,
       });
 
       // Record this real diagnostic run in perf BEFORE taking overall perf summary
@@ -1739,7 +1928,28 @@ class SystemHealthService {
         securityStatus = 'WARNING';
       }
 
-      // 8. Overall System Status Determination
+      // 8. Email & OTP Delivery Health Assessment (strictly rejects false HEALTHY if OTP slow or email failing)
+      const otpOp = perfSummary.byAction['Send Email OTP'];
+      const otpSamples = otpOp?.count || 0;
+      const otpAvgMs = otpOp ? otpOp.avgTotal : null;
+      const otpMinMs = otpOp ? otpOp.minTotal : null;
+      const otpMaxMs = otpOp ? otpOp.maxTotal : null;
+      const slowOtpDetected = Boolean(otpOp && otpOp.avgTotal > this.thresholds.slowMs);
+      const emailFailedCount =
+        (perfSummary.byAction['Send Email OTP']?.failedCount || 0) +
+        (perfSummary.byAction['Send Bill Status Email']?.failedCount || 0) +
+        (perfSummary.byAction['Send Fund Email']?.failedCount || 0);
+      const openEmailIncidentCount = this.incidents.filter(
+        (i) => i.type === 'EMAIL_DELIVERY_FAILURE' && i.status !== 'RESOLVED'
+      ).length;
+      const emailHealthStatus: HealthStatus =
+        openEmailIncidentCount > 0 || emailFailedCount > 0 || slowOtpDetected
+          ? 'DEGRADED'
+          : serverDiag.available
+          ? 'HEALTHY'
+          : 'DEGRADED';
+
+      // 9. Overall System Status Determination
       const openIncidents = this.incidents.filter((i) => i.status !== 'RESOLVED');
       const criticalIncidents = openIncidents.filter((i) => i.severity === 'CRITICAL');
       const warningIncidents = openIncidents.filter((i) => i.severity === 'WARNING');
@@ -1748,18 +1958,26 @@ class SystemHealthService {
 
       if (!isOnline) {
         overallStatus = 'OFFLINE';
-      } else if (!indexedDbAvailable || !localStorageAvailable || criticalIncidents.length > 0) {
+      } else if (!indexedDbAvailable || !localStorageAvailable || criticalIncidents.length > 0 || syncStatus === 'CRITICAL') {
         overallStatus = 'CRITICAL';
       } else if (fbStatus === 'UNAVAILABLE') {
         overallStatus = 'CRITICAL';
-      } else if (fbStatus !== 'HEALTHY' || !serverDiag.available || pendingCount > 10 || warningIncidents.length > 0) {
-        // Optional backend failure or pending queue makes overall app DEGRADED, NOT CRITICAL!
-        overallStatus = 'DEGRADED';
-      } else if (syncStatus === 'UNKNOWN') {
+      } else if (
+        fbStatus !== 'HEALTHY' ||
+        !serverDiag.available ||
+        pendingCount > 10 ||
+        warningIncidents.length > 0 ||
+        syncStatus === 'DEGRADED' ||
+        syncStatus === 'UNKNOWN' ||
+        slowOtpDetected ||
+        openEmailIncidentCount > 0
+      ) {
         overallStatus = 'DEGRADED';
       } else {
         overallStatus = 'HEALTHY';
       }
+
+      const activeListenerNodes = Array.from(this.activeListenerSnapshots.keys());
 
       const snapshot: SystemHealthSnapshot = {
         overallStatus,
@@ -1794,6 +2012,7 @@ class SystemHealthService {
           pendingCount,
           lastSuccessfulSync: this.lastSyncConfirmedAt || undefined,
           lastFailedSync: this.lastSyncFailedAt || undefined,
+          lastSyncError: this.lastSyncErrorMessage || undefined,
           longestPendingMinutes,
           successfulSyncCount: this.lifetimeSyncSuccessCount,
           sessionSyncSuccessCount: this.sessionSyncSuccessCount,
@@ -1804,6 +2023,24 @@ class SystemHealthService {
           duplicateWriteDetected,
           consistencyStatus,
           consistencyDetail,
+          counterScope: 'DEVICE_LOCAL',
+          verificationEvidence,
+          readOnlyVerifiedAt: this.lastReadOnlyVerifiedAt || undefined,
+          activeListenerCount: activeListenerNodes.length,
+          activeListenerNodes,
+          lastListenerSnapshotAt: this.lastListenerSnapshotAt || undefined,
+          listenerErrorCount: this.listenerErrors.size,
+          writeAckHealth,
+        },
+        email: {
+          status: emailHealthStatus,
+          otpSamples,
+          otpAvgMs,
+          otpMinMs,
+          otpMaxMs,
+          slowOtpDetected,
+          emailFailedCount,
+          openIncidentCount: openEmailIncidentCount,
         },
         server: {
           status: serverDiag.status,
@@ -1973,15 +2210,22 @@ ${s?.firebase.error ? `- Firebase Diagnosis: ${s.firebase.error}\n` : ''}- Auth 
 ${s?.server.failureReason ? `- Backend Diagnosis: ${s.server.failureReason}\n` : ''}- LocalStorage: ${s?.storage.localStorageAvailable ? 'Available' : 'Unavailable'}
 - IndexedDB: ${s?.storage.indexedDbAvailable ? 'Available' : 'Unavailable'} (${s?.storage.latencyMs || 0}ms)
 
-## 2. Synchronization & Offline Queue
+## 2. Synchronization, Listeners & Offline Queue
 - Pending Offline Bills: ${s?.sync.pendingCount || 0}
 - Sync Status: ${s?.sync.status || 'UNKNOWN'}
 - Consistency Status: ${s?.sync.consistencyStatus || 'UNVERIFIED'} (${s?.sync.consistencyDetail || 'N/A'})
-- Last Confirmed Sync: ${s?.sync.lastSuccessfulSync || 'N/A'}
+- Verification Evidence: ${s?.sync.verificationEvidence || 'NONE'} (Counter Scope: ${s?.sync.counterScope || 'DEVICE_LOCAL'})
+- Real-Time Listener Health: Active Nodes=${s?.sync.activeListenerCount || 0} [${s?.sync.activeListenerNodes?.join(', ') || 'None'}] | Listener Errors=${s?.sync.listenerErrorCount || 0} | Last Snapshot=${s?.sync.lastListenerSnapshotAt || 'N/A'}
+- Cloud Write Acknowledgement Health: ${s?.sync.writeAckHealth || 'UNKNOWN'} | Last Confirmed Write Sync: ${s?.sync.lastSuccessfulSync || 'N/A'} | Read-Only Verified At: ${s?.sync.readOnlyVerifiedAt || 'N/A'}
+- Last Failed Sync: ${s?.sync.lastFailedSync || 'None'}${s?.sync.lastSyncError ? ` (${s.sync.lastSyncError})` : ''}
 - Longest Pending Queue Age: ${s?.sync.longestPendingMinutes !== undefined ? `${s.sync.longestPendingMinutes} mins` : 'N/A'}
 - Session Syncs: ${s?.sync.sessionSyncSuccessCount || 0} successful / ${s?.sync.sessionSyncFailCount || 0} failed
-- Lifetime Syncs: ${s?.sync.lifetimeSyncSuccessCount || s?.sync.successfulSyncCount || 0} successful / ${s?.sync.lifetimeSyncFailCount || s?.sync.failedSyncCount || 0} failed
+- Lifetime Syncs (Device): ${s?.sync.lifetimeSyncSuccessCount || s?.sync.successfulSyncCount || 0} successful / ${s?.sync.lifetimeSyncFailCount || s?.sync.failedSyncCount || 0} failed
 - Duplicate Writes Detected: ${s?.sync.duplicateWriteDetected ? 'YES' : 'NO'}
+
+## 2B. Email & OTP Delivery Health
+- Email Delivery Health: ${s?.email?.status || 'UNVERIFIED'} | Open Email Incidents: ${s?.email?.openIncidentCount || 0} | Failed Email Ops: ${s?.email?.emailFailedCount || 0}
+- OTP Latency (${s?.email?.otpSamples || 0} samples): Avg=${s?.email?.otpAvgMs !== null && s?.email?.otpAvgMs !== undefined ? `${s.email.otpAvgMs}ms` : 'N/A'} | Min=${s?.email?.otpMinMs !== null && s?.email?.otpMinMs !== undefined ? `${s.email.otpMinMs}ms` : 'N/A'} | Max=${s?.email?.otpMaxMs !== null && s?.email?.otpMaxMs !== undefined ? `${s.email.otpMaxMs}ms` : 'N/A'} | Slow OTP: ${s?.email?.slowOtpDetected ? 'YES (>3000ms)' : 'NO'}
 
 ### Last Diagnostic Run & Probe Breakdown
 - Total Diagnostic Duration: ${s?.diagnostics?.totalDurationMs ?? 0}ms (Parallel: ${s?.diagnostics?.parallelized ? 'YES' : 'NO'}, Deduplicated: ${s?.diagnostics?.deduplicatedInFlight ? 'YES' : 'NO'})

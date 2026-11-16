@@ -858,6 +858,7 @@ const App: React.FC = () => {
 
                 await update(ref(db, node), dataToSave);
                 processedAny = true;
+                systemHealth.markSyncConfirmed(node);
 
                 if (node === 'expenses') {
                   setExpenses(prev =>
@@ -886,6 +887,7 @@ const App: React.FC = () => {
             for (const node of Object.keys(simpleQueue)) {
               await set(ref(db, node), simpleQueue[node]);
               processedAny = true;
+              systemHealth.markSyncConfirmed(node);
 
               const currentSimpleQueue = JSON.parse(safeGetItem("offline_sync_queue_simple") || "{}");
               delete currentSimpleQueue[node];
@@ -909,8 +911,9 @@ const App: React.FC = () => {
               },
             );
           }
-        } catch (err) {
+        } catch (err: any) {
           console.error("Failed to process offline queue", err);
+          systemHealth.markSyncFailed(err?.message || "Offline queue sync failed");
         } finally {
           isFlushingOfflineQueueRef.current = false;
         }
@@ -1451,6 +1454,9 @@ const App: React.FC = () => {
   const [forgotNewPwd, setForgotNewPwd] = useState("");
   const [forgotError, setForgotError] = useState("");
   const [isForgotLoading, setIsForgotLoading] = useState(false);
+  const [forgotOtpVerified, setForgotOtpVerified] = useState(false);
+  const forgotOtpExpiresAtRef = useRef<number>(0);
+  const forgotOtpLastSentAtRef = useRef<number>(0);
 
   // LAZY INITIALIZATION FOR INSTANT DATA LOAD (Frame 0 Fast Boot)
   const [staffList, setStaffList] = useState<Staff[]>(() => {
@@ -1655,12 +1661,16 @@ const App: React.FC = () => {
               safeSetItem("products", JSON.stringify(compact));
               const serialized = JSON.stringify(data);
               const sig = computeSyncPayloadSignature(serialized);
+              systemHealth.markListenerSnapshot("products", data.length, sig);
               if (idbSignaturesRef.current.products !== sig) {
                 idbSignaturesRef.current.products = sig;
                 localforage.setItem("products", serialized).catch((e) => console.error("IDB save error:", e));
               }
             },
-            (err) => console.error(err),
+            (err) => {
+              console.error(err);
+              systemHealth.markListenerError("products", err?.message || "Products listener error");
+            },
           )
         );
 
@@ -1686,6 +1696,7 @@ const App: React.FC = () => {
 
                 // Persist full list to localforage ONLY when signature changed + lightweight summaries to localStorage
                 const sig = computeSyncPayloadSignature(data);
+                systemHealth.markListenerSnapshot("staffList", data.length, sig);
                 if (idbSignaturesRef.current.staffList !== sig) {
                   idbSignaturesRef.current.staffList = sig;
                   persistStaffData(data).catch((err) =>
@@ -1708,10 +1719,13 @@ const App: React.FC = () => {
                       .catch(console.error);
                   }
                 }
+              } else {
+                systemHealth.markListenerSnapshot("staffList", 0);
               }
             },
             (err) => {
               console.error(err);
+              systemHealth.markListenerError("staffList", err?.message || "staffList listener error");
               setCachedUserProfile((prev) =>
                 prev ? { ...prev, syncStatus: "OFFLINE" } : null
               );
@@ -1721,9 +1735,17 @@ const App: React.FC = () => {
 
         // Editors & Settings
         publicUnsubs.push(
-          onValue(ref(dbInstance, "productEditors"), (snapshot) => {
-            setProductEditors(snapshot.exists() ? cleanArray(snapshot.val()) : []);
-          })
+          onValue(
+            ref(dbInstance, "productEditors"),
+            (snapshot) => {
+              const editors = snapshot.exists() ? cleanArray(snapshot.val()) : [];
+              setProductEditors(editors);
+              systemHealth.markListenerSnapshot("productEditors", editors.length);
+            },
+            (err) => {
+              systemHealth.markListenerError("productEditors", err?.message || "productEditors listener error");
+            },
+          )
         );
 
         // App Settings & Logos
@@ -1975,12 +1997,16 @@ const App: React.FC = () => {
               // Deduplicate heavy multi-MB IDB writes so Android APK diagnostics never block behind unchanged snapshots
               const fullJson = JSON.stringify(arrayData);
               const sig = computeSyncPayloadSignature(fullJson);
+              systemHealth.markListenerSnapshot(node, arrayData.length, sig);
               if (idbSignaturesRef.current[node] !== sig) {
                 idbSignaturesRef.current[node] = sig;
                 localforage.setItem(node, fullJson).catch(e => console.error("IDB save error:", e));
               }
             },
-            (err) => console.error(`Sync error for ${node}:`, err),
+            (err) => {
+              console.error(`Sync error for ${node}:`, err);
+              systemHealth.markListenerError(node, err?.message || `Sync listener error for ${node}`);
+            },
           );
           unsubscribers.push(unsub);
         };
@@ -3300,6 +3326,14 @@ const App: React.FC = () => {
       return;
     }
 
+    const nowMs = Date.now();
+    if (nowMs - forgotOtpLastSentAtRef.current < 30000 && forgotOtpSent) {
+      const waitSec = Math.ceil((30000 - (nowMs - forgotOtpLastSentAtRef.current)) / 1000);
+      setForgotError(`অনুগ্রহ করে পুনরায় OTP পাঠানোর আগে ${waitSec} সেকেন্ড অপেক্ষা করুন।`);
+      setIsForgotLoading(false);
+      return;
+    }
+
     const staffMember = staffList.find(
       (s) => s && s.email && s.email.toLowerCase() === emailInput,
     );
@@ -3313,6 +3347,9 @@ const App: React.FC = () => {
     try {
       const { sendOTPEmail } = await import("./services/emailService");
       await sendOTPEmail(emailInput, otp, staffMember.name);
+      forgotOtpLastSentAtRef.current = Date.now();
+      forgotOtpExpiresAtRef.current = Date.now() + 5 * 60 * 1000;
+      setForgotOtpVerified(false);
       setForgotOtpSent(otp);
       setForgotMode("otp");
     } catch (err) {
@@ -3328,7 +3365,12 @@ const App: React.FC = () => {
   const handleForgotVerifyOTP = (e: React.FormEvent) => {
     e.preventDefault();
     setForgotError("");
+    if (!forgotOtpSent || Date.now() > forgotOtpExpiresAtRef.current) {
+      setForgotError("OTP কোডের মেয়াদ উত্তীর্ণ হয়েছে। অনুগ্রহ করে নতুন কোড নিন।");
+      return;
+    }
     if (forgotOtpInput.trim() === forgotOtpSent) {
+      setForgotOtpVerified(true);
       setForgotMode("new_password");
     } else {
       setForgotError("ভুল কনফার্মেশন কোড।");
@@ -3338,6 +3380,11 @@ const App: React.FC = () => {
   const handleForgotResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setForgotError("");
+    if (!forgotOtpVerified || !forgotOtpSent || Date.now() > forgotOtpExpiresAtRef.current + 5 * 60 * 1000) {
+      setForgotError("OTP যাচাইকরণ মেয়াদোত্তীর্ণ বা অসম্পূর্ণ। পুনরায় চেষ্টা করুন।");
+      setForgotMode("email");
+      return;
+    }
     setIsForgotLoading(true);
 
     const pwd = forgotNewPwd.trim();
@@ -3363,6 +3410,10 @@ const App: React.FC = () => {
       alert(
         "পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে। এখন নতুন পাসওয়ার্ড দিয়ে লগইন করুন।",
       );
+      setForgotOtpSent("");
+      setForgotOtpInput("");
+      setForgotOtpVerified(false);
+      forgotOtpExpiresAtRef.current = 0;
       setForgotMode("none");
       setLoginUsername(staffMember.name);
       setLoginPassword("");
@@ -4882,6 +4933,10 @@ const App: React.FC = () => {
                     setForgotMode("email");
                     setForgotError("");
                     setForgotEmail("");
+                    setForgotOtpVerified(false);
+                    import("./services/emailService")
+                      .then((m) => m.prewarmEmailTransport())
+                      .catch(() => {});
                   }}
                 >
                   পাসওয়ার্ড ভুলে গেছেন?

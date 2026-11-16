@@ -6,6 +6,7 @@ import {
   getEmailJobStatus,
   getEmailTransportSummary,
   handleEmailDispatch,
+  prewarmSmtpEnvironment,
   probeSmtpNetworkStages,
 } from './services/emailTransportService';
 import { validateLunchPolicy } from './services/lunchPolicyService';
@@ -960,6 +961,13 @@ Return ONLY valid JSON:
         return res.status(404).json({ ok: false, error: 'Email job not found', correlationId });
       }
       return res.status(200).json({ ok: true, job, correlationId });
+    }
+
+    if (req.query?.warm === 'true') {
+      const warm = await prewarmSmtpEnvironment(
+        typeof req.query?.host === 'string' ? req.query.host : undefined,
+      );
+      return res.status(200).json({ ok: true, warm, summary: getEmailTransportSummary(), correlationId });
     }
 
     if (req.query?.probe === 'true') {

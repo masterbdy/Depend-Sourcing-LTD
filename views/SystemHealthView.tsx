@@ -1008,14 +1008,35 @@ export const SystemHealthView: React.FC<SystemHealthViewProps> = ({
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span>সর্বমোট লাইফটাইম সিঙ্ক (Lifetime Syncs):</span>
+                  <span>সর্বমোট লাইফটাইম সিঙ্ক (Device Lifetime):</span>
                   <span className="font-mono font-bold text-emerald-600">
                     {snapshot?.sync.lifetimeSyncSuccessCount || snapshot?.sync.successfulSyncCount || 0} সফল / {snapshot?.sync.lifetimeSyncFailCount || snapshot?.sync.failedSyncCount || 0} ব্যর্থ
                   </span>
                 </div>
                 <div className="flex justify-between">
+                  <span>রিয়েল-টাইম লিসেনার স্বাস্থ্য:</span>
+                  <span className="font-mono font-bold text-slate-800 dark:text-white">
+                    {snapshot?.sync.activeListenerCount || 0} সক্রিয় নোড ({snapshot?.sync.listenerErrorCount || 0} ত্রুটি)
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>রাইট অ্যাকনলেজমেন্ট ও প্রমাণ:</span>
+                  <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                    {snapshot?.sync.writeAckHealth || 'UNKNOWN'} ({snapshot?.sync.verificationEvidence || 'NONE'})
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>ইমেইল ও OTP ডেলিভারি স্বাস্থ্য:</span>
+                  <span className={`font-mono font-bold ${snapshot?.email?.status === 'HEALTHY' ? 'text-emerald-600' : 'text-amber-600'}`}>
+                    {snapshot?.email?.status || 'UNVERIFIED'}
+                    {snapshot?.email?.otpAvgMs !== null && snapshot?.email?.otpAvgMs !== undefined
+                      ? ` (OTP Avg: ${snapshot.email.otpAvgMs}ms)`
+                      : ''}
+                  </span>
+                </div>
+                <div className="flex justify-between">
                   <span>সিঙ্ক সামঞ্জস্যতা বিবরণ:</span>
-                  <span className="text-slate-700 dark:text-slate-300 font-bold">{snapshot?.sync.consistencyDetail}</span>
+                  <span className="text-slate-700 dark:text-slate-300 font-bold text-right max-w-[240px]">{snapshot?.sync.consistencyDetail}</span>
                 </div>
               </div>
 

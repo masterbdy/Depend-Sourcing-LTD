@@ -632,10 +632,56 @@ if (typeof window !== 'undefined') {
   }, 4000);
 }
 
+let lastPrewarmAt = 0;
+
 /**
- * Sends OTP Email synchronously (Forgot Password flow expects delivery confirmation).
+ * Quietly warms Vercel/Express serverless function & SMTP DNS cache before OTP submit.
+ * Zero emails sent, zero credentials passed.
  */
-export const sendOTPEmail = async (email: string, otpCode: string, name: string) => {
+export async function prewarmEmailTransport(): Promise<{ warmed: boolean }> {
+  const now = Date.now();
+  if (now - lastPrewarmAt < 45000) return { warmed: true };
+  lastPrewarmAt = now;
+  try {
+    if (typeof fetch === 'undefined') return { warmed: false };
+    const cfg = getSmtpConfigSafe();
+    const hostParam = cfg?.host ? `&host=${encodeURIComponent(String(cfg.host))}` : '';
+    const res = await fetchWithTimeout(`/api/send-email?warm=true${hostParam}`, { method: 'GET' }, 3000);
+    return { warmed: Boolean(res?.ok) };
+  } catch {
+    return { warmed: false };
+  }
+}
+
+export interface OtpDispatchResult {
+  success: true;
+  smtpAccepted: true;
+  messageId: string;
+  correlationId: string;
+  deduplicated?: boolean;
+  timings: {
+    frontendPrepMs: number;
+    networkAndServerMs: number;
+    totalClientMs: number;
+    coldStartMs?: number;
+    authVerifyMs?: number;
+    smtpConnectMs?: number;
+    smtpAcceptMs?: number;
+    totalServerMs?: number;
+    poolReused?: boolean;
+  };
+}
+
+/**
+ * Sends OTP Email synchronously (Forgot Password flow expects verified SMTP delivery).
+ * Rejects even if HTTP 200 is returned without confirmed SMTP/idempotent acceptance.
+ */
+export const sendOTPEmail = async (
+  email: string,
+  otpCode: string,
+  name: string,
+): Promise<OtpDispatchResult> => {
+  const tClientStart = performance.now();
   const correlationId = generateCorrelationId();
   const subject = 'Password Reset OTP - Depend Sourcing Ltd';
   const html = `
@@ -653,7 +699,20 @@ export const sendOTPEmail = async (email: string, otpCode: string, name: string)
     </div>
   `;
 
+  const requestBodyStr = JSON.stringify({
+    to: email,
+    subject,
+    html,
+    smtpConfig: getSmtpConfigSafe() || null,
+    kind: 'OTP',
+    deliveryMode: 'sync',
+    idempotencyKey: `otp:${email.toLowerCase()}:${otpCode}`,
+    correlationId,
+  });
+  const frontendPrepMs = Number((performance.now() - tClientStart).toFixed(2));
+
   try {
+    const tNetStart = performance.now();
     const response = await perf.measure('Send Email OTP', 'api', async () => {
       return await fetchWithTimeout(
         '/api/send-email',
@@ -663,23 +722,15 @@ export const sendOTPEmail = async (email: string, otpCode: string, name: string)
             'Content-Type': 'application/json',
             'X-Correlation-ID': correlationId,
           },
-          body: JSON.stringify({
-            to: email,
-            subject,
-            html,
-            smtpConfig: getSmtpConfigSafe() || null,
-            kind: 'OTP',
-            deliveryMode: 'sync',
-            idempotencyKey: `otp:${email.toLowerCase()}:${otpCode}`,
-            correlationId,
-          }),
+          body: requestBodyStr,
         },
         DEFAULT_OTP_API_TIMEOUT_MS,
       );
     });
+    const networkAndServerMs = Number((performance.now() - tNetStart).toFixed(2));
+    const { data, rawText } = await parseResponseSafe(response);
 
     if (!response.ok) {
-      const { data, rawText } = await parseResponseSafe(response);
       const errMsg = data?.details || data?.error || rawText?.slice(0, 120) || 'Failed to send OTP over SMTP';
       const errorCategory = classifyClientErrorCategory({
         httpStatus: response.status,
@@ -694,11 +745,54 @@ export const sendOTPEmail = async (email: string, otpCode: string, name: string)
         correlationId,
         willRetry: false,
       });
-      throw new Error(errMsg);
+      const err: any = new Error(errMsg);
+      err.errorCategory = errorCategory;
+      err.correlationId = correlationId;
+      throw err;
     }
-    console.log('OTP email sent successfully');
-  } catch (error) {
-    console.error('Failed to send OTP email via API', error);
+
+    // Never report SMTP success merely because HTTP returned 200 without confirmed acceptance
+    const hasConfirmedSmtpAccept =
+      data?.success === true &&
+      (data?.smtpAccepted === true || Boolean(data?.messageId) || data?.deduplicated === true);
+
+    if (!hasConfirmedSmtpAccept) {
+      const errMsg = data?.error || 'API returned 200 without confirmed SMTP delivery acceptance';
+      reportEmailFailure({
+        kind: 'OTP',
+        error: errMsg,
+        stage: 'PROVIDER_SEND',
+        errorCategory: 'PROVIDER_REJECTION',
+        correlationId,
+        willRetry: false,
+      });
+      const err: any = new Error(errMsg);
+      err.errorCategory = 'PROVIDER_REJECTION';
+      err.correlationId = correlationId;
+      throw err;
+    }
+
+    const totalClientMs = Number((performance.now() - tClientStart).toFixed(2));
+    return {
+      success: true,
+      smtpAccepted: true,
+      messageId: String(data?.messageId || `otp_${correlationId}`),
+      correlationId: data?.correlationId || correlationId,
+      deduplicated: Boolean(data?.deduplicated),
+      timings: {
+        frontendPrepMs,
+        networkAndServerMs,
+        totalClientMs,
+        coldStartMs: data?.timings?.coldStartMs,
+        authVerifyMs: data?.timings?.authVerifyMs,
+        smtpConnectMs: data?.timings?.smtpConnectMs,
+        smtpAcceptMs: data?.timings?.smtpAcceptMs,
+        totalServerMs: data?.timings?.totalServerMs,
+        poolReused: data?.timings?.poolReused,
+      },
+    };
+  } catch (error: any) {
+    console.error('Failed to send OTP email via API', error?.message || error);
     throw error;
   }
 };

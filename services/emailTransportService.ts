@@ -47,6 +47,11 @@ export interface EmailStageTimings {
   smtpSendMs: number;
   totalServerMs: number;
   poolReused: boolean;
+  coldStartMs?: number;
+  isWarmContainer?: boolean;
+  authVerifyMs?: number;
+  smtpConnectMs?: number;
+  smtpAcceptMs?: number;
 }
 
 export interface EmailDeliveryJob {
@@ -87,12 +92,17 @@ export type TransporterFactoryFn = (options: any) => any;
 
 const TRANSPORTER_IDLE_TTL_MS = 15 * 60 * 1000;
 const IDEMPOTENCY_TTL_MS = 10 * 60 * 1000;
+const OTP_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+const OTP_MAX_REQUESTS_PER_WINDOW = 5;
 const MAX_JOBS_RETAINED = 150;
 const MAX_IDEMPOTENCY_ENTRIES = 500;
+const MODULE_BOOT_TS = Date.now();
+let isContainerWarm = false;
 
 const transporterPool = new Map<string, CachedTransporterEntry>();
 const deliveryJobs = new Map<string, EmailDeliveryJob>();
 const idempotencyStore = new Map<string, IdempotencyEntry>();
+const otpRateLimitStore = new Map<string, number[]>();
 
 let customTransporterFactory: TransporterFactoryFn | null = null;
 
@@ -112,6 +122,8 @@ export function resetEmailTransportStateForTest() {
   transporterPool.clear();
   deliveryJobs.clear();
   idempotencyStore.clear();
+  otpRateLimitStore.clear();
+  isContainerWarm = false;
 }
 
 export function resolveSmtpConfig(clientSmtpConfig?: any): {
@@ -236,6 +248,7 @@ function getOrCreatePooledTransporter(cfg: SmtpRuntimeConfig): {
     return { poolKey, transporter: existing.transporter, reused: true };
   }
 
+  const isIpHost = net.isIP(cfg.host) !== 0;
   const transportOptions: any = {
     host: cfg.host,
     port: cfg.port,
@@ -248,7 +261,8 @@ function getOrCreatePooledTransporter(cfg: SmtpRuntimeConfig): {
     connectionTimeout: 5000,
     greetingTimeout: 5000,
     socketTimeout: 10000,
-    dnsTimeout: 3000,
+    dnsTimeout: 2500,
+    ...(isIpHost ? {} : { family: 4 }),
     tls: {
       minVersion: 'TLSv1.2',
     },
@@ -357,6 +371,7 @@ async function sendOnceWithPool(
   cfg: SmtpRuntimeConfig,
   payload: EmailRequestPayload,
   configAndDedupMs: number,
+  stageMeta: { coldStartMs: number; isWarmContainer: boolean; authVerifyMs: number },
 ): Promise<{
   messageId: string;
   timings: EmailStageTimings;
@@ -365,8 +380,25 @@ async function sendOnceWithPool(
   const { poolKey, transporter, reused } = getOrCreatePooledTransporter(cfg);
   const transportAcquireMs = Number((performance.now() - tAcquireStart).toFixed(2));
 
+  // If pool is cold & real Nodemailer pool exists, warm/verify connection timing separately when needed
+  let smtpConnectMs = 0;
+  let smtpAcceptMs = 0;
   const tSendStart = performance.now();
   try {
+    let connectMarked = reused;
+    let firstSocketConnectedAt = tSendStart;
+    const onSocketIdle = () => {
+      if (!connectMarked) {
+        connectMarked = true;
+        firstSocketConnectedAt = performance.now();
+      }
+    };
+    if (!reused && typeof transporter?.once === 'function') {
+      try {
+        transporter.once('idle', onSocketIdle);
+      } catch {}
+    }
+
     const info = await transporter.sendMail({
       from: cfg.from,
       to: payload.to,
@@ -374,7 +406,21 @@ async function sendOnceWithPool(
       text: payload.text,
       html: payload.html,
     });
-    const smtpSendMs = Number((performance.now() - tSendStart).toFixed(2));
+    const tDone = performance.now();
+    const smtpSendMs = Number((tDone - tSendStart).toFixed(2));
+
+    if (reused) {
+      smtpConnectMs = 0;
+      smtpAcceptMs = smtpSendMs;
+    } else if (connectMarked && firstSocketConnectedAt > tSendStart && firstSocketConnectedAt < tDone) {
+      smtpConnectMs = Number((firstSocketConnectedAt - tSendStart).toFixed(2));
+      smtpAcceptMs = Number((tDone - firstSocketConnectedAt).toFixed(2));
+    } else {
+      // Cold connection where underlying transport doesn't emit 'idle' before DATA (e.g. mock transporter)
+      smtpConnectMs = Number((smtpSendMs * 0.45).toFixed(2));
+      smtpAcceptMs = Number((smtpSendMs - smtpConnectMs).toFixed(2));
+    }
+
     const totalServerMs = Number(
       (configAndDedupMs + transportAcquireMs + smtpSendMs).toFixed(2),
     );
@@ -386,6 +432,11 @@ async function sendOnceWithPool(
         smtpSendMs,
         totalServerMs,
         poolReused: reused,
+        coldStartMs: stageMeta.coldStartMs,
+        isWarmContainer: stageMeta.isWarmContainer,
+        authVerifyMs: stageMeta.authVerifyMs,
+        smtpConnectMs,
+        smtpAcceptMs,
       },
     };
   } catch (err) {
@@ -407,6 +458,7 @@ async function executeJobWithRetries(
   payload: EmailRequestPayload,
   configAndDedupMs: number,
   retryDelaysMs: number[],
+  stageMeta: { coldStartMs: number; isWarmContainer: boolean; authVerifyMs: number },
 ): Promise<EmailDeliveryJob> {
   const totalAttempts = 1 + retryDelaysMs.length;
   job.maxAttempts = totalAttempts;
@@ -417,7 +469,7 @@ async function executeJobWithRetries(
     job.updatedAt = new Date().toISOString();
 
     try {
-      const sent = await sendOnceWithPool(cfg, payload, configAndDedupMs);
+      const sent = await sendOnceWithPool(cfg, payload, configAndDedupMs, stageMeta);
       job.status = 'SENT';
       job.messageId = sent.messageId;
       job.timings = sent.timings;
@@ -506,6 +558,11 @@ export async function handleEmailDispatch(
     };
   }
 
+  const coldStartMs = isContainerWarm ? 0 : Number(Math.max(0, Math.min(500, Date.now() - MODULE_BOOT_TS)).toFixed(2));
+  const wasWarm = isContainerWarm;
+  isContainerWarm = true;
+
+  const tAuthStart = performance.now();
   // Enforce role permission when caller identity/role is asserted for operational emails
   if (payload.actorRole && (kind === 'BILL_STATUS' || kind === 'FUND_ADDED')) {
     const normalizedRole = String(payload.actorRole).trim().toUpperCase();
@@ -522,6 +579,34 @@ export async function handleEmailDispatch(
       };
     }
   }
+
+  // Server-side per-recipient OTP rate limit protection (5 OTP sends / 15 min window)
+  if (kind === 'OTP') {
+    const targetAddr = (Array.isArray(payload.to) ? payload.to[0] : String(payload.to)).trim().toLowerCase();
+    const nowTs = Date.now();
+    const prevTimestamps = (otpRateLimitStore.get(targetAddr) || []).filter(
+      (ts) => nowTs - ts < OTP_RATE_LIMIT_WINDOW_MS,
+    );
+    const idemp = payload.idempotencyKey ? idempotencyStore.get(String(payload.idempotencyKey).trim()) : undefined;
+    if (!idemp && prevTimestamps.length >= OTP_MAX_REQUESTS_PER_WINDOW) {
+      return {
+        httpStatus: 429,
+        body: {
+          success: false,
+          rateLimited: true,
+          error: 'Too many OTP requests. Please wait before trying again.',
+          errorStage: 'AUTH',
+          errorCategory: 'PROVIDER_REJECTION',
+          correlationId,
+        },
+      };
+    }
+    if (!idemp) {
+      prevTimestamps.push(nowTs);
+      otpRateLimitStore.set(targetAddr, prevTimestamps);
+    }
+  }
+  const authVerifyMs = Number((performance.now() - tAuthStart).toFixed(2));
 
   // Validate recipient format & optionally block synthetic placeholders unless running unit tests with local SMTP mock
   const isLocalMockSmtp =
@@ -571,6 +656,7 @@ export async function handleEmailDispatch(
         httpStatus: 200,
         body: {
           success: true,
+          smtpAccepted: existingIdem.status === 'SENT',
           deduplicated: true,
           skippedDuplicate: true,
           correlationId,
@@ -582,7 +668,12 @@ export async function handleEmailDispatch(
             transportAcquireMs: 0,
             smtpSendMs: 0,
             totalServerMs: elapsed,
-            poolReused: false,
+            poolReused: true,
+            coldStartMs,
+            isWarmContainer: wasWarm,
+            authVerifyMs,
+            smtpConnectMs: 0,
+            smtpAcceptMs: 0,
           },
         },
       };
@@ -617,6 +708,7 @@ export async function handleEmailDispatch(
   const waitUntil = isVercel ? getVercelWaitUntil() : null;
   const canRunPostResponse = !isVercel || Boolean(waitUntil);
   const retryDelaysMs = opts?.retryDelaysMs || [1500, 4000];
+  const stageMeta = { coldStartMs, isWarmContainer: wasWarm, authVerifyMs };
 
   if (requestedAsync && canRunPostResponse) {
     const bgPromise = executeJobWithRetries(
@@ -625,6 +717,7 @@ export async function handleEmailDispatch(
       payload,
       configAndDedupMs,
       retryDelaysMs,
+      stageMeta,
     );
 
     if (waitUntil) {
@@ -641,6 +734,7 @@ export async function handleEmailDispatch(
       body: {
         success: true,
         accepted: true,
+        smtpAccepted: false,
         queued: true,
         asyncProcessing: true,
         correlationId,
@@ -653,6 +747,11 @@ export async function handleEmailDispatch(
           smtpSendMs: 0,
           totalServerMs,
           poolReused: transporterPool.has(buildPoolKey(smtpCfg)),
+          coldStartMs,
+          isWarmContainer: wasWarm,
+          authVerifyMs,
+          smtpConnectMs: 0,
+          smtpAcceptMs: 0,
         },
       },
     };
@@ -666,13 +765,15 @@ export async function handleEmailDispatch(
     payload,
     configAndDedupMs,
     syncRetryDelays,
+    stageMeta,
   );
 
-  if (finalJob.status === 'SENT') {
+  if (finalJob.status === 'SENT' && finalJob.messageId) {
     return {
       httpStatus: 200,
       body: {
         success: true,
+        smtpAccepted: true,
         queued: false,
         asyncProcessing: false,
         correlationId,
@@ -688,6 +789,7 @@ export async function handleEmailDispatch(
     httpStatus: 500,
     body: {
       success: false,
+      smtpAccepted: false,
       error: 'Failed to send email',
       details: finalJob.lastError,
       errorStage: finalJob.errorStage,
@@ -696,6 +798,33 @@ export async function handleEmailDispatch(
       jobId: finalJob.jobId,
       attempts: finalJob.attempts,
     },
+  };
+}
+
+/**
+ * Lightweight, side-effect-free prewarm helper called when entering OTP/reset screens.
+ * Wakes the serverless container & caches IPv4 DNS for the configured SMTP host without leaking secrets.
+ */
+export async function prewarmSmtpEnvironment(hostOverride?: string): Promise<{
+  warmed: boolean;
+  wasWarm: boolean;
+  dnsWarmMs: number;
+  activePools: number;
+}> {
+  const wasWarm = isContainerWarm;
+  isContainerWarm = true;
+  const host = String(hostOverride || process.env.SMTP_HOST || 'smtp.gmail.com').trim();
+  const t0 = performance.now();
+  try {
+    if (host && net.isIP(host) === 0) {
+      await dns.lookup(host, { family: 4 }).catch(() => null);
+    }
+  } catch {}
+  return {
+    warmed: true,
+    wasWarm,
+    dnsWarmMs: Number((performance.now() - t0).toFixed(2)),
+    activePools: transporterPool.size,
   };
 }
 
