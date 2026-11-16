@@ -6,6 +6,16 @@ import tls from 'node:tls';
 
 export type EmailKind = 'OTP' | 'BILL_STATUS' | 'FUND_ADDED' | 'GENERAL';
 export type DeliveryMode = 'async' | 'sync';
+export type EmailErrorCategory =
+  | 'AUTH_ERROR'
+  | 'CORS_ERROR'
+  | 'NETWORK_ERROR'
+  | 'API_ERROR'
+  | 'SMTP_AUTH_ERROR'
+  | 'SMTP_CONNECTION_ERROR'
+  | 'SMTP_TIMEOUT'
+  | 'PROVIDER_REJECTION'
+  | 'UNKNOWN_EMAIL_ERROR';
 
 export interface SmtpRuntimeConfig {
   host: string;
@@ -26,6 +36,9 @@ export interface EmailRequestPayload {
   deliveryMode?: DeliveryMode;
   idempotencyKey?: string;
   allowRetryFailed?: boolean;
+  correlationId?: string;
+  actorRole?: string;
+  actorName?: string;
 }
 
 export interface EmailStageTimings {
@@ -38,6 +51,7 @@ export interface EmailStageTimings {
 
 export interface EmailDeliveryJob {
   jobId: string;
+  correlationId: string;
   idempotencyKey: string;
   kind: EmailKind;
   status: 'QUEUED' | 'SENDING' | 'SENT' | 'FAILED';
@@ -48,6 +62,7 @@ export interface EmailDeliveryJob {
   messageId?: string;
   lastError?: string;
   errorStage?: 'CONFIG' | 'CONNECTION' | 'AUTH' | 'TLS' | 'PROVIDER_SEND' | 'TIMEOUT';
+  errorCategory?: EmailErrorCategory;
   timings?: EmailStageTimings;
 }
 
@@ -264,22 +279,60 @@ function getOrCreatePooledTransporter(cfg: SmtpRuntimeConfig): {
   return { poolKey, transporter, reused: false };
 }
 
+function sanitizeEmailErrorMessage(raw: unknown, secretValues: Array<string | undefined> = []): string {
+  let msg = String(raw || 'Unknown email transport error');
+  for (const secret of secretValues) {
+    if (secret && secret.length >= 4) {
+      msg = msg.split(secret).join('***');
+    }
+  }
+  msg = msg.replace(/(Bearer\s+)[A-Za-z0-9\-._~+/]+=*/gi, '$1[REDACTED]');
+  return msg.slice(0, 280);
+}
+
+function validateRecipientAddresses(to: string | string[]): {
+  valid: boolean;
+  error?: string;
+  isSyntheticPlaceholder?: boolean;
+} {
+  const list = Array.isArray(to) ? to : String(to).split(',');
+  const cleaned = list.map((s) => String(s || '').trim()).filter(Boolean);
+  if (cleaned.length === 0) {
+    return { valid: false, error: 'Recipient email address is empty.' };
+  }
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  for (const addr of cleaned) {
+    if (!emailRegex.test(addr)) {
+      return { valid: false, error: 'Invalid recipient email address format.' };
+    }
+    if (addr.toLowerCase().endsWith('@depend.com')) {
+      return {
+        valid: false,
+        isSyntheticPlaceholder: true,
+        error: 'Recipient lacks a real email address (synthetic placeholder skipped).',
+      };
+    }
+  }
+  return { valid: true };
+}
+
 function classifySmtpErrorStage(err: any): {
   stage: NonNullable<EmailDeliveryJob['errorStage']>;
+  category: EmailErrorCategory;
   transient: boolean;
 } {
   const code = String(err?.code || '').toUpperCase();
   const msg = String(err?.message || '').toLowerCase();
   const responseCode = Number(err?.responseCode || 0);
 
-  if (code === 'EAUTH' || responseCode === 535 || responseCode === 534 || msg.includes('invalid login')) {
-    return { stage: 'AUTH', transient: false };
+  if (code === 'EAUTH' || responseCode === 535 || responseCode === 534 || msg.includes('invalid login') || msg.includes('username and password not accepted')) {
+    return { stage: 'AUTH', category: 'SMTP_AUTH_ERROR', transient: false };
   }
   if (msg.includes('tls') || msg.includes('ssl') || code.includes('CERT')) {
-    return { stage: 'TLS', transient: false };
+    return { stage: 'TLS', category: 'SMTP_CONNECTION_ERROR', transient: false };
   }
   if (code === 'ETIMEDOUT' || msg.includes('timeout')) {
-    return { stage: 'TIMEOUT', transient: true };
+    return { stage: 'TIMEOUT', category: 'SMTP_TIMEOUT', transient: true };
   }
   if (
     code === 'ECONNRESET' ||
@@ -289,12 +342,15 @@ function classifySmtpErrorStage(err: any): {
     code === 'EAI_AGAIN' ||
     code === 'ESOCKET'
   ) {
-    return { stage: 'CONNECTION', transient: true };
+    return { stage: 'CONNECTION', category: 'SMTP_CONNECTION_ERROR', transient: true };
+  }
+  if (responseCode >= 500 || msg.includes('recipient') || msg.includes('mailbox') || msg.includes('rejected')) {
+    return { stage: 'PROVIDER_SEND', category: 'PROVIDER_REJECTION', transient: false };
   }
   if (responseCode >= 400 && responseCode < 500) {
-    return { stage: 'PROVIDER_SEND', transient: true };
+    return { stage: 'PROVIDER_SEND', category: 'PROVIDER_REJECTION', transient: true };
   }
-  return { stage: 'PROVIDER_SEND', transient: responseCode >= 500 };
+  return { stage: 'PROVIDER_SEND', category: 'UNKNOWN_EMAIL_ERROR', transient: responseCode >= 500 };
 }
 
 async function sendOnceWithPool(
@@ -377,9 +433,10 @@ async function executeJobWithRetries(
       }
       return job;
     } catch (err: any) {
-      const { stage, transient } = classifySmtpErrorStage(err);
-      job.lastError = err?.message || String(err);
+      const { stage, category, transient } = classifySmtpErrorStage(err);
+      job.lastError = sanitizeEmailErrorMessage(err?.message || String(err), [cfg.pass]);
       job.errorStage = stage;
+      job.errorCategory = category;
       job.updatedAt = new Date().toISOString();
 
       if (!transient || attempt >= totalAttempts) {
@@ -390,7 +447,7 @@ async function executeJobWithRetries(
           idem.updatedAt = Date.now();
         }
         console.error(
-          `[EmailTransport] Delivery FAILED (${job.kind}, job=${job.jobId}, stage=${stage}, attempts=${attempt}):`,
+          `[EmailTransport][${job.correlationId}] Delivery FAILED (${job.kind}, job=${job.jobId}, category=${category}, stage=${stage}, attempts=${attempt}):`,
           job.lastError,
         );
         return job;
@@ -429,14 +486,62 @@ export interface HandleEmailDispatchResult {
  */
 export async function handleEmailDispatch(
   payload: EmailRequestPayload,
-  opts?: { retryDelaysMs?: number[] },
+  opts?: { retryDelaysMs?: number[]; allowTestSyntheticDomain?: boolean },
 ): Promise<HandleEmailDispatchResult> {
   const tStart = performance.now();
+  const correlationId =
+    (payload?.correlationId && String(payload.correlationId).trim()) ||
+    `cor_${Date.now().toString(36)}_${crypto.randomBytes(3).toString('hex')}`;
+  const kind: EmailKind = payload?.kind || 'GENERAL';
 
   if (!payload || !payload.to || !payload.subject) {
     return {
       httpStatus: 400,
-      body: { success: false, error: 'Missing required fields: to, subject' },
+      body: {
+        success: false,
+        error: 'Missing required fields: to, subject',
+        errorCategory: 'API_ERROR',
+        correlationId,
+      },
+    };
+  }
+
+  // Enforce role permission when caller identity/role is asserted for operational emails
+  if (payload.actorRole && (kind === 'BILL_STATUS' || kind === 'FUND_ADDED')) {
+    const normalizedRole = String(payload.actorRole).trim().toUpperCase();
+    if (normalizedRole !== 'ADMIN' && normalizedRole !== 'MD') {
+      return {
+        httpStatus: 403,
+        body: {
+          success: false,
+          error: 'Unauthorized: Only Admin or MD can dispatch operational billing/fund emails.',
+          errorStage: 'AUTH',
+          errorCategory: 'AUTH_ERROR',
+          correlationId,
+        },
+      };
+    }
+  }
+
+  // Validate recipient format & optionally block synthetic placeholders unless running unit tests with local SMTP mock
+  const isLocalMockSmtp =
+    Boolean(customTransporterFactory) ||
+    payload?.smtpConfig?.host === '127.0.0.1' ||
+    payload?.smtpConfig?.host === 'localhost';
+  const recipientCheck = validateRecipientAddresses(payload.to);
+  if (
+    !recipientCheck.valid &&
+    !(recipientCheck.isSyntheticPlaceholder && (opts?.allowTestSyntheticDomain || isLocalMockSmtp))
+  ) {
+    return {
+      httpStatus: 400,
+      body: {
+        success: false,
+        error: recipientCheck.error || 'Invalid recipient address.',
+        errorStage: 'PROVIDER_SEND',
+        errorCategory: 'PROVIDER_REJECTION',
+        correlationId,
+      },
     };
   }
 
@@ -448,12 +553,13 @@ export async function handleEmailDispatch(
         success: false,
         error: configError || 'SMTP credentials are not configured.',
         errorStage: 'CONFIG',
+        errorCategory: 'API_ERROR',
+        correlationId,
       },
     };
   }
 
   pruneMapsIfNeeded();
-  const kind: EmailKind = payload.kind || 'GENERAL';
   const idempotencyKey = computeEmailIdempotencyKey(payload);
   const existingIdem = idempotencyStore.get(idempotencyKey);
 
@@ -467,6 +573,7 @@ export async function handleEmailDispatch(
           success: true,
           deduplicated: true,
           skippedDuplicate: true,
+          correlationId,
           jobId: existingIdem.jobId,
           status: existingIdem.status,
           messageId: existingIdem.messageId,
@@ -486,6 +593,7 @@ export async function handleEmailDispatch(
   const nowIso = new Date().toISOString();
   const job: EmailDeliveryJob = {
     jobId,
+    correlationId,
     idempotencyKey,
     kind,
     status: 'QUEUED',
@@ -523,7 +631,7 @@ export async function handleEmailDispatch(
       waitUntil(bgPromise);
     } else {
       bgPromise.catch((err) => {
-        console.error('[EmailTransport] Background delivery uncaught error:', err);
+        console.error(`[EmailTransport][${correlationId}] Background delivery uncaught error:`, err?.message || String(err));
       });
     }
 
@@ -535,6 +643,7 @@ export async function handleEmailDispatch(
         accepted: true,
         queued: true,
         asyncProcessing: true,
+        correlationId,
         jobId,
         idempotencyKey,
         status: 'QUEUED',
@@ -566,6 +675,7 @@ export async function handleEmailDispatch(
         success: true,
         queued: false,
         asyncProcessing: false,
+        correlationId,
         jobId: finalJob.jobId,
         idempotencyKey: finalJob.idempotencyKey,
         messageId: finalJob.messageId,
@@ -581,6 +691,8 @@ export async function handleEmailDispatch(
       error: 'Failed to send email',
       details: finalJob.lastError,
       errorStage: finalJob.errorStage,
+      errorCategory: finalJob.errorCategory || 'UNKNOWN_EMAIL_ERROR',
+      correlationId,
       jobId: finalJob.jobId,
       attempts: finalJob.attempts,
     },

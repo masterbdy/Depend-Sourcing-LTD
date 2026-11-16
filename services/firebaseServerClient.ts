@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import { DEFAULT_FIREBASE_CONFIG } from '../constants';
+import { DEFAULT_FIREBASE_CONFIG } from '../constants.js';
 
 interface ServiceAccountCreds {
   project_id: string;

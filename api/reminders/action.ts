@@ -1,5 +1,5 @@
-import { processReminderUserAction } from '../../services/serverReminderScheduler';
-import { ReminderActionType } from '../../types';
+import { processReminderUserAction } from '../../services/serverReminderScheduler.js';
+import type { ReminderActionType } from '../../types.js';
 
 const ALLOWED_ACTIONS = new Set<ReminderActionType>([
   'NOW_OPENED',

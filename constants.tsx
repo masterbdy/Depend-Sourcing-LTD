@@ -1,4 +1,4 @@
-import { Staff, UserRole, BillingRule, Product } from './types';
+import { type Staff, UserRole, type BillingRule, type Product } from './types.js';
 
 export const INITIAL_STAFF: Staff[] = [
   { id: '1', name: 'আব্দুল করিম', staffId: 'ST-001', designation: 'অফিস সহকারী', mobile: '01711000000', basicSalary: 12000, status: 'ACTIVE', createdAt: '2024-01-01T10:00:00.000Z', workLocation: 'HEAD_OFFICE', requiresCheckOutLocation: true },

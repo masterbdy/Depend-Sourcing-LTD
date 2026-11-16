@@ -1,9 +1,12 @@
 import { perf } from './performanceDiagnostics';
 import { systemHealth } from './systemHealthService';
+import type { EmailErrorCategory } from './emailTransportService';
 
 export interface EmailSendOptions {
   entityId?: string;
   idempotencyKey?: string;
+  actorRole?: string;
+  actorName?: string;
 }
 
 export interface QueuedFailedEmail {
@@ -18,14 +21,20 @@ export interface QueuedFailedEmail {
   createdAt: string;
   nextRetryAt: number;
   lastError?: string;
+  errorCategory?: EmailErrorCategory;
+  correlationId?: string;
 }
 
 const FAILED_EMAIL_QUEUE_KEY = 'ais_failed_email_queue_v1';
 const SENT_IDEMPOTENCY_TTL_MS = 10 * 60 * 1000;
-const DEFAULT_ASYNC_API_TIMEOUT_MS = 8000;
-const DEFAULT_OTP_API_TIMEOUT_MS = 12000;
+const DEFAULT_ASYNC_API_TIMEOUT_MS = 10000;
+const DEFAULT_OTP_API_TIMEOUT_MS = 15000;
 
 const clientRecentEmailKeys = new Map<string, number>();
+
+function generateCorrelationId(): string {
+  return `cor_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+}
 
 function getSmtpConfigSafe(): any {
   try {
@@ -35,6 +44,70 @@ function getSmtpConfigSafe(): any {
   } catch {
     return undefined;
   }
+}
+
+function getActiveSessionActor(): { actorRole?: string; actorName?: string } {
+  try {
+    if (typeof localStorage === 'undefined') return {};
+    const saved = localStorage.getItem('active_session');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return {
+        actorRole: parsed?.role ? String(parsed.role) : undefined,
+        actorName: parsed?.username ? String(parsed.username) : undefined,
+      };
+    }
+    const role = localStorage.getItem('user_role');
+    const name = localStorage.getItem('current_user');
+    return {
+      actorRole: role || undefined,
+      actorName: name || undefined,
+    };
+  } catch {
+    return {};
+  }
+}
+
+function isSyntheticDependEmail(email: string): boolean {
+  return String(email || '').trim().toLowerCase().endsWith('@depend.com');
+}
+
+function classifyClientErrorCategory(params: {
+  httpStatus?: number;
+  payloadCategory?: string;
+  payloadStage?: string;
+  error?: any;
+}): EmailErrorCategory {
+  if (params.payloadCategory) {
+    return params.payloadCategory as EmailErrorCategory;
+  }
+  if (params.httpStatus === 401 || params.httpStatus === 403 || params.payloadStage === 'AUTH') {
+    return params.payloadStage === 'AUTH' && params.httpStatus !== 401 && params.httpStatus !== 403
+      ? 'SMTP_AUTH_ERROR'
+      : 'AUTH_ERROR';
+  }
+  if (params.payloadStage === 'TIMEOUT' || params.error?.name === 'AbortError') {
+    return 'SMTP_TIMEOUT';
+  }
+  if (params.payloadStage === 'CONNECTION' || params.payloadStage === 'TLS') {
+    return 'SMTP_CONNECTION_ERROR';
+  }
+  if (params.payloadStage === 'PROVIDER_SEND') {
+    return 'PROVIDER_REJECTION';
+  }
+  if (params.error) {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      return 'NETWORK_ERROR';
+    }
+    const msg = String(params.error?.message || '').toLowerCase();
+    if (msg.includes('cors') || msg.includes('failed to fetch') || msg.includes('load failed')) {
+      return msg.includes('cors') ? 'CORS_ERROR' : 'NETWORK_ERROR';
+    }
+  }
+  if (params.httpStatus && params.httpStatus >= 400) {
+    return 'API_ERROR';
+  }
+  return 'UNKNOWN_EMAIL_ERROR';
 }
 
 function pruneRecentKeys(now: number = Date.now()) {
@@ -69,6 +142,8 @@ function enqueueFailedEmail(item: Omit<QueuedFailedEmail, 'createdAt' | 'nextRet
   if (duplicate) {
     duplicate.attempts = Math.max(duplicate.attempts, item.attempts);
     duplicate.lastError = item.lastError;
+    duplicate.errorCategory = item.errorCategory;
+    duplicate.correlationId = item.correlationId;
     duplicate.nextRetryAt = Date.now() + 15000 * Math.max(1, duplicate.attempts);
     writeRetryQueue(existing);
     return;
@@ -93,10 +168,12 @@ function reportEmailFailure(params: {
   kind: QueuedFailedEmail['kind'] | 'OTP';
   error: string;
   stage?: string;
+  errorCategory: EmailErrorCategory;
+  correlationId: string;
   willRetry: boolean;
 }) {
   // Strictly PII-free diagnostic logging & incident visibility
-  const cleanMsg = `${params.kind} email delivery issue (${params.stage || 'API'}): ${params.error}${
+  const cleanMsg = `${params.kind} email delivery issue [${params.errorCategory}] (${params.stage || 'API'}, ${params.correlationId}): ${params.error}${
     params.willRetry ? ' (auto-retry scheduled)' : ''
   }`;
   try {
@@ -105,16 +182,39 @@ function reportEmailFailure(params: {
       severity: 'WARNING',
       service: 'ServerAPI',
       summary: cleanMsg,
+      details: {
+        kind: params.kind,
+        errorCategory: params.errorCategory,
+        correlationId: params.correlationId,
+        willRetry: params.willRetry,
+      },
     });
     systemHealth.recordIncident({
       type: 'EMAIL_DELIVERY_FAILURE',
       title: 'ইমেইল ডেলিভারি সমস্যা (Email Delivery Failure)',
-      severity: 'WARNING',
+      severity: params.errorCategory === 'AUTH_ERROR' || params.errorCategory === 'SMTP_AUTH_ERROR' ? 'CRITICAL' : 'WARNING',
       affectedService: 'ServerAPI',
       message: cleanMsg,
       recommendedAction:
-        'Settings থেকে SMTP কনফিগারেশন অথবা ইন্টারনেট কানেকশন যাচাই করুন। সাময়িক ব্যর্থতা স্বয়ংক্রিয়ভাবে রিট্রাই হবে।',
+        params.errorCategory === 'SMTP_AUTH_ERROR'
+          ? 'Settings থেকে Gmail App Password / SMTP credentials যাচাই করুন।'
+          : params.errorCategory === 'AUTH_ERROR'
+          ? 'ইমেইল পাঠানোর জন্য Admin/MD হিসেবে পুনরায় লগইন করুন।'
+          : 'ইন্টারনেট সংযোগ ও ব্যাকএন্ড সার্ভার (/api/send-email) পরীক্ষা করুন।',
     });
+    if (typeof window !== 'undefined' && typeof CustomEvent !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('email-delivery-error', {
+          detail: {
+            kind: params.kind,
+            errorCategory: params.errorCategory,
+            correlationId: params.correlationId,
+            message: cleanMsg,
+            willRetry: params.willRetry,
+          },
+        }),
+      );
+    }
   } catch {}
 }
 
@@ -150,8 +250,27 @@ async function fetchWithTimeout(
   }
 }
 
+async function parseResponseSafe(response: Response): Promise<{ data: any; rawText: string }> {
+  try {
+    if (typeof response.text === 'function') {
+      const rawText = await response.text();
+      if (!rawText) return { data: {}, rawText: '' };
+      try {
+        return { data: JSON.parse(rawText), rawText };
+      } catch {
+        return { data: {}, rawText };
+      }
+    }
+    const data = await response.json().catch(() => ({}));
+    return { data, rawText: '' };
+  } catch {
+    return { data: {}, rawText: '' };
+  }
+}
+
 function scheduleQueuedJobVerification(params: {
   jobId: string;
+  correlationId: string;
   retryItem: Omit<QueuedFailedEmail, 'attempts' | 'maxAttempts' | 'createdAt' | 'nextRetryAt'>;
   pollAttempt?: number;
 }) {
@@ -163,11 +282,14 @@ function scheduleQueuedJobVerification(params: {
     try {
       const res = await fetchWithTimeout(
         `/api/send-email?jobId=${encodeURIComponent(params.jobId)}`,
-        { method: 'GET' },
+        {
+          method: 'GET',
+          headers: { 'X-Correlation-ID': params.correlationId },
+        },
         5000,
       );
       if (!res.ok) return;
-      const data = await res.json().catch(() => null);
+      const { data } = await parseResponseSafe(res);
       const job = data?.job;
       if (!job) return;
 
@@ -178,28 +300,40 @@ function scheduleQueuedJobVerification(params: {
       }
 
       if (job.status === 'FAILED') {
-        const isPermanentAuth = job.errorStage === 'AUTH' || job.errorStage === 'CONFIG';
+        const errorCategory = classifyClientErrorCategory({
+          payloadCategory: job.errorCategory,
+          payloadStage: job.errorStage,
+        });
+        const isPermanentAuth =
+          errorCategory === 'AUTH_ERROR' ||
+          errorCategory === 'SMTP_AUTH_ERROR' ||
+          errorCategory === 'PROVIDER_REJECTION' ||
+          job.errorStage === 'CONFIG';
         if (!isPermanentAuth) {
           enqueueFailedEmail({
             ...params.retryItem,
             attempts: 1,
             maxAttempts: 3,
             lastError: job.lastError || 'SMTP background delivery failed',
+            errorCategory,
+            correlationId: params.correlationId,
           });
         }
         reportEmailFailure({
           kind: params.retryItem.kind,
           error: job.lastError || 'SMTP background delivery failed',
           stage: job.errorStage || 'PROVIDER_SEND',
+          errorCategory,
+          correlationId: params.correlationId,
           willRetry: !isPermanentAuth,
         });
         return;
       }
 
-      // Still QUEUED or SENDING -> allow one follow-up check outside perf tracking
       if (pollAttempt < 3) {
         scheduleQueuedJobVerification({
           jobId: params.jobId,
+          correlationId: params.correlationId,
           retryItem: params.retryItem,
           pollAttempt: pollAttempt + 1,
         });
@@ -208,11 +342,32 @@ function scheduleQueuedJobVerification(params: {
   }, delayMs);
 }
 
+// Simple bounded concurrency gate so Approve All doesn't stampede serverless functions
+let activeOperationalDispatches = 0;
+const MAX_CONCURRENT_EMAIL_DISPATCHES = 2;
+const dispatchWaiters: Array<() => void> = [];
+
+async function acquireDispatchSlot(): Promise<void> {
+  if (activeOperationalDispatches < MAX_CONCURRENT_EMAIL_DISPATCHES) {
+    activeOperationalDispatches += 1;
+    return;
+  }
+  await new Promise<void>((resolve) => dispatchWaiters.push(resolve));
+  activeOperationalDispatches += 1;
+}
+
+function releaseDispatchSlot(): void {
+  activeOperationalDispatches = Math.max(0, activeOperationalDispatches - 1);
+  const next = dispatchWaiters.shift();
+  if (next) next();
+}
+
 /**
  * Safely dispatches an operational notification email (Bill Status / Fund Added):
  * - Prevents duplicate requests for the same entity transition / 60s window
- * - Uses async deliveryMode + pooled backend transport so callers/UI don't wait 4-6s
- * - Tracks background failures in SystemHealth and schedules automatic retries
+ * - Uses async deliveryMode + pooled backend transport with correlationId & actor headers
+ * - Accurately classifies non-JSON HTTP 500s / CORS / Network / Auth / SMTP failures
+ * - Bounded concurrency & automatic retry recovery on reconnect/foreground
  */
 async function dispatchOperationalEmail(params: {
   actionName: string;
@@ -222,22 +377,54 @@ async function dispatchOperationalEmail(params: {
   html: string;
   idempotencyKey: string;
   allowRetryFailed?: boolean;
-}): Promise<{ dispatched: boolean; queued?: boolean; deduplicated?: boolean; error?: string }> {
+  actorRole?: string;
+  actorName?: string;
+}): Promise<{
+  dispatched: boolean;
+  queued?: boolean;
+  deduplicated?: boolean;
+  error?: string;
+  errorCategory?: EmailErrorCategory;
+  correlationId?: string;
+}> {
+  const correlationId = generateCorrelationId();
+
+  if (isSyntheticDependEmail(params.to)) {
+    return {
+      dispatched: false,
+      error: 'Skipped synthetic @depend.com fallback email; staff email not configured.',
+      errorCategory: 'PROVIDER_REJECTION',
+      correlationId,
+    };
+  }
+
   const now = Date.now();
   pruneRecentKeys(now);
 
   if (!params.allowRetryFailed && clientRecentEmailKeys.has(params.idempotencyKey)) {
-    return { dispatched: true, deduplicated: true };
+    return { dispatched: true, deduplicated: true, correlationId };
   }
   clientRecentEmailKeys.set(params.idempotencyKey, now);
 
+  const sessionActor = getActiveSessionActor();
+  const actorRole = params.actorRole || sessionActor.actorRole;
+  const actorName = params.actorName || sessionActor.actorName;
+
+  await acquireDispatchSlot();
   try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-Correlation-ID': correlationId,
+    };
+    if (actorRole) headers['X-User-Role'] = actorRole;
+    if (actorName) headers['X-User-Name'] = actorName;
+
     const response = await perf.measure(params.actionName, 'api', async () => {
       return await fetchWithTimeout(
         '/api/send-email',
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({
             to: params.to,
             subject: params.subject,
@@ -247,16 +434,35 @@ async function dispatchOperationalEmail(params: {
             deliveryMode: 'async',
             idempotencyKey: params.idempotencyKey,
             allowRetryFailed: Boolean(params.allowRetryFailed),
+            correlationId,
+            actorRole,
+            actorName,
           }),
         },
         DEFAULT_ASYNC_API_TIMEOUT_MS,
       );
     });
 
-    const payload = await response.json().catch(() => ({}));
+    const { data: payload, rawText } = await parseResponseSafe(response);
     if (!response.ok) {
-      const errMsg = payload?.details || payload?.error || `Server returned ${response.status}`;
-      const isPermanent = payload?.errorStage === 'AUTH' || payload?.errorStage === 'CONFIG';
+      const nonJsonHint =
+        !payload?.error && rawText
+          ? rawText.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 140)
+          : '';
+      const errMsg =
+        payload?.details ||
+        payload?.error ||
+        (nonJsonHint ? `HTTP ${response.status}: ${nonJsonHint}` : `Server returned ${response.status}`);
+      const errorCategory = classifyClientErrorCategory({
+        httpStatus: response.status,
+        payloadCategory: payload?.errorCategory,
+        payloadStage: payload?.errorStage,
+      });
+      const isPermanent =
+        errorCategory === 'AUTH_ERROR' ||
+        errorCategory === 'SMTP_AUTH_ERROR' ||
+        errorCategory === 'PROVIDER_REJECTION' ||
+        payload?.errorStage === 'CONFIG';
       clientRecentEmailKeys.delete(params.idempotencyKey);
 
       if (!isPermanent) {
@@ -270,20 +476,25 @@ async function dispatchOperationalEmail(params: {
           attempts: 1,
           maxAttempts: 3,
           lastError: errMsg,
+          errorCategory,
+          correlationId,
         });
       }
       reportEmailFailure({
         kind: params.kind,
         error: errMsg,
         stage: payload?.errorStage || `HTTP_${response.status}`,
+        errorCategory,
+        correlationId,
         willRetry: !isPermanent,
       });
-      return { dispatched: false, error: errMsg };
+      return { dispatched: false, error: errMsg, errorCategory, correlationId };
     }
 
     if (payload?.queued && payload?.jobId) {
       scheduleQueuedJobVerification({
         jobId: String(payload.jobId),
+        correlationId: payload?.correlationId || correlationId,
         retryItem: {
           idempotencyKey: params.idempotencyKey,
           kind: params.kind,
@@ -302,8 +513,10 @@ async function dispatchOperationalEmail(params: {
       dispatched: true,
       queued: Boolean(payload?.queued),
       deduplicated: Boolean(payload?.deduplicated),
+      correlationId: payload?.correlationId || correlationId,
     };
   } catch (error: any) {
+    const errorCategory = classifyClientErrorCategory({ error });
     const errMsg =
       error?.name === 'AbortError'
         ? 'Email API request timed out'
@@ -320,14 +533,20 @@ async function dispatchOperationalEmail(params: {
       attempts: 1,
       maxAttempts: 3,
       lastError: errMsg,
+      errorCategory,
+      correlationId,
     });
     reportEmailFailure({
       kind: params.kind,
       error: errMsg,
       stage: error?.name === 'AbortError' ? 'TIMEOUT' : 'NETWORK',
+      errorCategory,
+      correlationId,
       willRetry: true,
     });
-    return { dispatched: false, error: errMsg };
+    return { dispatched: false, error: errMsg, errorCategory, correlationId };
+  } finally {
+    releaseDispatchSlot();
   }
 }
 
@@ -382,6 +601,7 @@ export async function processPendingEmailRetries(): Promise<{
           attempts: item.attempts + 1,
           nextRetryAt: Date.now() + 30000 * (item.attempts + 1),
           lastError: res.error,
+          errorCategory: res.errorCategory,
         });
       }
     }
@@ -398,12 +618,25 @@ if (typeof window !== 'undefined') {
   window.addEventListener('online', () => {
     void processPendingEmailRetries();
   });
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && navigator.onLine) {
+        void processPendingEmailRetries();
+      }
+    });
+  }
+  setTimeout(() => {
+    if (typeof navigator === 'undefined' || navigator.onLine !== false) {
+      void processPendingEmailRetries();
+    }
+  }, 4000);
 }
 
 /**
  * Sends OTP Email synchronously (Forgot Password flow expects delivery confirmation).
  */
 export const sendOTPEmail = async (email: string, otpCode: string, name: string) => {
+  const correlationId = generateCorrelationId();
   const subject = 'Password Reset OTP - Depend Sourcing Ltd';
   const html = `
     <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; border: 1px solid #e5e7eb; padding: 20px; border-radius: 8px;">
@@ -426,7 +659,10 @@ export const sendOTPEmail = async (email: string, otpCode: string, name: string)
         '/api/send-email',
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Correlation-ID': correlationId,
+          },
           body: JSON.stringify({
             to: email,
             subject,
@@ -435,6 +671,7 @@ export const sendOTPEmail = async (email: string, otpCode: string, name: string)
             kind: 'OTP',
             deliveryMode: 'sync',
             idempotencyKey: `otp:${email.toLowerCase()}:${otpCode}`,
+            correlationId,
           }),
         },
         DEFAULT_OTP_API_TIMEOUT_MS,
@@ -442,7 +679,22 @@ export const sendOTPEmail = async (email: string, otpCode: string, name: string)
     });
 
     if (!response.ok) {
-      throw new Error('Failed to send OTP over SMTP');
+      const { data, rawText } = await parseResponseSafe(response);
+      const errMsg = data?.details || data?.error || rawText?.slice(0, 120) || 'Failed to send OTP over SMTP';
+      const errorCategory = classifyClientErrorCategory({
+        httpStatus: response.status,
+        payloadCategory: data?.errorCategory,
+        payloadStage: data?.errorStage,
+      });
+      reportEmailFailure({
+        kind: 'OTP',
+        error: errMsg,
+        stage: data?.errorStage || `HTTP_${response.status}`,
+        errorCategory,
+        correlationId,
+        willRetry: false,
+      });
+      throw new Error(errMsg);
     }
     console.log('OTP email sent successfully');
   } catch (error) {
@@ -486,6 +738,8 @@ export const sendFundAddedEmailToMD = async (
     subject,
     html,
     idempotencyKey,
+    actorRole: opts?.actorRole,
+    actorName: opts?.actorName,
   });
 };
 
@@ -502,7 +756,13 @@ export const sendBillStatusEmailToStaff = async (
   notes: string = '',
   opts?: EmailSendOptions,
 ) => {
-  if (!staffEmail) return;
+  if (!staffEmail || isSyntheticDependEmail(staffEmail)) {
+    return {
+      dispatched: false,
+      error: 'Skipped empty or synthetic @depend.com fallback email; staff email not configured.',
+      errorCategory: 'PROVIDER_REJECTION' as EmailErrorCategory,
+    };
+  }
 
   const date = new Date().toLocaleString('en-US', { timeZone: 'Asia/Dhaka' });
   const subject = `Bill Status Update: ${status}`;
@@ -531,5 +791,7 @@ export const sendBillStatusEmailToStaff = async (
     subject,
     html,
     idempotencyKey,
+    actorRole: opts?.actorRole,
+    actorName: opts?.actorName,
   });
 };

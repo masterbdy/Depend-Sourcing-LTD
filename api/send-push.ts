@@ -1,5 +1,5 @@
-import { dispatchPopPushNotifications } from '../services/serverReminderScheduler';
-import { sendFcmPushMessage } from '../services/firebaseServerClient';
+import { dispatchPopPushNotifications } from '../services/serverReminderScheduler.js';
+import { sendFcmPushMessage } from '../services/firebaseServerClient.js';
 
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*');

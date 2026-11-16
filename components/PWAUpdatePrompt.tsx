@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { RefreshCw, Sparkles, X, CheckCircle, ShieldAlert } from 'lucide-react';
+import { safeUpdateRecovery } from '../services/safeUpdateRecoveryService';
 
 export const PWAUpdatePrompt: React.FC = () => {
   const [needRefresh, setNeedRefresh] = useState(false);
@@ -13,24 +14,35 @@ export const PWAUpdatePrompt: React.FC = () => {
     }
 
     let refreshing = false;
-    // Reload once when the new service worker takes control
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
+    let activeRegistration: ServiceWorkerRegistration | null = null;
+    let disposed = false;
+
+    const handleControllerChange = () => {
       if (!refreshing) {
         refreshing = true;
         window.location.reload();
       }
-    });
+    };
+
+    navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
+
+    const checkUpdate = () => {
+      if (disposed) return;
+      try {
+        activeRegistration?.update().catch(() => {});
+        void safeUpdateRecovery.checkForUpdates().catch(() => {});
+      } catch {}
+    };
 
     navigator.serviceWorker.getRegistration().then((reg) => {
-      if (!reg) return;
+      if (!reg || disposed) return;
+      activeRegistration = reg;
 
-      // 1. If a worker is already waiting, trigger update toast
       if (reg.waiting) {
         setWaitingWorker(reg.waiting);
         setNeedRefresh(true);
       }
 
-      // 2. Listen for new workers installing
       reg.addEventListener('updatefound', () => {
         const newWorker = reg.installing;
         if (!newWorker) return;
@@ -43,33 +55,35 @@ export const PWAUpdatePrompt: React.FC = () => {
         });
       });
 
-      // 3. Periodically check for updates (every 20 minutes) & on visibility change
-      const checkUpdate = () => {
-        try {
-          reg.update().catch(() => {});
-        } catch (e) {}
-      };
-
-      const intervalId = setInterval(checkUpdate, 20 * 60 * 1000);
-      const handleVisibilityChange = () => {
-        if (document.visibilityState === 'visible') {
-          checkUpdate();
-        }
-      };
-
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-
-      return () => {
-        clearInterval(intervalId);
-        document.removeEventListener('visibilitychange', handleVisibilityChange);
-      };
+      checkUpdate();
     }).catch((err) => {
       console.warn('[PWA] Service worker update monitor error:', err);
     });
+
+    const intervalId = setInterval(checkUpdate, 15 * 60 * 1000);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkUpdate();
+      }
+    };
+    const handleForegroundEvent = () => checkUpdate();
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('online', handleForegroundEvent);
+    window.addEventListener('pageshow', handleForegroundEvent);
+
+    return () => {
+      disposed = true;
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('online', handleForegroundEvent);
+      window.removeEventListener('pageshow', handleForegroundEvent);
+      navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
+    };
   }, []);
 
   const handleUpdate = () => {
-    // Safety check: ensure user is not actively submitting a form
+    // Safety check 1: ensure user is not actively submitting a bill
     if ((window as any).__isSubmittingBill) {
       const confirmUpdate = window.confirm(
         'একটি বিল সাবমিট করা হচ্ছে। আপনি কি নিশ্চিত যে এখন আপডেট করতে চান?'
@@ -77,12 +91,20 @@ export const PWAUpdatePrompt: React.FC = () => {
       if (!confirmUpdate) return;
     }
 
+    // Safety check 2: ensure unsynced offline bills or conflicts will not be interrupted silently
+    const safety = safeUpdateRecovery.canSafelyUpdate();
+    if (!safety.safe) {
+      const proceedAnyway = window.confirm(
+        `${safety.warningMessage || 'অফলাইন কিউতে আনসিঙ্কড ডেটা রয়েছে।'}\n\nএখনই আপডেট স্থগিত করে আগে সিঙ্ক সম্পন্ন করা নিরাপদ। তবুও কি এখন আপডেট করতে চান?`
+      );
+      if (!proceedAnyway) return;
+    }
+
     setIsUpdating(true);
     if (waitingWorker) {
       waitingWorker.postMessage({ type: 'SKIP_WAITING' });
     } else {
-      // Fallback reload
-      window.location.reload();
+      void safeUpdateRecovery.applyUpdate(true);
     }
   };
 

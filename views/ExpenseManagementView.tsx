@@ -2197,10 +2197,9 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({
       const expense = expenses.find((e) => e.id === id);
       if (expense) {
         const staff = staffMap.get(expense.staffId);
-        if (staff) {
+        if (staff?.email && !staff.email.toLowerCase().endsWith('@depend.com')) {
           import('../services/emailService').then(({ sendBillStatusEmailToStaff }) => {
-            const targetEmail = staff.email || `${staff.name.replace(/\s+/g, '').toLowerCase()}@depend.com`;
-            void sendBillStatusEmailToStaff(targetEmail, staff.name, expense.amount, expense.reason, status, '', {
+            void sendBillStatusEmailToStaff(staff.email!, staff.name, expense.amount, expense.reason, status, '', {
               entityId: expense.id,
             });
           });
@@ -2238,9 +2237,8 @@ const ExpenseManagementView: React.FC<ExpenseProps> = ({
         .filter((e) => !e.isDeleted && (e.status === 'PENDING' || e.status === 'VERIFIED'))
         .forEach((expense) => {
           const staff = staffMap.get(expense.staffId);
-          if (staff) {
-            const targetEmail = staff.email || `${staff.name.replace(/\s+/g, '').toLowerCase()}@depend.com`;
-            void sendBillStatusEmailToStaff(targetEmail, staff.name, expense.amount, expense.reason, 'APPROVED', '', {
+          if (staff?.email && !staff.email.toLowerCase().endsWith('@depend.com')) {
+            void sendBillStatusEmailToStaff(staff.email, staff.name, expense.amount, expense.reason, 'APPROVED', '', {
               entityId: expense.id,
             });
           }

@@ -432,7 +432,7 @@ async function runEmailPerformanceTests() {
     }) as any;
 
     const failRes = await sendBillStatusEmailToStaff(
-      'mehedi@depend.com',
+      'mehedi@dependsourcing.com',
       'Mehedi Hasan',
       1500,
       'Transport',
@@ -452,7 +452,7 @@ async function runEmailPerformanceTests() {
     );
     // Ensure Zero-PII in recorded incident message (no staff email address leaked!)
     assert(
-      !openEmailIncidents[0].message.includes('mehedi@depend.com'),
+      !openEmailIncidents[0].message.includes('mehedi@dependsourcing.com'),
       'Recorded Email SystemHealth incident preserves Zero-PII policy',
     );
 
@@ -470,7 +470,7 @@ async function runEmailPerformanceTests() {
     // Same entity called again within client idempotency window must deduplicate cleanly without network call
     const callsBeforeDup = clientFetchCalls;
     const dupClientRes = await sendBillStatusEmailToStaff(
-      'mehedi@depend.com',
+      'mehedi@dependsourcing.com',
       'Mehedi Hasan',
       1500,
       'Transport',

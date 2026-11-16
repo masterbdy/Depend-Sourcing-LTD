@@ -1,11 +1,11 @@
-import {
+import type {
   Attendance,
   CustomPopup,
   DailyReminderUserState,
   Expense,
   ReminderActionType,
   Staff,
-} from '../types';
+} from '../types.js';
 import {
   acquireRtdbIdempotencyLock,
   getFirebaseServerConfigStatus,
@@ -13,7 +13,7 @@ import {
   rtdbRead,
   rtdbWrite,
   sendFcmPushMessage,
-} from './firebaseServerClient';
+} from './firebaseServerClient.js';
 import {
   applyReminderActionToState,
   buildReminderIdempotencyKey,
@@ -29,7 +29,7 @@ import {
   MAX_DAILY_BILL_REMINDERS,
   normalizeDailyReminderState,
   sanitizeFirebaseKey,
-} from './reminderCore';
+} from './reminderCore.js';
 
 function toCleanArray<T>(raw: any): T[] {
   if (!raw) return [];

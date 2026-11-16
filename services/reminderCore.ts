@@ -1,12 +1,12 @@
 import {
-  Attendance,
-  CustomPopup,
-  DailyReminderUserState,
-  Expense,
-  ReminderActionType,
-  Staff,
+  type Attendance,
+  type CustomPopup,
+  type DailyReminderUserState,
+  type Expense,
+  type ReminderActionType,
+  type Staff,
   UserRole,
-} from '../types';
+} from '../types.js';
 
 export const DHAKA_TIME_ZONE = 'Asia/Dhaka';
 export const MAX_DAILY_BILL_REMINDERS = 3;

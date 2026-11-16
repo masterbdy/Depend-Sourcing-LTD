@@ -3,6 +3,11 @@ import { getApp, getApps } from 'firebase/app';
 import { getDatabase, ref, onValue, set, serverTimestamp } from 'firebase/database';
 import { getAuth } from 'firebase/auth';
 import { getUnsyncedBillCount } from './billSyncService';
+
+const healthProbeIdb = localforage.createInstance({
+  name: 'AIS_Health_Probe_DB',
+  storeName: 'health_probe',
+});
 import {
   perf,
   PerfMetric,
@@ -1022,8 +1027,8 @@ class SystemHealthService {
 
           await this.withTimeout(
             (async () => {
-              await localforage.setItem(testKey, { ping: true });
-              await localforage.removeItem(testKey);
+              await healthProbeIdb.setItem(testKey, { ping: true, ts: Date.now() });
+              await healthProbeIdb.removeItem(testKey);
             })(),
             STORAGE_TIMEOUT_MS,
             'INDEXEDDB_PROBE_TIMEOUT'
@@ -1113,7 +1118,38 @@ class SystemHealthService {
           return offlineResult;
         }
 
-        const res = await this.probeBackendServer();
+        const [res, emailApiCheck] = await Promise.all([
+          this.probeBackendServer(),
+          (async () => {
+            const epStart = performance.now();
+            const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+            const tid = controller ? setTimeout(() => controller.abort(), 2500) : null;
+            try {
+              const emailRes = await fetch('/api/send-email', {
+                method: 'GET',
+                headers: { Accept: 'application/json' },
+                ...(controller ? { signal: controller.signal } : {}),
+              });
+              if (tid !== null) clearTimeout(tid);
+              const lat = Number((performance.now() - epStart).toFixed(1));
+              return {
+                ok: emailRes.ok,
+                statusCode: emailRes.status,
+                latencyMs: lat,
+                error: emailRes.ok ? undefined : `Email API returned HTTP ${emailRes.status}`,
+              };
+            } catch (err: any) {
+              if (tid !== null) clearTimeout(tid);
+              return {
+                ok: false,
+                statusCode: 0,
+                latencyMs: Number((performance.now() - epStart).toFixed(1)),
+                error: err?.name === 'AbortError' ? 'Email API probe timed out' : err?.message || 'Email API unreachable',
+              };
+            }
+          })(),
+        ]);
+
         const durationMs = Number((performance.now() - probeStart).toFixed(1));
         probes.push({
           probe: 'backendApi',
@@ -1123,9 +1159,17 @@ class SystemHealthService {
           durationMs,
           timeoutMs: 2500,
           timedOut: res.timedOut,
-          status: res.status,
-          error: res.available ? undefined : res.error || res.failureReason,
+          status: res.available ? (emailApiCheck.ok ? res.status : 'DEGRADED') : res.status,
+          error: res.available ? emailApiCheck.error : res.error || res.failureReason,
         });
+        if (res.available && !emailApiCheck.ok) {
+          return {
+            ...res,
+            status: 'DEGRADED' as HealthStatus,
+            failureReason: emailApiCheck.error || res.failureReason,
+            error: emailApiCheck.error,
+          };
+        }
         return res;
       })();
 

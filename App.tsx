@@ -78,6 +78,7 @@ import {
   set,
   update,
   runTransaction,
+  goOnline,
   Unsubscribe,
 } from "firebase/database";
 import {
@@ -164,6 +165,11 @@ import {
   isSyntheticFallbackStaffId,
   DuplicateSyncGuard,
 } from "./services/staffSyncOptimizer";
+import {
+  normalizeFirebaseConfig,
+  reconcileSnapshotWithOfflineQueue,
+  computeSyncPayloadSignature,
+} from "./services/syncConsistencyService";
 
 localforage.config({
   name: 'AIS_App_DB',
@@ -408,6 +414,8 @@ const App: React.FC = () => {
   const cachedUserProfileRef = useRef<CachedUserProfile | null>(cachedUserProfile);
   cachedUserProfileRef.current = cachedUserProfile;
   const duplicateSyncGuardRef = useRef<DuplicateSyncGuard>(new DuplicateSyncGuard(1500));
+  const idbSignaturesRef = useRef<Record<string, string>>({});
+  const isFlushingOfflineQueueRef = useRef<boolean>(false);
   const lastVisitPointDispatchRef = useRef<number>(0);
   const [billEntryOpenTrigger, setBillEntryOpenTrigger] = useState<number>(() => {
     try {
@@ -657,21 +665,18 @@ const App: React.FC = () => {
 
   const [firebaseConfig] = useState<any>(() => {
     const saved = safeGetItem("fb_config");
-    let config;
-    try {
-      config =
-        saved && saved !== "null" ? JSON.parse(saved) : DEFAULT_FIREBASE_CONFIG;
-    } catch {
-      config = DEFAULT_FIREBASE_CONFIG;
+    const normalized = normalizeFirebaseConfig(saved);
+    if (saved && saved !== "null") {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed?.projectId !== normalized.projectId || parsed?.databaseURL !== normalized.databaseURL) {
+          safeSetItem("fb_config", JSON.stringify(normalized));
+        }
+      } catch {
+        safeSetItem("fb_config", JSON.stringify(normalized));
+      }
     }
-    if (
-      config &&
-      config.projectId &&
-      (!config.databaseURL || config.databaseURL.includes("undefined"))
-    ) {
-      config.databaseURL = `https://${config.projectId}-default-rtdb.firebaseio.com`;
-    }
-    return config;
+    return normalized;
   });
 
   // Initialize with browser connection status for instant feedback
@@ -818,21 +823,28 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const processOfflineQueue = async () => {
+      if (isFlushingOfflineQueueRef.current) return;
       if (navigator.onLine && firebaseConfig && firebaseConfig.databaseURL) {
+        isFlushingOfflineQueueRef.current = true;
         const queueStr = safeGetItem("offline_sync_queue");
         const simpleQueueStr = safeGetItem("offline_sync_queue_simple");
         let processedAny = false;
 
         try {
-          const app = getApp();
+          const apps = getApps();
+          const app = apps.length === 0 ? initializeApp(firebaseConfig) : getApp();
           const db = getDatabase(app, firebaseConfig.databaseURL);
+
+          // Ensure RTDB WebSocket wakes up on Android WebView background->foreground resume
+          try {
+            goOnline(db);
+          } catch {}
 
           if (queueStr) {
             const queue = JSON.parse(queueStr);
             for (const node of Object.keys(queue)) {
               const dataToSave = queue[node];
-              if (Object.keys(dataToSave).length > 0) {
-                // For expenses, stamp syncStatus as SUBMITTED upon confirmed server write
+              if (dataToSave && Object.keys(dataToSave).length > 0) {
                 if (node === 'expenses') {
                   const nowStr = new Date().toISOString();
                   Object.keys(dataToSave).forEach(billId => {
@@ -847,7 +859,6 @@ const App: React.FC = () => {
                 await update(ref(db, node), dataToSave);
                 processedAny = true;
 
-                // Also update memory state for expenses to show SUBMITTED
                 if (node === 'expenses') {
                   setExpenses(prev =>
                     prev.map(e =>
@@ -857,11 +868,13 @@ const App: React.FC = () => {
                     )
                   );
                 }
-                
-                // Fine-grained cleanup to avoid race conditions
+
                 const currentQueue = JSON.parse(safeGetItem("offline_sync_queue") || "{}");
                 if (currentQueue[node]) {
                   Object.keys(dataToSave).forEach(k => delete currentQueue[node][k]);
+                  if (Object.keys(currentQueue[node]).length === 0) {
+                    delete currentQueue[node];
+                  }
                   safeSetItem("offline_sync_queue", JSON.stringify(currentQueue));
                 }
               }
@@ -873,8 +886,7 @@ const App: React.FC = () => {
             for (const node of Object.keys(simpleQueue)) {
               await set(ref(db, node), simpleQueue[node]);
               processedAny = true;
-              
-              // Fine-grained cleanup for simple queue
+
               const currentSimpleQueue = JSON.parse(safeGetItem("offline_sync_queue_simple") || "{}");
               delete currentSimpleQueue[node];
               safeSetItem("offline_sync_queue_simple", JSON.stringify(currentSimpleQueue));
@@ -899,6 +911,8 @@ const App: React.FC = () => {
           }
         } catch (err) {
           console.error("Failed to process offline queue", err);
+        } finally {
+          isFlushingOfflineQueueRef.current = false;
         }
       }
     };
@@ -920,8 +934,38 @@ const App: React.FC = () => {
       );
     };
 
+    const handleForegroundResume = () => {
+      if (document.visibilityState === "visible" && navigator.onLine) {
+        void processOfflineQueue();
+      }
+    };
+
+    const handlePageShow = () => {
+      if (navigator.onLine) {
+        void processOfflineQueue();
+      }
+    };
+
+    const handleEmailErrorEvent = (event: any) => {
+      const detail = event?.detail;
+      if (!detail?.message) return;
+      handleAddNotification(
+        "ইমেইল পাঠানো ব্যর্থ হয়েছে",
+        detail.message,
+        "WARNING",
+        "system-health",
+        {
+          dedupeKey: `email-err:${detail.errorCategory || "API"}`,
+          cooldownMs: 30000,
+        },
+      );
+    };
+
     window.addEventListener("online", processOfflineQueue);
+    window.addEventListener("pageshow", handlePageShow);
+    document.addEventListener("visibilitychange", handleForegroundResume);
     window.addEventListener("offline-sync-warning", handleOfflineWarning);
+    window.addEventListener("email-delivery-error", handleEmailErrorEvent);
 
     if (navigator.onLine) {
       setTimeout(processOfflineQueue, 2000);
@@ -929,7 +973,10 @@ const App: React.FC = () => {
 
     return () => {
       window.removeEventListener("online", processOfflineQueue);
+      window.removeEventListener("pageshow", handlePageShow);
+      document.removeEventListener("visibilitychange", handleForegroundResume);
       window.removeEventListener("offline-sync-warning", handleOfflineWarning);
+      window.removeEventListener("email-delivery-error", handleEmailErrorEvent);
     };
   }, [firebaseConfig]);
 
@@ -1586,15 +1633,31 @@ const App: React.FC = () => {
         );
 
         // --- PUBLIC DATA ---
-        // Products
+        // Products (reconciles empty nodes & persists changed payloads to IDB without 1.5MB LS loss)
         publicUnsubs.push(
           onValue(
             ref(dbInstance, "products"),
             (snapshot) => {
-              if (snapshot.exists()) {
-                const data = cleanArray(snapshot.val());
-                setProducts(data as Product[]);
-                safeSetItem("products", JSON.stringify(data));
+              const queue = (() => {
+                try { return JSON.parse(safeGetItem("offline_sync_queue") || "{}"); } catch { return {}; }
+              })();
+              const data = reconcileSnapshotWithOfflineQueue<Product>(
+                "products",
+                snapshot.exists(),
+                snapshot.val(),
+                queue,
+              );
+              setProducts(data);
+              const compact = data.map((item: any) => {
+                const { image, ...rest } = item;
+                return rest;
+              });
+              safeSetItem("products", JSON.stringify(compact));
+              const serialized = JSON.stringify(data);
+              const sig = computeSyncPayloadSignature(serialized);
+              if (idbSignaturesRef.current.products !== sig) {
+                idbSignaturesRef.current.products = sig;
+                localforage.setItem("products", serialized).catch((e) => console.error("IDB save error:", e));
               }
             },
             (err) => console.error(err),
@@ -1607,16 +1670,28 @@ const App: React.FC = () => {
             ref(dbInstance, "staffList"),
             (snapshot) => {
               if (snapshot.exists()) {
-                const data = cleanArray(snapshot.val()) as Staff[];
+                const queue = (() => {
+                  try { return JSON.parse(safeGetItem("offline_sync_queue") || "{}"); } catch { return {}; }
+                })();
+                const data = reconcileSnapshotWithOfflineQueue<Staff>(
+                  "staffList",
+                  true,
+                  snapshot.val(),
+                  queue,
+                );
                 markLiveStaffListSynced(true);
                 isFirebaseLoadedRef.current = true;
                 setStaffList(data);
                 setIsFirebaseLoaded(true);
 
-                // Persist full list to localforage & lightweight summaries to localStorage
-                persistStaffData(data).catch((err) =>
-                  console.warn("Failed to persist staff cache", err)
-                );
+                // Persist full list to localforage ONLY when signature changed + lightweight summaries to localStorage
+                const sig = computeSyncPayloadSignature(data);
+                if (idbSignaturesRef.current.staffList !== sig) {
+                  idbSignaturesRef.current.staffList = sig;
+                  persistStaffData(data).catch((err) =>
+                    console.warn("Failed to persist staff cache", err)
+                  );
+                }
 
                 // Use live refs so profile stays fresh even after mid-session login
                 const activeUser = currentUserRef.current;
@@ -1647,7 +1722,7 @@ const App: React.FC = () => {
         // Editors & Settings
         publicUnsubs.push(
           onValue(ref(dbInstance, "productEditors"), (snapshot) => {
-            if (snapshot.exists()) setProductEditors(cleanArray(snapshot.val()));
+            setProductEditors(snapshot.exists() ? cleanArray(snapshot.val()) : []);
           })
         );
 
@@ -1856,51 +1931,53 @@ const App: React.FC = () => {
           const unsub = onValue(
             ref(dbInstance, node),
             (snapshot) => {
-              if (snapshot.exists()) {
-                const data = snapshot.val();
-                let arrayData =
-                  node === "staff_locations" ? data : cleanArray(data);
-
-                if (node !== "staff_locations") {
-                  const queue = JSON.parse(
-                    safeGetItem("offline_sync_queue") || "{}",
-                  );
-                  if (queue[node]) {
-                    const offlineItems = queue[node];
-                    const dataMap = new Map(
-                      (arrayData as any[]).map((item) => [item.id, item]),
-                    );
-
-                    Object.entries(offlineItems).forEach(([id, item]) => {
-                      if (item === null) {
-                        dataMap.delete(id);
-                      } else {
-                        dataMap.set(id, item);
-                      }
-                    });
-                    arrayData = Array.from(dataMap.values());
-                  }
+              if (node === "staff_locations") {
+                if (snapshot.exists()) {
+                  setter(snapshot.val());
+                } else {
+                  setter({});
                 }
+                return;
+              }
 
-                setter(arrayData);
-                if (node === "expenses" || node === "funds" || node === "advances") {
-                  setIsFinancialLive(true);
-                }
-                if (node !== "staff_locations") {
-                  let storageData = arrayData;
-                  if (node === "expenses") {
-                    storageData = (arrayData as any[]).map(item => { const { voucherImage, ...rest } = item; return rest; });
-                  } else if (node === "products") {
-                    storageData = (arrayData as any[]).map(item => { const { image, ...rest } = item; return rest; });
-                  } else if (node === "staffList") {
-                    storageData = (arrayData as any[]).map(item => { const { photo, ...rest } = item; return rest; });
-                  } else if (node === "app_notes") {
-                    storageData = (arrayData as any[]).map(item => { const { imageUrl, imageUrls, ...rest } = item; return rest; });
-                  }
-                  safeSetItem(node, JSON.stringify(storageData));
-                  // Save full data including images to IndexedDB
-                  localforage.setItem(node, JSON.stringify(arrayData)).catch(e => console.error("IDB save error:", e));
-                }
+              let queue: any = {};
+              try {
+                queue = JSON.parse(safeGetItem("offline_sync_queue") || "{}");
+              } catch {
+                queue = {};
+              }
+
+              // Handles both populated snapshots AND empty snapshots (e.g. last item hard-deleted on another device)
+              const arrayData = reconcileSnapshotWithOfflineQueue(
+                node,
+                snapshot.exists(),
+                snapshot.val(),
+                queue,
+              );
+
+              setter(arrayData);
+              if (node === "expenses" || node === "funds" || node === "advances") {
+                setIsFinancialLive(true);
+              }
+
+              let storageData: any[] = arrayData;
+              if (node === "expenses") {
+                storageData = (arrayData as any[]).map(item => { const { voucherImage, ...rest } = item; return rest; });
+              } else if (node === "products") {
+                storageData = (arrayData as any[]).map(item => { const { image, ...rest } = item; return rest; });
+              } else if (node === "staffList") {
+                storageData = (arrayData as any[]).map(item => { const { photo, ...rest } = item; return rest; });
+              } else if (node === "app_notes") {
+                storageData = (arrayData as any[]).map(item => { const { imageUrl, imageUrls, ...rest } = item; return rest; });
+              }
+              safeSetItem(node, JSON.stringify(storageData));
+
+              // Deduplicate heavy multi-MB IDB writes so Android APK diagnostics never block behind unchanged snapshots
+              const fullJson = JSON.stringify(arrayData);
+              const sig = computeSyncPayloadSignature(fullJson);
+              if (idbSignaturesRef.current[node] !== sig) {
+                idbSignaturesRef.current[node] = sig;
+                localforage.setItem(node, fullJson).catch(e => console.error("IDB save error:", e));
               }
             },
             (err) => console.error(`Sync error for ${node}:`, err),
@@ -2031,9 +2108,12 @@ const App: React.FC = () => {
       storageData = cleaned.map((item: any) => { const { imageUrl, imageUrls, ...rest } = item; return rest; });
     }
     safeSetItem(node, JSON.stringify(storageData));
-    localforage.setItem(node, JSON.stringify(cleaned)).catch(e => console.error("IDB save error:", e));
-    
     const jsonString = JSON.stringify(cleaned);
+    const sig = computeSyncPayloadSignature(jsonString);
+    if (idbSignaturesRef.current[node] !== sig) {
+      idbSignaturesRef.current[node] = sig;
+      localforage.setItem(node, jsonString).catch(e => console.error("IDB save error:", e));
+    }
 
     if (firebaseConfig && firebaseConfig.databaseURL) {
       try {
@@ -2153,10 +2233,18 @@ const App: React.FC = () => {
   const createUpdater =
     (key: string, setter: React.Dispatch<React.SetStateAction<any[]>>) =>
     (val: any) => {
+      let capturedNext: any[] | null = null;
+      let capturedPrev: any[] | null = null;
       setter((prev) => {
         const next = typeof val === "function" ? val(prev) : val;
-        syncData(key, next, prev);
+        capturedPrev = prev;
+        capturedNext = next;
         return next;
+      });
+      queueMicrotask(() => {
+        if (capturedNext !== null) {
+          void syncData(key, capturedNext, capturedPrev);
+        }
       });
     };
 
@@ -2210,8 +2298,8 @@ const App: React.FC = () => {
     const now = new Date();
     const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
-    setStaffList((prevList) => {
-      const newList = prevList.map((s) => {
+    updateStaffList((prevList) =>
+      prevList.map((s) => {
         if (s.id === staffId) {
           if (s.role === UserRole.MD || s.name.toLowerCase().includes("office"))
             return s;
@@ -2239,16 +2327,14 @@ const App: React.FC = () => {
           }
         }
         return s;
-      });
-      syncData("staffList", newList, prevList);
-      return newList;
-    });
+      }),
+    );
   };
 
   const handleDrawTimeUpdate = (staffId: string) => {
     const now = new Date().toISOString();
-    setStaffList((prevList) => {
-      const newList = prevList.map((s) => {
+    updateStaffList((prevList) =>
+      prevList.map((s) => {
         if (s.id === staffId) {
           return {
             ...s,
@@ -2258,10 +2344,8 @@ const App: React.FC = () => {
           };
         }
         return s;
-      });
-      syncData("staffList", newList, prevList);
-      return newList;
-    });
+      }),
+    );
   };
 
   const openProfile = (targetStaffId?: string) => {
@@ -2352,8 +2436,8 @@ const App: React.FC = () => {
         lastVisitPointDispatchRef.current = nowTs;
         const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
-        setStaffList((prevList) => {
-          const newList = prevList.map((s) => {
+        updateStaffList((prevList) =>
+          prevList.map((s) => {
             if (s.id === staff.id) {
               const staffMonth = s.pointsMonth || "";
 
@@ -2377,10 +2461,8 @@ const App: React.FC = () => {
               }
             }
             return s;
-          });
-          syncData("staffList", newList, prevList);
-          return newList;
-        });
+          }),
+        );
       }
     };
 
@@ -4501,7 +4583,8 @@ const App: React.FC = () => {
             importData={handleImport}
             cloudConfig={firebaseConfig}
             saveCloudConfig={(config) => {
-              safeSetItem("fb_config", JSON.stringify(config));
+              const { config: normalized } = normalizeFirebaseConfig(config);
+              safeSetItem("fb_config", JSON.stringify(normalized));
               alert("Settings saved! Reloading...");
               window.location.reload();
             }}

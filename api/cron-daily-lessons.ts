@@ -1,6 +1,6 @@
 // Vercel Serverless Function & Cron Job: /api/cron-daily-lessons.ts
 // Automatically triggers daily lesson generation for all 4 supported languages
-import { generateCuratedFallbackLesson, getTopicForDay } from '../services/lessonGeneratorService';
+import { generateCuratedFallbackLesson, getTopicForDay } from '../services/lessonGeneratorService.js';
 
 const SUPPORTED_LANGUAGES = ['english', 'chinese', 'spanish', 'serbian'] as const;
 

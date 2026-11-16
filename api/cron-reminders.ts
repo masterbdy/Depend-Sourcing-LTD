@@ -1,4 +1,4 @@
-import { runScheduledRemindersCycle } from '../services/serverReminderScheduler';
+import { runScheduledRemindersCycle } from '../services/serverReminderScheduler.js';
 
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*');

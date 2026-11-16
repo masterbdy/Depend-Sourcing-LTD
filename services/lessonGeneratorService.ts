@@ -1,4 +1,4 @@
-import { UniversalDailyLesson, UniversalWord, CourseLevel, CefrLevel } from '../views/LearningAcademy/core/types';
+import type { UniversalDailyLesson, UniversalWord, CourseLevel, CefrLevel } from '../views/LearningAcademy/core/types.js';
 
 export interface LessonGenerationRequest {
   language: 'english' | 'chinese' | 'spanish' | 'serbian';
